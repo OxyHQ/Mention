@@ -45,3 +45,19 @@ describe("notification formatter", () => {
     expect(formatNotification({ _id: "n2", type: "welcome" })).not.toContain(": undefined");
   });
 });
+
+describe("reposts and audience", () => {
+  it("shows what a bare repost shares", () => {
+    const text = formatPost({
+      id: "b1", user: { id: "u1", username: "nate", name: { displayName: "Nate" } }, content: { text: "" },
+      originalPost: { id: "o1", user: { id: "u2", username: "oxy", name: { displayName: "Oxy" } }, content: { text: "Oxy es una plataforma" } },
+    });
+    expect(text).toContain("↻ Reposted [o1] @oxy: Oxy es una plataforma");
+    expect(text).not.toContain("(no text)");
+  });
+
+  it("says when a post is not public, and says nothing for a public one", () => {
+    expect(formatPost({ id: "p1", content: { text: "hi" }, metadata: { visibility: "followers" } })).toContain("Visibility: followers (not public)");
+    expect(formatPost({ id: "p2", content: { text: "hi" }, metadata: { visibility: "public" } })).not.toContain("Visibility");
+  });
+});

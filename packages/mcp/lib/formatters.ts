@@ -55,6 +55,10 @@ interface PostData {
   parentPostId?: string;
   boostOf?: string;
   quoteOf?: string;
+  /** A boost's original, as hydration attaches it (null when it is gone). */
+  originalPost?: PostData | null;
+  /** Hydrated posts carry their audience here; `visibility` is the raw row's. */
+  metadata?: { visibility?: string };
   authors?: Array<{
     id?: string;
     username?: string;
@@ -92,7 +96,13 @@ export function formatPost(post: PostData): string {
     ? `@${handle || "unknown"}${post.user.verified ? " ✓" : ""} (${post.user.name?.displayName || ""})`
     : post.oxyUserId || "unknown author";
 
-  const text = post.content?.text || "(no text)";
+  // A bare boost has no body of its own: what it shares is the original.
+  const original = post.originalPost;
+  const text = post.content?.text
+    || (original ? `↻ Reposted [${original.id || original._id || "unknown"}] @${original.user ? getNormalizedUserHandle(original.user) || "unknown" : "unknown"}: ${original.content?.text || "(no text)"}` : "(no text)");
+  // Say when a post is NOT public, so a client never repeats a followers-only
+  // or private post to an audience its author did not choose.
+  const visibility = post.metadata?.visibility ?? post.visibility;
   const date = post.date || post.createdAt || "";
 
   const rawStats = (post.stats || post.engagement || {}) as Record<string, number | undefined>;
@@ -106,6 +116,7 @@ export function formatPost(post: PostData): string {
 
   const parts: string[] = [
     `[${id}] ${authorLine}`,
+    ...(visibility && visibility !== "public" ? [`Visibility: ${visibility} (not public)`] : []),
     text,
     `♥ ${likesCount}  ↻ ${boostsCount}  💬 ${commentsCount}`,
   ];
