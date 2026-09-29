@@ -1073,7 +1073,6 @@ export class PostHydrationService {
       this.buildImportMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
-    await this.prewarmMentionCache(postsForHydration, mentionCache);
 
     const summaryMap = new Map<string, HydratedPostSummary>();
 
@@ -1300,7 +1299,7 @@ export class PostHydrationService {
   private async buildViewerContext(posts: object[], viewerId?: string, options?: HydrationOptions): Promise<ExtendedViewerContext> {
     const context: ExtendedViewerContext = {
       viewerId,
-      languageCandidates: await this.buildLanguageCandidates(viewerId, options),
+      languageCandidates: [],
       blockedIds: new Set<string>(),
       restrictedIds: new Set<string>(),
       follows: new Set<string>(),
@@ -1320,105 +1319,116 @@ export class PostHydrationService {
       new Set(posts.map((p) => (p as RawPost)?.oxyUserId).filter(Boolean).map((id) => String(id))),
     );
 
-    // Load ALL author settings in one query (profile visibility + engagement privacy)
-    // This avoids a separate query in buildAuthorPrivacyMap.
-    //
-    // It is also the ONLY `user_settings` read a hydration makes. There used to
-    // be a second one, a few hundred lines below, that loaded the VIEWER's own
-    // four counter flags into the context — per-statement instrumentation put
-    // `user_settings` at two of the eight round trips one hydration costs. It
-    // went, rather than being folded into this batch, because the value it
-    // loaded was never read by anything and could not have been correct if it
-    // were: the four flags belong to a post's AUTHOR and hide a counter from
-    // everyone (see `engagementCountPrivacy.ts`), so the viewer's own copy of
-    // them says what the viewer discloses on THEIR posts — not what they may be
-    // shown on someone else's.
-    if (authorIds.length > 0) {
-      try {
-        const allAuthorSettings = await this.loadPrivacySettings(authorIds);
-
-        // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
-        const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
-        for (const row of allAuthorSettings) {
-          const authorId = row.oxyUserId;
-
-          // Track private profiles
-          if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
-            context.privateProfileIds.add(authorId);
-          }
-
-          // Cache engagement privacy for buildAuthorPrivacyMap
-          // The columns are flat and `NOT NULL`, so the row IS a
-          // `CountPrivacySource`. Read through the shared helper anyway: the
-          // realtime broadcaster hides exactly what this DTO hides, and a fifth
-          // counter must not be able to land in one surface only.
-          authorPrivacyCache.set(authorId, readEngagementCountPrivacy(row));
-        }
-
-        // Set defaults for authors without settings
-        for (const authorId of authorIds) {
-          if (!authorPrivacyCache.has(authorId)) {
-            authorPrivacyCache.set(authorId, { ...DEFAULT_PRIVACY });
-          }
-        }
-
-        context._authorPrivacyCache = authorPrivacyCache;
-      } catch (error) {
-        logger.warn('[PostHydration] Failed to load author settings:', error);
-      }
-    }
-
-    if (!viewerId) {
-      return context;
-    }
-
     const client = options?.oxyClient;
+    // These reads share no inputs beyond the request. Await them together so
+    // languages, author settings, privacy and graph latency do not add up.
+    // Privacy rejection still rejects hydration before any post is emitted.
+    await Promise.all([
+      (async () => {
+        context.languageCandidates = await this.buildLanguageCandidates(viewerId, options);
+      })(),
+      (async () => {
+        // Load ALL author settings in one query (profile visibility + engagement privacy)
+        // This avoids a separate query in buildAuthorPrivacyMap.
+        //
+        // It is also the ONLY `user_settings` read a hydration makes. There used to
+        // be a second one, a few hundred lines below, that loaded the VIEWER's own
+        // four counter flags into the context — per-statement instrumentation put
+        // `user_settings` at two of the eight round trips one hydration costs. It
+        // went, rather than being folded into this batch, because the value it
+        // loaded was never read by anything and could not have been correct if it
+        // were: the four flags belong to a post's AUTHOR and hide a counter from
+        // everyone (see `engagementCountPrivacy.ts`), so the viewer's own copy of
+        // them says what the viewer discloses on THEIR posts — not what they may be
+        // shown on someone else's.
+        if (authorIds.length > 0) {
+          try {
+            const allAuthorSettings = await this.loadPrivacySettings(authorIds);
 
-    // Feed path: the controller resolved both lists ONCE, up front — do NOT ask
-    // Oxy again. See `viewerPrivacy` on `HydrationOptions`; this is the same
-    // deduplication `viewerGraph` performs immediately below.
-    const threadedPrivacy = options?.viewerPrivacy;
-    const [blockedIds, restrictedIds] = threadedPrivacy
-      ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
-      : await Promise.all([
-        getBlockedUserIds(client, viewerId),
-        getRestrictedUserIds(client, viewerId),
-      ]);
+            // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
+            const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
+            for (const row of allAuthorSettings) {
+              const authorId = row.oxyUserId;
 
-    blockedIds.forEach((id) => context.blockedIds.add(String(id)));
-    restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
+              // Track private profiles
+              if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
+                context.privateProfileIds.add(authorId);
+              }
 
-    const threadedGraph = options?.viewerGraph;
-    if (threadedGraph) {
-      // Feed path: the viewer graph was already resolved ONCE by
-      // `loadViewerFeedContext` (in parallel with the rest of the context) and
-      // threaded here — do NOT re-fetch it from Oxy. This is the deduplication
-      // that guarantees getUserFollowing/getUserFollowers hit Oxy at most once per
-      // feed request.
-      threadedGraph.followingIds.forEach((id) => context.follows.add(String(id)));
-      threadedGraph.followerIds.forEach((id) => context.followedBy.add(String(id)));
-    } else {
-      // Non-feed callers (post detail, notifications, profile, search) do not
-      // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
-      try {
-        const oxyForFollows = client || getRuntimeOxyClient();
-        const [followingIds, followerIds] = await Promise.all([
-          getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
-            logger.warn('[PostHydration] getUserFollowing failed:', error);
-            return [];
-          }),
-          getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
-            logger.warn('[PostHydration] getUserFollowers failed:', error);
-            return [];
-          }),
-        ]);
+              // Cache engagement privacy for buildAuthorPrivacyMap
+              // The columns are flat and `NOT NULL`, so the row IS a
+              // `CountPrivacySource`. Read through the shared helper anyway: the
+              // realtime broadcaster hides exactly what this DTO hides, and a fifth
+              // counter must not be able to land in one surface only.
+              authorPrivacyCache.set(authorId, readEngagementCountPrivacy(row));
+            }
 
-        followingIds.forEach((id) => context.follows.add(String(id)));
-        followerIds.forEach((id) => context.followedBy.add(String(id)));
-      } catch (error) {
-        logger.warn('[PostHydration] Failed to load follower/following context:', error);
-      }
-    }
+            // Set defaults for authors without settings
+            for (const authorId of authorIds) {
+              if (!authorPrivacyCache.has(authorId)) {
+                authorPrivacyCache.set(authorId, { ...DEFAULT_PRIVACY });
+              }
+            }
+
+            context._authorPrivacyCache = authorPrivacyCache;
+          } catch (error) {
+            logger.warn('[PostHydration] Failed to load author settings:', error);
+          }
+        }
+      })(),
+      (async () => {
+        if (!viewerId) return;
+        // Feed path: the controller resolved both lists ONCE, up front — do NOT ask
+        // Oxy again. See `viewerPrivacy` on `HydrationOptions`; this is the same
+        // deduplication `viewerGraph` performs immediately below.
+        const threadedPrivacy = options?.viewerPrivacy;
+        const [blockedIds, restrictedIds] = threadedPrivacy
+          ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
+          : await Promise.all([
+            getBlockedUserIds(client, viewerId),
+            getRestrictedUserIds(client, viewerId),
+          ]);
+
+        blockedIds.forEach((id) => context.blockedIds.add(String(id)));
+        restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
+      })(),
+      (async () => {
+        if (!viewerId) return;
+        const threadedGraph = options?.viewerGraph;
+        if (threadedGraph) {
+          // Feed path: the viewer graph was already resolved ONCE by
+          // `loadViewerFeedContext` (in parallel with the rest of the context) and
+          // threaded here — do NOT re-fetch it from Oxy. This is the deduplication
+          // that guarantees getUserFollowing/getUserFollowers hit Oxy at most once per
+          // feed request.
+          threadedGraph.followingIds.forEach((id) => context.follows.add(String(id)));
+          threadedGraph.followerIds.forEach((id) => context.followedBy.add(String(id)));
+        } else {
+          // Non-feed callers (post detail, notifications, profile, search) do not
+          // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
+          try {
+            const oxyForFollows = client || getRuntimeOxyClient();
+            const [followingIds, followerIds] = await Promise.all([
+              getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
+                logger.warn('[PostHydration] getUserFollowing failed:', error);
+                return [];
+              }),
+              getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
+                logger.warn('[PostHydration] getUserFollowers failed:', error);
+                return [];
+              }),
+            ]);
+
+            followingIds.forEach((id) => context.follows.add(String(id)));
+            followerIds.forEach((id) => context.followedBy.add(String(id)));
+          } catch (error) {
+            logger.warn('[PostHydration] Failed to load follower/following context:', error);
+          }
+        }
+      })(),
+    ]);
+
+    if (!viewerId) return context;
 
     // LAST, because it reads the follow graph and the restriction/private-profile
     // sets built above: whether a post is withheld from this viewer at all is
@@ -1946,6 +1956,11 @@ export class PostHydrationService {
     for (const { post } of nodes) {
       for (const userId of collectAuthorshipUserIds(post?.authorship)) {
         userIds.add(userId);
+      }
+      // Mentions are known before identity resolution; include them in the
+      // author batch instead of adding a second remote round trip per page.
+      for (const mentionId of normalizeMentionIds(post?.mentions ?? [])) {
+        userIds.add(mentionId);
       }
     }
 
@@ -3028,39 +3043,6 @@ export class PostHydrationService {
 
 
   /**
-   * Resolve every page's mentioned users in ONE lookup before the summaries are
-   * built.
-   *
-   * `replaceMentionPlaceholders` resolves whatever a post mentions that the
-   * cache does not hold, and it runs once per post (and per inline language
-   * variant) — so a page whose posts each mention someone new paid one Redis
-   * read, and possibly one Oxy call, per post, with no de-duplication across
-   * them. Collecting the ids first turns that into one batch; the per-post pass
-   * then finds them cached and only fills genuine stragglers.
-   */
-  private async prewarmMentionCache(
-    postsForHydration: ReadonlyArray<{ post: RawPost }>,
-    mentionCache: Map<string, PostUser>,
-  ): Promise<void> {
-    const uncached = new Set<string>();
-    for (const { post } of postsForHydration) {
-      if (!Array.isArray(post?.mentions) || post.mentions.length === 0) continue;
-      for (const mentionId of normalizeMentionIds(post.mentions)) {
-        if (!mentionCache.has(mentionId)) uncached.add(mentionId);
-      }
-    }
-    if (uncached.size === 0) return;
-    const ids = [...uncached];
-    const resolved = await resolveUserSummaries(ids);
-    for (const mentionId of ids) {
-      const value = resolved.get(mentionId);
-      // Same rule as the per-post pass: a degraded fallback is "unresolved",
-      // which leaves the placeholder in place rather than a blank handle.
-      if (!value || isFallbackUserSummary(value.user)) continue;
-      mentionCache.set(mentionId, value.user);
-    }
-  }
-  /**
    * Posts-that-quote counts for the whole hydrated graph in ONE indexed
    * aggregate over `{ quoteOf: 1, createdAt: -1 }`. Only ids with at least one
    * quote appear; a caller reads a miss as zero. Counting on read (rather than a
@@ -3208,10 +3190,10 @@ export class PostHydrationService {
       const resolved = await resolveUserSummaries(uncachedIds);
       for (const mentionId of uncachedIds) {
         const value = resolved.get(mentionId);
-        if (!value || isFallbackUserSummary(value.user)) {
-          continue;
-        }
-        mentionCache.set(mentionId, value.user);
+        // Keep an unresolved result for this request too, so another post or
+        // language variant cannot repeat the failed lookup. The shared cache
+        // still stores only resolved identities; a later request can retry.
+        if (value) mentionCache.set(mentionId, value.user);
       }
     }
 
@@ -3221,7 +3203,7 @@ export class PostHydrationService {
     const replacements = new Map<string, string>();
     for (const mentionId of declaredMentionIds) {
       const mentionUser = mentionCache.get(mentionId);
-      if (mentionUser) {
+      if (mentionUser && !isFallbackUserSummary(mentionUser)) {
         // Canonical handle (`username@domain` for federated) owns both the label
         // fallback and the link target, so they can never diverge.
         const handle = getNormalizedUserHandle(mentionUser);
