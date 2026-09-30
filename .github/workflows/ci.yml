@@ -651,14 +651,28 @@ jobs:
           set -euo pipefail
           echo "sha=$(git rev-parse --verify "$BASE_REVISION^{commit}")" >> "$GITHUB_OUTPUT"
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # `path` MUST be byte-identical to the one frontend-bundle-baseline SAVES
+      # with (`mention-bundle-report.json`). actions/cache hashes the path list
+      # into the entry's version, so a restore under any other path misses even
+      # when the key matches exactly. It restored under `mention-bundle-baseline.json`
+      # until 2026-09-30: every main commit's baseline sat in the cache never read
+      # (last_accessed == created on all 24 entries), and every pull request
+      # fell through to the ~165-210s rebuild of the base commit below (run
+      # 36712766838: "Cache not found" for a key saved ten hours earlier). The
+      # next step moves it to the name the comparison reads.
       - name: Restore bundle baseline from the base branch
         id: restore_baseline
         if: steps.scope.outputs.run == 'true'
         # Restore-only prevents PR-scoped fallback builds from creating caches.
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/mention-bundle-baseline.json
+          path: ${{ runner.temp }}/mention-bundle-report.json
           key: mention-bundle-baseline-${{ steps.baseline_commit.outputs.sha }}
+      # Out of the way of this run's own report, which the budget step writes to
+      # `mention-bundle-report.json`.
+      - name: Stage the restored baseline
+        if: steps.scope.outputs.run == 'true' && steps.restore_baseline.outputs.cache-hit
+        run: mv "$RUNNER_TEMP/mention-bundle-report.json" "$RUNNER_TEMP/mention-bundle-baseline.json"
       # Fallback for a cache miss (first run after this job landed, an evicted
       # entry, a base branch that never pushed). `git reset --hard` rather than
       # the upstream `git reset` + `git restore .`: a mixed reset leaves files
