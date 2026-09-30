@@ -26,8 +26,9 @@ export const MENTION_APP_ID = 'earth.mention.app';
  * Mention can be signed with.
  *
  * - The Oxy ecosystem release key (`CN=Oxy, OU=Oxy Ecosystem`, alias `oxy`,
- *   `~/.config/oxy/oxy-ecosystem-release.keystore`). Every app sharing
- *   `android:sharedUserId="so.oxy.shared"` MUST be signed with it
+ *   `~/.config/oxy/oxy-ecosystem-release.keystore`). Every Oxy app MUST be
+ *   signed with it, since the signature-level so.oxy.permission.* permissions
+ *   that reach Commons are granted only to the same certificate
  *   (`plugins/withAndroidReleaseBuild.js`), so it is both the upload key and the
  *   key a directly-installed release APK carries.
  *
