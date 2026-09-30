@@ -29,6 +29,7 @@ import https from 'https';
 import type { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { SHELL_ACCESS_HEADER, invalidateShellDocument } from '../services/webShellDocument';
 
 /**
  * The frontend apex host (`mention.earth`). Derived from the SAME `MENTION_WEB_ORIGIN`
@@ -47,16 +48,10 @@ const FRONTEND_CDN_ORIGIN = config.web.shellOrigin;
 
 /**
  * Header the shell Worker requires before it serves a byte
- * (`packages/frontend/worker/index.js`). It is what makes that origin a door
- * rather than a second public copy of the app: under Cloudflare Pages the same
- * export sat at `mention-frontend.pages.dev`, in no CORS allowlist, so a browser
- * that found it booted the shell and had every API call blocked.
- *
- * Exported because `routes/webShell.routes.ts` fetches the same origin for its OG
- * deep links and must present the same key — those two are the only callers the
- * shell has.
+ * (`packages/frontend/worker/index.js`). Defined beside the shell document cache
+ * that also presents it, and re-exported here, where callers import it from.
  */
-export const SHELL_ACCESS_HEADER = 'X-Mention-Shell-Key';
+export { SHELL_ACCESS_HEADER };
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;
@@ -275,6 +270,9 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   if (isContentHashedAsset(req.path) && isHtmlContentType(contentType)) {
     // The SPA fallback must never be cached at a hashed static-asset URL.
     upstream.resume();
+    // A document that names a chunk the Worker no longer has is from a previous
+    // release. Stop building pages from the copy this task holds.
+    invalidateShellDocument();
     res.status(404);
     res.setHeader('Cache-Control', 'no-store');
     res.removeHeader('Pragma');
