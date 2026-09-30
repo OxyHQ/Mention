@@ -13,10 +13,8 @@ import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { RiNewspaperLine } from '@oxy.so/bloom/icons/RiNewspaperLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -42,6 +40,7 @@ import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface ListOwner {
   _id?: string;
@@ -341,17 +340,14 @@ export default function ListDetailScreen() {
           >
             {renderSubheader()}
             <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-            <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-              <RiNewspaperLine size="3xl" fill={theme.colors.textSecondary} />
-              <Text className="text-muted-foreground text-base font-medium text-center">
-                {t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
-              </Text>
-              <Text className="text-muted-foreground text-sm text-center">
-                {t('lists.emptyPostsSubtext', {
-                  defaultValue: 'Add people to this list to see their posts here',
-                })}
-              </Text>
-            </View>
+            <EmptyState
+              title={t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
+              subtitle={t('lists.emptyPostsSubtext', {
+                defaultValue: 'Add people to this list to see their posts here',
+              })}
+              sticker="listPosts"
+              containerStyle={{ minHeight: 200 }}
+            />
           </ScrollView>
         ) : (
           <Feed
@@ -454,19 +450,18 @@ function ListMembers({
       )}
 
       {memberIds.length === 0 ? (
-        <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-          <RiGroupLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base font-medium text-center">
-            {t('lists.emptyMembers', { defaultValue: 'No members yet' })}
-          </Text>
-          {isOwnList && (
-            <Text className="text-muted-foreground text-sm text-center">
-              {t('lists.emptyMembersSubtext', {
-                defaultValue: 'Add people to curate this list',
-              })}
-            </Text>
-          )}
-        </View>
+        <EmptyState
+          title={t('lists.emptyMembers', { defaultValue: 'No members yet' })}
+          subtitle={
+            isOwnList
+              ? t('lists.emptyMembersSubtext', {
+                  defaultValue: 'Add people to curate this list',
+                })
+              : undefined
+          }
+          sticker="listMembers"
+          containerStyle={{ minHeight: 200 }}
+        />
       ) : (
         <View className="pt-2">
           <Text className="text-muted-foreground text-sm mb-2 px-4">

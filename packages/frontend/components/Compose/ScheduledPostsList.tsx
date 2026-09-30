@@ -18,6 +18,7 @@ import { confirmDialog } from '@/utils/alerts';
 import { formatScheduledLabel } from '@/utils/dateUtils';
 import { createLogger } from '@oxy.so/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const logger = createLogger('ScheduledPostsList');
 
@@ -248,7 +249,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
         >
           {isCancelling ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
@@ -260,7 +261,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="large" />
+        <Loading className="text-primary" size="lg" />
       </View>
     );
   }
@@ -280,17 +281,14 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
 
   if (posts.length === 0) {
     return (
-      <View className="flex-1 justify-center items-center py-12 px-8">
-        <RiCalendarLine width={64} height={64} fill={theme.colors.textTertiary} />
-        <Text className="mt-6 text-xl font-semibold text-foreground">
-          {t('compose.scheduled.empty', { defaultValue: 'No scheduled posts' })}
-        </Text>
-        <Text className="mt-2 text-base text-center text-muted-foreground">
-          {t('compose.scheduled.emptyDescription', {
-            defaultValue: 'Posts you schedule will wait here until it is time to publish them.',
-          })}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('compose.scheduled.empty', { defaultValue: 'No scheduled posts' })}
+        subtitle={t('compose.scheduled.emptyDescription', {
+          defaultValue: 'Posts you schedule will wait here until it is time to publish them.',
+        })}
+        sticker="scheduledPosts"
+        containerStyle={{ flex: 1, justifyContent: 'center' }}
+      />
     );
   }
 

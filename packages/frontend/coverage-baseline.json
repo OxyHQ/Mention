@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 42.26,
-      "covered": 11392,
-      "total": 26956
+      "pct": 42.76,
+      "covered": 11551,
+      "total": 27012
     },
     "branches": {
-      "pct": 36.71,
-      "covered": 7119,
-      "total": 19388
+      "pct": 37.34,
+      "covered": 7256,
+      "total": 19431
     },
     "functions": {
-      "pct": 37.46,
-      "covered": 2576,
-      "total": 6876
+      "pct": 37.94,
+      "covered": 2615,
+      "total": 6892
     },
     "lines": {
-      "pct": 43,
-      "covered": 10362,
-      "total": 24096
+      "pct": 43.5,
+      "covered": 10503,
+      "total": 24142
     }
   },
   "pins": {
@@ -48,10 +48,10 @@
       "lines": 100
     },
     "components/providers/AppProviders.tsx": {
-      "statements": 80,
+      "statements": 87,
       "branches": 100,
-      "functions": 50,
-      "lines": 80
+      "functions": 66,
+      "lines": 85
     },
     "components/providers/AppShellProviders.tsx": {
       "statements": 100,
@@ -413,6 +413,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useMentionSearchResults.ts": {
+      "statements": 100,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useMutualFollowers.ts": {
       "statements": 0,
       "branches": 0,
@@ -540,10 +546,10 @@
       "lines": 0
     },
     "hooks/useRealtimeNotifications.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 67,
+      "branches": 52,
+      "functions": 60,
+      "lines": 70
     },
     "hooks/useRealtimePosts.ts": {
       "statements": 90,
@@ -845,6 +851,12 @@
       "functions": 86,
       "lines": 91
     },
+    "lib/lottieWeb.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "lib/operatedAccounts.ts": {
       "statements": 100,
       "branches": 100,
@@ -906,6 +918,12 @@
       "lines": 0
     },
     "lib/socketBfcache.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/stickers.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -1098,10 +1116,10 @@
       "lines": 0
     },
     "services/notificationService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 21,
+      "branches": 66,
+      "functions": 16,
+      "lines": 21
     },
     "services/pokeService.ts": {
       "statements": 0,
@@ -1518,10 +1536,10 @@
       "lines": 100
     },
     "utils/mentions.ts": {
-      "statements": 92,
-      "branches": 68,
-      "functions": 88,
-      "lines": 96
+      "statements": 98,
+      "branches": 90,
+      "functions": 100,
+      "lines": 100
     },
     "utils/mergeBioAndProfileLinks.ts": {
       "statements": 100,
@@ -1530,10 +1548,10 @@
       "lines": 100
     },
     "utils/notificationCache.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 41,
+      "branches": 29,
+      "functions": 52,
+      "lines": 39
     },
     "utils/notifications.ts": {
       "statements": 0,

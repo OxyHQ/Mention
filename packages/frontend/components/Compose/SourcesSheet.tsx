@@ -163,7 +163,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         <Button
           className="mt-3 mx-4"
           appearance="subtle" tone="neutral"
-          size="large"
+          size="lg"
           leadingIcon={RiAddLine}
           onPress={onAdd}
           disabled={!canAddMore}

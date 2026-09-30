@@ -142,7 +142,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
 
       {isLoading ? (
         <View className="py-10 items-center">
-          <Loading className="text-primary" size="large" style={{ flex: undefined }} />
+          <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
         </View>
       ) : otherAccounts.length === 0 ? (
         <Text className="text-center text-sm text-muted-foreground py-6 px-6">
@@ -208,7 +208,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
               })}
             </Text>
           </View>
-          <Switch value={alsoPostToProfile} onValueChange={onAlsoPostToProfileChange} />
+          <Switch checked={alsoPostToProfile} onCheckedChange={onAlsoPostToProfileChange} />
         </View>
       ) : null}
     </Dialog>

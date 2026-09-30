@@ -2540,5 +2540,10 @@
   "connections.profileNotFound": "Akun ini tidak ada, jadi tidak ada pengikut untuk ditampilkan.",
   "saved.createFolderFailed": "Folder tidak dapat dibuat. Coba lagi.",
   "profile.loadFailed": "Profil ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
-  "profile.notFound.gone": "Akun ini tidak ada atau sudah tidak tersedia."
+  "profile.notFound.gone": "Akun ini tidak ada atau sudah tidak tersedia.",
+  "notFound": {
+    "title": "Halaman ini tidak ada",
+    "subtitle": "Tautannya mungkin rusak, atau halamannya telah dipindahkan.",
+    "goHome": "Ke beranda"
+  }
 }

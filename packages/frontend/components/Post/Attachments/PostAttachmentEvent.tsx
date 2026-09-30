@@ -41,11 +41,10 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
     // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
     // given `onPress`, the press dip; without one it is a plain, inert view.
     <Card
-      variant="outlined"
       radius="radius-16"
       className="w-[200px] min-h-[140px] flex-row"
       style={style}
-      onPress={onPress}
+      onPress={onPress} appearance="outline"
     >
       <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
         {day !== null && (

@@ -1,6 +1,7 @@
 import { authenticatedClient } from '../utils/api';
 import { createLogger } from '@oxy.so/core/logger';
 import type { TRawNotification } from '@/types/validation';
+import { loadNotificationValidation } from '@/lib/notificationValidation';
 
 const logger = createLogger('NotificationService');
 
@@ -32,10 +33,15 @@ class NotificationService {
                 params.cursor = cursor;
             }
 
-            const response = await authenticatedClient.get<Partial<NotificationsResponse>>('/notifications', { params });
+            const [response, { validateNotifications }] = await Promise.all([
+                authenticatedClient.get<Partial<NotificationsResponse>>('/notifications', { params }),
+                loadNotificationValidation(),
+            ]);
 
             return {
-                notifications: response.data.notifications || [],
+                // Parsed once, here, at the boundary: everything that reads the
+                // list (and the realtime patches applied to it) holds contract-valid rows.
+                notifications: validateNotifications(response.data.notifications ?? []),
                 unreadCount: response.data.unreadCount || 0,
                 hasMore: response.data.hasMore || false,
                 nextCursor: response.data.nextCursor,

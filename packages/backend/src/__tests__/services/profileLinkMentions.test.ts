@@ -34,6 +34,8 @@ const mocks = vi.hoisted(() => ({
   resolveOxyUser: vi.fn(),
   findActorByUri: vi.fn(),
   findActorByAcct: vi.fn(),
+  findActorOxyUserIdsByAccts: vi.fn(),
+  cacheStore: new Map<string, unknown>(),
   createActor: vi.fn(),
   updateActor: vi.fn(),
 }));
@@ -45,8 +47,19 @@ vi.mock('../../connectors/activitypub/constants', () => ({
 vi.mock('../../db/federation/actorRepository', () => ({
   findActorByUri: mocks.findActorByUri,
   findActorByAcct: mocks.findActorByAcct,
+  findActorOxyUserIdsByAccts: mocks.findActorOxyUserIdsByAccts,
   upsertActor: mocks.createActor,
   setActorOxyUserId: mocks.updateActor,
+}));
+// The shared Redis cache, as an in-memory map: what is under test is what the
+// fold asks Oxy for on a cold and on a warm cache, not Redis.
+vi.mock('../../utils/cache', () => ({
+  createCache: () => ({
+    getMany: async (keys: string[]) => keys.map((key) => mocks.cacheStore.get(key)),
+    setMany: async (entries: Iterable<readonly [string, unknown]>) => {
+      for (const [key, value] of entries) mocks.cacheStore.set(key, value);
+    },
+  }),
 }));
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -79,6 +92,9 @@ function stubStoredActors(rows: { uri?: Record<string, string>; acct?: Record<st
   mocks.findActorByAcct.mockImplementation(async (acct: string) =>
     rows.acct?.[acct] ? { oxyUserId: rows.acct[acct] } : null,
   );
+  mocks.findActorOxyUserIdsByAccts.mockImplementation(async (accts: string[]) =>
+    new Map(accts.filter((acct) => rows.acct?.[acct]).map((acct) => [acct, rows.acct![acct]])),
+  );
 }
 
 /** The single-body write shape every native controller hands the fold. */
@@ -98,6 +114,8 @@ beforeEach(() => {
   mocks.resolveOxyUser.mockResolvedValue(null);
   mocks.findActorByUri.mockResolvedValue(null);
   mocks.findActorByAcct.mockResolvedValue(null);
+  mocks.findActorOxyUserIdsByAccts.mockResolvedValue(new Map());
+  mocks.cacheStore.clear();
 });
 
 describe('a profile link on OUR OWN host', () => {
@@ -424,7 +442,7 @@ describe('a handle typed by hand', () => {
 
     const fold = await foldProfileLinkMentions(content, []);
 
-    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
+    expect(mocks.findActorOxyUserIdsByAccts).not.toHaveBeenCalled();
     expect(content.text).toBe(`hi [mention:${ALICE_OXY_ID}]`);
     expect(fold.mentions).toEqual([ALICE_OXY_ID]);
   });
@@ -435,7 +453,12 @@ describe('a handle typed by hand', () => {
 
     const fold = await foldProfileLinkMentions(content, []);
 
-    expect(mocks.findActorByAcct).toHaveBeenCalledWith('bob@mastodon.social');
+    // ONE query for every remote handle of the body.
+    expect(mocks.findActorOxyUserIdsByAccts).toHaveBeenCalledTimes(1);
+    expect(mocks.findActorOxyUserIdsByAccts).toHaveBeenCalledWith([
+      'bob@mastodon.social',
+      'carol@mastodon.social',
+    ]);
     expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
     expect(content.text).toBe(`cc [mention:${BOB_OXY_ID}] and @carol@mastodon.social`);
     expect(fold.mentions).toEqual([BOB_OXY_ID]);
@@ -450,7 +473,7 @@ describe('a handle typed by hand', () => {
 
     const fold = await foldProfileLinkMentions(content, []);
 
-    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
+    expect(mocks.findActorOxyUserIdsByAccts).not.toHaveBeenCalled();
     expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
     expect(content.text).toBe('hey @alice@poa.st');
     expect(fold.mentions).toEqual([]);
@@ -509,5 +532,57 @@ describe('a handle typed by hand', () => {
 
     expect(content.text).toBe(`[mention:${BOB_OXY_ID}] meet [mention:${ALICE_OXY_ID}]`);
     expect(fold.mentions.sort()).toEqual([ALICE_OXY_ID, BOB_OXY_ID].sort());
+  });
+});
+
+describe('what a typed handle costs', () => {
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockImplementation(async (username: string) =>
+      username.toLowerCase() === 'alice' ? { _id: ALICE_OXY_ID } : null,
+    );
+  });
+
+  it('asks Oxy once per name, then answers from the shared cache — misses included', async () => {
+    await foldProfileLinkMentions(body('@alice and @nadie'), []);
+    expect(mocks.resolveOxyUser).toHaveBeenCalledTimes(2);
+
+    mocks.resolveOxyUser.mockClear();
+    const content = body('again @Alice and @nadie');
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(content.text).toBe(`again [mention:${ALICE_OXY_ID}] and @nadie`);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it('does not cache a lookup that failed — an outage is not an answer', async () => {
+    mocks.resolveOxyUser.mockRejectedValueOnce(new Error('oxy down'));
+    await foldProfileLinkMentions(body('@alice'), []);
+
+    const content = body('@alice');
+    await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledTimes(2);
+    expect(content.text).toBe(`[mention:${ALICE_OXY_ID}]`);
+  });
+
+  it('asks Oxy for the name as the author spelled it', async () => {
+    await foldProfileLinkMentions(body('@Alice'), []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledWith('Alice');
+  });
+
+  it('cuts the handles to what the resolved links left of the per-post ceiling', async () => {
+    stubStoredActors({ acct: { 'bob@mastodon.social': BOB_OXY_ID } });
+    const carried = Array.from({ length: MAX_MENTIONS_PER_POST - 1 }, (_, i) => `oxy_carried_${i}`);
+    const content = body(
+      `${carried.map((id) => `[mention:${id}]`).join(' ')} https://mastodon.social/@bob @alice`,
+    );
+
+    const fold = await foldProfileLinkMentions(content, carried);
+
+    // One slot left: the link, read first, takes it; the handle stays text.
+    expect(fold.mentions).toEqual([...carried, BOB_OXY_ID]);
+    expect(content.text).toContain('@alice');
   });
 });

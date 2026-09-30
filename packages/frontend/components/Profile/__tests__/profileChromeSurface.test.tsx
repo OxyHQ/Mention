@@ -91,3 +91,25 @@ describe('profile tab row surface', () => {
     expect(props.style?.backgroundColor).toBe(PUBLISHED_FILL);
   });
 });
+
+/**
+ * The avatar ring cuts the avatar out of the banner, so it only works in the
+ * colour of the surface under the summary. It was `border-background` — the
+ * theme background, which the profile is not painted in — and showed as a
+ * darker halo. Rendering the headers here would stub half the app, so the
+ * three rings are pinned at the source: each asks for the surface fill, and
+ * none names the theme background.
+ */
+describe('profile avatar ring surface', () => {
+  const { readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs');
+  const { resolve } = jest.requireActual<typeof import('node:path')>('node:path');
+  const read = (file: string) => readFileSync(resolve(__dirname, '..', file), 'utf8');
+
+  it.each(['ProfileHeader.tsx', 'ChannelHeader.tsx', 'ProfileSkeleton.tsx'])('%s rings the avatar in the surface fill', file => {
+    const source = read(file);
+    expect(source).toMatch(/useSurfaceFill\(\)/);
+    expect(source).toMatch(/borderColor: surfaceFill/);
+    expect(source).not.toMatch(/border-background/);
+    expect(source).not.toMatch(/borderColor: theme\.colors\.background/);
+  });
+});

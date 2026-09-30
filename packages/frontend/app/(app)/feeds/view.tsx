@@ -73,7 +73,7 @@ export default function PresetFeedViewScreen() {
         if (!preset) {
             return (
                 <EmptyState
-                    icon={{ name: 'help-circle-outline' }}
+                    sticker="feedNotFound"
                     title={t('feeds.view.notFound.title', { defaultValue: 'Feed not found' })}
                     subtitle={t('feeds.view.notFound.subtitle', { defaultValue: 'This feed is no longer available.' })}
                     containerStyle={{ paddingTop: 60 }}
@@ -84,11 +84,11 @@ export default function PresetFeedViewScreen() {
             // During the cold-boot SSO restore window the session may still land,
             // so wait it out before showing the anonymous prompt.
             if (isPrivateApiPending) {
-                return <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 60 }} />;
+                return <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 60 }} />;
             }
             return (
                 <EmptyState
-                    icon={{ name: 'lock-closed-outline' }}
+                    sticker="operatorOnly"
                     title={t('feeds.view.signInRequired.title', { defaultValue: 'Sign in to view this feed' })}
                     subtitle={t('feeds.view.signInRequired.subtitle', { defaultValue: 'This feed is personalized to your account.' })}
                     containerStyle={{ paddingTop: 60 }}

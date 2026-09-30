@@ -250,14 +250,14 @@ export default function ConnectedAiScreen() {
                       <Loading
                         className="text-primary"
                         variant="inline"
-                        size="small"
+                        size="sm"
                         style={{ flex: undefined }}
                       />
                     ) : (
                       <Button
                         appearance="subtle"
                         tone="neutral"
-                        size="small"
+                        size="sm"
                         onPress={() => handleRevoke(connection)}
                         disabled={revokeMutation.isPending}
                       >

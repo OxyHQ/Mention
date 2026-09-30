@@ -155,7 +155,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
           </View>
           {loading ? (
             <View style={styles.loadingRow}>
-              <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+              <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
             </View>
           ) : (
             <FlatList

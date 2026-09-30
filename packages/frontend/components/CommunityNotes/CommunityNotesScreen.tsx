@@ -101,7 +101,7 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
       <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-10 pt-4">
         <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
         {entries.length === 0 ? (
-          <EmptyState title={empty} icon={{ name: 'people-outline', size: 44 }} />
+          <EmptyState title={empty} sticker="communityNotes" />
         ) : (
           entries.map(({ post, note }) => (
             <View key={note.id} className="border-border gap-3 border-b pb-6">

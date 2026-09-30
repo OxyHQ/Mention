@@ -135,10 +135,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
       {users.length === 0 ? (
         <EmptyState
           title={`No ${type === 'likes' ? 'likes' : 'boosts'} yet`}
-          icon={{
-            name: type === 'likes' ? 'heart-outline' : 'repeat-outline',
-            size: 48,
-          }}
+          sticker="postNoEngagement"
           containerStyle={{ flex: 1 }}
         />
       ) : (
@@ -151,7 +148,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           ListFooterComponent={
             loadingMore ? (
               <View className="py-4 items-center">
-                <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
               </View>
             ) : null
           }

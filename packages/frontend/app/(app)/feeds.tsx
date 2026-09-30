@@ -28,6 +28,7 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
 import { Fab } from '@oxy.so/bloom/fab';
+import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -477,7 +478,7 @@ const FeedsScreen: React.FC = () => {
       </View>
 
       {loading && !refreshing && publicFeeds.length === 0 ? (
-        <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 24 }} />
+        <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 24 }} />
       ) : (
         filteredPublic.map((item) => (
           <FeedRow
@@ -551,15 +552,16 @@ const FeedsScreen: React.FC = () => {
           </FocusedScrollView>
         )}
 
-        {/* Clears the BottomBar on every platform — Bloom's Fab reads the
-              bottom edge's occupancy, which the bar publishes. */}
+        {/* PageAction follows the shell's bottom navigation clearance. */}
         {canEdit ? (
-          <Fab
-            size="md" placement="bottom-right"
-            onPress={() => router.push('/feeds/new')}
-            icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
-            accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-          />
+          <PageAction>
+            <Fab
+              size="md"
+              onPress={() => router.push('/feeds/new')}
+              icon={RiAddLine}
+              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
+            />
+          </PageAction>
         ) : null}
       </View>
     </>

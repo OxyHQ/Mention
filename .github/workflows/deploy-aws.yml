@@ -1,6 +1,27 @@
 name: Deploy Mention Backend to AWS
 
 on:
+  # Two triggers, one release per commit. `release-provenance.sh` in the `scope`
+  # job decides which of them owns a given SHA, and the answer is the same from
+  # both sides, so exactly one of them deploys it:
+  #
+  #   * push to main — a commit that came through the merge queue. The queue
+  #     tested this exact SHA in a `merge_group` run of CI and only then
+  #     fast-forwarded main to it, so the release verifies THAT run's
+  #     `CI complete` (by the GitHub API, for this SHA, fail-closed) and starts
+  #     at once instead of waiting ~8-10 minutes for CI on push to re-test the
+  #     same tree. Every other push is skipped here, with a notice.
+  #
+  #   * workflow_run of CI — the path every release used to take, kept as the
+  #     fallback for commits that did NOT come through the queue (an admin
+  #     bypass, a direct push, the window before the queue is switched on). It
+  #     still requires CI on push to have succeeded, exactly as before, and it
+  #     skips any SHA the push path already owns.
+  #
+  # Before the merge-queue ruleset is enabled no commit is ever verified, so
+  # the push trigger skips everything and releases behave exactly as they did.
+  push:
+    branches: [main]
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -10,12 +31,6 @@ permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: deploy-mention-backend
-  # Serialize production rollouts. Cancelling after `update-service` would leave
-  # an unmonitored deployment running in ECS.
-  cancel-in-progress: false
-
 env:
   AWS_REGION: us-west-2
   AWS_ACCOUNT_ID: '237343248947'
@@ -24,16 +39,31 @@ env:
   CONTAINER_NAME: mention
   CLUSTER: oxy-cluster
   DOCKERFILE: packages/backend/Dockerfile
-  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+  # The commit under release: the pushed head on `push`, the tested head on
+  # `workflow_run`. Both are commits on main; require-current-main.sh refuses
+  # either the moment it stops being main's head.
+  DEPLOY_SHA: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
 
 jobs:
+  # Decides, before anything is serialised, whether this run releases anything:
+  # which path owns the SHA, whether it is still main's head, and whether it
+  # changed anything this target ships. It sits OUTSIDE the release concurrency
+  # group on purpose — see the deploy job.
   scope:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch == 'main'
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # `actions: read` to look up the SHA's merge_group CI run and its jobs. Job
+    # level, so no other job gains it; this job holds nothing else.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
@@ -45,13 +75,49 @@ jobs:
           # connects them to the candidate.
           fetch-depth: 0
           fetch-tags: true
+      - name: Decide which release path owns this commit
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: bash .github/scripts/release-provenance.sh
+      # Checked here as well as in the deploy job, and this one is what keeps
+      # the release lane ordered: a run whose SHA main has already left never
+      # reaches the concurrency group, so it cannot displace a newer release
+      # waiting there (GitHub cancels a PENDING run when another queues behind
+      # it). Neutral, not red — the newer head's release carries this commit.
+      - name: Skip a commit main has already moved past
+        id: current
+        if: steps.provenance.outputs.release == 'true'
+        env:
+          STALE_RELEASE: skip
+        run: bash .github/scripts/require-current-main.sh
       - name: Detect backend deployment scope
         id: filter
+        if: steps.current.outputs.current == 'true'
         run: bash .github/scripts/deployment-scope.sh backend
 
   deploy:
     needs: scope
     if: needs.scope.outputs.deploy == 'true'
+    # On THIS job, not the workflow, since the workflow gained a second trigger.
+    # Every commit now starts two runs of it (push, then CI's workflow_run ~10
+    # minutes later), and one of the two always releases nothing. A
+    # workflow-level group would queue the no-op beside real releases, and
+    # GitHub cancels a pending run when another queues behind it — so a no-op
+    # for an older commit could silently displace a pending release of a newer
+    # one. Here only a run that `scope` has already judged current and owned
+    # ever enters the lane.
+    concurrency:
+      group: deploy-mention-backend
+      # Serialize production rollouts. Cancelling after `update-service` would leave
+      # an unmonitored deployment running in ECS.
+      cancel-in-progress: false
+    outputs:
+      # 'true' only when the LAST stale-release guard passed, i.e. this job went
+      # on to change production. A job that stopped at a stale guard still
+      # succeeds (neutral), so success alone must not move the marker.
+      released: ${{ steps.current_release.outputs.current }}
     runs-on: ubuntu-24.04-arm
     # Includes image build, migrations, rollout, smoke checks and a full
     # rollback window if the production smoke check fails.
@@ -63,21 +129,28 @@ jobs:
           fetch-depth: 2
 
       - name: Verify current main before building
+        id: current_build
+        env:
+          STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
       - name: Configure AWS credentials
+        if: steps.current_build.outputs.current == 'true'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
+        if: steps.current_build.outputs.current == 'true'
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Set up Docker Buildx
+        if: steps.current_build.outputs.current == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build and push immutable backend image
+        if: steps.current_build.outputs.current == 'true'
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -92,6 +165,7 @@ jobs:
           sbom: true
 
       - name: Audit final backend runtime image
+        if: steps.current_build.outputs.current == 'true'
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
@@ -99,9 +173,14 @@ jobs:
         run: bash .github/scripts/audit-runtime-image.sh
 
       - name: Verify current main before production changes
+        id: current_changes
+        if: steps.current_build.outputs.current == 'true'
+        env:
+          STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
       - name: Sync GitHub secrets to SSM
+        if: steps.current_changes.outputs.current == 'true'
         id: sync
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -204,9 +283,14 @@ jobs:
           echo "synced=$synced" >>"$GITHUB_OUTPUT"
 
       - name: Re-verify current main before ECS rollout
+        id: current_release
+        if: steps.current_changes.outputs.current == 'true'
+        env:
+          STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
       - name: Register immutable task definition and deploy
+        if: steps.current_release.outputs.current == 'true'
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
@@ -423,8 +507,12 @@ jobs:
 
   record-deployment:
     # Runs only after a green production rollout, so a failed or rolled back
-    # release stays inside the next candidate's scope diff.
+    # release stays inside the next candidate's scope diff — and only when that
+    # rollout actually happened. A deploy job that met a stale guard ends green
+    # having changed nothing; moving the marker to its SHA would drop every
+    # change between production and that SHA out of the next scope diff.
     needs: deploy
+    if: needs.deploy.outputs.released == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # The only job in this workflow that may move the marker; the deploy job

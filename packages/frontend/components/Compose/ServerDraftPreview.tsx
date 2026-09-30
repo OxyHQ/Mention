@@ -86,7 +86,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
     >
       <View className="px-4 pt-3 border-t border-border">
         <Button
-          size="large"
+          size="lg"
           leadingIcon={RiSendPlaneLine}
           onPress={handlePublish}
           disabled={busy}
@@ -101,7 +101,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
         <Button
           className="flex-1"
           appearance="subtle" tone="neutral"
-          size="large"
+          size="lg"
           leadingIcon={RiEditLine}
           onPress={onEdit}
           disabled={busy}
@@ -112,7 +112,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
         <Button
           className="flex-1"
           appearance="solid" tone="danger"
-          size="large"
+          size="lg"
           leadingIcon={RiDeleteBinLine}
           onPress={handleDelete}
           disabled={busy}

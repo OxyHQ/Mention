@@ -13,7 +13,7 @@ import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
-import { DraftsIcon } from '@/assets/icons/drafts';
+import { EmptyState } from '@/components/common/EmptyState';
 import type { Draft } from '@/hooks/useDrafts';
 import { useDraftsList, type DraftListItem } from '@/hooks/useDraftsList';
 import { toast } from '@oxy.so/bloom/toast';
@@ -320,7 +320,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           accessibilityLabel={t('compose.deleteDraft')}
         >
           {isBusy ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
@@ -348,7 +348,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="large" />
+        <Loading className="text-primary" size="lg" />
       </View>
     );
   }
@@ -366,21 +366,18 @@ const DraftsList: React.FC<DraftsListProps> = ({
     </View>
   ) : serverLoading ? (
     <View className="items-center py-4">
-      <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+      <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
     </View>
   ) : null;
 
   if (items.length === 0 && serverStatus === null) {
     return (
-      <View className="flex-1 justify-center items-center py-12 px-8">
-        <DraftsIcon size={64} className="text-muted-foreground" />
-        <Text className="mt-6 text-xl font-semibold text-foreground">
-          {t('compose.noDrafts')}
-        </Text>
-        <Text className="mt-2 text-base text-center text-muted-foreground">
-          {t('compose.noDraftsDescription')}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('compose.noDrafts')}
+        subtitle={t('compose.noDraftsDescription')}
+        sticker="drafts"
+        containerStyle={{ flex: 1, justifyContent: 'center' }}
+      />
     );
   }
 

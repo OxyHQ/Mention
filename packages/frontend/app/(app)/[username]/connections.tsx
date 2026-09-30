@@ -2,7 +2,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -12,6 +11,8 @@ import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { EmptyState } from '@/components/common/EmptyState';
+import type { EmptyStateStickerName } from '@/lib/stickers';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -28,6 +29,14 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
+
+/** The catalogue sticker each tab shows when it has nobody to list. */
+const EMPTY_STICKER_BY_TAB: Record<TabType, EmptyStateStickerName> = {
+  followers: 'connectionsFollowers',
+  following: 'connectionsFollowing',
+  'who-may-know': 'connectionsRecommendations',
+  'in-common': 'connectionsInCommon',
+};
 
 /**
  * How long a fetched who-may-know page stays fresh before React Query refetches
@@ -529,15 +538,12 @@ function ConnectionsContent({
         keyExtractor={(item: ConnectionUser) => String(item.id || item._id || item.userID || item.username)}
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
-          <View className="items-center py-[60px] px-8 gap-2">
-            <RiGroupLine size="3xl" fill={theme.colors.textSecondary} />
-            <Text className="text-[17px] font-bold mt-2 text-center text-foreground">
-              {getEmptyMessage()}
-            </Text>
-            <Text className="text-sm leading-5 text-center text-muted-foreground">
-              {getEmptySubtitle()}
-            </Text>
-          </View>
+          <EmptyState
+            title={getEmptyMessage()}
+            subtitle={getEmptySubtitle() || undefined}
+            sticker={EMPTY_STICKER_BY_TAB[activeTab]}
+            containerStyle={{ paddingTop: 60 }}
+          />
         }
         removeClippedSubviews={false}
         maxToRenderPerBatch={10}

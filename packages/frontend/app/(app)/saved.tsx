@@ -27,12 +27,11 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
-import { Search as SearchIcon } from '@/assets/icons/search-icon';
-import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Fab } from '@oxy.so/bloom/fab';
+import { PageAction } from '@/components/shell/PageAction';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import {
     feedService,
@@ -295,7 +294,7 @@ const SavedPostsScreen: React.FC = () => {
         if (initialLoading) {
             return (
                 <View className="items-center justify-center pt-[60px]">
-                    <Loading className="text-primary" size="large" />
+                    <Loading className="text-primary" size="lg" />
                 </View>
             );
         }
@@ -331,9 +330,7 @@ const SavedPostsScreen: React.FC = () => {
                     : selectedFolder
                         ? t('saved.empty.folder.subtitle', 'Long-press a saved post to move it into this folder.')
                         : t('saved.empty.subtitle', 'Posts you save are kept here, private to you.')}
-                customIcon={debouncedSearch
-                    ? <SearchIcon size={48} className="text-muted-foreground" />
-                    : <Bookmark size={48} className="text-muted-foreground" />}
+                sticker={debouncedSearch ? 'searchNoResults' : 'saved'}
                 containerStyle={{ paddingTop: 60 }}
             />
         );
@@ -350,7 +347,7 @@ const SavedPostsScreen: React.FC = () => {
 
     const listFooter = isFetchingNextPage ? (
         <View className="items-center justify-center py-4">
-            <Loading className="text-primary" size="small" />
+            <Loading className="text-primary" size="sm" />
         </View>
     ) : <View style={styles.listFooterSpace} />;
 
@@ -399,12 +396,14 @@ const SavedPostsScreen: React.FC = () => {
                     {/* Create-folder FAB — same anchor and BottomBar clearance as the
                         create action on feeds, lists and the home feed. */}
                     {canUsePrivateApi ? (
-                        <Fab
-                            size="md" placement="bottom-right"
+                        <PageAction>
+                          <Fab
+                            size="md"
                             onPress={newFolderControl.open}
-                            icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
+                            icon={RiAddLine}
                             accessibilityLabel={t('saved.newFolder', 'New folder')}
-                        />
+                          />
+                        </PageAction>
                     ) : null}
                 </View>
             </HeaderDockProvider>
@@ -428,12 +427,12 @@ const SavedPostsScreen: React.FC = () => {
                     </TextField>
 
                     <View className="flex-row justify-end gap-2">
-                        <Button appearance="subtle" tone="neutral" size="large" onPress={closeNewFolder}>
+                        <Button appearance="subtle" tone="neutral" size="lg" onPress={closeNewFolder}>
                             {t('common.cancel', 'Cancel')}
                         </Button>
                         <Button
                             appearance="solid" tone="accent"
-                            size="large"
+                            size="lg"
                             disabled={!newFolderName.trim() || isCreatingFolder}
                             loading={isCreatingFolder}
                             onPress={handleCreateFolder}

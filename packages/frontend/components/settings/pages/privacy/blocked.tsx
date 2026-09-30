@@ -20,7 +20,7 @@ import {
 import { useTheme } from "@oxy.so/bloom/theme";
 import type { User } from "@oxy.so/core";
 import { createLogger } from "@oxy.so/core/logger";
-import { queryKeys } from "@oxy.so/services";
+import { queryKeys } from "@oxy.so/services/ui/client";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 
 import React, { useCallback, useState } from "react";
@@ -336,7 +336,7 @@ export default function BlockedUsersScreen() {
               {searching && (
                 <Loading
                   className="text-primary"
-                  size="small"
+                  size="sm"
                   style={{ flex: undefined }}
                 />
               )}
@@ -360,7 +360,7 @@ export default function BlockedUsersScreen() {
                     key={userId}
                   >
                     <Button
-                      size="small"
+                      size="sm"
                       appearance="subtle"
                       tone="neutral"
                       onPress={() => !isBlocking && handleBlock(user)}
@@ -371,7 +371,7 @@ export default function BlockedUsersScreen() {
                         <Loading
                           className="text-primary"
                           variant="inline"
-                          size="small"
+                          size="sm"
                           style={{ flex: undefined }}
                         />
                       ) : (
@@ -403,7 +403,7 @@ export default function BlockedUsersScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -411,10 +411,7 @@ export default function BlockedUsersScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t("settings.privacy.noBlockedUsers")}
-                  icon={{
-                    name: "people-outline",
-                    size: 48,
-                  }}
+                  sticker="blockedAccounts"
                 />
               </View>
             ) : (
@@ -431,7 +428,7 @@ export default function BlockedUsersScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => {

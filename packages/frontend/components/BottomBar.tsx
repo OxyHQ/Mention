@@ -71,7 +71,7 @@ export const BottomBar = () => {
       onValueChange={onValueChange}
       onValueLongPress={onValueLongPress}
       minimizeProgress={minimizeProgress}
-      action={<Fab icon={<RiQuillPenLine />} accessibilityLabel={t('sidebar.compose')} onPress={() => selectTab(pageIndexByName('write'))} />}
+      action={<Fab icon={RiQuillPenLine} accessibilityLabel={t('sidebar.compose')} onPress={() => selectTab(pageIndexByName('write'))} />}
     />
   </Animated.View>;
 };

@@ -6,7 +6,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Video } from '@/assets/icons/video-icon';
 import { videoPosterUrl } from '@/utils/imageUrlCache';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import LiveVideoPosterCell from './LiveVideoPosterCell';
@@ -164,7 +163,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
             ? (
             <EmptyState
                 title={t('profile.videos.empty.title', { defaultValue: 'No videos yet' })}
-                customIcon={<Video size={48} className="text-muted-foreground" />}
+                sticker="profileVideos"
                 containerStyle={{ flex: 1 }}
             />
             )

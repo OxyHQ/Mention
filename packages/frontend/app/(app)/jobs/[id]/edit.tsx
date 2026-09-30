@@ -220,7 +220,7 @@ export default function EditJobScreen() {
       <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -234,7 +234,7 @@ export default function EditJobScreen() {
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
           </Text>
-          <Button appearance="subtle" tone="neutral" size="small" onPress={() => jobQuery.refetch()}>
+          <Button appearance="subtle" tone="neutral" size="sm" onPress={() => jobQuery.refetch()}>
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
@@ -346,7 +346,7 @@ export default function EditJobScreen() {
             <SegmentedControl
               label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
               type="radio"
-              size="small"
+              size="sm"
               value={salaryInterval}
               onChange={setSalaryInterval}
             >
@@ -406,7 +406,7 @@ export default function EditJobScreen() {
         <View className="mt-6">
           <Button
             appearance="solid" tone="accent"
-            size="large"
+            size="lg"
             loading={updateMutation.isPending}
             disabled={!canSave || updateMutation.isPending}
             onPress={save}

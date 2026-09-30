@@ -4,7 +4,7 @@
  * Memoized to prevent unnecessary re-renders
  */
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,6 +13,8 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyServices } from '@oxy.so/core';
+import { createStickersClient } from '@oxy.so/stickers';
+import { StickersProvider } from '@oxy.so/stickers/react';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { BootMilestone } from '@/components/BootMilestone';
@@ -34,8 +36,12 @@ import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
 import { createLogger } from '@oxy.so/core/logger';
+import { configureLottieWeb } from '@/lib/lottieWeb';
 
 const logger = createLogger('AppProviders');
+
+// Before any sticker renders: the web Lottie renderer loads from this origin.
+configureLottieWeb();
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -48,6 +54,9 @@ export const AppProviders = memo(function AppProviders({
   oxyServices,
   queryClient,
 }: AppProvidersProps) {
+  // One sticker client per OxyServices: it memoizes resolved stickers for the
+  // life of the app and acts with this client's session.
+  const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
   const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
     logger.error('Error caught by boundary', error, { errorInfo });
   }, []);
@@ -115,6 +124,9 @@ export const AppProviders = memo(function AppProviders({
              * cannot paint at all. It holds until the gate opens and the root
              * takes over.
              */}
+            {/* Oxy's shared sticker catalogue, read through the query client
+                OxyProvider just installed. */}
+            <StickersProvider client={stickersClient}>
             <AccountSwitchReset fallback={<AppSplashScreen />}>
               <BootMilestone name="cache-owner-established" />
               <I18nextProvider i18n={i18n}>
@@ -190,6 +202,7 @@ export const AppProviders = memo(function AppProviders({
                 </LayoutScrollProvider>
               </I18nextProvider>
             </AccountSwitchReset>
+            </StickersProvider>
           </OxyProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>

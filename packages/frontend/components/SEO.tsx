@@ -47,37 +47,76 @@ const DEFAULT_IMAGE_TAGS: ReadonlyArray<readonly ['property' | 'name', string, s
 /** Marks the nodes {@link useDefaultImageTags} owns, so it never touches anyone else's. */
 export const DEFAULT_IMAGE_TAG_MARKER = 'data-mention-default-og';
 
+/** The exported homepage and runtime share the same real public asset. */
+const DEFAULT_IMAGE = `${WEB_BASE_URL.replace(/\/$/, '')}/og-image.jpg`;
+
 /**
- * The default image's descriptors, written by an EFFECT rather than through
- * the head component.
+ * Make the default image's descriptors match the image the head ACTUALLY
+ * advertises: present exactly when the head component's `og:image` is the
+ * default image, absent otherwise. Idempotent, so it may run on every head
+ * mutation, its own included.
  *
- * The head component (expo-router's vendored react-helmet-async) registers an
- * instance during RENDER and forgets it only in `componentWillUnmount`. A render
- * React discards without committing — a suspended or superseded route render —
- * therefore leaves an instance behind for good, and its tags with it. Every
- * other tag here is declared by EVERY instance, so the newest one overwrites a
- * leaked copy; these five are declared only for the default image, so a leaked
- * homepage instance kept its 1280x720 and alt text on every page navigated to
- * next — a profile's avatar card claimed the homepage image's size (caught by
- * the release gate, `seo-handoff.spec.ts`). An effect runs only on commit and
- * always runs its cleanup, so these cannot outlive the screen that wrote them.
+ * Only the head component's `og:image` (`data-rh`) counts. The server's own
+ * `og:image` (`data-mention-seo`) comes with its own descriptors, and is
+ * released once the route's metadata has committed.
  */
-function useDefaultImageTags(active: boolean): void {
+export function syncDefaultImageTags(head: HTMLHeadElement): void {
+  const image = head.querySelector('meta[property="og:image"][data-rh]')?.getAttribute('content');
+  const owned = head.querySelectorAll(`meta[${DEFAULT_IMAGE_TAG_MARKER}]`);
+  const wanted = image === DEFAULT_IMAGE;
+  if (owned.length === (wanted ? DEFAULT_IMAGE_TAGS.length : 0)) return;
+  owned.forEach((node) => node.remove());
+  if (!wanted) return;
+  for (const [attribute, key, content] of DEFAULT_IMAGE_TAGS) {
+    const node = head.ownerDocument.createElement('meta');
+    node.setAttribute(attribute, key);
+    node.setAttribute('content', content);
+    node.setAttribute(DEFAULT_IMAGE_TAG_MARKER, 'true');
+    head.appendChild(node);
+  }
+}
+
+/** One head observer, shared by every mounted SEO instance. */
+let headWatch: { observer: MutationObserver; users: number } | undefined;
+
+/**
+ * The default image's descriptors (width, height, type, alt), kept in step
+ * with the document's `og:image` rather than owned by any one screen.
+ *
+ * They cannot be ordinary head-component tags: the head component (expo-router's
+ * vendored react-helmet-async) resolves each tag to the NEWEST instance that
+ * declares it, and only the default image has these five, so an older screen
+ * still mounted under the current one (the home tab under a profile) kept its
+ * 1280x720 on the profile's avatar card (#1225).
+ *
+ * Nor can a screen own them. A stacked screen stays mounted under the one
+ * pushed over it, and which screen's `og:image` the head shows is decided by
+ * the head component, not by React commit order: when a profile first
+ * described the default image and then stopped (its avatar arrived, or it
+ * went back to loading), the home screen under it was left advertising the
+ * default image with no descriptors at all — the release gate's
+ * `seo-handoff.spec.ts` "transfers ownership on profile navigation". The only
+ * reliable signal is the head itself, so they follow it: observed, and
+ * re-derived on every change.
+ */
+function useDefaultImageTags(enabled: boolean): void {
   useEffect(() => {
-    if (!active || typeof document === 'undefined') return undefined;
-    // One owner at a time: a second screen describing the default image
-    // replaces the first one's nodes rather than duplicating them.
-    document.head.querySelectorAll(`meta[${DEFAULT_IMAGE_TAG_MARKER}]`).forEach((node) => node.remove());
-    const nodes = DEFAULT_IMAGE_TAGS.map(([attribute, key, content]) => {
-      const node = document.createElement('meta');
-      node.setAttribute(attribute, key);
-      node.setAttribute('content', content);
-      node.setAttribute(DEFAULT_IMAGE_TAG_MARKER, 'true');
-      document.head.appendChild(node);
-      return node;
-    });
-    return () => nodes.forEach((node) => node.remove());
-  }, [active]);
+    if (!enabled || typeof document === 'undefined' || typeof MutationObserver === 'undefined') return undefined;
+    const head = document.head;
+    if (!headWatch) {
+      const observer = new MutationObserver(() => syncDefaultImageTags(head));
+      observer.observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+      headWatch = { observer, users: 0 };
+    }
+    headWatch.users += 1;
+    syncDefaultImageTags(head);
+    return () => {
+      if (!headWatch || --headWatch.users > 0) return;
+      headWatch.observer.disconnect();
+      headWatch = undefined;
+      head.querySelectorAll(`meta[${DEFAULT_IMAGE_TAG_MARKER}]`).forEach((node) => node.remove());
+    };
+  }, [enabled]);
 }
 
 export const SEO: React.FC<SEOProps> = ({
@@ -115,10 +154,9 @@ export const SEO: React.FC<SEOProps> = ({
     siteName: finalSiteName
   });
 
-  // The exported homepage and runtime share the same real public asset.
-  const pageImage = image || `${WEB_BASE_URL.replace(/\/$/, '')}/og-image.jpg`;
+  const pageImage = image || DEFAULT_IMAGE;
 
-  useDefaultImageTags(Platform.OS === 'web' && ready && !image);
+  useDefaultImageTags(Platform.OS === 'web');
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {

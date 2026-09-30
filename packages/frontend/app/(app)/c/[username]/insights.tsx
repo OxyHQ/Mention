@@ -119,7 +119,7 @@ export default function ChannelInsightsScreen() {
           title={t('channels.insights.operatorOnly', {
             defaultValue: 'Only an operator can see this channel’s insights',
           })}
-          icon={{ name: 'lock-closed-outline', size: 48 }}
+          sticker="operatorOnly"
         />
       </View>
     );

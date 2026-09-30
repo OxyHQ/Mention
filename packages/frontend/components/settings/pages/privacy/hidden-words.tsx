@@ -188,12 +188,12 @@ export default function HiddenWordsScreen() {
                 <Loading
                   className="text-primary"
                   variant="inline"
-                  size="small"
+                  size="sm"
                   style={{ flex: undefined }}
                 />
               ) : (
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={handleAdd}
@@ -227,7 +227,7 @@ export default function HiddenWordsScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -257,7 +257,7 @@ export default function HiddenWordsScreen() {
                   title={t("settings.privacy.mutedWordsEmpty", {
                     defaultValue: "No muted words yet",
                   })}
-                  icon={{ name: "eye-off-outline", size: 48 }}
+                  sticker="mutedWords"
                 />
               </View>
             ) : (
@@ -279,7 +279,7 @@ export default function HiddenWordsScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => handleRemove(word)}

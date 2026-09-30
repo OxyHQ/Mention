@@ -26,7 +26,7 @@ import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import UserName from '@/components/UserName';
 
-import { PROFILE_BANNER_HEIGHT } from '../ProfilePageHeader';
+import { profileTabsOffset } from '../ProfilePageHeader';
 import { AccountCategoryLine } from '../AccountCategoryLine';
 import { PrivateBadge } from '../PrivateBadge';
 import { ProfileContent } from '../ProfileContent';
@@ -325,7 +325,7 @@ export function usePersonProfileView({
       const descriptor = tabDescriptors[index];
       if (!descriptor) return;
       if (descriptor.key === activeDescriptor?.key) {
-        chrome.scrollToContent(chrome.contentHeight + PROFILE_BANNER_HEIGHT);
+        chrome.scrollToContent(profileTabsOffset(chrome.contentHeight));
         return;
       }
       onSelectTab(descriptor, profileTabHref(handle, descriptor));

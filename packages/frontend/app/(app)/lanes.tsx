@@ -315,7 +315,7 @@ export default function LanesScreen() {
                                 editable={!createMutation.isPending && !atCap}
                             />
                             {createMutation.isPending ? (
-                                <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+                                <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
                             ) : (
                                 <TouchableOpacity
                                     accessibilityRole="button"
@@ -343,7 +343,7 @@ export default function LanesScreen() {
                     <SettingsListGroup title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
                         {isLoading ? (
                             <View className="py-10 items-center">
-                                <Loading className="text-primary" size="large" style={{ flex: undefined }} />
+                                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
                             </View>
                         ) : isError ? (
                             <View className="py-4">
@@ -363,7 +363,7 @@ export default function LanesScreen() {
                             <View className="py-4">
                                 <EmptyState
                                     title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
-                                    icon={{ name: 'git-branch-outline', size: 48 }}
+                                    sticker="lanes"
                                 />
                             </View>
                         ) : (

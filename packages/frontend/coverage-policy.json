@@ -229,6 +229,12 @@
     "lib/hlsPlayback.web.ts": {
       "reason": "Web-only fork, no direct test; jest resolves lib/hlsPlayback.native.ts instead."
     },
+    "lib/lottieWeb.web.ts": {
+      "reason": "Web-only fork, no direct test; jest resolves lib/lottieWeb.ts instead. It only points dotLottie at the bundled WebAssembly asset, and a missing call degrades to the still image."
+    },
+    "lib/notificationValidation.ts": {
+      "reason": "Its whole body is one `import()`, which Jest cannot execute (no --experimental-vm-modules); its callers' tests mock it with the real validators. The release gate's browser run executes it."
+    },
     "lib/socketBfcache.web.ts": {
       "reason": "Web-only fork, no direct test; jest resolves lib/socketBfcache.native.ts instead."
     }
@@ -268,9 +274,9 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 274,
-    "pins": 271,
-    "unenforceable": 3,
+    "domainFiles": 279,
+    "pins": 274,
+    "unenforceable": 5,
     "belowBarExemptions": 11,
     "criticalPaths": 32,
     "allowedBaselineDecreases": 0,

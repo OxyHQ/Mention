@@ -191,7 +191,7 @@ export default function ActivitySubscriptionsScreen() {
             defaultValue:
               "Open someone's profile and tap the bell to get notified whenever they post.",
           })}
-          icon={{ name: "notifications-outline", size: 48 }}
+          sticker="subscriptions"
         />
       </View>
     ),
@@ -222,7 +222,7 @@ export default function ActivitySubscriptionsScreen() {
     if (isPrivateApiPending) {
       return (
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       );
     }

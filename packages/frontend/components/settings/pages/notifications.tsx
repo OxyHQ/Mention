@@ -106,7 +106,7 @@ export default function NotificationSettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -131,7 +131,7 @@ export default function NotificationSettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -139,7 +139,7 @@ export default function NotificationSettingsScreen() {
 
   return (
     <View className="gap-4">
-      {saving ? <Loading variant="inline" size="small" /> : null}
+      {saving ? <Loading variant="inline" size="sm" /> : null}
       <View className="gap-4">
         <SettingsSection
           label={t("settings.notifications.sections.general", {
@@ -201,7 +201,7 @@ export default function NotificationSettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() =>

@@ -2571,5 +2571,10 @@
   "connections.profileNotFound": "Ce compte n'existe pas, il n'a donc aucun abonné à afficher.",
   "saved.createFolderFailed": "Impossible de créer le dossier. Réessaie.",
   "profile.loadFailed": "Impossible de charger ce profil. Vérifie ta connexion et réessaie.",
-  "profile.notFound.gone": "Ce compte n'existe pas ou n'est plus disponible."
+  "profile.notFound.gone": "Ce compte n'existe pas ou n'est plus disponible.",
+  "notFound": {
+    "title": "Cette page n'existe pas",
+    "subtitle": "Le lien est peut-être cassé, ou la page a été déplacée.",
+    "goHome": "Aller à l'accueil"
+  }
 }

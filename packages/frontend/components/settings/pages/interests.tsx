@@ -11,7 +11,7 @@ import { Loading } from "@oxy.so/bloom/loading";
 import { Search } from "@oxy.so/bloom/search";
 import { SettingsCard, SettingsSection } from "@oxy.so/bloom/settings-modal";
 import type { TopicData } from "@oxy.so/core";
-import { resolveFollowPrimaryAction, useFollowTarget } from "@oxy.so/services";
+import { resolveFollowPrimaryAction, useFollowTarget } from "@oxy.so/services/ui/client";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
@@ -70,7 +70,7 @@ export default function InterestsSettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -125,7 +125,7 @@ export default function InterestsSettingsScreen() {
           <SettingsCard>
             {catalogue.isLoading ? (
               <View className="py-8 items-center">
-                <Loading className="text-primary" size="large" />
+                <Loading className="text-primary" size="lg" />
               </View>
             ) : topics.length === 0 ? (
               <View className="px-4 py-6">
@@ -233,7 +233,7 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
 
   return (
     <Button
-      size="small"
+      size="sm"
       appearance={follow.isFollowing && !isOffHere ? "solid" : "subtle"}
       tone="neutral"
       onPress={onPress}

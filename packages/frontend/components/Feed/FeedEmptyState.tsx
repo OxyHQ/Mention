@@ -1,11 +1,11 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
-import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Loading } from '@oxy.so/bloom/loading';
+import type { EmptyStateStickerName } from '@/lib/stickers';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -82,24 +82,54 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             <EmptyState
                 title={copy.title}
                 subtitle={copy.subtitle}
-                customIcon={
-                    /* Decorative: EmptyState already announces the title and
-                       subtitle as a single accessibility element. */
-                    <Image
-                        source={require('@/assets/images/empty-state-illustration.png')}
-                        style={{ width: 120, maxWidth: '100%', aspectRatio: 258 / 134 }}
-                        contentFit="contain"
-                        alt=""
-                        accessibilityElementsHidden
-                        importantForAccessibility="no"
-                    />
-                }
+                sticker={emptySticker(type, { showOnlySaved, isThread })}
             />
         );
     }
 );
 
 FeedEmptyState.displayName = 'FeedEmptyState';
+
+/**
+ * Which catalogue sticker an empty feed shows, per kind of feed — chosen with
+ * the same cases as {@link emptyCopy}, so a feed's picture and its words agree.
+ * Names resolve in `lib/stickers.ts`.
+ */
+export function emptySticker(
+    type: FeedType,
+    { showOnlySaved, isThread }: { showOnlySaved?: boolean; isThread?: boolean } = {},
+): EmptyStateStickerName {
+    if (showOnlySaved) return 'saved';
+    switch (type) {
+        case 'posts':
+            return 'profilePosts';
+        case 'media':
+            return 'profileMedia';
+        case 'videos':
+            return 'profileVideos';
+        case 'replies':
+            return isThread ? 'threadNoReplies' : 'profileReplies';
+        case 'boosts':
+            return 'profileBoosts';
+        case 'mentions':
+            return 'profileMentions';
+        case 'likes':
+            return 'profileLikes';
+        case 'explore':
+            return 'feedExplore';
+        case 'for_you':
+            return 'feedForYou';
+        case 'hashtag':
+            return 'feedHashtag';
+        case 'custom':
+            return 'feedCustom';
+        case 'saved':
+            return 'saved';
+        case 'following':
+        default:
+            return 'feedFollowing';
+    }
+}
 
 type Translate = ReturnType<typeof useTranslation>['t'];
 

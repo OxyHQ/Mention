@@ -53,6 +53,8 @@ import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
+import { metrics } from '../utils/metrics';
+import { measureOxyFetch } from '../utils/oxyMetrics';
 import { isApexHost, SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
 import {
   SitemapNotReadyError,
@@ -127,9 +129,15 @@ async function fetchShellHtml(): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SHELL_FETCH_TIMEOUT_MS);
   try {
+    const startedAt = performance.now();
     const response = await fetch(SHELL_ORIGIN, {
       headers: { Accept: 'text/html', [SHELL_ACCESS_HEADER]: SHELL_ACCESS_KEY },
       signal: controller.signal,
+    });
+    // The shell origin is not Oxy, but it is a round trip on the page's path
+    // when the process cache is cold; timed so that cost is visible.
+    metrics.recordLatency('web_shell_fetch_ms', performance.now() - startedAt, {
+      status: response.ok ? 'ok' : 'error',
     });
     if (!response.ok) {
       logger.warn(`[webShell] Shell fetch returned ${response.status}`);
@@ -194,10 +202,11 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(`${OXY_API_URL}/profiles/username/${encodeURIComponent(handle)}`, {
+    const path = `/profiles/username/${encodeURIComponent(handle)}`;
+    const response = await measureOxyFetch('GET', path, () => fetch(`${OXY_API_URL}${path}`, {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
-    });
+    }));
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`Oxy profile lookup failed (${response.status})`);
     const json = (await response.json()) as { data?: OxyProfileData };
@@ -330,22 +339,33 @@ function describeShellFailure(error: unknown): Record<string, unknown> {
   };
 }
 
+/**
+ * A profile or post preview: its metadata may be a minute old, and a crawler or a
+ * shared-link unfurl hitting it again is served from cache.
+ */
+const ENTITY_PREVIEW_CACHE = 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600';
+
+/**
+ * The homepage is the app's front door, so it caches like the shell the Worker
+ * serves for every other SPA path (`no-cache`): revalidated on every load. It
+ * names the hashed JS of ONE release, and the entity-preview policy let a browser
+ * keep booting the previous release for up to an hour after a deploy — which the
+ * post-deploy apex smoke (`.github/scripts/smoke-frontend.sh`) exists to refuse.
+ */
+const HOMEPAGE_CACHE = 'no-cache';
+
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
 async function serveShell(
   res: Response,
   og: OgData | null,
   status = 200,
   bootstrap?: ShellBootstrap,
+  cacheControl: string = ENTITY_PREVIEW_CACHE,
 ): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader(
-    'Cache-Control',
-    status === 200
-      ? 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600'
-      : 'no-store',
-  );
+  res.setHeader('Cache-Control', status === 200 ? cacheControl : 'no-store');
   const head = bootstrap ? HEAD_HINTS + buildShellBootstrapHtml(bootstrap) : HEAD_HINTS;
   res.send(renderShellWithOg(injectHeadHtml(shell, head), og));
 }
@@ -373,7 +393,7 @@ router.get('/', async (req, res, next) => {
     res.type('text/plain').send('Application temporarily unavailable');
     return;
   }
-  await serveShell(res, mapHomepageOg());
+  await serveShell(res, mapHomepageOg(), 200, undefined, HOMEPAGE_CACHE);
 });
 
 const ROBOTS_TXT = `User-agent: *

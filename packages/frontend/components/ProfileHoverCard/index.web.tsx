@@ -65,9 +65,7 @@ function ProfileHoverCardLive({
     <HoverCard open={open} onOpenChange={onOpenChange}>
       <HoverCardTrigger style={style}>{children}</HoverCardTrigger>
       {armed ? (
-        <HoverCardContent label={username}>
-          <ProfilePreview username={username} onNavigate={close} />
-        </HoverCardContent>
+        <ProfilePreview username={username} onNavigate={close} />
       ) : null}
     </HoverCard>
   );
@@ -96,62 +94,65 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
   }, [onNavigate, router, username, profile?.username, profile?.instance, profile?.isFederated]);
 
   // The card is a small piece of that profile, so it wears the profile's own
-  // colour, scoped to this subtree (see `resolveProfileColorName`).
+  // colour, including the floating surface (see `resolveProfileColorName`).
+  // asChild carries the scoped CSS variables onto the portaled panel.
   const colorName = resolveProfileColorName(username, profile?.design?.color);
 
   return (
-    <BloomColorScope colorPreset={colorName}>
-      <UserHoverCard
-        loading={!profile || loading}
-        avatar={profile?.design.avatar || profile?.avatar}
-        variant={MEDIA_VARIANT_AVATAR_LG}
-        displayName={profile?.design.displayName?.trim() || username}
-        username={profile?.username || username}
-        verified={profile?.verified}
-        badge={
-          profile ? (
-            <AccountBadge
-              isFederated={profile.isFederated}
-              kind={profile.kind}
-              size={13}
-              className="text-muted-foreground"
-            />
-          ) : undefined
-        }
-        bio={profile?.bio || undefined}
-        stats={
-          profile
-            ? [
-                {
-                  label: t('profile.followers', { defaultValue: 'Followers' }),
-                  value: formatCompactNumber(profile.followersCount ?? 0),
-                },
-                {
-                  label: t('profile.following', { defaultValue: 'Following' }),
-                  value: formatCompactNumber(profile.followingCount ?? 0),
-                },
-              ]
-            : undefined
-        }
-        action={profile?.id ? <FollowButton userId={profile.id} username={profile.username || username} size="small" /> : undefined}
-        onPressProfile={handlePressProfile}
-        footer={
-          activity.length > 0 ? (
-            <View style={{ gap: 4 }}>
-              <Muted>{t('profile.activity', { defaultValue: 'Activity' })}</Muted>
-              {/* 119 days is 18 columns at 11px + 3px gaps: 249px, inside the
-                  card's 256px content width. */}
-              <ActivityHeatmap
-                data={activity}
-                endDate={formatDateInput(new Date())}
-                numDays={119}
-                cellSize={11}
-                gap={3}
+    <BloomColorScope colorPreset={colorName} asChild>
+      <HoverCardContent label={username}>
+        <UserHoverCard
+          loading={!profile || loading}
+          avatar={profile?.design.avatar || profile?.avatar}
+          variant={MEDIA_VARIANT_AVATAR_LG}
+          displayName={profile?.design.displayName?.trim() || username}
+          username={profile?.username || username}
+          verified={profile?.verified}
+          badge={
+            profile ? (
+              <AccountBadge
+                isFederated={profile.isFederated}
+                kind={profile.kind}
+                size={13}
+                className="text-muted-foreground"
               />
-            </View>
-          ) : undefined
-        }
-      />
+            ) : undefined
+          }
+          bio={profile?.bio || undefined}
+          stats={
+            profile
+              ? [
+                  {
+                    label: t('profile.followers', { defaultValue: 'Followers' }),
+                    value: formatCompactNumber(profile.followersCount ?? 0),
+                  },
+                  {
+                    label: t('profile.following', { defaultValue: 'Following' }),
+                    value: formatCompactNumber(profile.followingCount ?? 0),
+                  },
+                ]
+              : undefined
+          }
+          action={profile?.id ? <FollowButton userId={profile.id} username={profile.username || username} size="sm" /> : undefined}
+          onPressProfile={handlePressProfile}
+          footer={
+            activity.length > 0 ? (
+              <View style={{ gap: 4 }}>
+                <Muted>{t('profile.activity', { defaultValue: 'Activity' })}</Muted>
+                {/* 119 days is 18 columns at 11px + 3px gaps: 249px, inside the
+                    card's 256px content width. */}
+                <ActivityHeatmap
+                  data={activity}
+                  endDate={formatDateInput(new Date())}
+                  numDays={119}
+                  cellSize={11}
+                  gap={3}
+                />
+              </View>
+            ) : undefined
+          }
+        />
+      </HoverCardContent>
     </BloomColorScope>
   );
 }

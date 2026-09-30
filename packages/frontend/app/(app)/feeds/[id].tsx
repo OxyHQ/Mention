@@ -21,7 +21,6 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
-import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -31,6 +30,7 @@ import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Fab } from '@oxy.so/bloom/fab';
+import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -336,7 +336,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
   if (members.length === 0) {
     return (
-      <EmptyState title="No profiles yet" icon={{ name: 'people-outline' }} />
+      <EmptyState title="No profiles yet" sticker="feedPageEmpty" />
     );
   }
 
@@ -386,7 +386,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
     return (
       <EmptyState
         title="No topics yet"
-        customIcon={<RiHashtag width={40} height={40} fill={theme.colors.textSecondary} />}
+        sticker="feedPageEmpty"
       />
     );
   }
@@ -563,7 +563,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         <EmptyState
           title="No reviews yet"
           subtitle="Be the first to leave a review"
-          customIcon={<RiStarLine width={40} height={40} fill={theme.colors.textSecondary} />}
+          sticker="feedPageEmpty"
         />
       ) : (
         reviews.map((review) => {
@@ -844,15 +844,16 @@ export default function CustomFeedTimelineScreen() {
         </ScrollView>
       )}
 
-      {/* Clears the BottomBar on every platform — Bloom's Fab reads the
-              bottom edge's occupancy, which the bar publishes. */}
+      {/* PageAction follows the shell's bottom navigation clearance. */}
       {!isLoading && !hasError && (
-        <Fab
-          size="md" placement="bottom-right"
-          onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={26} className="text-tertiary-foreground" />}
-          accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-        />
+        <PageAction>
+          <Fab
+            size="md"
+            onPress={() => router.push('/compose')}
+            icon={({ width, fill }) => <ComposeIcon size={width} color={fill} />}
+            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
+          />
+        </PageAction>
       )}
 
       {/* Feed info bottom sheet */}

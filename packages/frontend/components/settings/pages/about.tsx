@@ -112,7 +112,7 @@ export default function AboutScreen() {
             <SettingsCard>
               <SettingsRow label={"Mention by Oxy"}>
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() => {
@@ -125,7 +125,7 @@ export default function AboutScreen() {
               </SettingsRow>
               <SettingsRow label={t("settings.aboutMention.build")}>
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() => {
@@ -138,7 +138,7 @@ export default function AboutScreen() {
               </SettingsRow>
               <SettingsRow label={INSTANCE_NAME} description={WEB_BASE_URL}>
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() => {
@@ -173,7 +173,7 @@ export default function AboutScreen() {
             </SettingsRow>
             <SettingsRow label={t("settings.aboutMention.oxySDK")}>
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => afterClose(() => showBottomSheet?.("AppInfo"))}
@@ -196,7 +196,7 @@ export default function AboutScreen() {
               description={t("transparency.list.title")}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/transparency")}
@@ -216,7 +216,7 @@ export default function AboutScreen() {
               description={t("settings.supportFeedback.helpSupportDesc")}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => {
@@ -234,7 +234,7 @@ export default function AboutScreen() {
               description={t("settings.supportFeedback.sendFeedbackDesc")}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={async () => {
@@ -266,7 +266,7 @@ export default function AboutScreen() {
               description={t("settings.data.clearCacheDesc")}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="danger"
                 onPress={handleClearCache}

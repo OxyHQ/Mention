@@ -22,6 +22,9 @@ import type { TRawNotification } from '@/types/validation';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
+  queryKeys: { users: { detail: (id: string) => ['users', id] } },
+  upsertCachedUser: jest.fn(),
+  upsertCachedUsers: jest.fn(),
 }));
 jest.mock('@/services/feedService', () => ({ feedService: { getPostById: jest.fn() } }));
 jest.mock('@/stores/postsStore', () => ({
@@ -62,11 +65,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666', primary: '#000', border: '#eee' } }),
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
-jest.mock('@oxy.so/services', () => ({
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
-}));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');

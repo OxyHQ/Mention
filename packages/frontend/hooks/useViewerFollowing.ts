@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSeedFollowStatuses } from '@oxy.so/services';
+import { useSeedFollowStatuses } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 

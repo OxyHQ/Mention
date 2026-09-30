@@ -14,7 +14,6 @@ import {
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
-import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { router } from 'expo-router';
@@ -88,7 +87,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <Text
               className={cn(
@@ -250,7 +249,7 @@ const LabelersScreen: React.FC = () => {
   const ListEmpty = useCallback(
     () => (
       <EmptyState
-        customIcon={<RiShieldLine width={48} height={48} fill={theme.colors.textSecondary} />}
+        sticker="labelers"
         title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
         subtitle={t('labelers.emptySubtitle', {
           defaultValue: 'Try adjusting your search or check back later.',
@@ -258,7 +257,7 @@ const LabelersScreen: React.FC = () => {
         containerStyle={{ paddingTop: 60 }}
       />
     ),
-    [theme, t],
+    [t],
   );
 
   return (
@@ -280,7 +279,7 @@ const LabelersScreen: React.FC = () => {
 
       {isLoading ? (
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       ) : IS_WEB ? (
         // WEB: the document (body) is the scroller — the shell owns scroll, so

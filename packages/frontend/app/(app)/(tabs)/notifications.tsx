@@ -21,7 +21,6 @@ import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { createLogger } from '@oxy.so/core/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
-import { validateNotifications } from '@/types/validation';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { groupNotifications, GroupedNotification, NotificationListItem } from '@/utils/groupNotifications';
@@ -46,7 +45,8 @@ import { SEO } from '@/components/SEO';
 import { requestSettings } from '@/components/settings/settingsRoutes';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import type { EmptyStateStickerName } from '@/lib/stickers';
+import { BellActive } from '@/assets/icons/bell-icon';
 import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
@@ -280,10 +280,6 @@ const NotificationsScreen: React.FC = () => {
     const selectTab = useTabSelect(activeTab, setActiveTab);
     const handleTabPress = useCallback((tabId: string) => selectTab(tabId as NotificationTab), [selectTab]);
 
-    const validatedNotifications = useMemo(
-        () => validateNotifications(allNotifications),
-        [allNotifications]
-    );
 
     // Notifications whose actor the backend did NOT populate would each fire their
     // own `getProfileById` from inside NotificationItem — an N+1 across the page.
@@ -291,7 +287,7 @@ const NotificationsScreen: React.FC = () => {
     // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
     const unpopulatedActorIds = useMemo(() => {
         const ids = new Set<string>();
-        for (const n of validatedNotifications) {
+        for (const n of allNotifications) {
             if (n.actorId_populated) continue;
             const actorId = n.actorId;
             const id = typeof actorId === 'string'
@@ -306,7 +302,7 @@ const NotificationsScreen: React.FC = () => {
             if (id) ids.add(id);
         }
         return Array.from(ids);
-    }, [validatedNotifications]);
+    }, [allNotifications]);
 
     useQuery({
         queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
@@ -316,24 +312,24 @@ const NotificationsScreen: React.FC = () => {
     });
 
     const filteredNotifications = useMemo(() => {
-        if (activeTab === 'all') return validatedNotifications;
+        if (activeTab === 'all') return allNotifications;
         const types = TAB_TYPES[activeTab];
-        return validatedNotifications.filter((n) => types.includes(n.type));
-    }, [validatedNotifications, activeTab]);
+        return allNotifications.filter((n) => types.includes(n.type));
+    }, [allNotifications, activeTab]);
 
     // Per-tab unread tallies, derived from the notifications already loaded (the
     // only per-type data the client has — the server exposes a single aggregate
     // unread total, which the `all` tab uses verbatim).
     const tabUnreadCounts = useMemo<TabUnreadCounts>(() => {
         const counts: TabUnreadCounts = { mentions: 0, follows: 0, likes: 0, posts: 0, pokes: 0 };
-        for (const n of validatedNotifications) {
+        for (const n of allNotifications) {
             if (n.read) continue;
             for (const tab of Object.keys(TAB_TYPES) as FilterableTab[]) {
                 if (TAB_TYPES[tab].includes(n.type)) counts[tab] += 1;
             }
         }
         return counts;
-    }, [validatedNotifications]);
+    }, [allNotifications]);
 
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);
@@ -402,77 +398,52 @@ const NotificationsScreen: React.FC = () => {
         );
     }, [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
 
-    const emptyStateConfig = useMemo(() => {
-        // `contrast50` is the theme's real muted surface. It is NOT
-        // `${theme.colors.border}33`: `border` resolves to an `rgb(...)` string,
-        // so the hex-alpha suffix produced a malformed colour react-native-web
-        // read back as a fully opaque border-coloured disc behind the icon.
-        const iconBg = theme.colors.contrast50;
-        const iconColor = theme.colors.textSecondary;
+    const emptyStateConfig = useMemo((): { title: string; subtitle: string; sticker: EmptyStateStickerName } => {
         switch (activeTab) {
             case 'mentions':
                 return {
                     title: t('notification.empty.mentions.title', { defaultValue: 'No mentions yet' }),
                     subtitle: t('notification.empty.mentions.subtitle', { defaultValue: 'When someone mentions you, it will appear here.' }),
-                    icon: <RiChat3Line width={36} height={36} fill={iconColor} />,
-                    iconBg,
+                    sticker: 'notificationsMentions',
                 };
             case 'follows':
                 return {
                     title: t('notification.empty.follows.title', { defaultValue: 'No new followers' }),
                     subtitle: t('notification.empty.follows.subtitle', { defaultValue: 'When someone follows you, it will appear here.' }),
-                    icon: <RiUserAddLine width={36} height={36} fill={iconColor} />,
-                    iconBg,
+                    sticker: 'notificationsFollows',
                 };
             case 'likes':
                 return {
                     title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
                     subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or boosts your content, it will appear here.' }),
-                    icon: <RiHeartLine width={36} height={36} fill={iconColor} />,
-                    iconBg,
+                    sticker: 'notificationsLikes',
                 };
             case 'posts':
                 return {
                     title: t('notification.empty.posts.title', { defaultValue: 'No post updates' }),
                     subtitle: t('notification.empty.posts.subtitle', { defaultValue: 'When people you follow post something new, it will appear here.' }),
-                    icon: <RiEditBoxLine width={36} height={36} fill={iconColor} />,
-                    iconBg,
+                    sticker: 'notificationsPosts',
                 };
             case 'pokes':
                 return {
                     title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
                     subtitle: t('notification.empty.pokes.subtitle', { defaultValue: 'When someone pokes you, it will appear here. Poke your followers to get started!' }),
-                    icon: <RiHand size="2xl" fill={iconColor} />,
-                    iconBg,
+                    sticker: 'notificationsPokes',
                 };
             default:
                 return {
                     title: t('notification.empty.title', { defaultValue: "You're all caught up" }),
                     subtitle: t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' }),
-                    icon: <Bell color={iconColor} size={36} />,
-                    iconBg,
+                    sticker: 'notificationsAll',
                 };
         }
-    }, [activeTab, t, theme]);
+    }, [activeTab, t]);
 
     const renderEmptyState = useCallback(() => (
         <EmptyState
             title={emptyStateConfig.title}
             subtitle={emptyStateConfig.subtitle}
-            customIcon={
-                <View
-                    style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 36,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        backgroundColor: emptyStateConfig.iconBg,
-                    }}
-                >
-                    {emptyStateConfig.icon}
-                </View>
-            }
+            sticker={emptyStateConfig.sticker}
         />
     ), [emptyStateConfig]);
 
@@ -496,7 +467,7 @@ const NotificationsScreen: React.FC = () => {
         if (!isAuthResolved || isPrivateApiPending) {
             return (
                 <View className="flex-1 justify-center items-center">
-                    <Loading className="text-primary" size="large" />
+                    <Loading className="text-primary" size="lg" />
                 </View>
             );
         }

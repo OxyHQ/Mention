@@ -22,7 +22,7 @@ import { getKnownIdentity, resetIdentityUpdates } from '@/stores/identityUpdates
 import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
 const mockUpsertCachedUsers = jest.fn();
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
   // `stores/identityUpdates` writes the edit through the SDK's single-user
   // upsert; this file is about what reaches the BATCH one, so it only has to

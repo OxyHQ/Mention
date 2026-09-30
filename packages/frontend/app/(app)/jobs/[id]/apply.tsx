@@ -141,7 +141,7 @@ export default function JobApplyScreen() {
       <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -221,12 +221,12 @@ export default function JobApplyScreen() {
           </Card>
 
           <View className="flex-row gap-3 mt-6">
-            <Button appearance="subtle" tone="neutral" size="large" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
+            <Button appearance="subtle" tone="neutral" size="lg" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
               {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
             </Button>
             <Button
               appearance="solid" tone="accent"
-              size="large"
+              size="lg"
               style={{ flex: 1 }}
               loading={submitMutation.isPending}
               onPress={() => submitMutation.mutate()}
@@ -300,7 +300,7 @@ export default function JobApplyScreen() {
                 returnKeyType="done"
               />
               <InputGroupAddon divider noPadding>
-                <Button appearance="plain" tone="neutral" size="small" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
+                <Button appearance="plain" tone="neutral" size="sm" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
                   {t('common.add', { defaultValue: 'Add' })}
                 </Button>
               </InputGroupAddon>
@@ -325,19 +325,19 @@ export default function JobApplyScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}
             >
               <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>{resumeFileName}</Text>
-              <Button appearance="plain" tone="neutral" size="small" onPress={removeResume}>
+              <Button appearance="plain" tone="neutral" size="sm" onPress={removeResume}>
                 {t('common.remove', { defaultValue: 'Remove' })}
               </Button>
             </Card>
           ) : (
-            <Button appearance="subtle" tone="neutral" size="medium" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
+            <Button appearance="subtle" tone="neutral" size="md" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
               {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
             </Button>
           )}
         </Field>
 
         <View className="mt-6">
-          <Button appearance="solid" tone="accent" size="large" disabled={!canContinue} onPress={() => setStep('review')}>
+          <Button appearance="solid" tone="accent" size="lg" disabled={!canContinue} onPress={() => setStep('review')}>
             {t('jobs.apply.review', { defaultValue: 'Review and submit' })}
           </Button>
         </View>

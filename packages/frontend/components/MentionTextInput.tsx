@@ -7,6 +7,7 @@ import {
     Platform,
     NativeSyntheticEvent,
     TextInputContentSizeChangeEventData,
+    TextInputKeyPressEventData,
     TextInputSelectionChangeEventData,
     type StyleProp,
     type TextStyle,
@@ -23,6 +24,7 @@ import {
 } from "@/utils/mentions";
 import { resolveTypedMentions } from "@/utils/mentionSearch";
 import { useMentionSearchCache } from "@/context/MentionSearchContext";
+import { useMentionSearchResults } from "@/hooks/useMentionSearchResults";
 import { logger } from "@oxy.so/core/logger";
 
 export interface MentionTextInputHandle {
@@ -52,6 +54,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     maxLength,
     multiline = true,
     style,
+    onKeyPress,
     ...textInputProps
 }, ref) => {
     const theme = useTheme();
@@ -61,6 +64,14 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     const textInputRef = useRef<TextInput>(null);
     const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
     const searchCache = useMentionSearchCache();
+    const pickerQuery = showMentionPicker ? mentionQuery : "";
+    const { users: pickerUsers, loading: pickerLoading } = useMentionSearchResults(pickerQuery, searchCache);
+    // The highlighted row. The field owns it, not the list: its arrow keys move
+    // it, and a pointer over a row reports it back through the list.
+    const [activeIndex, setActiveIndex] = useState(0);
+    useEffect(() => {
+        setActiveIndex(0);
+    }, [pickerQuery, pickerUsers]);
 
     // A lookup for a completed handle resolves after the author has kept
     // typing, so it applies to the value as it is THEN, not as it was.
@@ -229,6 +240,37 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
         setMentionQuery("");
     }, []);
 
+    // The picker's keyboard, on web: ↑/↓ move the highlight (wrapping), Enter or
+    // Tab takes it instead of breaking a line, Escape dismisses the list. With no
+    // list open every key is the field's own. Web only: a phone's return key also
+    // arrives as "Enter" and cannot be prevented there, so it would both take a
+    // row AND break the line — on native the rows are tapped.
+    const handleKeyPress = useCallback((event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+        const pickerOpen = Platform.OS === "web" && showMentionPicker && mentionQuery.length > 0;
+        const count = pickerUsers.length;
+        const key = event.nativeEvent.key;
+        let handled = false;
+        if (pickerOpen && key === "Escape") {
+            handleClosePicker();
+            handled = true;
+        } else if (pickerOpen && count > 0 && key === "ArrowDown") {
+            setActiveIndex((index) => (index + 1) % count);
+            handled = true;
+        } else if (pickerOpen && count > 0 && key === "ArrowUp") {
+            setActiveIndex((index) => (index - 1 + count) % count);
+            handled = true;
+        } else if (pickerOpen && count > 0 && (key === "Enter" || key === "Tab")) {
+            const user = pickerUsers[Math.min(activeIndex, count - 1)];
+            if (user) handleMentionSelect(user);
+            handled = true;
+        }
+        if (handled) {
+            event.preventDefault();
+            return;
+        }
+        onKeyPress?.(event);
+    }, [showMentionPicker, mentionQuery, pickerUsers, activeIndex, handleClosePicker, handleMentionSelect, onKeyPress]);
+
     // Expose imperative methods via ref
     useImperativeHandle(ref, () => ({
         insertTextAtCursor: (text: string) => {
@@ -278,6 +320,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
                 onChangeText={handleTextChange}
                 onSelectionChange={handleSelectionChange}
                 onContentSizeChange={handleContentSizeChange}
+                onKeyPress={handleKeyPress}
                 placeholder={placeholder}
                 placeholderTextColor={theme.colors.textTertiary}
                 maxLength={maxLength}
@@ -287,13 +330,14 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
                 {...textInputProps}
             />
 
-            {showMentionPicker && (
+            {showMentionPicker && mentionQuery.length > 0 && (
                 <View style={styles.pickerContainer}>
                     <MentionPicker
-                        query={mentionQuery}
-                        searchCache={searchCache}
+                        users={pickerUsers}
+                        loading={pickerLoading}
+                        activeIndex={activeIndex}
+                        onActiveIndexChange={setActiveIndex}
                         onSelect={handleMentionSelect}
-                        onClose={handleClosePicker}
                     />
                 </View>
             )}

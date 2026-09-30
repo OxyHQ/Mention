@@ -23,7 +23,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { clearedFieldsFromAccountUpdate } from '@oxy.so/services';
+import { clearedFieldsFromAccountUpdate } from '@oxy.so/services/ui/client';
 import { createLogger } from '@oxy.so/core/logger';
 import {
   getNormalizedUserHandle,
@@ -183,7 +183,7 @@ export default function ChannelAccountSettingsScreen() {
           title={t('channels.settings.operatorOnly', {
             defaultValue: 'Only an operator can manage this channel',
           })}
-          icon={{ name: 'lock-closed-outline', size: 48 }}
+          sticker="operatorOnly"
         />
       </View>
     );
@@ -655,8 +655,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           showChevron={false}
           rightElement={
             <Switch
-              value={settings?.signPosts === true}
-              onValueChange={handleSignPostsChange}
+              checked={settings?.signPosts === true}
+              onCheckedChange={handleSignPostsChange}
               disabled={signPostsMutation.isPending}
             />
           }

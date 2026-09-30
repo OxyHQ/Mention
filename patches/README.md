@@ -49,3 +49,46 @@ on a Pixel 8a release build: 45–116 warnings per screen pop, 3,079 in 45 minut
 (#1126). The patch restores RN's check and is byte-for-byte upstream PR
 software-mansion/react-native-reanimated#10435 (issues #10280, #10434). Still
 present in 4.7.0; remove it with the first release that includes that PR.
+
+# @oxy.so/bloom 6.2.0
+
+`SettingsModal` ignored a close requested before its enter frame: `show()`
+mounts, and a double `requestAnimationFrame` later sets it visible, so Escape
+pressed the moment the panel appeared set `visible` to false (it already was)
+and the pending frame then opened it anyway. The release gate
+(`packages/e2e/tests/deferred-chunks.spec.ts`) presses Escape right after the
+lazily loaded settings dialog appears, and the dialog never closed, which
+blocked every web deploy. The patch is the upstream fix, OxyHQ/Bloom#250,
+applied to `src`, `lib/module` and `lib/commonjs`: the modal tracks whether it
+is wanted open, a close cancels the pending enter frame, and a modal closed
+before it was ever shown unmounts at once. Remove it when Mention moves to a
+Bloom release that includes #250.
+
+# @shopify/flash-list 2.3.2
+
+`stickyHeaderConfig.offset` does two things. It sets where a stuck header sits,
+and it also puts a zero-height measuring view with `marginTop: offset` in front
+of the list content, which pushes every row down by the offset. FlashList
+documents the offset for a fixed bar ABOVE the list. Bloom's composition for a
+native list BEHIND an overlaying `PageHeader` (docs `page-header.mdx`, "Banner
+and docked tabs"; `layout.mdx`) passes `useHeaderDockInset()` as that offset, so
+the tab strip docks under the header. The push then starts the list below the
+header too, and a profile's banner can never reach behind the status bar and
+notch.
+
+The patch drops the `marginTop`, so the offset only places the stuck header.
+FlashList's sticky math already accounts for the offset
+(`findCurrentStickyIndex(…, scroll + offset)`, `top: offset`), so a header still
+sticks exactly at the header's bottom edge.
+
+Measured on a Pixel 8a release build:
+- Before: the list content started at y=268 (the 121 px status bar plus the
+  147 px bar), under an opaque band.
+- After: the banner starts at y=0 behind the status bar, and the header is
+  transparent at rest.
+- The Posts, Media and Likes tabs all dock their strip under the header.
+
+In Mention only the profile passes a non-zero offset: `useHeaderDockInset()` is
+0 outside its `HeaderDockProvider`. Present since `offset` was introduced in
+2.2.0, and still in 2.3.2. Remove the patch when FlashList separates the sticky
+offset from a content inset.

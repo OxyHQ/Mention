@@ -62,7 +62,7 @@ export function EditProfileForm() {
           <View className="mt-3">
             <Button
               appearance="subtle" tone="neutral"
-              size="small"
+              size="sm"
               onPress={() => showBottomSheet?.('ManageAccount')}
             >
               {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}

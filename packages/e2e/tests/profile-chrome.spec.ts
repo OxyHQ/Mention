@@ -8,7 +8,8 @@ for (const width of [390, 1024, 1440]) {
       await page.emulateMedia({ colorScheme });
       await page.goto(`/@${PROFILE_HANDLE}`);
       const header = page.getByTestId('profile-page-header');
-      const banner = page.getByTestId('profile-banner');
+      const banner = page.getByTestId('profile-hero-cover');
+      const summary = page.getByTestId('profile-hero-content');
       const tabs = page.getByTestId('profile-sticky-tabs');
       const fill = page.getByTestId('profile-page-header-docked-fill');
       await expect(tabs).toBeVisible();
@@ -26,6 +27,23 @@ for (const width of [390, 1024, 1440]) {
         const [h, b] = await Promise.all([header.boundingBox(), banner.boundingBox()]);
         return h && b ? Math.abs(h.y - b.y) : Infinity;
       }).toBeLessThan(1);
+
+      // The avatar rises 45px into the banner, painted over it, and the tab
+      // strip starts where the summary ends — no transform hole under it.
+      const hero = await page.evaluate(() => {
+        const cover = document.querySelector('[data-testid="profile-hero-cover"]')!.getBoundingClientRect();
+        const content = document.querySelector('[data-testid="profile-hero-content"]')!;
+        const avatar = [...content.querySelectorAll('img')].find(img => img.getBoundingClientRect().width >= 80);
+        if (!avatar) return null;
+        const a = avatar.getBoundingClientRect();
+        const hit = document.elementFromPoint(a.left + a.width / 2, cover.bottom - 10);
+        return { overlap: cover.bottom - a.top, onTop: Boolean(hit && avatar.parentElement?.contains(hit)) };
+      });
+      expect(hero).not.toBeNull();
+      expect(Math.abs(hero!.overlap - 41)).toBeLessThanOrEqual(2); // 45 minus the 4px ring
+      expect(hero!.onTop).toBe(true);
+      const [sb, tb] = await Promise.all([summary.boundingBox(), tabs.boundingBox()]);
+      expect(sb && tb ? Math.abs(tb.y - (sb.y + sb.height)) : Infinity).toBeLessThan(1);
 
       // Wait for actual feed runway. Scrolling before posts arrive clamps to 0
       // and would accidentally inspect the resting chrome twice.

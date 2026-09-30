@@ -111,7 +111,7 @@ export default function MutedLanesScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -141,7 +141,7 @@ export default function MutedLanesScreen() {
                   title={t("lanes.muted.empty", {
                     defaultValue: "No muted lanes",
                   })}
-                  icon={{ name: "volume-mute-outline", size: 48 }}
+                  sticker="mutedLanes"
                 />
               </View>
             ) : (
@@ -158,7 +158,7 @@ export default function MutedLanesScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => unmuteMutation.mutate(entry.lane.id)}

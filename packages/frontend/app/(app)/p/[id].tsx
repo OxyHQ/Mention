@@ -500,7 +500,7 @@ const PostDetailScreen: React.FC = () => {
                         <Text className="text-base text-center leading-[22px] mb-6 text-muted-foreground">
                             {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
                         </Text>
-                        <Button size="large" onPress={() => safeBack()}>Go Back</Button>
+                        <Button size="lg" onPress={() => safeBack()}>Go Back</Button>
                     </View>
                 </View>
             </>
@@ -539,7 +539,7 @@ const PostDetailScreen: React.FC = () => {
 
                 {loading && !post ? (
                     <View className="flex-1 items-center justify-center">
-                        <Loading className="text-primary" size="large" />
+                        <Loading className="text-primary" size="lg" />
                     </View>
                 ) : (
                     <>

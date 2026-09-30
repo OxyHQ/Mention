@@ -1,0 +1,46 @@
+diff --git a/dist/recyclerview/RecyclerView.js b/dist/recyclerview/RecyclerView.js
+index 6799c8a61bff4607633196097da35c7a6975f0b6..45b2d9872c15bb14b64b0b4a09cd64218f2603ca 100644
+--- a/dist/recyclerview/RecyclerView.js
++++ b/dist/recyclerview/RecyclerView.js
+@@ -320,12 +320,14 @@ const RecyclerViewComponent = (props, ref) => {
+         ((_e = maintainVisibleContentPosition === null || maintainVisibleContentPosition === void 0 ? void 0 : maintainVisibleContentPosition.startRenderingFromBottom) !== null && _e !== void 0 ? _e : false);
+     // Create view for measuring bounded size
+     const viewToMeasureBoundedSize = useMemo(() => {
++        // Mention patch: `stickyHeaderConfig.offset` places the stuck header
++        // only. It no longer pushes the content down, so a list can start
++        // behind an overlaying header (patches/README.md).
+         return (React.createElement(CompatView, { style: {
+-                marginTop: horizontal ? undefined : stickyHeaderOffset,
+                 height: horizontal ? undefined : 0,
+                 width: horizontal ? 0 : undefined,
+             }, ref: firstChildViewRef }));
+-    }, [horizontal, stickyHeaderOffset]);
++    }, [horizontal]);
+     const scrollAnchor = useMemo(() => {
+         if (shouldMaintainVisibleContentPosition) {
+             return (React.createElement(ScrollAnchor, { horizontal: Boolean(horizontal), scrollAnchorRef: scrollAnchorRef }));
+diff --git a/src/recyclerview/RecyclerView.tsx b/src/recyclerview/RecyclerView.tsx
+index 3c25e7e893004932b8a13072e01fe2a940d365d4..c24b3b212c0051cf8f386fc001c4629795d3fbd9 100644
+--- a/src/recyclerview/RecyclerView.tsx
++++ b/src/recyclerview/RecyclerView.tsx
+@@ -503,16 +503,18 @@ const RecyclerViewComponent = <T,>(
+   // Create view for measuring bounded size
+   const viewToMeasureBoundedSize = useMemo(() => {
+     return (
++      // Mention patch: `stickyHeaderConfig.offset` places the stuck header
++      // only. It no longer pushes the content down, so a list can start
++      // behind an overlaying header (patches/README.md).
+       <CompatView
+         style={{
+-          marginTop: horizontal ? undefined : stickyHeaderOffset,
+           height: horizontal ? undefined : 0,
+           width: horizontal ? 0 : undefined,
+         }}
+         ref={firstChildViewRef}
+       />
+     );
+-  }, [horizontal, stickyHeaderOffset]);
++  }, [horizontal]);
+ 
+   const scrollAnchor = useMemo(() => {
+     if (shouldMaintainVisibleContentPosition) {

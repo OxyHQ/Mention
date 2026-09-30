@@ -1,6 +1,5 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
@@ -44,7 +43,7 @@ export function ProfileUnavailable({ notFound, onRetry, notFoundMessage }: Profi
 
   return (
     <EmptyState
-      customIcon={<NoUpdatesIllustration width={200} height={200} />}
+      sticker="profileNotFound"
       title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
       subtitle={notFoundMessage ?? t('profile.notFound.gone', {
         defaultValue: "This account doesn't exist, or it's no longer available.",

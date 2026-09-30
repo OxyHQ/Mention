@@ -2568,5 +2568,10 @@
   "connections.profileNotFound": "Questo account non esiste, quindi non ha follower da mostrare.",
   "saved.createFolderFailed": "Impossibile creare la cartella. Riprova.",
   "profile.loadFailed": "Impossibile caricare questo profilo. Controlla la connessione e riprova.",
-  "profile.notFound.gone": "Questo account non esiste o non è più disponibile."
+  "profile.notFound.gone": "Questo account non esiste o non è più disponibile.",
+  "notFound": {
+    "title": "Questa pagina non esiste",
+    "subtitle": "Il link potrebbe essere rotto o la pagina potrebbe essere stata spostata.",
+    "goHome": "Vai alla home"
+  }
 }

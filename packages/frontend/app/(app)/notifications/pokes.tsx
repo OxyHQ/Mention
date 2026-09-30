@@ -193,7 +193,7 @@ export default function PokesScreen() {
         if (isLoading && !refreshing) {
             return (
                 <View className="flex-1 justify-center items-center">
-                    <Loading className="text-primary" size="large" />
+                    <Loading className="text-primary" size="lg" />
                 </View>
             );
         }
@@ -218,15 +218,7 @@ export default function PokesScreen() {
                     <EmptyState
                         title={t('pokes.empty.title', { defaultValue: 'No pokes yet' })}
                         subtitle={t('pokes.empty.subtitle', { defaultValue: 'When someone pokes you, it will show up here. Poke your followers to get started!' })}
-                        // `contrast50` is the theme's real muted surface;
-                        // `${theme.colors.border}33` was a malformed colour (the
-                        // token is `rgb(...)`) that painted an opaque
-                        // border-coloured disc.
-                        customIcon={
-                            <View style={[styles.emptyIcon, { backgroundColor: theme.colors.contrast50 }]}>
-                                <RiHand width={36} height={36} fill={theme.colors.textSecondary} />
-                            </View>
-                        }
+                        sticker="notificationsPokes"
                     />
                     <SuggestedUsers
                         title={t('pokes.peopleToFollow', { defaultValue: 'People you may know' })}
@@ -377,12 +369,5 @@ const styles = StyleSheet.create({
     seeAll: {
         fontSize: 13,
         fontWeight: '600',
-    },
-    emptyIcon: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
 });

@@ -21,7 +21,7 @@ import {
 import { useTheme } from "@oxy.so/bloom/theme";
 import type { User } from "@oxy.so/core";
 import { createLogger } from "@oxy.so/core/logger";
-import { queryKeys } from "@oxy.so/services";
+import { queryKeys } from "@oxy.so/services/ui/client";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -412,7 +412,7 @@ export default function RestrictedUsersScreen() {
               {searching && (
                 <Loading
                   className="text-primary"
-                  size="small"
+                  size="sm"
                   style={{ flex: undefined }}
                 />
               )}
@@ -436,7 +436,7 @@ export default function RestrictedUsersScreen() {
                     key={userId}
                   >
                     <Button
-                      size="small"
+                      size="sm"
                       appearance="subtle"
                       tone="neutral"
                       onPress={() => !isRestricting && handleRestrict(user)}
@@ -447,7 +447,7 @@ export default function RestrictedUsersScreen() {
                         <Loading
                           className="text-primary"
                           variant="inline"
-                          size="small"
+                          size="sm"
                           style={{ flex: undefined }}
                         />
                       ) : (
@@ -479,7 +479,7 @@ export default function RestrictedUsersScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -487,10 +487,7 @@ export default function RestrictedUsersScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t("settings.privacy.noRestrictedUsers")}
-                  icon={{
-                    name: "people-outline",
-                    size: 48,
-                  }}
+                  sticker="restrictedAccounts"
                 />
               </View>
             ) : (
@@ -507,7 +504,7 @@ export default function RestrictedUsersScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => {

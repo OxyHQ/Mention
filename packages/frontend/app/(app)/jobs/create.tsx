@@ -421,7 +421,7 @@ export default function CreateJobScreen() {
               <SegmentedControl
                 label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
                 type="radio"
-                size="small"
+                size="sm"
                 value={salaryInterval}
                 onChange={setSalaryInterval}
               >
@@ -489,7 +489,7 @@ export default function CreateJobScreen() {
           <View className="flex-row gap-3 mt-6">
             <Button
               appearance="subtle" tone="neutral"
-              size="large"
+              size="lg"
               style={{ flex: 1 }}
               loading={createMutation.isPending && !publishingIntent}
               disabled={!canSubmitBase || createMutation.isPending}
@@ -499,7 +499,7 @@ export default function CreateJobScreen() {
             </Button>
             <Button
               appearance="solid" tone="accent"
-              size="large"
+              size="lg"
               style={{ flex: 1 }}
               loading={createMutation.isPending && publishingIntent}
               disabled={!canPublish || createMutation.isPending}
@@ -510,7 +510,7 @@ export default function CreateJobScreen() {
           </View>
           {accountsLoading ? (
             <View className="items-center mt-4">
-              <Loading className="text-primary" size="small" />
+              <Loading className="text-primary" size="sm" />
             </View>
           ) : null}
         </ScrollView>

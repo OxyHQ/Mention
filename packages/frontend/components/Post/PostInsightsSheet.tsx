@@ -68,7 +68,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
             <View className="flex-1 bg-background">
                 {headerEl}
                 <View className="flex-1 justify-center items-center py-12">
-                    <Loading className="text-primary" size="large" />
+                    <Loading className="text-primary" size="lg" />
                 </View>
             </View>
         );

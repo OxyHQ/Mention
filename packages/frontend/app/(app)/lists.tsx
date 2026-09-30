@@ -126,7 +126,7 @@ export default function ListsScreen() {
     <EmptyState
       title={t('lists.empty.title')}
       subtitle={t('lists.empty.subtitle')}
-      customIcon={<List size={48} className="text-muted-foreground" />}
+      sticker="lists"
       action={{
         label: t('lists.createList'),
         onPress: () => router.push('/lists/create'),
@@ -182,7 +182,7 @@ export default function ListsScreen() {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             canUsePrivateApi ? (
-              <Button size="small" onPress={() => router.push('/lists/create')}>
+              <Button size="sm" onPress={() => router.push('/lists/create')}>
                 {t('lists.new')}
               </Button>
             ) : undefined

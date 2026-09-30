@@ -96,13 +96,13 @@ export function CaptureReview({
         ) : null}
         {busy ? (
           <View style={styles.busy}>
-            <Loading className="text-white" size="small" />
+            <Loading className="text-white" size="sm" />
           </View>
         ) : null}
-        <Button onPress={onAddText} disabled={busy} appearance="subtle" tone="neutral" size="large">
+        <Button onPress={onAddText} disabled={busy} appearance="subtle" tone="neutral" size="lg">
           {t('camera.addText', { defaultValue: 'Add text' })}
         </Button>
-        <Button onPress={onPublish} disabled={busy} size="large">
+        <Button onPress={onPublish} disabled={busy} size="lg">
           {t('camera.publish', { defaultValue: 'Post' })}
         </Button>
       </View>

@@ -71,8 +71,8 @@ export default function ExternalMediaSettingsScreen() {
               <SettingsRow label={externalEmbedLabels[source]} key={source}>
                 {
                   <Switch
-                    value={prefs[source] === "show"}
-                    onValueChange={() =>
+                    checked={prefs[source] === "show"}
+                    onCheckedChange={() =>
                       setPref(
                         source,
                         prefs[source] === "show" ? "hide" : "show",

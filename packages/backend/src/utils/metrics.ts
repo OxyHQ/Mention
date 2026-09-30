@@ -179,6 +179,12 @@ const DEFINITIONS = {
     labelNames: ['route', 'rating', 'navigation'],
     buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
   },
+  web_shell_fetch_ms: {
+    kind: 'histogram',
+    help: 'Fetching the SPA shell from its origin (only on a cold or stale process cache)',
+    labelNames: ['status'],
+    buckets: [25, 50, 100, 250, 500, 1_000, 2_500, 5_000],
+  },
   web_boot_milestone_ms: {
     kind: 'histogram',
     help: 'Real-user milliseconds from navigation start to each step of a document load',

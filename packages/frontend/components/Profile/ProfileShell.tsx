@@ -4,9 +4,11 @@ import { FlashList } from '@shopify/flash-list';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
-import { ProfilePageHeader, ProfileBanner } from './ProfilePageHeader';
+import { CoverHeader } from '@oxy.so/bloom/cover-header';
+import { ProfilePageHeader, PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
 import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
@@ -42,8 +44,24 @@ export interface ProfileShellProps {
   summary: React.ReactElement | null;
   /** The tab strip itself, sticky in the second tier. Same element constraint. */
   tabBar: React.ReactElement | null;
-  /** Which surface the active tab renders. */
-  tabs: ProfileTabsProps;
+  /**
+   * Which surface the active tab renders. Omitted when the caller renders the
+   * content itself (`children`).
+   */
+  tabs?: ProfileTabsProps;
+  /**
+   * WEB: the content under the chrome, in place of `ProfileTabs` — the
+   * `[username]` layout's navigator (`ProfileChromeFrame.web.tsx`). It is
+   * rendered in every state, at one tree position, whether or not the chrome
+   * is drawn: a navigator that moves is destroyed and rebuilt.
+   */
+  children?: React.ReactNode;
+  /**
+   * `false` draws no chrome at all, only `children` — the layout's non-tab
+   * siblings (`/followers`, `/about`, …) are full screens with their own
+   * header. Default `true`.
+   */
+  active?: boolean;
   /**
    * Which anatomy the loading skeleton should hold space for. Defaults to a
    * person; a channel's page is a different shape, not a smaller one.
@@ -53,7 +71,12 @@ export interface ProfileShellProps {
   isRootTab?: boolean;
 }
 
-/** Preserves native list ownership and web document flow without a second chrome layer. */
+/**
+ * The profile's chrome — header, banner with the summary rising into it, sticky
+ * tab strip — for every platform and every caller: the native profile screen,
+ * the web `[username]` layout, and channels. The banner overlap is Bloom's
+ * `CoverHeader`, and nowhere else.
+ */
 export function ProfileShell(props: ProfileShellProps) {
   const { scrollPosition } = useLayoutScroll();
   return <HeaderDockProvider scrollY={scrollPosition}><ProfileShellBody {...props} /></HeaderDockProvider>;
@@ -70,73 +93,89 @@ function ProfileShellBody({
   summary,
   tabBar,
   tabs,
+  children,
+  active = true,
   skeletonVariant = 'person',
   isRootTab = false,
 }: ProfileShellProps) {
   const theme = useTheme();
+  const surfaceFill = useSurfaceFill();
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
-  const nativeFeedOwnsScroll = shouldFeedOwnProfileScroll({
+  const nativeFeedOwnsScroll = tabs ? shouldFeedOwnProfileScroll({
     tab: tabs.tab,
     isWeb: IS_WEB,
     isPrivate: tabs.isPrivate,
     isOwnProfile: tabs.isOwnProfile,
-  });
-  const nativeGridOwnsScroll = shouldGridOwnProfileScroll({
+  }) : false;
+  const nativeGridOwnsScroll = tabs ? shouldGridOwnProfileScroll({
     tab: tabs.tab,
     isWeb: IS_WEB,
     isPrivate: tabs.isPrivate,
     isOwnProfile: tabs.isOwnProfile,
-  });
+  }) : false;
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
+  // Banner, summary and the tab strip under them are ONE block with one
+  // background: the surface fill, which the sticky strip (Bloom's
+  // StickySection) and the avatar ring paint too. Left transparent, the
+  // summary showed whatever the column painted beneath it. On a framed web
+  // panel that is Bloom's lit material, a shade lighter than the strip right
+  // under it. The feed below keeps no background of its own and reads like
+  // every other feed.
   const listHeader = (
     <View
       onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
-      style={{ overflow: 'visible', flexGrow: 0, flexShrink: 0 }}
+      style={{ flexGrow: 0, flexShrink: 0, backgroundColor: surfaceFill }}
     >
-      {banner ? <ProfileBanner uri={banner.uri} /> : null}
-      {/* The hero owns the overlap. Transforming the whole summary at this
-          boundary works inside native virtualized cells as well as document
-          flow on web; its layout height stays intact for the tab list. */}
-      <View
-        style={banner ? { transform: [{ translateY: -45 }] } : undefined}
-      >
-        {summary}
-      </View>
+      {banner ? (
+        <CoverHeader
+          testID="profile-hero"
+          coverSource={banner.uri}
+          coverHeight={PROFILE_BANNER_HEIGHT}
+          overlap={PROFILE_AVATAR_OVERLAP}
+        >
+          {summary}
+        </CoverHeader>
+      ) : summary}
     </View>
   );
   const stickyTabs = tabBar ? (
     <StickySection
       testID="profile-sticky-tabs"
-      // Web measures the section's document position. Native virtualized lists
-      // already place the row after the summary; their offset is only the
-      // overlay header inset. Passing the summary height here makes FlashList
-      // reserve that height a second time and creates the large native gap.
-      offset={IS_WEB ? summaryHeight : headerInset}
+      // Native: the strip's Y in the list content, which is the measured header
+      // block above it. Bloom docks the page header when the strip reaches its
+      // bottom edge. Passing the header inset instead made the dock progress 1
+      // at rest, so the header drew docked over the banner. The list's own
+      // sticky clearance is `headerInset`, below. Web measures itself.
+      offset={IS_WEB ? undefined : summaryHeight}
     >
       {tabBar}
     </StickySection>
   ) : null;
-  // Native pushed routes are rendered above the tab navigator by the stack. The
-  // route surface must be opaque, otherwise the mounted tab pager remains
-  // visible through the profile while its list is laying out (and every
-  // profile row appears to overlap the feed underneath). Web already paints
-  // the document surface through AppShell; native needs this route boundary to
-  // publish the same Bloom surface explicitly.
-  return <View className="flex-1 web:z-auto bg-background" style={{ backgroundColor: theme.colors?.background }}>
+  const nativeContent = tabs ? <ProfileTabs {...tabs} /> : null;
+  const drawing = active && !loading ? profileData : null;
+  // Native pushed routes are rendered above the tab navigator by the stack, so
+  // the route must be opaque or the pager shows through while the list lays
+  // out. It is painted in the surface fill, the colour of every other native
+  // route (StackScene), not the theme background it used to name. Web leaves
+  // the page to the content panel, like every other screen.
+  return <View className="flex-1 web:z-auto" style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-    {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
+    {IS_WEB ? <>
+      {/* Flat, fixed slots: `children` stays the last child in every state. */}
+      {active && loading ? <ProfileSkeleton variant={skeletonVariant} /> : null}
+      {active && !loading && !profileData ? <ProfileUnavailable notFound={notFound} onRetry={onRetry} /> : null}
+      {drawing ? <ProfilePageHeader profileData={drawing} actions={headerActions}
+        overMedia={Boolean(banner)} showBack={!isRootTab} /> : null}
+      {drawing ? listHeader : null}
+      {drawing ? stickyTabs : null}
+      {children ?? (drawing && tabs ? <ProfileTabs {...tabs} /> : null)}
+    </> : loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
       <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
     ) : <>
-      {IS_WEB ? <>
-        <ProfilePageHeader profileData={profileData} actions={headerActions}
-          overMedia={Boolean(banner)} showBack={!isRootTab} />
-        {listHeader}
-        {stickyTabs}
-        <ProfileTabs {...tabs} />
-      </> : nativeListOwnsScroll ? <View className="min-h-0 flex-1">
+      {nativeListOwnsScroll && tabs ? <View className="min-h-0 flex-1">
         <ProfileTabs {...tabs} listOwnsScroll listContentHeaderComponent={listHeader}
           listStickyHeaderComponent={stickyTabs}
           listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
@@ -145,19 +184,19 @@ function ProfileShellBody({
           ref={chrome.assignScrollRef}
           data={['tabs', 'content'] as const}
           keyExtractor={item => item}
-          renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
+          renderItem={({ item }) => item === 'tabs' ? stickyTabs : nativeContent}
           ListHeaderComponent={listHeader}
           ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
           onScroll={chrome.onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
-        // The tabs are the first data row; FlashList keeps ListHeaderComponent
-        // outside the data index space.
-        stickyHeaderIndices={tabBar ? [0] : undefined}
+          // The tabs are the first data row; FlashList keeps ListHeaderComponent
+          // outside the data index space.
+          stickyHeaderIndices={tabBar ? [0] : undefined}
           stickyHeaderConfig={{ offset: headerInset }}
         />}
-      {!IS_WEB ? <ProfilePageHeader profileData={profileData} actions={headerActions}
-        overMedia={Boolean(banner)} showBack={!isRootTab} /> : null}
+      <ProfilePageHeader profileData={profileData} actions={headerActions}
+        overMedia={Boolean(banner)} showBack={!isRootTab} />
     </>}
   </View>;
 }

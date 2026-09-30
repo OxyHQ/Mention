@@ -214,7 +214,7 @@ function SuggestedStarterPackItem({
       </View>
       <FollowButton
         userIds={memberIds}
-        size="small"
+        size="sm"
         followAllLabel={t('feed.interstitial.starterPacks.followAll')}
         followedAllLabel={t('feed.interstitial.starterPacks.followingAll')}
         onBulkFollow={() => onBulkFollow(id, position)}

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useUserByUsername } from '@oxy.so/services';
+import { useUserByUsername } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountCategoryId, AccountKind, User } from '@oxy.so/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';

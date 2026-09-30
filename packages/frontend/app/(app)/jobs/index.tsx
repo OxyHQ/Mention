@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
@@ -26,6 +26,7 @@ import { Storage } from '@/utils/storage';
 import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { jobsService, type MentionJobDiscoveryFilters } from '@/services/jobsService';
 import JobDiscoveryResultCard, { ExternalJobReportSheet } from '@/components/Jobs/JobDiscoveryResultCard';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -303,10 +304,9 @@ export default function JobsDiscoveryScreen() {
             </TextField>
 
             <Button
-              variant="text"
-              size="small"
+              size="sm"
               onPress={() => setShowMoreFilters((v) => !v)}
-              style={{ alignSelf: 'flex-start' }}
+              style={{ alignSelf: 'flex-start' }} tone="accent" appearance="plain"
             >
               {showMoreFilters
                 ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
@@ -370,7 +370,7 @@ export default function JobsDiscoveryScreen() {
                   <SegmentedControl
                     label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
                     type="radio"
-                    size="small"
+                    size="sm"
                     value={draft.datePosted}
                     onChange={setDatePosted}
                   >
@@ -409,7 +409,7 @@ export default function JobsDiscoveryScreen() {
       if (item.state === 'loading') {
         return (
           <View className="items-center justify-center py-16">
-            <Loading className="text-primary" size="large" />
+            <Loading className="text-primary" size="lg" />
           </View>
         );
       }
@@ -424,14 +424,12 @@ export default function JobsDiscoveryScreen() {
         );
       }
       return (
-        <View className="items-center justify-center py-16 px-8 gap-2">
-          <Text className="text-foreground text-base font-semibold text-center">
-            {t('jobs.discovery.emptyTitle', { defaultValue: 'No jobs found' })}
-          </Text>
-          <Text className="text-muted-foreground text-sm text-center">
-            {t('jobs.discovery.emptySubtitle', { defaultValue: 'Try a different search or clear a filter.' })}
-          </Text>
-        </View>
+        <EmptyState
+          title={t('jobs.discovery.emptyTitle', { defaultValue: 'No jobs found' })}
+          subtitle={t('jobs.discovery.emptySubtitle', { defaultValue: 'Try a different search or clear a filter.' })}
+          sticker="jobsSearch"
+          containerStyle={{ paddingTop: 40 }}
+        />
       );
     },
     [
@@ -474,7 +472,7 @@ export default function JobsDiscoveryScreen() {
           ListFooterComponent={
             discoveryQuery.isFetchingNextPage ? (
               <View className="items-center justify-center py-4">
-                <Loading className="text-primary" size="small" />
+                <Loading className="text-primary" size="sm" />
               </View>
             ) : null
           }

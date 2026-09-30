@@ -70,6 +70,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({ scrollPosition: { value: 0 } }),
 }));
 jest.mock('@oxy.so/bloom/layout', () => ({
+  useBottomEdgeInset: () => 0,
   HeaderDockProvider: ({ children }: { children: React.ReactNode }) => children,
   StickySection: ({ children }: { children: React.ReactNode }) => children,
 }));

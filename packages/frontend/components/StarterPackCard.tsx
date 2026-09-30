@@ -119,7 +119,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       accessibilityLabel={accessibilityLabel}
       testID={`starterpack-${pack.id}`}>
       {/* The press owns the scale; Bloom's `Card` owns the surface. */}
-      <Card variant="outlined" border="hairline" radius="radius-12" style={styles.outer}>
+      <Card  border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
         {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
         {hasAvatars ? (
           <AvatarGroup
@@ -210,7 +210,7 @@ export function StarterPackCardNotification({
  */
 export function StarterPackCardSkeleton() {
   return (
-    <Card variant="outlined" border="hairline" radius="radius-12" style={styles.outer}>
+    <Card  border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
       {/* Skeleton avatar row */}
       <View style={styles.skeletonAvatarRow}>
         {Array.from({ length: 6 }).map((_, i) => (

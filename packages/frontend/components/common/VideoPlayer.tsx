@@ -152,7 +152,7 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
     <PlayButton
       playing={playing}
       onPress={onPress}
-      size="large"
+      size="lg"
       variant="inverse"
       playLabel={t('videos.play')}
       pauseLabel={t('videos.pause')}

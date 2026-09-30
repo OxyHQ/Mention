@@ -15,7 +15,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
-import { Button } from '@oxy.so/bloom/button';
+import { Button, LinkButton } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Muted } from '@oxy.so/bloom/typography';
@@ -217,9 +217,9 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
           {/* Sign in prompt */}
           <View style={styles.signInContainer}>
             <Muted>Already have an account? </Muted>
-            <Button variant="link" onPress={handleSignIn}>
+            <LinkButton onPress={handleSignIn}>
               Sign in
-            </Button>
+            </LinkButton>
           </View>
         </View>
       </ImageBackground>

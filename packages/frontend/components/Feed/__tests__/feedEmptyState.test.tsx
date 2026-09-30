@@ -81,6 +81,14 @@ function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
         .map((icon: { displayName?: string; name?: string }) => String(icon.displayName ?? icon.name));
 }
 
+/** The sticker each block draws as its illustration, by catalogue name. */
+function stickerNames(tree: TestRenderer.ReactTestRenderer): string[] {
+    return blocks(tree)
+        .map((node) => node.props.illustration as { props?: { name?: string } } | undefined)
+        .map((illustration) => illustration?.props?.name)
+        .filter((name): name is string => typeof name === 'string');
+}
+
 /** The retry affordance: the block's action, leading with the refresh glyph. */
 function retryButtons(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
     return blocks(tree).filter((node) => {
@@ -108,15 +116,15 @@ describe('FeedEmptyState', () => {
         const tree = render({ error: 'Failed to load', errorKind: 'transient' });
         // The retry affordance stays; the tinted warning disc does not.
         expect(iconNames(tree)).toEqual([]);
+        expect(stickerNames(tree)).toEqual(['loadError']);
         expect(retryButtons(tree)).toHaveLength(1);
         expect(textContent(tree)).toContain('feed.empty.title');
     });
 
-    it('keeps the connection icon and copy for a device with no network', () => {
+    it('draws the no-connection sticker and copy for a device with no network', () => {
         const tree = render({ error: 'Failed to load', errorKind: 'offline' });
-        // `cloud-offline-outline` was the Ionicons name; Bloom ships no cloud-off
-        // glyph, so the connection failure draws the alert triangle.
-        expect(iconNames(tree)).toContain('RiAlertLine');
+        expect(iconNames(tree)).toEqual([]);
+        expect(stickerNames(tree)).toEqual(['offline']);
         expect(textContent(tree)).toContain('No connection. Check your network and try again.');
     });
 

@@ -7,7 +7,7 @@
  */
 
 import { skipToken, useQuery } from '@tanstack/react-query';
-import { queryKeys, useUserById as useSdkUserById } from '@oxy.so/services';
+import { queryKeys, useUserById as useSdkUserById } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 
 /** Reactively read a cached user by id. Subscribes to the React Query cache. */

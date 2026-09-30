@@ -53,7 +53,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
           accessibilityRole="progressbar"
           accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
         >
-          <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+          <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           <Text className="text-muted-foreground ml-2 text-[13px]">
             {t('compose.quote.loading', { defaultValue: 'Loading quoted post...' })}
           </Text>

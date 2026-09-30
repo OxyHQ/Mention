@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextInput } from 'react-native';
+import { Platform, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { logger } from '@oxy.so/core/logger';
 import MentionTextInput from '../MentionTextInput';
@@ -28,10 +28,17 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   }),
 }));
 
-let mockPickerProps: { query: string; searchCache: MentionSearchCache } | null = null;
+interface MockPickerProps {
+  users: MentionUser[];
+  loading: boolean;
+  activeIndex: number;
+  onActiveIndexChange: (index: number) => void;
+  onSelect: (user: MentionUser) => void;
+}
+let mockPickerProps: MockPickerProps | null = null;
 jest.mock('../MentionPicker', () => ({
   __esModule: true,
-  default: (props: { query: string; searchCache: MentionSearchCache }) => {
+  default: (props: MockPickerProps) => {
     mockPickerProps = props;
     return null;
   },
@@ -197,8 +204,10 @@ describe('MentionTextInput typed handles', () => {
     expect(fetchUsers).not.toHaveBeenCalled();
   });
 
-  it('hands the picker the session cache it resolves from', () => {
-    const cache = createMentionSearchCache(jest.fn(async () => []));
+  it('offers the session cache\'s results for the handle being typed', async () => {
+    const fetchUsers = jest.fn(async () => [aliceUser, aliciaUser]);
+    const cache = createMentionSearchCache(fetchUsers);
+    await cache.search('al');
     const renderer = renderInSession(cache);
 
     act(() => {
@@ -208,8 +217,88 @@ describe('MentionTextInput typed handles', () => {
     });
     type(renderer, 'Hi @al');
 
-    expect(mockPickerProps?.query).toBe('al');
-    expect(mockPickerProps?.searchCache).toBe(cache);
+    expect(mockPickerProps?.users).toEqual([aliceUser, aliciaUser]);
+    expect(mockPickerProps?.loading).toBe(false);
+    expect(mockPickerProps?.activeIndex).toBe(0);
+    expect(fetchUsers).toHaveBeenCalledTimes(1);
+  });
+
+  describe('the picker keyboard, on web', () => {
+    const originalOS = Platform.OS;
+    const globals = globalThis as { HTMLElement?: unknown };
+    beforeEach(() => {
+      Object.defineProperty(Platform, 'OS', { value: 'web', configurable: true });
+      // The web auto-grow reads the DOM node behind the field; this environment
+      // renders native, so there is none to find.
+      globals.HTMLElement = class {};
+    });
+    afterEach(() => {
+      Object.defineProperty(Platform, 'OS', { value: originalOS, configurable: true });
+      delete globals.HTMLElement;
+    });
+
+    async function openPicker() {
+      const cache = createMentionSearchCache(jest.fn(async () => [aliceUser, aliciaUser]));
+      await cache.search('al');
+      const renderer = renderInSession(cache);
+      act(() => {
+        renderer.root.findByType(TextInput).props.onSelectionChange({
+          nativeEvent: { selection: { start: 6, end: 6 } },
+        });
+      });
+      type(renderer, 'Hi @al');
+      return renderer;
+    }
+
+    function press(renderer: TestRenderer.ReactTestRenderer, key: string) {
+      const preventDefault = jest.fn();
+      act(() => {
+        renderer.root.findByType(TextInput).props.onKeyPress({ nativeEvent: { key }, preventDefault });
+      });
+      return preventDefault;
+    }
+
+    it('moves the highlight with the arrows, wrapping, and Enter takes it', async () => {
+      const renderer = await openPicker();
+
+      expect(press(renderer, 'ArrowDown')).toHaveBeenCalled();
+      expect(mockPickerProps?.activeIndex).toBe(1);
+      press(renderer, 'ArrowDown');
+      expect(mockPickerProps?.activeIndex).toBe(0);
+      press(renderer, 'ArrowUp');
+      expect(mockPickerProps?.activeIndex).toBe(1);
+
+      expect(press(renderer, 'Enter')).toHaveBeenCalled();
+      expect(latestState).toEqual({
+        text: 'Hi [mention:alicia-id] ',
+        mentions: [{ userId: 'alicia-id', username: 'alicia', displayName: 'alicia' }],
+      });
+    });
+
+    it('closes the list on Escape and leaves every key to the field when no list is open', async () => {
+      const renderer = await openPicker();
+      expect(press(renderer, 'Escape')).toHaveBeenCalled();
+      expect(press(renderer, 'Enter')).not.toHaveBeenCalled();
+      expect(latestState).toEqual({ text: 'Hi @al', mentions: [] });
+    });
+  });
+
+  it('leaves Enter to the field on native, where return cannot be prevented', async () => {
+    const cache = createMentionSearchCache(jest.fn(async () => [aliceUser]));
+    await cache.search('al');
+    const renderer = renderInSession(cache);
+    act(() => {
+      renderer.root.findByType(TextInput).props.onSelectionChange({
+        nativeEvent: { selection: { start: 6, end: 6 } },
+      });
+    });
+    type(renderer, 'Hi @al');
+    const preventDefault = jest.fn();
+    act(() => {
+      renderer.root.findByType(TextInput).props.onKeyPress({ nativeEvent: { key: 'Enter' }, preventDefault });
+    });
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(latestState).toEqual({ text: 'Hi @al', mentions: [] });
   });
 
   it('searches Oxy itself outside a composer session', async () => {
