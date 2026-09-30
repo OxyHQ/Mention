@@ -24,10 +24,14 @@
 # re-tagged them `deployed-<sha>` (ecr.tf, in oxy-infra), so entries the queue
 # ejects do not pile up, and a released image is never counted out by them.
 #
-# BUILD CACHE: the same `type=gha` scopes as the deploys. An Actions cache is
-# readable from the ref that wrote it and from the default branch, so this
-# reads what main wrote: the deploys' fallback builds and the weekly no-cache
-# rebuild (refresh-image-cache.yml).
+# BUILD CACHE: READ-ONLY, from the same `type=gha` scopes as the deploys. An
+# Actions cache is readable from the ref that wrote it and from the default
+# branch, so this reads what main wrote: the deploys' fallback builds and the
+# weekly no-cache rebuild (refresh-image-cache.yml). It writes nothing back:
+# every queue entry has its own ref (`gh-readonly-queue/main/pr-<n>-<base>`),
+# so an export from here could be read by no later run, and it would only push
+# the repository past its 10 GB Actions cache quota and evict main's entries
+# (least recently used first).
 name: Merge queue image
 
 on:
@@ -102,7 +106,8 @@ jobs:
         if: steps.scope.outputs.deploy == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # The same build as the deploy's fallback. Only the tag differs.
+      # The same build as the deploy's fallback, reading (never writing) its
+      # cache scope. Only the tag differs.
       - name: Build and push immutable ${{ matrix.target }} image
         if: steps.scope.outputs.deploy == 'true'
         id: build
@@ -114,7 +119,6 @@ jobs:
           push: true
           tags: ${{ env.ECR_REGISTRY }}/oxy/${{ matrix.app }}:mq-${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           provenance: true
           sbom: true
 
