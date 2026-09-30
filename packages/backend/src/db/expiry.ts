@@ -59,8 +59,8 @@
  * A Mongo TTL index DELETES the document. The sibling oxy-api port found one
  * that had been written meaning "mark expired" and had been destroying
  * subscription history instead, so each of these says what deleting the row
- * actually costs. One of them — `engagement_outbox` — deletes UNPROCESSED work
- * and is flagged accordingly.
+ * actually costs. One of them — `engagement_outbox` — would delete UNPROCESSED
+ * work by deadline alone, so the schedule sweeps only its processed rows.
  *
  * ## Coexistence with reads
  *
@@ -74,13 +74,20 @@
  *
  * ## Scheduling
  *
- * `@oxy.so/db/expiry`'s `sweepExpiredRows` is the mechanism; wiring it to a
- * schedule belongs with the call-site port, alongside the leader-gated jobs
- * already in `services/FeedJobScheduler.ts`. Until then it is callable and
- * tested, and nothing reads a swept table yet.
+ * `services/ExpirySweepJob.ts` runs {@link SCHEDULED_EXPIRY_SWEEP_TARGETS} on the
+ * elected leader (`runtime/schedulers.ts`). It went unscheduled for months after
+ * the port (OxyHQ/Mention#1187): `author_follower_snapshots` alone reached 5.4M
+ * rows, 1.4 GB with indexes, against a 30-day retention. Each run deletes in
+ * bounded batches, so a backlog like that drains over several runs instead of
+ * in one statement.
+ *
+ * `engagement_outbox` is the one registry entry the schedule does NOT sweep by
+ * deadline alone — see its entry and {@link sweepProcessedEngagementOutbox}.
  */
 
-import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
+import { and, eq, getTableName, sql } from 'drizzle-orm';
+import { executeRows, type SqlExecutor } from '@oxy.so/db';
+import type { ExpirySweepOptions, ExpirySweepResult, ExpirySweepTarget } from '@oxy.so/db/expiry';
 import {
   AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS,
   NOTIFICATION_RETENTION_SECONDS,
@@ -217,19 +224,70 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: engagementOutbox.expiresAt,
     retentionSeconds: 0,
     reason:
-      'WARNING — this is the one entry that deletes UNPROCESSED WORK. The ' +
-      'predicate is the deadline alone, not the status, so a `pending` event ' +
-      'whose dispatcher has been stalled for the whole retention window is ' +
-      'destroyed rather than retried, and the like/save it represents never ' +
-      'reaches MTN, federation or notifications. The Mongoose model stated ' +
-      'this is deliberate ("operational alerts must fire well before this ' +
-      'deadline"), and the alerting is what makes it safe. THAT ALERTING DOES ' +
-      'NOT EXIST: there is no engagement-outbox metric in `utils/metrics.ts` ' +
-      '(so nothing is exported for `GET /internal/metrics` to serve), and ' +
-      'oxy-infra defines no CloudWatch alarm, scraper or notification target ' +
-      'for this or anything else. Until a backlog-age signal exists and is ' +
-      'wired to somewhere a human reads, scheduling this sweep converts a ' +
-      'stalled dispatcher from a recoverable incident into silent, permanent ' +
-      'data loss. Sweep every other table; leave this one unscheduled.',
+      'WARNING — this is the one entry whose deadline covers UNPROCESSED ' +
+      'WORK. Swept by deadline alone, a `pending` event whose dispatcher had ' +
+      'been stalled for the whole retention window would be destroyed rather ' +
+      'than retried, and the like/save it represents would never reach MTN, ' +
+      'federation or notifications — with no backlog alert anywhere to catch ' +
+      'it first. So the schedule does NOT pass this entry to `sweepExpiredRows`: ' +
+      '`sweepProcessedEngagementOutbox` deletes only `processed` rows past the ' +
+      'deadline, and anything still pending stays where a human can find it.',
   },
 ];
+
+/**
+ * What the schedule passes to `sweepExpiredRows`: every entry but
+ * `engagement_outbox`, whose deadline-only predicate would delete unprocessed
+ * work. That table is swept by {@link sweepProcessedEngagementOutbox} instead.
+ */
+export const SCHEDULED_EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] =
+  EXPIRY_SWEEP_TARGETS.filter((target) => target.table !== engagementOutbox);
+
+/** Same bounds as `@oxy.so/db/expiry`'s defaults, for the same reasons. */
+const OUTBOX_SWEEP_BATCH_SIZE = 1000;
+const OUTBOX_SWEEP_MAX_BATCHES = 50;
+
+/**
+ * Delete `engagement_outbox` rows that are past `expires_at` AND `processed`.
+ *
+ * Nothing else ever deletes a processed event, so without this the outbox grows
+ * by one row per like, save and vote forever. A row still `pending` or
+ * `processing` past its deadline is left alone on purpose: it is a stalled
+ * dispatcher's backlog, and deleting it would lose the engagement silently.
+ *
+ * Deleting a processed row is safe: the dispatcher's ordering check only looks
+ * for EARLIER UNPROCESSED revisions, and an event id is derived from its
+ * relationship and revision, so it is never re-emitted weeks later.
+ *
+ * Batched through `ctid` exactly like `sweepExpiredRows`; the predicate walks
+ * `engagement_outbox_expires_at_idx` and filters status on the heap.
+ */
+export async function sweepProcessedEngagementOutbox(
+  db: SqlExecutor,
+  options: ExpirySweepOptions = {}
+): Promise<ExpirySweepResult> {
+  const batchSize = options.batchSize ?? OUTBOX_SWEEP_BATCH_SIZE;
+  const maxBatches = options.maxBatches ?? OUTBOX_SWEEP_MAX_BATCHES;
+  const table = getTableName(engagementOutbox);
+  const expired = and(
+    sql`${engagementOutbox.expiresAt} <= now()`,
+    eq(engagementOutbox.status, 'processed')
+  );
+
+  let deleted = 0;
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    const rows = await executeRows(
+      db,
+      sql`
+        delete from ${engagementOutbox}
+        where ctid in (
+          select ctid from ${engagementOutbox} where ${expired} limit ${batchSize}
+        )
+        returning ctid
+      `
+    );
+    deleted += rows.length;
+    if (rows.length < batchSize) return { table, deleted, truncated: false };
+  }
+  return { table, deleted, truncated: true };
+}

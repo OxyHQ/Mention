@@ -8,7 +8,9 @@ import PostAttachmentsRow from '../PostAttachmentsRow';
  *
  * - ONE item takes the full width of the row, whatever it is.
  * - SEVERAL items share ONE height — a strip, not a skyline — so every item is
- *   handed the same row height.
+ *   handed the same row-height class.
+ * - Every width comes from layout (classes and the media's own ratio); nothing
+ *   is measured.
  * - A quoted post is not an item: it renders below the row, at full width.
  */
 type Captured = { kind: string; props: Record<string, unknown> };
@@ -65,41 +67,46 @@ function render(props: Record<string, unknown>): Captured[] {
 
 const of = (items: Captured[], kind: string) => items.find((item) => item.kind === kind)?.props ?? {};
 
+/** The height class a carousel cell was given, if any. */
+const heightClass = (props: Record<string, unknown>) =>
+  String(props.className ?? '').match(/\bh-\[\d+px\]/)?.[0];
+
 describe('one item takes the full width', () => {
-  it('a link card is as wide as an image would be, with no fixed height', () => {
-    const alone = render({ documents: [link] });
-    expect(of(alone, 'link').width).toBeGreaterThan(280);
-    expect(of(alone, 'link').constrainedHeight).toBeUndefined();
+  it('a link card fills the row by layout, with no fixed height', () => {
+    const link1 = of(render({ documents: [link] }), 'link');
+    expect(link1.className).toBe('w-full');
+    expect(link1.coverFill).toBe(false);
   });
 
   it('a podcast card spans the row', () => {
     const alone = render({ podcast });
-    expect(of(alone, 'podcast').width).toBeGreaterThan(340);
+    expect(of(alone, 'podcast').width).toBe('100%');
     expect(of(alone, 'podcast').height).toBeUndefined();
   });
 
   it('an image is the hero form', () => {
     expect(of(render({ media: [image] }), 'media').hasSingleMedia).toBe(true);
   });
+
+  it('nothing is sized from a measured width', () => {
+    const alone = render({ media: [image] });
+    expect(of(alone, 'media')).not.toHaveProperty('availableWidth');
+  });
 });
 
 describe('several items share one height', () => {
-  it('an image, a link and a podcast are all handed the same height', () => {
+  it('an image, a link and a podcast take the same row height', () => {
     const row = render({ media: [image], documents: [link], podcast });
-    const heights = [
-      of(row, 'media').rowHeight,
-      of(row, 'link').constrainedHeight,
-      of(row, 'podcast').height,
-    ];
-    expect(typeof heights[0]).toBe('number');
-    expect(new Set(heights).size).toBe(1);
+    expect(of(row, 'media').tallRow).toBe(false);
+    expect(heightClass(of(row, 'link'))).toBe('h-[200px]');
+    expect(of(row, 'podcast').height).toBe(200);
   });
 
   it('a poll makes the whole row taller, not just itself', () => {
-    const plain = render({ media: [image], documents: [link] });
     const withPoll = render({ media: [image], documents: [link], pollData: { question: 'Q', options: ['a', 'b'] } });
-    expect(of(withPoll, 'media').rowHeight).toBeGreaterThan(of(plain, 'media').rowHeight as number);
-    expect(of(withPoll, 'poll').style).toEqual({ height: of(withPoll, 'media').rowHeight });
+    expect(of(withPoll, 'media').tallRow).toBe(true);
+    expect(heightClass(of(withPoll, 'poll'))).toBe('h-[264px]');
+    expect(heightClass(of(withPoll, 'link'))).toBe('h-[264px]');
   });
 
   it('an embeddable link is a static card beside other items, a player alone', () => {
@@ -107,16 +114,16 @@ describe('several items share one height', () => {
     expect(render({ documents: [youtube] }).some((item) => item.kind === 'embed')).toBe(true);
     const beside = render({ documents: [youtube], media: [image] });
     expect(beside.some((item) => item.kind === 'embed')).toBe(false);
-    expect(of(beside, 'link').constrainedHeight).toBe(of(beside, 'media').rowHeight);
+    expect(of(beside, 'link').coverFill).toBe(true);
+    expect(heightClass(of(beside, 'link'))).toBe('h-[200px]');
   });
 });
 
 describe('a job card follows the same rules', () => {
   it('spans the row alone, and shares the row height beside an image', () => {
     const job = { mentionJobId: 'job-1', title: 'Engineer', status: 'published' };
-    expect(of(render({ job }), 'job').height).toBeUndefined();
-    const beside = render({ job, media: [image] });
-    expect(of(beside, 'job').height).toBe(of(beside, 'media').rowHeight);
+    expect(of(render({ job }), 'job').className).toBe('w-full');
+    expect(heightClass(of(render({ job, media: [image] }), 'job'))).toBe('h-[200px]');
   });
 });
 

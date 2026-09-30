@@ -58,7 +58,6 @@ function renderPlayer(params: typeof YOUTUBE_PARAMS) {
     TestRenderer.create(
       <ExternalEmbedPlayer
         params={params}
-        width={400}
         active
         onPressPlay={() => undefined}
         onDeactivate={() => undefined}

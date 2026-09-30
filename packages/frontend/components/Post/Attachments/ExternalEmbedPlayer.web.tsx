@@ -7,8 +7,6 @@ export interface ExternalEmbedPlayerProps {
   params: EmbedPlayerParams;
   /** Link-preview thumbnail shown before the player is mounted. */
   thumb?: string;
-  /** Available render width — used for aspect-ratio resolution. */
-  width: number;
   /** Whether the iframe should be mounted (set by the wrapper on play). */
   active: boolean;
   /** Fired when the play button is pressed (the wrapper gates consent). */
@@ -24,12 +22,12 @@ export interface ExternalEmbedPlayerProps {
  * Web external embed player. The `<iframe>` is mounted ONLY while `active`, so
  * nothing external loads before the user presses play (and consent is granted).
  */
-export function ExternalEmbedPlayer({ params, thumb, width, active, onPressPlay }: ExternalEmbedPlayerProps) {
+export function ExternalEmbedPlayer({ params, thumb, active, onPressPlay }: ExternalEmbedPlayerProps) {
   const [loading, setLoading] = useState(true);
 
   const aspect = useMemo(
-    () => getPlayerAspect({ type: params.type, width, hasThumb: !!thumb }),
-    [params.type, width, thumb],
+    () => getPlayerAspect({ type: params.type, hasThumb: !!thumb }),
+    [params.type, thumb],
   );
 
   return (
