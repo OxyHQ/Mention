@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import type { View } from 'react-native';
 import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
@@ -18,7 +18,8 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { useHoldForLeading } from './holdForLeading';
-import { type FeedRow, boundFeedRows, buildFeedRows, canLoadMoreFeed } from './feedRows';
+import { type FeedRow, buildFeedRows } from './feedRows';
+import { boundFeedRows, canLoadMoreFeed } from './feedPaging';
 
 /**
  * EVERYTHING A FEED IS, except how it scrolls.
@@ -146,7 +147,9 @@ export function useFeedCore(props: FeedProps) {
         threaded,
         threadPostId,
     }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUserId, blockedSet, threaded, threadPostId]);
-    const feedRows = boundFeedRows(allFeedRows, previewLimit);
+    // Memoized explicitly, not left to the compiler: these rows are FlashList's
+    // `data`, and a new array identity re-renders every mounted row.
+    const feedRows = useMemo(() => boundFeedRows(allFeedRows, previewLimit), [allFeedRows, previewLimit]);
 
     const holdForLeading = useHoldForLeading(
         merged.leadingPending,
@@ -204,15 +207,13 @@ export function useFeedCore(props: FeedProps) {
     const isLoadingMore = feedState.isLoading && presentedRows.length > 0;
     const showFooter = isLoadingMore || (!isAuthenticated && presentedRows.length > 0);
 
-    const header = merged.listHeaderComponent ?? (
-        <FeedHeader
-            showComposeButton={merged.showComposeButton}
-            onComposePress={merged.onComposePress}
-            hideHeader={merged.hideHeader}
-        />
-    );
+    const { listHeaderComponent, showComposeButton, onComposePress, hideHeader } = merged;
+    const header = useMemo(() => listHeaderComponent ?? (
+        <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />
+    ), [listHeaderComponent, showComposeButton, onComposePress, hideHeader]);
 
-    const emptyState = (
+    const isThread = type === 'replies' && Boolean(filters?.parentPostId || filters?.postId);
+    const emptyState = useMemo(() => (
         <FeedEmptyState
             isLoading={feedState.isLoading || holdForLeading}
             error={feedState.error}
@@ -222,18 +223,20 @@ export function useFeedCore(props: FeedProps) {
             showOnlySaved={showOnlySaved}
             onRetry={handleRetry}
             pending={feedState.pending}
-            isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
+            isThread={isThread}
         />
-    );
+    ), [feedState.isLoading, holdForLeading, feedState.error, feedState.errorKind, type, showOnlySaved, handleRetry, feedState.pending, isThread]);
 
-    const footer = showFooter ? (
+    const footerHasMore = previewLimit === undefined && feedState.hasMore;
+    const hasPresentedRows = presentedRows.length > 0;
+    const footer = useMemo(() => showFooter ? (
         <FeedFooter
             showOnlySaved={showOnlySaved}
-            hasMore={previewLimit === undefined && feedState.hasMore}
+            hasMore={footerHasMore}
             isLoadingMore={isLoadingMore}
-            hasItems={presentedRows.length > 0}
+            hasItems={hasPresentedRows}
         />
-    ) : null;
+    ) : null, [showFooter, showOnlySaved, footerHasMore, isLoadingMore, hasPresentedRows]);
 
     return {
         props: merged,
