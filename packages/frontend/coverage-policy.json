@@ -272,8 +272,8 @@
   ],
   "expectedCounts": {
     "domainFiles": 279,
-    "pins": 274,
-    "unenforceable": 5,
+    "pins": 275,
+    "unenforceable": 4,
     "belowBarExemptions": 11,
     "criticalPaths": 32,
     "allowedBaselineDecreases": 0,
