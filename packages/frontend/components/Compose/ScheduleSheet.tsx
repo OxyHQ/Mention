@@ -91,11 +91,9 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   }, [onClose]);
 
   return (
-    <View className="rounded-t-3xl px-5 pt-3 bg-background" style={{ maxHeight: '90%' }}>
-      <View className="items-center justify-center mb-3">
-        <View className="w-10 h-1 rounded-full bg-border" />
-      </View>
-
+    // The surface, corner radius and drag handle belong to the bottom sheet that
+    // hosts this; drawing them again here stacked a second background on it.
+    <View className="px-5 pt-3" style={{ maxHeight: '90%' }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
