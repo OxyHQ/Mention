@@ -4,6 +4,7 @@ import request from 'supertest';
 import https from 'https';
 import { Readable } from 'stream';
 
+import * as shellDocument from '../services/webShellDocument';
 import {
   __apexProxyForTests,
   apexFrontendProxy,
@@ -207,6 +208,28 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(res.status).toBe(404);
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.text).toBe('');
+  });
+
+  it('drops the held shell document when a hashed chunk it named is gone', async () => {
+    const invalidate = vi.spyOn(shellDocument, 'invalidateShellDocument');
+    stubCdn({ contentType: 'text/html; charset=utf-8' });
+
+    await request(makeApp())
+      .get('/_expo/static/js/web/__common-deadbeef.js')
+      .set('X-Forwarded-Host', APEX);
+
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the held shell document alone when a chunk is served', async () => {
+    const invalidate = vi.spyOn(shellDocument, 'invalidateShellDocument');
+    stubCdn({ contentType: 'application/javascript' });
+
+    await request(makeApp())
+      .get('/_expo/static/js/web/__common-deadbeef.js')
+      .set('X-Forwarded-Host', APEX);
+
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it('returns a non-cacheable 404 when the SPA fallback appears at a hashed font URL', async () => {

@@ -143,9 +143,6 @@ jest.mock('../feedRows', () => ({
     feedRowKey: (row: { key?: string }) => row.key ?? 'row',
     feedRowType: () => 'post',
     feedRowStyles: { container: {}, list: {}, listEmbedded: {}, listContent: {} },
-    boundFeedRows: <T,>(rows: T[]) => rows,
-    canLoadMoreFeed: (state: { previewLimit?: number; hasMore: boolean; isLoading: boolean }) =>
-        state.previewLimit === undefined && state.hasMore && !state.isLoading,
 }));
 
 jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));

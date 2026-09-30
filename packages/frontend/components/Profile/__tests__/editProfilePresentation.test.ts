@@ -55,9 +55,13 @@ describe('profile refresh wiring', () => {
     expect(tabs.match(/onRefresh=\{refreshProfileSurface\}/g)).toHaveLength(2);
   });
 
-  it.each(['native', 'web'])('runs screen-owned refresh beside the %s feed refresh', (platform) => {
-    expect(read(`components/Feed/Feed.${platform}.tsx`)).toMatch(
+  it('runs screen-owned refresh beside the feed refresh, for both platforms', () => {
+    // One refresh path in the shared core; both platform Feeds call it.
+    expect(read('components/Feed/useFeedCore.tsx')).toMatch(
       /Promise\.all\(\[feedRefresh\(\), onRefresh\?\.\(\)\]\)/,
     );
+    for (const platform of ['native', 'web']) {
+      expect(read(`components/Feed/Feed.${platform}.tsx`)).toMatch(/useFeedCore\(props\)/);
+    }
   });
 });

@@ -191,6 +191,7 @@ jobs:
           bash .github/scripts/test-source-identity-request.sh
           bash .github/scripts/test-smoke-mcp.sh
           bash .github/scripts/test-smoke-mention.sh
+          bash .github/scripts/test-carry-previous-static.sh
           bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
           bun run --cwd packages/frontend coverage:policy-selftest

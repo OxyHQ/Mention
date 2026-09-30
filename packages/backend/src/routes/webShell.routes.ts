@@ -53,9 +53,9 @@ import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
-import { metrics } from '../utils/metrics';
 import { measureOxyFetch } from '../utils/oxyMetrics';
-import { isApexHost, SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
+import { isApexHost } from '../middleware/apexFrontendProxy';
+import { getShell } from '../services/webShellDocument';
 import {
   SitemapNotReadyError,
   isMentionProfilePublic,
@@ -63,19 +63,6 @@ import {
   sitemapShard,
 } from '../services/seoSitemap';
 
-/** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
-const SHELL_ORIGIN = `${config.web.shellOrigin}/`;
-/**
- * The shell Worker serves nothing without this key, so an OG deep link that
- * omitted it would silently render {@link FALLBACK_SHELL} — a valid page with no
- * app in it — rather than fail. Same header the apex proxy presents; these two
- * are the only callers the shell origin has.
- */
-const SHELL_ACCESS_KEY = config.web.shellAccessKey ?? '';
-/** How long a fetched shell is trusted before a background refresh. */
-const SHELL_TTL_MS = 10 * 60 * 1000;
-/** Hard timeout for the shell fetch — a slow CDN must never block a page. */
-const SHELL_FETCH_TIMEOUT_MS = 5000;
 /** Hard timeout for the per-request OG data fetch. */
 const OG_FETCH_TIMEOUT_MS = 2500;
 
@@ -115,74 +102,6 @@ const FALLBACK_SHELL =
   '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
   '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Mention</title>' +
   '</head><body><div id="root"></div></body></html>';
-
-interface ShellCache {
-  html: string;
-  fetchedAt: number;
-}
-
-let shellCache: ShellCache | null = null;
-let shellInFlight: Promise<string | null> | null = null;
-
-/** Fetch the static shell HTML with a hard timeout. Returns null on any failure (never throws). */
-async function fetchShellHtml(): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SHELL_FETCH_TIMEOUT_MS);
-  try {
-    const startedAt = performance.now();
-    const response = await fetch(SHELL_ORIGIN, {
-      headers: { Accept: 'text/html', [SHELL_ACCESS_HEADER]: SHELL_ACCESS_KEY },
-      signal: controller.signal,
-    });
-    // The shell origin is not Oxy, but it is a round trip on the page's path
-    // when the process cache is cold; timed so that cost is visible.
-    metrics.recordLatency('web_shell_fetch_ms', performance.now() - startedAt, {
-      status: response.ok ? 'ok' : 'error',
-    });
-    if (!response.ok) {
-      logger.warn(`[webShell] Shell fetch returned ${response.status}`);
-      return null;
-    }
-    return await response.text();
-  } catch (error) {
-    logger.warn('[webShell] Shell fetch failed', error);
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Refresh the cached shell, de-duplicating concurrent refreshes into one fetch. */
-function refreshShell(): Promise<string | null> {
-  if (!shellInFlight) {
-    shellInFlight = fetchShellHtml()
-      .then((html) => {
-        if (html) shellCache = { html, fetchedAt: Date.now() };
-        return shellCache?.html ?? null;
-      })
-      .finally(() => {
-        shellInFlight = null;
-      });
-  }
-  return shellInFlight;
-}
-
-/**
- * Return the SPA shell, aggressively cached. A fresh copy is served from memory;
- * a stale copy is served immediately while a background refresh runs
- * (stale-while-revalidate); a cold cache awaits the first successful fetch.
- * Returns null only when there is no cache and the fetch failed.
- */
-async function getShell(): Promise<string | null> {
-  if (shellCache && Date.now() - shellCache.fetchedAt < SHELL_TTL_MS) {
-    return shellCache.html;
-  }
-  if (shellCache) {
-    void refreshShell();
-    return shellCache.html;
-  }
-  return refreshShell();
-}
 
 /** Whether the `Accept` header asks for ActivityPub JSON (Mastodon may send `ld+json`). */
 function wantsActivityPub(accept: string | undefined): boolean {

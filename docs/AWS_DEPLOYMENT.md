@@ -104,6 +104,28 @@ the shell Worker; the deploy is then smoke-tested with the key AND asserted to
 answer 403 without one, and a failed production smoke runs `wrangler rollback`
 to the Worker's previous version.
 
+## A deploy must not break the release before it
+
+The shell Worker serves exactly the assets of the version deployed last, so a
+deploy makes every hashed chunk of the previous release a 404. Anything still
+holding that release's `index.html` — an open tab, a browser cache, the backend's
+own copy — then boots into a blank app (`Requiring unknown module`). On
+2026-09-30 the backend's copy lived ten minutes per task and did exactly that.
+Three things prevent it, and none is sufficient alone:
+
+- **The backend's copy of the document is a shortcut, not a source of truth.**
+  `services/webShellDocument.ts` trusts it for 15 seconds, revalidates with the
+  Worker's ETag, and drops it the moment the apex proxy sees a hashed chunk the
+  Worker no longer has.
+- **The previous release's hashed files ship with the next one.**
+  `carry-previous-static.sh` copies them in before promotion, from the previous
+  successful release's own build output (so N ships N and N-1, never N-2). It is
+  best-effort: with nothing to carry, the release ships only its own assets.
+- **The post-deploy smoke checks the promise, not a sample of it.**
+  `smoke-frontend.sh` samples the document repeatedly and requires every
+  `/_expo/static/` script and stylesheet any sample names to answer 200, not
+  HTML, and immutable.
+
 ## Health and secrets
 
 - Liveness: `GET /health/live`.

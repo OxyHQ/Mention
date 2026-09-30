@@ -37,7 +37,7 @@ function describeError(value: unknown): { name: string; message: string } {
   return { name, message };
 }
 
-function isChunkLoadError(value: unknown): boolean {
+export function isChunkLoadError(value: unknown): boolean {
   if (!value) return false;
   const { name, message } = describeError(value);
   return (
@@ -46,7 +46,11 @@ function isChunkLoadError(value: unknown): boolean {
     /Loading module .* failed/i.test(message) ||
     /Loading chunk \S+ failed/i.test(message) ||
     /error loading dynamically imported module/i.test(message) ||
-    /Failed to fetch dynamically imported module/i.test(message)
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    // Metro's `require` for a module that lives in a chunk that never loaded —
+    // what a document naming a since-removed shared chunk (`__common-<hash>.js`)
+    // produces once the modules that needed it start running.
+    /Requiring unknown module/i.test(message)
   );
 }
 

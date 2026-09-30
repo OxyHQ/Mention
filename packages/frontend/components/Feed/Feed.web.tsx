@@ -1,83 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import type { FeedType } from '@mention/shared-types';
-import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
-import { useAuth } from '@oxy.so/services/ui/client';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { useRouter } from 'expo-router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
-import { useTranslation } from 'react-i18next';
-import { createLogger } from '@oxy.so/core/logger';
-import { useFeedState } from '@/hooks/useFeedState';
-import { feedReceivesOwnNewPost, useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
-import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
-import { FeedHeader } from './FeedHeader';
-import { FeedFooter } from './FeedFooter';
-import { FeedEmptyState } from './FeedEmptyState';
-import { usePrivacyControls } from '@/hooks/usePrivacyControls';
-import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
-import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
-import {
-    type FeedRow,
-    buildFeedRows,
-    renderFeedRow,
-    feedRowKey,
-    boundFeedRows,
-} from './feedRows';
+import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
+import { getItemKey } from '@/utils/feedUtils';
+import { renderFeedRow, feedRowKey } from './feedRows';
 import { useScrollMarginOrigin } from './useScrollMarginOrigin';
 import { recordBootMilestone } from '@/lib/webTelemetry';
-import { useHoldForLeading } from './holdForLeading';
-
-const logger = createLogger('Feed');
-
-interface FeedProps {
-    type: FeedType;
-    userId?: string;
-    showComposeButton?: boolean;
-    onComposePress?: () => void;
-    hideHeader?: boolean;
-    hideRefreshControl?: boolean;
-    scrollEnabled?: boolean;
-    showOnlySaved?: boolean;
-    filters?: FeedFilters;
-    reloadKey?: string | number;
-    style?: React.ComponentProps<typeof View>['style'];
-    contentContainerStyle?: React.ComponentProps<typeof View>['style'];
-    listHeaderComponent?: React.ReactElement | null;
-    listContentHeaderComponent?: React.ReactElement | null;
-    listStickyHeaderComponent?: React.ReactElement | null;
-    listLeadingComponent?: React.ReactElement | null;
-    /**
-     * The leading element is still being fetched (a profile's pinned post). The
-     * feed's FIRST presentation waits for it AND for its own first page — its
-     * loading state stays up, without the leading element, until both are
-     * known — so the pinned post and the rows appear together, in their final
-     * order, whichever request finishes last. Before, the loser landed on top of
-     * what the winner had painted and pushed the column down (#1216). After
-     * that first presentation it is ignored.
-     */
-    leadingPending?: boolean;
-    threaded?: boolean;
-    threadPostId?: string;
-    /** Extra data owned by the screen chrome that shares this refresh action. */
-    onRefresh?: () => Promise<void>;
-    /**
-     * An EMBEDDED preview (`scrollEnabled={false}` inside a parent scroller):
-     * render at most this many rows. See the native Feed; `validate:feed-hot-path`
-     * requires every non-scrolling Feed to be bounded (#1103).
-     */
-    previewLimit?: number;
-}
-
-const DEFAULT_FEED_PROPS = {
-    showComposeButton: false,
-    hideHeader: false,
-    hideRefreshControl: false,
-    scrollEnabled: true,
-    showOnlySaved: false,
-} as const;
+import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
 
 // Estimated row height (px) before a row is measured. Post rows vary widely
 // (text-only vs. media vs. threads), so this is only the first-paint guess;
@@ -111,102 +41,6 @@ const POST_URI_ATTR = 'data-post-uri';
 const ROW_REF_CACHE_LIMIT = 500;
 
 /**
- * Shared data wiring for the web feed. Returns the live row set plus the
- * load-more / retry handlers.
- */
-function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> & FeedProps) {
-    const {
-        type,
-        userId,
-        showOnlySaved,
-        filters,
-        reloadKey,
-        threaded,
-        threadPostId,
-        onRefresh,
-    } = props;
-
-    const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
-    const { user: currentUser, isAuthenticated, canUsePrivateApi } = useAuth();
-    const { blockedSet } = usePrivacyControls();
-
-    const feedState = useFeedState({
-        type,
-        userId,
-        showOnlySaved,
-        filters,
-        useScoped,
-        reloadKey,
-        isAuthenticated,
-        currentUserId: currentUser?.id,
-    });
-
-    const { refresh: feedRefresh, loadMore: feedLoadMore, clearError: feedClearError, fetchInitial: feedFetchInitial } = feedState;
-
-    const feedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
-        slices: feedState.slices,
-        items: feedState.items,
-        interstitials: feedState.interstitials,
-        type,
-        showOnlySaved,
-        currentUserId: currentUser?.id,
-        blockedSet,
-        threaded,
-        threadPostId,
-    }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
-
-    // Infinite scroll for EVERYONE, anonymous included — public browse must keep
-    // paginating as you scroll. The ONLY web-specific divergence from native is
-    // that an anonymous viewer is never auto-prompted to sign in here: `signIn()`
-    // opens the SDK sign-in modal, so an eager `signIn()` would hijack public
-    // browse by popping the modal unprompted. The passive "Sign in to see more"
-    // footer (rendered via `showFooter` below) is the ONLY sign-in affordance and
-    // fires `signIn()` exclusively on user tap.
-    // Pagination itself runs for anon and authed alike (gated only by
-    // `hasMore`/`isLoading`, debounced inside the hook).
-    const handleLoadMore = useCallback(() => {
-        if (!feedState.hasMore || feedState.isLoading) return;
-        feedLoadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedLoadMore]);
-
-    const handleRetry = useCallback(async () => {
-        feedClearError();
-        try {
-            await feedFetchInitial(true);
-        } catch (retryError) {
-            // See the native file: a failure that escapes `fetchInitial` has
-            // already been retried, so it logs as a warn rather than red.
-            logFeedFailure(logger, 'Feed retry failed', classifyFeedFailure(retryError));
-        }
-    }, [feedClearError, feedFetchInitial]);
-
-    // Web has no RefreshControl, but the refresh path must stay reachable (e.g.
-    // the home-refresh signal / tab re-press). A swallowed failure here would
-    // otherwise surface as an unhandled rejection.
-    const handleRefresh = useCallback(async () => {
-        try {
-            await Promise.all([feedRefresh(), onRefresh?.()]);
-        } catch (err) {
-            logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
-        }
-    }, [feedRefresh, onRefresh]);
-
-    return {
-        feedRows,
-        feedState,
-        isAuthenticated,
-        // Feed-ranking telemetry may only POST for a viewer whose private API is
-        // usable — an anonymous (or still-resolving) viewer would 401 the
-        // `/feed/mtn/interactions` write in a loop. Gate reporting on this.
-        canReport: canUsePrivateApi,
-        currentUserId: currentUser?.id,
-        handleLoadMore,
-        handleRetry,
-        handleRefresh,
-    };
-}
-
-/**
  * EMBEDDED web feed (scrollEnabled === false): a non-virtualized plain list that
  * composes inside a PARENT scroller. Window-virtualizing here would be WRONG —
  * `useWindowVirtualizer` measures and paginates against the document (`window`)
@@ -226,61 +60,25 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
  * a genuine inner-scroll parent makes document scroll impossible.
  */
 function EmbeddedWebFeed(props: FeedProps) {
-    const merged = { ...DEFAULT_FEED_PROPS, ...props };
-    const {
-        hideHeader,
-        showComposeButton,
-        onComposePress,
-        listHeaderComponent,
-        listStickyHeaderComponent,
-        listLeadingComponent,
-        type,
-        showOnlySaved,
-        filters,
-    } = merged;
-    const theme = useTheme();
-    const router = useRouter();
-    // The column is chrome, not a card: it has to be opaque in whatever the
-    // container around it painted (the shell's ContentPanel today) so rows never
-    // show through the sticky header above them. `bg-card` was only ever right
-    // for as long as that container's fill stayed `card`.
-    const { feedRows: allFeedRows, feedState, handleRetry } = useWebFeed(merged);
-    const feedRows = boundFeedRows(allFeedRows, merged.previewLimit);
-    const holdForLeading = useHoldForLeading(
-        merged.leadingPending,
-        feedRows.length > 0 || !feedState.isLoading,
-    );
-
-    const header = listHeaderComponent ?? (
-        <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />
-    );
+    const core = useFeedCore(props);
+    const { props: merged, theme, router, feedRows, feedDescriptor } = core;
 
     return (
         <View style={[{ minHeight: 0 }, merged.style]}>
-            {header}
-            {listStickyHeaderComponent}
-            {!holdForLeading && listLeadingComponent}
-            {feedRows.length === 0 || holdForLeading ? (
-                <FeedEmptyState
-                    isLoading={feedState.isLoading || holdForLeading}
-                    error={feedState.error}
-                    errorKind={feedState.errorKind}
-                    hasItems={false}
-                    type={type}
-                    showOnlySaved={showOnlySaved}
-                    onRetry={handleRetry}
-                    pending={feedState.pending}
-                    isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
-                />
-            ) : (
+            {core.header}
+            {merged.listContentHeaderComponent}
+            {merged.listStickyHeaderComponent}
+            {core.leading}
+            {feedRows.length === 0 ? core.emptyState : (
                 <View style={merged.contentContainerStyle}>
                     {feedRows.map((row) => (
                         <View key={feedRowKey(row)}>
-                            {renderFeedRow(row, { router, threadLineColor: theme.colors.border })}
+                            {renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor })}
                         </View>
                     ))}
                 </View>
             )}
+            {core.footer}
         </View>
     );
 }
@@ -312,43 +110,18 @@ function VirtualizedWebFeed(props: FeedProps) {
     // load-bearing instead of accidental.
     'use no memo';
 
-    const merged = { ...DEFAULT_FEED_PROPS, ...props };
+    const core = useFeedCore(props);
     const {
-        hideHeader,
-        showComposeButton,
-        onComposePress,
-        listHeaderComponent,
-        listStickyHeaderComponent,
-        listLeadingComponent,
-        type,
-        showOnlySaved,
-        userId,
-        filters,
-        reloadKey,
-    } = merged;
-    const { t } = useTranslation();
-    const theme = useTheme();
-    const router = useRouter();
-    // Same reason as EmbeddedWebFeed: the column matches the surface it landed
-    // on rather than naming a colour.
-
-    const {
-        feedRows,
+        props: merged,
+        theme,
+        router,
         feedState,
-        isAuthenticated,
-        canReport,
-        currentUserId,
+        feedRows,
         handleLoadMore,
-        handleRetry,
-    } = useWebFeed(merged);
-
-    // Feed-ranking telemetry: derive the descriptor this feed reports against and
-    // own an impression tracker for the session. The session resets when the
-    // descriptor changes or the feed is reloaded (reloadKey), so impressions are
-    // counted once per post per session. `canReport` short-circuits reporting for
-    // anonymous viewers so a public browse never POSTs (and never 401-loops).
-    const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
-    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canReport);
+        feedDescriptor,
+        impressionTracker,
+        receivesOwnNewPost,
+    } = core;
 
     // Wrapper element used as the virtualizer's measurement origin. The window is
     // the scroller; `scrollMargin` is the wrapper's offset from the document top
@@ -368,7 +141,6 @@ function VirtualizedWebFeed(props: FeedProps) {
     );
 
     const count = feedRows.length;
-    const holdForLeading = useHoldForLeading(merged.leadingPending, count > 0 || !feedState.isLoading);
 
     const virtualizer = useWindowVirtualizer<HTMLDivElement>({
         count,
@@ -552,46 +324,19 @@ function VirtualizedWebFeed(props: FeedProps) {
         feedKey: feedState.feedScrollKey,
         enabled: !restorePending
             && count > 0
-            && feedReceivesOwnNewPost({ type, userId, filters, showOnlySaved, currentUserId }),
+            && receivesOwnNewPost,
         scrollToTop: scrollWindowToTop,
     });
 
-    const header = listHeaderComponent ?? (
-        <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />
-    );
-
-    const isLoadingMore = feedState.isLoading && count > 0;
-    const showFooter = isLoadingMore || (!isAuthenticated && count > 0);
-
-    const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-        logger.error('Error caught by boundary', error, { errorInfo });
-    }, []);
-
     return (
-        <ErrorBoundary
-            title={t("error.boundary.title")}
-            message={t("error.boundary.message")}
-            retryLabel={t("error.boundary.retry")}
-            onError={handleBoundaryError}
-        >
+        <FeedErrorBoundary>
             <View style={merged.style}>
-                {header}
-                {listStickyHeaderComponent}
-                {!holdForLeading && listLeadingComponent}
+                {core.header}
+                {merged.listContentHeaderComponent}
+                {merged.listStickyHeaderComponent}
+                {core.leading}
 
-                {count === 0 || holdForLeading ? (
-                    <FeedEmptyState
-                        isLoading={feedState.isLoading || holdForLeading}
-                        error={feedState.error}
-                        errorKind={feedState.errorKind}
-                        hasItems={false}
-                        type={type}
-                        showOnlySaved={showOnlySaved}
-                        onRetry={handleRetry}
-                        pending={feedState.pending}
-                        isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
-                    />
-                ) : (
+                {count === 0 ? core.emptyState : (
                     // Web-only file: the virtual rows are plain DOM nodes so
                     // react-virtual's `measureElement` (which reads `data-index`
                     // and calls `getBoundingClientRect`) and the `ref` work
@@ -639,16 +384,9 @@ function VirtualizedWebFeed(props: FeedProps) {
                     </div>
                 )}
 
-                {showFooter && !holdForLeading && (
-                    <FeedFooter
-                        showOnlySaved={showOnlySaved}
-                        hasMore={feedState.hasMore}
-                        isLoadingMore={isLoadingMore}
-                        hasItems={count > 0}
-                    />
-                )}
+                {core.footer}
             </View>
-        </ErrorBoundary>
+        </FeedErrorBoundary>
     );
 }
 
@@ -661,31 +399,6 @@ const Feed = (props: FeedProps) => {
     return <VirtualizedWebFeed {...props} />;
 };
 
-const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
-    if (
-        prevProps.reloadKey !== nextProps.reloadKey ||
-        prevProps.type !== nextProps.type ||
-        prevProps.userId !== nextProps.userId ||
-        prevProps.showOnlySaved !== nextProps.showOnlySaved ||
-        prevProps.scrollEnabled !== nextProps.scrollEnabled ||
-        prevProps.previewLimit !== nextProps.previewLimit ||
-        prevProps.threaded !== nextProps.threaded ||
-        prevProps.threadPostId !== nextProps.threadPostId ||
-        prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
-        prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
-        prevProps.listLeadingComponent !== nextProps.listLeadingComponent ||
-        prevProps.leadingPending !== nextProps.leadingPending
-    ) {
-        return false;
-    }
-
-    if (!shallowFiltersEqual(prevProps.filters, nextProps.filters)) {
-        return false;
-    }
-
-    return true;
-};
-
-const MemoizedFeed = memo(Feed, arePropsEqual);
+const MemoizedFeed = memo(Feed, areFeedPropsEqual);
 MemoizedFeed.displayName = 'Feed';
 export default MemoizedFeed;
