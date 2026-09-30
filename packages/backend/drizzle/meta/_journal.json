@@ -421,6 +421,13 @@
       "when": 1790741639277,
       "tag": "0059_federated_actor_moved_to",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790776559800,
+      "tag": "0060_post_link_previews",
+      "breakpoints": true
     }
   ]
 }
