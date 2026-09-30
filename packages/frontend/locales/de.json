@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}} Antwort",
   "post.summary.replies_other": "{{formattedCount}} Antworten",
   "compose.event.nameRequired": "Gib dem Event einen Namen, um es anzuhängen.",
+  "compose.event.timeInvalid": "Gib eine gültige Uhrzeit ein, z. B. 20:30.",
   "compose.saveDraftFailed": "Der Entwurf konnte nicht gespeichert werden. Versuch es noch einmal.",
   "compose.toolbar.media": "Fotos oder Videos hinzufügen",
   "compose.toolbar.gif": "GIF hinzufügen",

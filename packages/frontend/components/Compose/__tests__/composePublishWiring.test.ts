@@ -14,7 +14,7 @@ import { join } from 'node:path';
 const screen = readFileSync(join(__dirname, '..', 'ComposeScreen.tsx'), 'utf8');
 
 function handlePostBody(): string {
-  const start = screen.indexOf('const handlePost = async () => {');
+  const start = screen.indexOf('const handlePost = async (options?: { publishNow?: boolean }) => {');
   const end = screen.indexOf('\n  };\n', start);
   if (start < 0 || end < start) throw new Error('No handlePost in ComposeScreen');
   return screen.slice(start, end);
@@ -75,7 +75,7 @@ describe('handlePost', () => {
   it('resets every piece of content that "Clear all" does', () => {
     const reset = screen.slice(
       screen.indexOf('const resetComposerAfterPublish = () => {'),
-      screen.indexOf('const handlePost = async () => {'),
+      screen.indexOf('const handlePost = async (options?: { publishNow?: boolean }) => {'),
     );
     expect(reset).toContain('clearComposerContent();');
     expect(reset).toContain('clearQuote();');
@@ -107,5 +107,31 @@ describe('the save-draft prompt', () => {
     const discard = action('common.discard');
     expect(discard).toContain('await discardDraft()');
     expect(discard.indexOf('await discardDraft()')).toBeLessThan(discard.indexOf('dismiss()'));
+  });
+});
+
+describe('resuming a draft', () => {
+  const at = screen.indexOf('const handleResumeDraft');
+  const resume = screen.slice(at, screen.indexOf('\n  }, [', at));
+
+  it('closes the Unpublished sheet before restoring the draft, and hands the composer focus', () => {
+    expect(at).toBeGreaterThan(-1);
+    expect(resume.indexOf('openBottomSheet(false)')).toBeGreaterThan(-1);
+    expect(resume.indexOf('openBottomSheet(false)')).toBeLessThan(resume.indexOf('loadDraft(draft)'));
+    expect(resume).toContain('.focus()');
+  });
+
+  it('is what the sheet is given as onLoadDraft', () => {
+    expect(screen).toContain('onLoadDraft={handleResumeDraft}');
+  });
+});
+
+describe('editing a scheduled post', () => {
+  it('has an explicit Post now, and a cleared schedule publishes only after a confirmation', () => {
+    expect(screen).toContain('testID="compose-publish-now"');
+    const body = handlePostBody();
+    expect(body.indexOf('confirmDialog')).toBeGreaterThan(-1);
+    expect(body.indexOf('confirmDialog')).toBeLessThan(body.indexOf('setIsPosting(true)'));
+    expect(body).toContain('/posts/${editPostId}/publish');
   });
 });

@@ -61,18 +61,20 @@ export const useScheduleManager = ({
     tomorrowMorning.setDate(now.getDate() + 1);
     tomorrowMorning.setHours(9, 0, 0, 0);
 
+    // "Later today" is only honest while 17:00 is still ahead; afterwards the
+    // option is dropped rather than silently rolled to tomorrow.
     const laterToday = new Date(now);
     laterToday.setHours(17, 0, 0, 0);
-    if (laterToday <= now) {
-      laterToday.setDate(laterToday.getDate() + 1);
-    }
+    const laterTodayOption: ScheduleOption[] = laterToday > now
+      ? [{ key: 'later', label: t('compose.schedule.option.later', { defaultValue: 'Later today' }), date: laterToday }]
+      : [];
 
     return [
       { key: '15m', label: t('compose.schedule.option.15m', { defaultValue: 'In 15 minutes' }), date: addMinutes(now, 15) },
       { key: '1h', label: t('compose.schedule.option.1h', { defaultValue: 'In 1 hour' }), date: addMinutes(now, 60) },
       { key: '3h', label: t('compose.schedule.option.3h', { defaultValue: 'In 3 hours' }), date: addMinutes(now, 180) },
       { key: 'tomorrow', label: t('compose.schedule.option.tomorrow', { defaultValue: 'Tomorrow morning' }), date: tomorrowMorning },
-      { key: 'later', label: t('compose.schedule.option.later', { defaultValue: 'Later today' }), date: laterToday },
+      ...laterTodayOption,
     ];
   }, [t]);
 

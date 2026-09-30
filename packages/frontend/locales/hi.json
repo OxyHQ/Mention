@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}} जवाब",
   "post.summary.replies_other": "{{formattedCount}} जवाब",
   "compose.event.nameRequired": "इवेंट जोड़ने के लिए उसे एक नाम दें।",
+  "compose.event.timeInvalid": "मान्य समय दर्ज करें, जैसे 20:30।",
   "compose.saveDraftFailed": "ड्राफ़्ट सेव नहीं हो सका। फिर से कोशिश करें।",
   "compose.toolbar.media": "फ़ोटो या वीडियो जोड़ें",
   "compose.toolbar.gif": "GIF जोड़ें",

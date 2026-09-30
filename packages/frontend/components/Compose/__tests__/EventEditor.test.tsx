@@ -39,7 +39,6 @@ jest.mock('@oxy.so/bloom/date-picker', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     DatePicker: (props: Record<string, unknown>) => <View {...props} />,
-    TimeField: (props: Record<string, unknown>) => <View {...props} />,
   };
 });
 
@@ -51,7 +50,9 @@ jest.mock('@oxy.so/bloom/text-field', () => {
   const { Text, TextInput, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     TextField: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
-    TextFieldHint: ({ children }: { children?: React.ReactNode }) => <Text testID="eventEditorNameHint">{children}</Text>,
+    TextFieldHint: ({ children, testID }: { children?: React.ReactNode; testID?: string }) => (
+      <Text testID={testID ?? 'eventEditorNameHint'}>{children}</Text>
+    ),
     TextFieldInput: (props: Record<string, unknown>) => <TextInput {...props} />,
   };
 });
@@ -86,7 +87,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const noop = () => {};
 
-const renderEditor = (date: string, onDateChange: (next: string) => void, name = 'Launch party') => {
+const renderEditor = (date: string, onDateChange: (next: string) => void, name = 'Launch party', onSave: () => void = noop) => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
@@ -100,13 +101,19 @@ const renderEditor = (date: string, onDateChange: (next: string) => void, name =
         onDateChange={onDateChange}
         onLocationChange={noop}
         onDescriptionChange={noop}
-        onSave={noop}
+        onSave={onSave}
         onClose={noop}
       />,
     );
   });
   if (!tree) throw new Error('EventEditor failed to render');
   return tree;
+};
+
+const findInput = (tree: TestRenderer.ReactTestRenderer) => {
+  const node = tree.root.findAll((n) => n.props.testID === 'eventEditorTimeField' && n.props.onChangeText)[0];
+  if (!node) throw new Error('time input not rendered');
+  return node;
 };
 
 describe('EventEditor date field', () => {
@@ -146,26 +153,60 @@ describe('EventEditor date field', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the time as 24h HH:mm and keeps the day when a new time is committed', () => {
+  it('shows the time as 24h HH:mm and keeps the day when a new time is typed', () => {
     const onDateChange = jest.fn();
     const tree = renderEditor(new Date(2026, 4, 3, 8, 5).toISOString(), onDateChange);
 
-    const field = findPicker(tree, 'eventEditorTimeField');
+    const field = findInput(tree);
     expect(field.props.value).toBe('08:05');
 
     act(() => {
-      field.props.onChange('21:30');
+      field.props.onChangeText('21:30');
     });
     expect(onDateChange).toHaveBeenCalledTimes(1);
     const merged = new Date(onDateChange.mock.calls[0][0]);
     expect([merged.getFullYear(), merged.getMonth(), merged.getDate(), merged.getHours(), merged.getMinutes()])
       .toEqual([2026, 4, 3, 21, 30]);
 
-    // Emptying the field is not a time; the event keeps the one it had.
-    act(() => {
-      field.props.onChange(null);
-    });
-    expect(onDateChange).toHaveBeenCalledTimes(1);
+    act(() => tree.unmount());
+  });
+
+  it.each(['99:99', '25:00', '12:60', '9', '', 'ab:cd'])(
+    'rejects %p: keeps what was typed, shows the error, blocks Save and never touches the event',
+    (typed) => {
+      const onDateChange = jest.fn();
+      const onSave = jest.fn();
+      const tree = renderEditor(new Date(2026, 4, 3, 20, 51).toISOString(), onDateChange, 'Launch party', onSave);
+
+      act(() => {
+        findInput(tree).props.onChangeText(typed);
+      });
+
+      expect(onDateChange).not.toHaveBeenCalled();
+      expect(findInput(tree).props.value).toBe(typed);
+      expect(tree.root.findAll((n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string')).toHaveLength(1);
+      const save = (mockDialogProps.at(-1)?.header as { right: React.ReactElement<{ disabled?: boolean; onPress: () => void }> }).right;
+      expect(save.props.disabled).toBe(true);
+      // Even a press that slips past `disabled` must not close the editor.
+      save.props.onPress();
+      expect(onSave).not.toHaveBeenCalled();
+
+      act(() => tree.unmount());
+    },
+  );
+
+  it('saves again once the time is corrected', () => {
+    const onSave = jest.fn();
+    const tree = renderEditor(new Date(2026, 4, 3, 20, 51).toISOString(), noop, 'Launch party', onSave);
+
+    act(() => { findInput(tree).props.onChangeText('99:99'); });
+    act(() => { findInput(tree).props.onChangeText('7:05'); });
+
+    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string')).toHaveLength(0);
+    const save = (mockDialogProps.at(-1)?.header as { right: React.ReactElement<{ disabled?: boolean; onPress: () => void }> }).right;
+    expect(save.props.disabled).toBe(false);
+    save.props.onPress();
+    expect(onSave).toHaveBeenCalledTimes(1);
 
     act(() => tree.unmount());
   });

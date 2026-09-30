@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}} balasan",
   "post.summary.replies_other": "{{formattedCount}} balasan",
   "compose.event.nameRequired": "Beri nama acara untuk melampirkannya.",
+  "compose.event.timeInvalid": "Masukkan waktu yang valid, misalnya 20:30.",
   "compose.saveDraftFailed": "Draf tidak dapat disimpan. Coba lagi.",
   "compose.toolbar.media": "Tambahkan foto atau video",
   "compose.toolbar.gif": "Tambahkan GIF",
