@@ -67,6 +67,19 @@ if (!(await exists(resolve(outputDirectory, "_redirects")))) {
   );
 }
 
+// The first-paint font preload is written by `packages/frontend/scripts/
+// web-font-preload.mjs` after `expo export`. Checked here as well, with that
+// script's own logic, because an export built without the post-step still
+// boots fine: the font simply starts ~2.7 s late again and nothing else fails.
+// The check also proves the href is the exact URL the startup JavaScript uses
+// and names a file in this export, so the preload cannot double-download.
+if (await exists(indexPath)) {
+  const { checkFontPreloads } = await import(
+    "../../packages/frontend/scripts/web-font-preload.mjs"
+  );
+  failures.push(...(await checkFontPreloads(outputDirectory)));
+}
+
 if (failures.length > 0) {
   console.error(`Frontend static output validation failed for ${outputDirectory}:\n`);
   for (const failure of failures) console.error(`- ${failure}`);

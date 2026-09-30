@@ -193,6 +193,7 @@ jobs:
           bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
           bun run --cwd packages/frontend coverage:policy-selftest
+          bun run --cwd packages/frontend web-font-preload:selftest
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
   # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
