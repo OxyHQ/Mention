@@ -122,6 +122,10 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
   "@oxy.so/mcp -> @oxy.so/contracts@^1.0.1":
     "Contracts 2.0.0 only removes the never-deployed browserHub schemas; @oxy.so/mcp 1.0.0 imports none of them. One contracts copy keeps core, services and mcp on the same schemas.",
+  "@alia.onl/sdk -> @oxy.so/core@^3.0.0":
+    "@alia.onl/sdk 10.0.3 imports nothing from @oxy.so/core; the peer is declarative. Delete once an SDK release peers core ^4 (OxyHQ/oxy#1388).",
+  "@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0":
+    "@alia.onl/sdk 10.0.3 only imports useOxy from @oxy.so/services/ui/client, unchanged in services 11 (the major only moves Android identity to Commons IPC). Delete once an SDK release peers services ^11 (OxyHQ/oxy#1388).",
 };
 
 /**

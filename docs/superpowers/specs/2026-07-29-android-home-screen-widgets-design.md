@@ -41,13 +41,13 @@ Note the two obvious-looking URLs are wrong: `/trending/hashtags` and `/hashtags
 
 ## The session problem (phases 2 and 3)
 
-A widget runs **outside the app process**. To read authenticated data it needs the device-first session: the `{deviceId, deviceSecret}` persisted in SecureStore under the shared `so.oxy.shared` UID, exchanged for a short access token at `POST /session/device/token`.
+A widget runs **outside the app process**. To read authenticated data it needs the device-first session: the `{deviceId, deviceSecret}` device session, which on Android lives in the Commons/Accounts device-session providers (read over signature-protected IPC, `so.oxy.permission.DEVICE_SESSION`), exchanged for a short access token at `POST /session/device/token`.
 
 **That belongs in the shared SDK, not in Mention.** The ecosystem rule is explicit: session handling lives in `@oxy.so/core` / `@oxy.so/services` so every Oxy app inherits it. A credential reader written into Mention's widget module would be copied into Homiio and Allo within a month, and would put token-minting logic in three places.
 
 So phases 2 and 3 are gated on an SDK-side piece: a native-readable path to the device credential and a token mint that a background worker can call. That is its own design conversation, deliberately deferred until phase 1 has shipped and there is a working widget to build it against.
 
-**Privacy consequence to decide before phase 3**, not after: a feed widget renders private content on a lock-screen-adjacent surface, and the shared UID means the credential is readable by every same-signature Oxy app. What the widget shows when the session is missing, expired, or the account has been switched must be designed, not defaulted.
+**Privacy consequence to decide before phase 3**, not after: a feed widget renders private content on a lock-screen-adjacent surface, and the device-session providers hand the credential to every allow-listed, same-signature Oxy app. What the widget shows when the session is missing, expired, or the account has been switched must be designed, not defaulted.
 
 ## Data refresh
 
