@@ -35,10 +35,10 @@ export const ENGAGEMENT_OUTBOX_STATUSES = ['pending', 'processing', 'processed']
 export const ENGAGEMENT_OUTBOX_EFFECTS = ['mtn', 'notification', 'federation'] as const;
 
 /**
- * 30 days. A hard ceiling so a stalled dispatcher cannot turn the outbox into an
- * unbounded table. See the WARNING on this table's entry in `db/expiry.ts`: the
- * sweep deletes by deadline regardless of status, so operational alerting has to
- * fire long before it.
+ * 30 days. How long a PROCESSED event is kept before the expiry sweep deletes it.
+ * The scheduled sweep (`sweepProcessedEngagementOutbox` in `db/expiry.ts`) leaves
+ * a `pending` or `processing` row alone past this deadline, so a stalled
+ * dispatcher's backlog is never deleted unprocessed.
  */
 export const ENGAGEMENT_OUTBOX_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 

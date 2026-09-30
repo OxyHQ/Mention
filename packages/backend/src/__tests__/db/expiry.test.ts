@@ -8,12 +8,19 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import { getTableName, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { sqlColumnName } from '@oxy.so/db';
 import { sweepExpiredRows } from '@oxy.so/db/expiry';
-import { EXPIRY_SWEEP_TARGETS } from '../../db/expiry';
+import {
+  EXPIRY_SWEEP_TARGETS,
+  SCHEDULED_EXPIRY_SWEEP_TARGETS,
+  sweepProcessedEngagementOutbox,
+} from '../../db/expiry';
+import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import { NOTIFICATION_RETENTION_SECONDS, notifications } from '../../db/schema/discovery';
+import { engagementOutbox } from '../../db/schema/outbox';
 
 let db: Database;
 const createdNotificationIds: string[] = [];
@@ -206,5 +213,95 @@ describe('sweepExpiredRows', () => {
 
     const rows = await db.select({ id: notifications.id }).from(notifications);
     expect(rows.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('the schedule', () => {
+  it('sweeps every registry entry by deadline except engagement_outbox', () => {
+    // `engagement_outbox`'s deadline covers unprocessed work, so the schedule
+    // must never hand it to `sweepExpiredRows`. Every other entry it must.
+    const scheduled = SCHEDULED_EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table));
+    const all = EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table));
+    expect(all.filter((table) => !scheduled.includes(table))).toEqual(['engagement_outbox']);
+  });
+});
+
+describe('sweepProcessedEngagementOutbox', () => {
+  const OWNER = 'oxy-expiry-outbox-owner';
+  let postId: string;
+  const outboxIds: string[] = [];
+
+  beforeAll(async () => {
+    const record = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'outbox sweep', tag: 'en' }] },
+    });
+    postId = record.id;
+  });
+
+  afterEach(async () => {
+    if (outboxIds.length > 0) {
+      await db.delete(engagementOutbox).where(inArray(engagementOutbox.id, outboxIds));
+      outboxIds.length = 0;
+    }
+  });
+
+  afterAll(async () => {
+    await deletePostRecord(postId, undefined);
+  });
+
+  async function insertEvent(
+    status: 'pending' | 'processing' | 'processed',
+    expiresAt: Date
+  ): Promise<string> {
+    const id = `outbox-sweep-${status}-${expiresAt.getTime()}-${Math.random().toString(16).slice(2)}`;
+    await db.insert(engagementOutbox).values({
+      id,
+      kind: 'post.like',
+      revision: 1,
+      payloadActorOxyUserId: 'oxy-expiry-outbox-actor',
+      payloadPostId: postId,
+      payloadRelationshipId: `rel-${id}`,
+      status,
+      expiresAt,
+    });
+    outboxIds.push(id);
+    return id;
+  }
+
+  it('deletes processed events past the deadline and keeps unprocessed work', async () => {
+    const past = new Date(Date.now() - 3600 * 1000);
+    const future = new Date(Date.now() + 3600 * 1000);
+    const expiredProcessed = await insertEvent('processed', past);
+    const expiredPending = await insertEvent('pending', past);
+    const expiredProcessing = await insertEvent('processing', past);
+    const liveProcessed = await insertEvent('processed', future);
+
+    const result = await sweepProcessedEngagementOutbox(db);
+    expect(result).toEqual({ table: 'engagement_outbox', deleted: 1, truncated: false });
+
+    const remaining = await db
+      .select({ id: engagementOutbox.id })
+      .from(engagementOutbox)
+      .where(inArray(engagementOutbox.id, outboxIds));
+    expect(remaining.map((row) => row.id).sort()).toEqual(
+      [expiredPending, expiredProcessing, liveProcessed].sort()
+    );
+    expect(remaining.map((row) => row.id)).not.toContain(expiredProcessed);
+  });
+
+  it('reports `truncated` when the batch ceiling is reached', async () => {
+    const past = new Date(Date.now() - 3600 * 1000);
+    await insertEvent('processed', past);
+    await insertEvent('processed', past);
+    await insertEvent('processed', past);
+
+    const result = await sweepProcessedEngagementOutbox(db, { batchSize: 1, maxBatches: 2 });
+    expect(result.deleted).toBe(2);
+    expect(result.truncated).toBe(true);
   });
 });

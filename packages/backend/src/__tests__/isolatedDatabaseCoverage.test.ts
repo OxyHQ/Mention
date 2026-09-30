@@ -131,6 +131,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'runSnapshotSweep', call: /\.runSnapshotSweep\s*\(/ },
   { name: 'runBlocklistProposalSweep', call: /\brunBlocklistProposalSweep\s*\(/ },
   { name: 'sweepExpiredRows', call: /\bsweepExpiredRows\s*\(/ },
+  { name: 'sweepProcessedEngagementOutbox', call: /\bsweepProcessedEngagementOutbox\s*\(/ },
   { name: 'reconcileBlockedDomainPurges', call: /\breconcileBlockedDomainPurges\s*\(/ },
   { name: 'processQueue', call: /\.processQueue\s*\(/ },
 

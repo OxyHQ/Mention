@@ -74,6 +74,16 @@ export function startSchedulers(): void {
     logger.warn("Failed to start follower snapshot job", error);
   }
 
+  // Expiry sweep (leader-gated): the Postgres stand-in for Mongo's TTL indexes.
+  // Deletes rows past each `db/expiry.ts` registry entry's retention, in bounded
+  // batches, every ten minutes (OxyHQ/Mention#1187).
+  try {
+    const { expirySweepJob } = require("../services/ExpirySweepJob");
+    expirySweepJob.start();
+  } catch (error) {
+    logger.warn("Failed to start expiry sweep job", error);
+  }
+
   // SEO sitemaps (leader-gated): every child sitemap built in one pass when the
   // cached catalog is six hours old. Requests only read the cache, so no
   // crawler can make a sitemap query the database (#1160).
@@ -184,6 +194,13 @@ export function stopSchedulers(): void {
     followerSnapshotJob.stop();
   } catch (error) {
     logger.warn("Failed to stop follower snapshot job", error);
+  }
+
+  try {
+    const { expirySweepJob } = require("../services/ExpirySweepJob");
+    expirySweepJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop expiry sweep job", error);
   }
 
   try {
