@@ -30,6 +30,14 @@ jest.mock('@oxy.so/bloom/field', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Field: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
 });
+jest.mock('@oxy.so/bloom/button', () => {
+  const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    Button: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) => (
+      <Pressable {...props}><Text>{children}</Text></Pressable>
+    ),
+  };
+});
 jest.mock('@oxy.so/bloom/card', () => {
   const { Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Card: (props: Record<string, unknown>) => <Pressable {...props} /> };
@@ -60,11 +68,7 @@ const renderSheet = (onSelect: (date: Date) => void, scheduledAt: Date | null = 
 };
 
 const pressApply = (tree: TestRenderer.ReactTestRenderer) => {
-  const apply = tree.root
-    .findAll((n) => typeof n.props.onPress === 'function' && typeof n.type !== 'string')
-    .find((n) => JSON.stringify(n.findAll((c) => typeof c.props.children === 'string').map((c) => c.props.children)).includes('Schedule'));
-  if (!apply) throw new Error('Apply button not rendered');
-  act(() => apply.props.onPress());
+  act(() => byTestID(tree, 'scheduleSheetApply').props.onPress());
 };
 
 describe('parseDateTime', () => {
@@ -126,6 +130,15 @@ describe('ScheduleSheet custom time', () => {
     pressApply(tree);
     expect(onSelect).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith('Enter a valid date and time', { type: 'error' });
+    act(() => tree.unmount());
+  });
+
+  it('puts Close and Schedule in one footer row, as Bloom buttons', () => {
+    const tree = renderSheet(jest.fn());
+    const close = byTestID(tree, 'scheduleSheetClose');
+    const apply = byTestID(tree, 'scheduleSheetApply');
+    expect(close.parent).toBe(apply.parent);
+    expect(close.parent?.props.className).toContain('flex-row');
     act(() => tree.unmount());
   });
 });

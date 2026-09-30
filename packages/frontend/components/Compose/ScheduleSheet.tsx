@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
+import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 
@@ -54,7 +54,6 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   onClose,
   formatLabel,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const initialDate = useMemo(() => scheduledAt ?? new Date(Date.now() + 15 * 60000), [scheduledAt]);
@@ -117,11 +116,9 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                 {formatLabel(scheduledAt)}
               </Text>
             </View>
-            <TouchableOpacity onPress={handleClear} className="ml-3 px-3 py-1.5">
-              <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
-                {t('compose.schedule.clear', { defaultValue: 'Clear' })}
-              </Text>
-            </TouchableOpacity>
+            <Button appearance="subtle" tone="danger" size="sm" onPress={handleClear} testID="scheduleSheetClear">
+              {t('compose.schedule.clear', { defaultValue: 'Clear' })}
+            </Button>
           </Card>
         )}
 
@@ -158,7 +155,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         <View className="flex-row mb-5 gap-3">
           <Field
             label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-            style={{ flex: 1 }}
+            style={styles.dateField}
           >
             <DatePicker
               value={customDate}
@@ -168,7 +165,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               testID="scheduleSheetDatePicker"
             />
           </Field>
-          <Field label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}>
+          <Field label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })} style={styles.timeField}>
             <TimeField
               value={customTime}
               onChange={setCustomTime}
@@ -177,27 +174,48 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
           </Field>
         </View>
 
-        <TouchableOpacity
-          className="rounded-2xl py-3.5 items-center bg-primary mb-4"
-          onPress={handleCustomApply}
-          activeOpacity={0.85}
-        >
-          <Text className="text-white text-base font-semibold">
-            {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
 
-      <TouchableOpacity onPress={handleClose} className="py-3.5 items-center">
-        <Text className="text-[15px] font-medium text-muted-foreground">
+      <View className="flex-row gap-3 py-3">
+        <Button
+          appearance="outline"
+          tone="neutral"
+          size="lg"
+          style={styles.footerButton}
+          onPress={handleClose}
+          testID="scheduleSheetClose"
+        >
           {t('compose.schedule.cancel', { defaultValue: 'Close' })}
-        </Text>
-      </TouchableOpacity>
+        </Button>
+        <Button
+          tone="action"
+          size="lg"
+          style={styles.footerButton}
+          onPress={handleCustomApply}
+          testID="scheduleSheetApply"
+        >
+          {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
+        </Button>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // `Field` is full-width by default, so two of them in a row fight over the same
+  // 100%: the date takes the remaining space, the time keeps the width of its box.
+  dateField: {
+    flex: 1,
+    minWidth: 0,
+    width: 'auto',
+  },
+  timeField: {
+    flexShrink: 0,
+    width: 112,
+  },
+  footerButton: {
+    flex: 1,
+  },
   optionButton: {
     width: "31%",
     aspectRatio: 1.6,
