@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ViewStyle, Platform } from 'react-native';
+import { cn } from '@/lib/utils';
 import PollCard from '../PollCard';
-import { MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 import { IS_DEVELOPMENT } from '@/config';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
@@ -14,28 +14,28 @@ interface PostAttachmentPollProps {
     question: string;
     options: string[];
   };
-  /** Card width; the standard card width when absent. */
-  width?: number;
+  /** Layout classes: `w-full` alone in the row, the card width and row height beside others. */
+  className?: string;
   style?: ViewStyle;
 }
 
-const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, width = MEDIA_CARD_WIDTH, style }) => {
+const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, className = 'w-[280px]', style }) => {
   // A live poll draws its own surface (`PollCard` is a Bloom `Card`); only the
   // static fallbacks below keep a hand-drawn frame. They are what the feed's
   // row-cost harness mounts for a poll row, and a `Card` there would add hook
   // slots to every poll row against a budget with no headroom.
   if (pollId) {
     return (
-      <View style={[{ width }, webGrabCursorStyle, style]}>
-        <PollCard pollId={pollId} width={width} />
+      <View className={className} style={[webGrabCursorStyle, style]}>
+        <PollCard pollId={pollId} />
       </View>
     );
   }
 
   return (
     <View
-      className="border border-border rounded-[15px] overflow-hidden"
-      style={[{ width }, webGrabCursorStyle, style]}
+      className={cn('border border-border rounded-[15px] overflow-hidden', className)}
+      style={[webGrabCursorStyle, style]}
     >
       {pollData ? (
         // Fallback to simple display if we only have poll data without ID

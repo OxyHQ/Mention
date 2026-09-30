@@ -374,11 +374,9 @@ export function parseEmbedPlayerFromUrl(url: string): EmbedPlayerParams | undefi
 export function getPlayerAspect({
   type,
   hasThumb,
-  width,
 }: {
   type: EmbedPlayerType;
   hasThumb: boolean;
-  width: number;
 }): { aspectRatio?: number; height?: number } {
   if (!hasThumb) return { aspectRatio: 16 / 9 };
 
@@ -400,9 +398,9 @@ export function getPlayerAspect({
     case 'soundcloud_set':
       return { height: 380 };
     case 'spotify_song':
-      if (width <= 300) {
-        return { height: 155 };
-      }
+      // Spotify's standard track player. Its compact 152px form was chosen for
+      // rows narrower than 300px, which needed the width measured first; the
+      // standard one lays itself out at any width.
       return { height: 232 };
     case 'soundcloud_track':
       return { height: 165 };
