@@ -24,11 +24,13 @@
  *    are absent the build falls back to the debug keystore, so a contributor
  *    without the keystore can still build.
  *
- *    The certificate MUST be the shared Oxy ecosystem one: the manifest sets
- *    `android:sharedUserId="so.oxy.shared"` (see withSharedUserId) and Android
- *    requires every app sharing that UID to be signed with the SAME
- *    certificate. Signing Mention with an app-specific key would break
- *    "sign in once, use everywhere" against Commons/Allo/Homiio.
+ *    The certificate MUST be the shared Oxy ecosystem one: Mention reaches
+ *    Commons' identity and device-session providers through the
+ *    signature-level permissions so.oxy.permission.IDENTITY and
+ *    DEVICE_SESSION (see withOxySharedPermissions), which Android grants only
+ *    to apps signed with the SAME certificate as the provider. Signing Mention
+ *    with an app-specific key would break "sign in once, use everywhere"
+ *    against Commons/Allo/Homiio.
  */
 
 const { withAppBuildGradle } = require('expo/config-plugins');
