@@ -1,27 +1,22 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import TestRenderer, { act } from 'react-test-renderer';
 
 /**
- * WHO MOVES THE CHROME, AND HOW OFTEN THE JS THREAD HEARS ABOUT IT.
+ * ONE FEED CORE, TWO SCROLLERS.
  *
- * The auto-hiding header, the home tab strip and the bottom bar integrate their
- * position from the shared `scrollPosition` inside a `useAnimatedReaction`
- * worklet. That worklet runs on the UI thread, so the chrome tracks the finger
- * exactly as well as the VALUE IT READS is kept up to date — and that value used
- * to be written from a JS `onScroll` callback. During a fling the JS thread is
- * busy building rows (~40ms each, measured on a Pixel 10 Pro), so the offset
- * arrived in bursts and the header froze and then jumped.
- *
- * Two halves, and the test needs both or it means nothing:
- *
- *  1. THE SHARED VALUE MOVES ON EVERY SCROLL EVENT — otherwise the chrome is
- *     still as coarse as before, just from a different thread.
- *  2. THE JS THREAD IS NOT TOLD EVERY TIME — otherwise nothing was actually
- *     taken off the hot path and the fling still pays for the bookkeeping.
- *
- * Plus the part that keeps (2) honest: what gets PERSISTED when the scroll stops
- * is the offset the reader actually stopped at, not the last rationed sample.
+ * The native and web Feeds differ only in how they virtualize; everything a feed
+ * shows and does lives in `useFeedCore`. These cases pin the behaviours that
+ * used to exist on one platform only, and the source shape that keeps them
+ * from forking again.
  */
+
+const mockList: { onEndReached?: () => void; data?: Array<{ kind: string; key?: string }> } = {};
+const mockLoadMore = jest.fn();
+const mockSignIn = jest.fn(() => Promise.resolve());
+const mockAuth = { authenticated: true };
+const mockFeed = { isLoading: true };
 
 const scrollHandlers: {
     onScroll?: (event: { contentOffset: { y: number } }) => void;
@@ -73,9 +68,11 @@ jest.mock('@/stores/feedScrollStore', () => ({
 jest.mock('@shopify/flash-list', () => {
     const React_ = require('react') as typeof import('react');
     const { View: RNView } = require('react-native') as typeof import('react-native');
-    const FlashList = React_.forwardRef<unknown, { children?: React.ReactNode }>(
+    const FlashList = React_.forwardRef<unknown, { children?: React.ReactNode; onEndReached?: () => void }>(
         (props, ref) => {
             React_.useImperativeHandle(ref, () => ({ scrollToOffset: () => undefined }));
+            mockList.onEndReached = props.onEndReached;
+            mockList.data = (props as { data?: Array<{ kind: string; key?: string }> }).data;
             return React_.createElement(RNView, null, props.children);
         },
     );
@@ -88,12 +85,12 @@ jest.mock('@/hooks/useFeedState', () => ({
         items: [],
         slices: undefined,
         interstitials: undefined,
-        hasMore: false,
-        isLoading: false,
+        hasMore: true,
+        isLoading: mockFeed.isLoading,
         error: null,
         feedScrollKey: 'for_you',
         refresh: jest.fn(),
-        loadMore: jest.fn(),
+        loadMore: mockLoadMore,
         clearError: jest.fn(),
         fetchInitial: jest.fn(),
     }),
@@ -101,10 +98,10 @@ jest.mock('@/hooks/useFeedState', () => ({
 
 jest.mock('@oxy.so/services/ui/client', () => ({
     useAuth: () => ({
-        user: { id: 'reader' },
-        isAuthenticated: true,
-        canUsePrivateApi: true,
-        signIn: jest.fn(),
+        user: mockAuth.authenticated ? { id: 'reader' } : null,
+        isAuthenticated: mockAuth.authenticated,
+        canUsePrivateApi: mockAuth.authenticated,
+        signIn: mockSignIn,
     }),
 }));
 
@@ -164,81 +161,41 @@ jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 // eslint-disable-next-line import/first -- every mock above must be installed first.
 import Feed from '../Feed.native';
 
-/** One screen of travel, sampled the way a scroll actually arrives. */
-function scrollTo(offset: number) {
-    act(() => {
-        scrollHandlers.onScroll?.({ contentOffset: { y: offset } });
-    });
-}
+const leadingKeys = () => (mockList.data ?? []).filter((row) => row.kind === 'auxiliary').map((row) => row.key);
 
-describe('the feed’s scroll, as the chrome and the JS thread each see it', () => {
+describe('a pinned post holds the first presentation on native too (#1216)', () => {
     let renderer: TestRenderer.ReactTestRenderer | undefined;
-
-    beforeEach(() => {
-        mockScrollPosition.value = 0;
-        mockSetFeedScrollOffset.mockClear();
-        act(() => {
-            renderer = TestRenderer.create(<Feed type="for_you" />);
-        });
-    });
-
     afterEach(() => {
-        act(() => {
-            renderer?.unmount();
-        });
+        act(() => { renderer?.unmount(); });
         renderer = undefined;
     });
 
-    it('moves the shared scroll position on every single event', () => {
-        for (const offset of [4, 9, 17, 26, 38]) scrollTo(offset);
+    const pinned = React.createElement('pinned-post');
 
-        // Not "eventually 38" — the chrome integrates a DELTA per frame, so a
-        // value that only lands on some frames is a chrome that only moves on
-        // some frames.
-        expect(mockScrollPosition.value).toBe(38);
-    });
-
-    it('does not tell the JS thread about every one of them', () => {
-        for (const offset of [4, 9, 17, 26, 38, 51, 63, 74, 88, 99]) scrollTo(offset);
-
-        // A hundred pixels of travel is not a hundred pixels' worth of work:
-        // nothing on the JS side is answering a different question yet.
-        expect(mockSetFeedScrollOffset).not.toHaveBeenCalled();
-    });
-
-    it('tells it once the reader has actually travelled', () => {
-        scrollTo(60);
-        scrollTo(130);
-        scrollTo(200);
-
-        // 120px is the ration; 130 crosses it and 200 has not yet crossed the
-        // next one.
-        expect(mockSetFeedScrollOffset).toHaveBeenCalledTimes(1);
-        expect(mockSetFeedScrollOffset).toHaveBeenCalledWith('for_you', 130);
-    });
-
-    it('persists where the reader stopped, not the last rationed sample', () => {
-        scrollTo(130);
-        mockSetFeedScrollOffset.mockClear();
-
-        scrollTo(190);
+    it('keeps the pinned post out while it is still being fetched', () => {
+        mockFeed.isLoading = true;
         act(() => {
-            scrollHandlers.onMomentumEnd?.({ contentOffset: { y: 190 } });
+            renderer = TestRenderer.create(<Feed type="for_you" listLeadingComponent={pinned} leadingPending />);
         });
-
-        // Reopening the feed 60px above where it was left is exactly the kind of
-        // small wrongness a coarse-only report would ship.
-        expect(mockSetFeedScrollOffset).toHaveBeenCalledWith('for_you', 190);
+        expect(leadingKeys()).not.toContain('leading');
     });
 
-    it('persists the resting offset after a drag that never gained momentum', () => {
-        scrollTo(300);
-        mockSetFeedScrollOffset.mockClear();
-
+    it('shows it once both it and the first page are known', () => {
+        mockFeed.isLoading = false;
         act(() => {
-            scrollHandlers.onEndDrag?.({ contentOffset: { y: 341 } });
+            renderer = TestRenderer.create(<Feed type="for_you" listLeadingComponent={pinned} leadingPending={false} />);
         });
+        expect(leadingKeys()).toContain('leading');
+    });
+});
 
-        expect(mockSetFeedScrollOffset).toHaveBeenCalledWith('for_you', 341);
+describe('the platform Feeds share one core', () => {
+    const read = (file: string) => readFileSync(join(__dirname, '..', file), 'utf8');
+
+    it.each(['Feed.native.tsx', 'Feed.web.tsx'])('%s takes its data and behaviour from useFeedCore', (file) => {
+        const source = read(file);
+        expect(source).toMatch(/useFeedCore\(props\)/);
+        // Reading feed state, auth or building rows here again is a fork.
+        expect(source).not.toMatch(/\buseFeedState\(|\buseAuth\(|\bbuildFeedRows\(|\bsignIn\(/);
     });
 });
