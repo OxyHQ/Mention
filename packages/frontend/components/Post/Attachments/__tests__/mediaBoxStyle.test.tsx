@@ -1,10 +1,12 @@
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
-import { singleMediaBox } from '../PostAttachmentMedia';
+import { mediaBoxStyle } from '../PostAttachmentMedia';
 
 /**
- * A media cell alone in the attachments row spans the row, but its height is
- * capped: past the cap it keeps its ratio by narrowing, never by cropping, so a
- * tall photo cannot take over the whole viewport.
+ * A media cell alone in the attachments row spans the row (`w-full`), but its
+ * height is capped (`max-h-[420px]`): past the cap it keeps its ratio by
+ * narrowing, never by cropping, so a tall photo cannot take over the viewport.
+ * The only inline values are the media's own ratio and the width cap it implies;
+ * layout does the rest, so these tests read the style, not a measured box.
  */
 jest.mock('@/components/common/VideoPlayer', () => ({ __esModule: true, default: () => null }));
 jest.mock('@oxy.so/bloom/media-inset-border', () => ({ MediaInsetBorder: () => null }));
@@ -24,32 +26,24 @@ jest.mock('@/stores/videoPlayerRegistry', () => ({
   videoPlayerKey: (postId: string, mediaId: string) => `${postId}:${mediaId}`,
 }));
 
-
-const ROW = 516;
-
-it('a landscape image spans the row at its own ratio', () => {
-  expect(singleMediaBox(3 / 2, ROW)).toEqual({ width: ROW, height: ROW / (3 / 2) });
+it('alone, the ratio is the only thing layout needs from the record', () => {
+  expect(mediaBoxStyle(true, 3 / 2).aspectRatio).toBe(3 / 2);
 });
 
 it.each([
+  ['a landscape', 16 / 9],
   ['a square', 1],
   ['a 4:5 portrait', 4 / 5],
   ['a 9:16 story', 9 / 16],
-])('%s is capped in height and narrows to keep its ratio', (_label, ratio) => {
-  const box = singleMediaBox(ratio, ROW);
-  expect(box.height).toBe(SINGLE_MEDIA_MAX_HEIGHT);
-  expect(box.width).toBeLessThan(ROW);
-  expect(box.width / box.height).toBeCloseTo(ratio);
+])('%s narrows at exactly the width that makes it the height cap', (_label, ratio) => {
+  const { maxWidth } = mediaBoxStyle(true, ratio);
+  expect((maxWidth as number) / ratio).toBeCloseTo(SINGLE_MEDIA_MAX_HEIGHT);
 });
 
 it('an extremely tall item keeps a tappable width', () => {
-  expect(singleMediaBox(1 / 20, ROW).width).toBeGreaterThanOrEqual(100);
+  expect(mediaBoxStyle(true, 1 / 20).maxWidth).toBeGreaterThanOrEqual(100);
 });
 
-it('never exceeds the cap however narrow the row is', () => {
-  for (const ratio of [16 / 9, 1, 9 / 16]) {
-    const box = singleMediaBox(ratio, 320);
-    expect(box.height).toBeLessThanOrEqual(SINGLE_MEDIA_MAX_HEIGHT);
-    expect(box.width).toBeLessThanOrEqual(320);
-  }
+it('beside other items, width comes from the row height and the ratio alone', () => {
+  expect(mediaBoxStyle(false, 3 / 2)).toEqual({ aspectRatio: 3 / 2 });
 });

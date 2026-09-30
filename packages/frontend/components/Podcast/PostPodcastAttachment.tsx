@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type DimensionValue } from 'react-native';
 import type { PostPodcastContent } from '@mention/shared-types/post';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -8,7 +8,7 @@ import { PodcastSaveButton } from './PodcastSaveButton';
 
 interface PostPodcastAttachmentProps {
   podcast: PostPodcastContent;
-  width: number;
+  width: DimensionValue;
   /** The shared row height, when the podcast is one of several attachments. */
   height?: number;
 }

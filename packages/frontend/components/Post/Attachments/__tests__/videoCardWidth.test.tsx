@@ -53,7 +53,6 @@ function renderCell(type: (typeof CELL_KINDS)[number], props: Record<string, unk
         src="https://cloud.oxy.so/vid"
         postId="post-1"
         mediaId="media-1"
-        availableWidth={390}
         {...props}
       />,
     );
@@ -62,11 +61,21 @@ function renderCell(type: (typeof CELL_KINDS)[number], props: Record<string, unk
 }
 
 /** The card view is the parent of the mocked video surface. */
-function cardStyleOf(renderer: TestRenderer.ReactTestRenderer): ViewStyle {
+function cardOf(renderer: TestRenderer.ReactTestRenderer): { className: string; style: ViewStyle } {
   const surface = renderer.root.findByProps({ testID: 'video-surface' });
   let node = surface.parent;
   while (node && node.type !== View) node = node.parent;
-  return StyleSheet.flatten(node!.props.style) ?? {};
+  return { className: String(node!.props.className ?? ''), style: StyleSheet.flatten(node!.props.style) ?? {} };
+}
+
+/**
+ * A native `VideoView` has no intrinsic size, so the card must resolve BOTH
+ * sides by layout: one side from a class (`w-full` alone, the row height beside
+ * others) and the other from the ratio.
+ */
+function expectDefiniteBox({ className, style }: { className: string; style: ViewStyle }) {
+  expect(className).toMatch(/\bw-full\b|\bh-\[\d+px\]/);
+  expect(style.aspectRatio as number).toBeGreaterThan(0);
 }
 
 describe.each(CELL_KINDS)('a %s card always has a width', (type) => {
@@ -76,15 +85,11 @@ describe.each(CELL_KINDS)('a %s card always has a width', (type) => {
     // beside ANY companion gets, and it is where the width used to be missing.
     ['beside anything else', { hasSingleMedia: false }],
   ])('%s', (_label, flags) => {
-    const style = cardStyleOf(renderCell(type, { ...flags, aspectRatio: 0.5625 }));
-    expect(typeof style.width).toBe('number');
-    expect(style.width as number).toBeGreaterThan(0);
+    expectDefiniteBox(cardOf(renderCell(type, { ...flags, aspectRatio: 0.5625 })));
   });
 
   it('still has a width when the record carries no aspect ratio', () => {
-    const style = cardStyleOf(renderCell(type, { hasSingleMedia: false }));
-    expect(typeof style.width).toBe('number');
-    expect(style.width as number).toBeGreaterThan(0);
+    expectDefiniteBox(cardOf(renderCell(type, { hasSingleMedia: false })));
   });
 });
 
@@ -101,9 +106,8 @@ describe.each(['ios', 'web'] as const)('a lone video with NO stored dimensions (
   afterEach(() => { Platform.OS = original; });
 
   it('gets a definite, non-zero box — never a height-less one', () => {
-    const style = cardStyleOf(renderCell('video', { hasSingleMedia: true }));
-    expect(typeof style.width).toBe('number');
-    expect(typeof style.height).toBe('number');
-    expect(style.height as number).toBeGreaterThan(0);
+    const card = cardOf(renderCell('video', { hasSingleMedia: true }));
+    expect(card.className).toMatch(/\bw-full\b/);
+    expect(card.style.aspectRatio as number).toBeGreaterThan(0);
   });
 });

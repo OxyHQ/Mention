@@ -127,13 +127,6 @@ interface PostItemProps {
      * the search screen committing its query to the search history).
      */
     onOpen?: () => void;
-    /**
-     * Width of the block this post is rendered in, when the parent already knows
-     * it — set by the quote card, which is narrower than the feed row it sits in.
-     * Forwarded to the attachments row so media inside a quote is sized against
-     * the quote card, not against the screen.
-     */
-    containerWidth?: number;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -154,7 +147,6 @@ const PostItem: React.FC<PostItemProps> = ({
     threadRootId,
     isThread = false,
     onOpen,
-    containerWidth,
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
@@ -1015,7 +1007,6 @@ const PostItem: React.FC<PostItemProps> = ({
                         // Only a quote card hands a width down. The card has no
                         // horizontal inset (see `nestedPostContainer`), so the row
                         // spans exactly that width, edge to edge like a feed row.
-                        containerWidth={containerWidth}
                     />
                 )}
 
@@ -1127,7 +1118,6 @@ const styles = StyleSheet.create({
  * kept drawing the old connector lines and "Reposted by".
  */
 const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): boolean =>
-    prevProps.containerWidth === nextProps.containerWidth &&
     prevProps.isNested === nextProps.isNested &&
     prevProps.nestingDepth === nextProps.nestingDepth &&
     prevProps.showPinned === nextProps.showPinned &&
