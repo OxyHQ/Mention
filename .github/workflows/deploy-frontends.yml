@@ -120,6 +120,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     environment: production
+    # `actions: read` to find and download the previous release's build output
+    # (see "Carry the previous release's assets forward"). Job level, so no other
+    # job gains it.
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -263,6 +269,42 @@ jobs:
           rm packages/frontend/dist/_redirects
           test ! -e packages/frontend/dist/_redirects
 
+      # A deploy replaces every asset, so the release before this one loses its
+      # chunks the moment this one is promoted: any document still naming them (an
+      # open tab, a browser cache, a layer that has not revalidated yet) boots into
+      # a blank app. Ship the previous release's hashed files alongside this one's.
+      #
+      # The source is the previous SUCCESSFUL release's own build output, uploaded
+      # after its production smoke passed — so it is what was actually live, and
+      # what is carried never accumulates (N ships N and N-1). Best-effort by
+      # design: with no previous output the release ships only its own assets,
+      # exactly as before. This is protection, not a gate.
+      - name: Carry the previous release's assets forward
+        if: steps.current_release.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          own="$RUNNER_TEMP/own-static"
+          rm -rf "$own"
+          cp -R packages/frontend/dist/_expo/static "$own"
+
+          previous_dir="$RUNNER_TEMP/previous-static"
+          rm -rf "$previous_dir"
+          lookup="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq "[.artifacts[] | select((.name | startswith(\"mention-static-\")) and .name != \"mention-static-$DEPLOY_SHA\" and (.expired | not))] | first | select(. != null) | \"\(.name) \(.workflow_run.id)\"" \
+            2>/dev/null || true)"
+          if [[ -n "$lookup" ]]; then
+            read -r name run_id <<<"$lookup"
+            if gh run download "$run_id" --name "$name" --dir "$previous_dir"; then
+              echo "Carrying forward $name."
+            else
+              echo "::warning::Could not download $name; shipping only this release's assets."
+              rm -rf "$previous_dir"
+            fi
+          fi
+          bash .github/scripts/carry-previous-static.sh packages/frontend/dist "$previous_dir"
+
       # A WORKER, not a Pages project — and for Mention that is not a tidiness
       # change. A Pages project ALWAYS serves `<project>.pages.dev` with no way to
       # switch it off, and here that duplicate was load bearing:
@@ -316,6 +358,19 @@ jobs:
           WEB_ORIGIN: https://shell.mention.earth
           WEB_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
         run: bash .github/scripts/smoke-frontend.sh
+
+      # What the NEXT release carries forward. Uploaded only after this one's
+      # production smoke passed, so it is always a release that was actually live,
+      # and it is this release's OWN output (saved before the previous one's files
+      # were added), so nothing accumulates.
+      - name: Keep this release's assets for the next one
+        if: steps.current_release.outputs.current == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mention-static-${{ env.DEPLOY_SHA }}
+          path: ${{ runner.temp }}/own-static
+          if-no-files-found: error
+          retention-days: 30
 
       # The gate that proves the lock is a lock. Everything above authenticates,
       # so nothing above would notice if the Worker started serving the app to
