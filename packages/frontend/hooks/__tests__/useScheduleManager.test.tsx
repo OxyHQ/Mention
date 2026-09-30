@@ -123,6 +123,45 @@ describe('useScheduleManager', () => {
   });
 });
 
+describe('useScheduleManager sheet actions', () => {
+  it('announces a chosen time and closes the sheet', () => {
+    const harness = setup();
+
+    act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
+
+    expect(harness.toast).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'), { type: 'success' });
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+
+    act(() => harness.tree.unmount());
+  });
+
+  it('clears the time with a toast and closes the sheet', () => {
+    const harness = setup();
+
+    act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
+    act(() => harness.api.handleScheduleClear());
+
+    expect(harness.toast).toHaveBeenLastCalledWith('Scheduling removed', { type: 'success' });
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(harness.api.scheduledAt).toBeNull();
+
+    act(() => harness.tree.unmount());
+  });
+
+  it('closes the sheet without changing the chosen time', () => {
+    const harness = setup();
+    const chosen = new Date(Date.now() + 60_000);
+
+    act(() => harness.api.setScheduledAt(chosen));
+    act(() => harness.api.handleScheduleClose());
+
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(harness.api.scheduledAt).toEqual(chosen);
+
+    act(() => harness.tree.unmount());
+  });
+});
+
 /**
  * The quick-pick options are built from the wall clock, and "Later today" turns
  * over at 17:00: before it, the option is TODAY at 17:00; at or after it, the
