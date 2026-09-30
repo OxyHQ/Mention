@@ -28,6 +28,7 @@ import {
 } from './feedRows';
 import { useScrollMarginOrigin } from './useScrollMarginOrigin';
 import { recordBootMilestone } from '@/lib/webTelemetry';
+import { useHoldForLeading } from './holdForLeading';
 
 const logger = createLogger('Feed');
 
@@ -48,6 +49,16 @@ interface FeedProps {
     listContentHeaderComponent?: React.ReactElement | null;
     listStickyHeaderComponent?: React.ReactElement | null;
     listLeadingComponent?: React.ReactElement | null;
+    /**
+     * The leading element is still being fetched (a profile's pinned post). The
+     * feed's FIRST presentation waits for it AND for its own first page — its
+     * loading state stays up, without the leading element, until both are
+     * known — so the pinned post and the rows appear together, in their final
+     * order, whichever request finishes last. Before, the loser landed on top of
+     * what the winner had painted and pushed the column down (#1216). After
+     * that first presentation it is ignored.
+     */
+    leadingPending?: boolean;
     threaded?: boolean;
     threadPostId?: string;
     /** Extra data owned by the screen chrome that shares this refresh action. */
@@ -235,6 +246,10 @@ function EmbeddedWebFeed(props: FeedProps) {
     // for as long as that container's fill stayed `card`.
     const { feedRows: allFeedRows, feedState, handleRetry } = useWebFeed(merged);
     const feedRows = boundFeedRows(allFeedRows, merged.previewLimit);
+    const holdForLeading = useHoldForLeading(
+        merged.leadingPending,
+        feedRows.length > 0 || !feedState.isLoading,
+    );
 
     const header = listHeaderComponent ?? (
         <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />
@@ -244,10 +259,10 @@ function EmbeddedWebFeed(props: FeedProps) {
         <View style={[{ minHeight: 0 }, merged.style]}>
             {header}
             {listStickyHeaderComponent}
-            {listLeadingComponent}
-            {feedRows.length === 0 ? (
+            {!holdForLeading && listLeadingComponent}
+            {feedRows.length === 0 || holdForLeading ? (
                 <FeedEmptyState
-                    isLoading={feedState.isLoading}
+                    isLoading={feedState.isLoading || holdForLeading}
                     error={feedState.error}
                     errorKind={feedState.errorKind}
                     hasItems={false}
@@ -353,6 +368,7 @@ function VirtualizedWebFeed(props: FeedProps) {
     );
 
     const count = feedRows.length;
+    const holdForLeading = useHoldForLeading(merged.leadingPending, count > 0 || !feedState.isLoading);
 
     const virtualizer = useWindowVirtualizer<HTMLDivElement>({
         count,
@@ -561,11 +577,11 @@ function VirtualizedWebFeed(props: FeedProps) {
             <View style={merged.style}>
                 {header}
                 {listStickyHeaderComponent}
-                {listLeadingComponent}
+                {!holdForLeading && listLeadingComponent}
 
-                {count === 0 ? (
+                {count === 0 || holdForLeading ? (
                     <FeedEmptyState
-                        isLoading={feedState.isLoading}
+                        isLoading={feedState.isLoading || holdForLeading}
                         error={feedState.error}
                         errorKind={feedState.errorKind}
                         hasItems={false}
@@ -623,7 +639,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                     </div>
                 )}
 
-                {showFooter && (
+                {showFooter && !holdForLeading && (
                     <FeedFooter
                         showOnlySaved={showOnlySaved}
                         hasMore={feedState.hasMore}
@@ -657,7 +673,8 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.threadPostId !== nextProps.threadPostId ||
         prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
         prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
-        prevProps.listLeadingComponent !== nextProps.listLeadingComponent
+        prevProps.listLeadingComponent !== nextProps.listLeadingComponent ||
+        prevProps.leadingPending !== nextProps.leadingPending
     ) {
         return false;
     }

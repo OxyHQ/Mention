@@ -6,7 +6,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { AppShell } from '@oxy.so/bloom/app-shell';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
-import { hidesBottomBar } from '@/components/shell/bottomBarRoutes';
+import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { stackSceneLayout } from '@/components/navigation/StackScene';
@@ -106,12 +106,17 @@ export default function AppLayout() {
           <ExperimentalStack.Screen name="p/[id]/boost" />
         </ExperimentalStack>
       )}
-      {/* Show the anon CTA only once auth is resolved: during cold-boot restore
-          `isAuthenticated` is undetermined and would flash the banner to a user
-          whose session is about to restore. */}
-      {isAuthResolved && !isAuthenticated && <SignInBanner />}
     </>
   );
+
+  // The tab bar for a signed-in reader, the sign-in invitation for an anonymous
+  // one — both pinned by the shell; see `bottomBarContent`.
+  const bottomContent = bottomBarContent({ pathname, keyboardVisible, isAuthenticated, isAuthResolved });
+  const bottomBar = bottomContent === 'tabs'
+    ? <BottomBar />
+    : bottomContent === 'sign-in'
+      ? <SignInBanner />
+      : undefined;
 
   // The app-shell contexts this subtree reads (screen color, videos rail, video
   // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
@@ -150,7 +155,10 @@ export default function AppLayout() {
         asideWidth={350}
         asideCollapse="hidden"
         aside={<RightBar />}
-        bottomBar={isAuthenticated && !keyboardVisible && !hidesBottomBar(pathname) ? <BottomBar /> : undefined}
+        bottomBar={bottomBar}
+        // The tab bar is navigation, so it gives way to the sidebar on wide
+        // screens; the CTA has no stand-in there and shows at every width.
+        bottomBarVisibility={isAuthenticated ? 'compact' : 'always'}
         reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
       >
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />

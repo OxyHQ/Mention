@@ -4,7 +4,11 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { InverseButton } from '@oxy.so/bloom/button';
 
-/** Inline social-template invitation; the shell owns any fixed edge surfaces. */
+/**
+ * The anonymous reader's invitation to sign in. `app/(app)/_layout.tsx` hands
+ * it to the app shell as the bottom bar, which pins it to the bottom edge and
+ * reserves its height at the end of the column; it paints no position of its own.
+ */
 export const SignInBanner = memo(function SignInBanner() {
   const { signIn } = useAuth();
   const { t } = useTranslation();

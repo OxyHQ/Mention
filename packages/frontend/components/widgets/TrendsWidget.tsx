@@ -11,9 +11,11 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
-import { TrendItemRow } from '@/components/trending/TrendItemRow';
+import { TrendItemRow, TrendItemRowSkeleton } from '@/components/trending/TrendItemRow';
 
 const MAX_TRENDS_DISPLAYED = 5;
+/** Height of the small plain "Show more" button (Bloom `Button size="small"`). */
+const SHOW_MORE_HEIGHT = 32;
 const TRENDING_ROUTE = '/explore/trending';
 
 interface TrendsWidgetProps {
@@ -65,17 +67,17 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     return null;
   }
 
+  // The placeholder has the loaded list's shape — the same five rows and the
+  // "Show more" button below them — so the widgets under this one stay put
+  // when the trends arrive.
   const content = !hasSettled ? (
-    <View className="gap-2.5 py-1">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton.Row key={i} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Skeleton.Col>
-            <Skeleton.Text style={{ fontSize: 12, lineHeight: 14, width: 120 }} />
-            <Skeleton.Text style={{ fontSize: 14, lineHeight: 16, width: 160 }} />
-          </Skeleton.Col>
-          <Skeleton.Pill size={14} />
-        </Skeleton.Row>
-      ))}
+    <View className="gap-2">
+      <View>
+        {Array.from({ length: MAX_TRENDS_DISPLAYED }).map((_, i) => (
+          <TrendItemRowSkeleton key={i} showBorder={i < MAX_TRENDS_DISPLAYED - 1} />
+        ))}
+      </View>
+      <Skeleton.Box width={88} height={SHOW_MORE_HEIGHT} borderRadius={SHOW_MORE_HEIGHT / 2} />
     </View>
   ) : (
     <View className="gap-2">
