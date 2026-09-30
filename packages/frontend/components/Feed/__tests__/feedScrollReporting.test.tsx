@@ -128,12 +128,6 @@ jest.mock('@/hooks/usePrivacyControls', () => ({
     usePrivacyControls: () => ({ blockedSet: new Set<string>() }),
 }));
 
-jest.mock('@/components/shell/PanelChrome', () => ({
-    usePanelChromeTopInset: () => 0,
-    PANEL_HEADER_HEIGHT: 56,
-    PANEL_CHROME_TOP_INSET: 56,
-}));
-
 jest.mock('@/utils/feedTelemetry', () => ({
     resolveFeedDescriptor: () => 'for_you',
     useFeedImpressionTracker: () => ({ current: { syncVisible: jest.fn() } }),
