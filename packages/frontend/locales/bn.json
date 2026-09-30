@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}}টি উত্তর",
   "post.summary.replies_other": "{{formattedCount}}টি উত্তর",
   "compose.event.nameRequired": "সংযুক্ত করতে ইভেন্টটির একটি নাম দিন।",
+  "compose.event.timeInvalid": "একটি বৈধ সময় লিখুন, যেমন 20:30।",
   "compose.saveDraftFailed": "খসড়া সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
   "compose.toolbar.media": "ছবি বা ভিডিও যোগ করুন",
   "compose.toolbar.gif": "একটি GIF যোগ করুন",

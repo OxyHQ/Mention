@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}} yanıt",
   "post.summary.replies_other": "{{formattedCount}} yanıt",
   "compose.event.nameRequired": "Eklemek için etkinliğe bir ad ver.",
+  "compose.event.timeInvalid": "Geçerli bir saat girin, örneğin 20:30.",
   "compose.saveDraftFailed": "Taslak kaydedilemedi. Tekrar dene.",
   "compose.toolbar.media": "Fotoğraf veya video ekle",
   "compose.toolbar.gif": "GIF ekle",

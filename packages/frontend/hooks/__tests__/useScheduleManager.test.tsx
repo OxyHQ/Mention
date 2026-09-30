@@ -123,10 +123,49 @@ describe('useScheduleManager', () => {
   });
 });
 
+describe('useScheduleManager sheet actions', () => {
+  it('announces a chosen time and closes the sheet', () => {
+    const harness = setup();
+
+    act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
+
+    expect(harness.toast).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'), { type: 'success' });
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+
+    act(() => harness.tree.unmount());
+  });
+
+  it('clears the time with a toast and closes the sheet', () => {
+    const harness = setup();
+
+    act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
+    act(() => harness.api.handleScheduleClear());
+
+    expect(harness.toast).toHaveBeenLastCalledWith('Scheduling removed', { type: 'success' });
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(harness.api.scheduledAt).toBeNull();
+
+    act(() => harness.tree.unmount());
+  });
+
+  it('closes the sheet without changing the chosen time', () => {
+    const harness = setup();
+    const chosen = new Date(Date.now() + 60_000);
+
+    act(() => harness.api.setScheduledAt(chosen));
+    act(() => harness.api.handleScheduleClose());
+
+    expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
+    expect(harness.api.scheduledAt).toEqual(chosen);
+
+    act(() => harness.tree.unmount());
+  });
+});
+
 /**
  * The quick-pick options are built from the wall clock, and "Later today" turns
  * over at 17:00: before it, the option is TODAY at 17:00; at or after it, the
- * option rolls to TOMORROW at 17:00. Against a real clock only one side of that
+ * option is not offered (rolling it to tomorrow contradicted its own label). Against a real clock only one side of that
  * boundary ever runs, and which one depends on what time of day the suite is
  * started — so the clock is frozen here and both sides are pinned.
  *
@@ -170,17 +209,25 @@ describe('useScheduleManager quick-pick options', () => {
     expect(dateOf(options, '15m')).toEqual(new Date(2026, 0, 15, 8, 15, 0, 0));
   });
 
-  it('rolls "Later today" to 17:00 tomorrow once 17:00 has passed', () => {
+  it('drops "Later today" once 17:00 has passed instead of showing tomorrow under a today label', () => {
     const options = optionsAt(new Date(2026, 0, 15, 18, 30, 0));
 
-    expect(dateOf(options, 'later')).toEqual(new Date(2026, 0, 16, 17, 0, 0, 0));
+    expect(options.some((option) => option.key === 'later')).toBe(false);
     expect(dateOf(options, 'tomorrow')).toEqual(new Date(2026, 0, 16, 9, 0, 0, 0));
     expect(dateOf(options, '3h')).toEqual(new Date(2026, 0, 15, 21, 30, 0, 0));
   });
 
-  it('rolls over on the boundary itself — 17:00 exactly is already past', () => {
+  it('drops it on the boundary itself — 17:00 exactly is already past', () => {
     const options = optionsAt(new Date(2026, 0, 15, 17, 0, 0));
 
-    expect(dateOf(options, 'later')).toEqual(new Date(2026, 0, 16, 17, 0, 0, 0));
+    expect(options.some((option) => option.key === 'later')).toBe(false);
+  });
+
+  it('keeps every offered "Later today" on the same calendar day as now', () => {
+    for (const hour of [0, 9, 16]) {
+      const now = new Date(2026, 0, 15, hour, 0, 1);
+      const later = optionsAt(now).find((option) => option.key === 'later');
+      expect(later?.date.toDateString()).toBe(now.toDateString());
+    }
   });
 });

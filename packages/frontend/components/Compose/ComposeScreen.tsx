@@ -64,7 +64,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
-import { useDrafts } from '@/hooks/useDrafts';
+import { useDrafts, type Draft } from '@/hooks/useDrafts';
 
 // New imports for refactored components and hooks
 import { useLocationManager } from '@/hooks/useLocationManager';
@@ -143,6 +143,7 @@ import {
 } from '@/utils/composeIntent';
 import { consumePendingShareMedia } from '@/utils/pendingShareMedia';
 import { api } from '@/utils/api';
+import { confirmDialog } from '@/utils/alerts';
 import { useComposeVariants } from '@/hooks/useComposeVariants';
 import {
   MAIN_ITEM_ID,
@@ -1237,11 +1238,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     preferredSeededRef.current = false;
   };
 
-  const handlePost = async () => {
+  const handlePost = async (options?: { publishNow?: boolean }) => {
     if (isPosting || !user) return;
 
-    const scheduledAtValue = scheduledAt;
-    const wasScheduled = Boolean(scheduledAtValue);
+    // Editing a scheduled post: "Post now" is explicit, and so is clearing the
+    // schedule — the post then has no time left to wait for, so Save publishes
+    // it. Either way the author is told before a public action runs.
+    const publishNow = Boolean(
+      isEditMode && editingScheduledPost && editPostId && (options?.publishNow || !scheduledAt),
+    );
+    if (publishNow) {
+      const confirmed = await confirmDialog({
+        title: t('compose.scheduled.publishNow', { defaultValue: 'Post now' }),
+        message: t('compose.scheduled.publishNowConfirm', {
+          defaultValue: 'This post goes out immediately instead of at its scheduled time.',
+        }),
+        okText: t('compose.scheduled.publishNow', { defaultValue: 'Post now' }),
+        cancelText: t('common.cancel'),
+      });
+      if (!confirmed) return;
+    }
+
+    const scheduledAtValue = publishNow ? null : scheduledAt;
+    const wasScheduled = Boolean(scheduledAtValue) || publishNow;
     if (!hasPublishableContent(composeContent)) {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
@@ -1387,6 +1406,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           // a published post rather than silently ignoring it.
           scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
         }));
+        if (publishNow) {
+          await api.post(`/posts/${editPostId}/publish`);
+        }
         // Propagate the edited post to the shared post cache so the feed, profile
         // and detail reflect the change immediately (the same store every new post
         // flows through) — without this the edit is invisible until a manual
@@ -1468,7 +1490,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         : isEditMode
           ? editingServerDraft
             ? t('compose.serverDrafts.saved', { defaultValue: 'Draft saved' })
-            : t('Post updated successfully')
+            : publishNow
+              ? t('compose.scheduled.published', { defaultValue: 'Post published' })
+              : t('Post updated successfully')
           : wasScheduled && scheduledAtValue
             ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
             : t('Post published successfully');
@@ -1864,6 +1888,18 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const handleThreadTextInputRef = useCallback((threadId: string, el: MentionTextInputHandle | null) => {
     threadTextInputRefs.current[threadId] = el;
   }, []);
+
+  // "Continue writing" from the Unpublished sheet: the sheet and its backdrop go
+  // first, so the restored draft is not left underneath them, and the composer
+  // takes focus once the sheet has released it.
+  const handleResumeDraft = useCallback((draft: Draft) => {
+    bottomSheet.openBottomSheet(false);
+    loadDraft(draft);
+    setFocusedItemId(MAIN_ITEM_ID);
+    requestAnimationFrame(() => {
+      (variantTextInputRefs.current[MAIN_ITEM_ID] ?? threadTextInputRefs.current[MAIN_ITEM_ID])?.focus();
+    });
+  }, [bottomSheet, loadDraft, variantTextInputRefs, threadTextInputRefs]);
 
   const getFileDownloadUrl = useCallback((id: string) => {
     return oxyServices.assets.publicUrl(id);
@@ -2590,7 +2626,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       <Suspense fallback={null}>
                         <UnpublishedSheet
                           onClose={() => bottomSheet.openBottomSheet(false)}
-                          onLoadDraft={loadDraft}
+                          onLoadDraft={handleResumeDraft}
                           currentDraftId={currentDraftId}
                         />
                       </Suspense>
@@ -3443,14 +3479,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     {focusedCharCount}
                   </Text>
                 ) : null}
+                {isEditMode && editingScheduledPost && scheduledAt ? (
+                  <Button
+                    appearance="outline"
+                    tone="neutral"
+                    onPress={() => handlePost({ publishNow: true })}
+                    disabled={!isPostButtonEnabled || isPosting}
+                    testID="compose-publish-now"
+                  >
+                    {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
+                  </Button>
+                ) : null}
                 <Button
                   tone="action"
-                  onPress={handlePost}
+                  onPress={() => handlePost()}
                   disabled={!isPostButtonEnabled}
                   loading={isPosting}
                   testID="compose-submit"
                 >
-                  {isEditMode ? t('Save') : replyToPostId ? t('Reply') : t('Post')}
+                  {isEditMode
+                    ? editingScheduledPost && !scheduledAt
+                      ? t('compose.scheduled.publishNow', { defaultValue: 'Post now' })
+                      : t('Save')
+                    : replyToPostId ? t('Reply') : t('Post')}
                 </Button>
               </View>
             </View>

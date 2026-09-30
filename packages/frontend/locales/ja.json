@@ -2524,6 +2524,7 @@
   "post.summary.replies_one": "{{formattedCount}}件の返信",
   "post.summary.replies_other": "{{formattedCount}}件の返信",
   "compose.event.nameRequired": "添付するにはイベントに名前を付けてください。",
+  "compose.event.timeInvalid": "20:30 のように有効な時刻を入力してください。",
   "compose.saveDraftFailed": "下書きを保存できませんでした。もう一度お試しください。",
   "compose.toolbar.media": "写真や動画を追加",
   "compose.toolbar.gif": "GIFを追加",

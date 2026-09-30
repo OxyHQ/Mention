@@ -2,11 +2,14 @@ import React from "react";
 import { View } from "react-native";
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
+import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from "react-i18next";
+
+/** Strict 24h `HH:mm` — `99:99`, `25:00` and half-typed values are not times. */
+const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
 interface EventEditorProps {
     visible: boolean;
@@ -77,21 +80,43 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         onDateChange(merged.toISOString());
     }, [eventDate, onDateChange]);
 
-    const handleTimeChange = React.useCallback((time: string | null) => {
-        if (!time) return;
-        const [hours, minutes] = time.split(':').map(Number);
+    // The time is TYPED, so what is in the box is not always a time. The draft is
+    // kept as typed (never reverted behind the author's back) and only a valid
+    // one reaches the event; an invalid one blocks Save and says why.
+    const [timeDraft, setTimeDraft] = React.useState(eventTime);
+    const [syncedTime, setSyncedTime] = React.useState(eventTime);
+    if (syncedTime !== eventTime) {
+        setSyncedTime(eventTime);
+        setTimeDraft(eventTime);
+    }
+    const [wasVisible, setWasVisible] = React.useState(visible);
+    if (wasVisible !== visible) {
+        setWasVisible(visible);
+        if (visible) setTimeDraft(eventTime);
+    }
+    const timeInvalid = !TIME_PATTERN.test(timeDraft.trim());
+
+    const handleTimeChange = React.useCallback((text: string) => {
+        setTimeDraft(text);
+        const match = TIME_PATTERN.exec(text.trim());
+        if (!match) return;
         const merged = new Date(eventDate);
-        merged.setHours(hours, minutes);
+        merged.setHours(Number(match[1]), Number(match[2]), 0, 0);
         onDateChange(merged.toISOString());
     }, [eventDate, onDateChange]);
+
+    const handleSave = React.useCallback(() => {
+        if (missingName || timeInvalid) return;
+        onSave();
+    }, [missingName, timeInvalid, onSave]);
 
     const saveAction = (
         <Button
             appearance="solid"
             tone="accent"
             size="sm"
-            disabled={missingName}
-            onPress={onSave}
+            disabled={missingName || timeInvalid}
+            onPress={handleSave}
             testID="eventEditorSave"
         >
             {t("common.save")}
@@ -147,14 +172,30 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         />
                     </Field>
 
-                    <Field label={t("compose.event.time", { defaultValue: "Time" })}>
-                        <TimeField
-                            value={eventTime}
-                            onChange={handleTimeChange}
-                            testID="eventEditorTimeField"
-                        />
-                    </Field>
+                    <View style={{ width: 120 }}>
+                        <TextField>
+                            <TextFieldInput
+                                label={t("compose.event.time", { defaultValue: "Time" })}
+                                value={timeDraft}
+                                onChangeText={handleTimeChange}
+                                placeholder="HH:mm"
+                                inputMode="numeric"
+                                maxLength={5}
+                                aria-invalid={timeInvalid || undefined}
+                                testID="eventEditorTimeField"
+                            />
+                        </TextField>
+                    </View>
                 </View>
+                {timeInvalid ? (
+                    <View testID="eventEditorTimeError">
+                        <TextFieldHint invalid>
+                            {t("compose.event.timeInvalid", {
+                                defaultValue: "Enter a valid time, like 20:30.",
+                            })}
+                        </TextFieldHint>
+                    </View>
+                ) : null}
 
                 <TextFieldInput
                     label={t("compose.event.locationPlaceholder", {

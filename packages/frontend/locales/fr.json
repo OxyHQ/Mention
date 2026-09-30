@@ -2555,6 +2555,7 @@
   "post.summary.replies_many": "{{formattedCount}} réponses",
   "post.summary.replies_other": "{{formattedCount}} réponses",
   "compose.event.nameRequired": "Donne un nom à l'événement pour le joindre.",
+  "compose.event.timeInvalid": "Saisissez une heure valide, par exemple 20:30.",
   "compose.saveDraftFailed": "Impossible d'enregistrer le brouillon. Réessaie.",
   "compose.toolbar.media": "Ajouter des photos ou des vidéos",
   "compose.toolbar.gif": "Ajouter un GIF",
