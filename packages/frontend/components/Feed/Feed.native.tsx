@@ -119,6 +119,11 @@ const DEFAULT_FEED_PROPS = {
 //
 // A little under half a screen is the number that makes the runway longer than
 // the JS thread needs to build a row.
+//
+// Re-measured on a release build (#1103, docs/PERFORMANCE_BUDGETS.md): 500 and
+// 250 drew no blank rows on a Pixel 8a, but saved no measurable JS time and
+// 5-17 MB of RSS. The scroll's JS cost is Fabric re-laying out the tree, not
+// render-ahead rows (#1280), so the margin stays.
 const FEED_DRAW_DISTANCE = 1000;
 
 /**
