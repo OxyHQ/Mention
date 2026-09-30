@@ -117,4 +117,15 @@ export interface RemoteProfileStats {
   followingCount?: number;
   /** ISO 8601 — when the account was created on its origin. */
   joinedAt?: string;
+  /**
+   * Where the account moved, when it announced a verified `Move` to another
+   * server. `handle` is the new account's `user@domain`, the handle its profile
+   * route takes.
+   */
+  movedTo?: RemoteProfileMove;
+}
+
+export interface RemoteProfileMove {
+  handle: string;
+  actorUri: string;
 }

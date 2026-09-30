@@ -27,6 +27,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
   findOutboxBackfillCandidates,
+  setActorMovedTo,
   upsertActor,
 } from '../../db/federation/actorRepository';
 import {
@@ -316,5 +317,15 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
     await upsertActor(uri, { ...base(uri), followersCount: null, followingCount: 344, postsCount: 20 }, []);
 
     expect((await readActor(uri))?.followersCount).toBeNull();
+  });
+
+  it('keeps a recorded move across a profile refresh, which cannot see movedTo', async () => {
+    const uri = `${scope.origin}/users/moved`;
+    await upsertActor(uri, base(uri), []);
+    expect(await setActorMovedTo(uri, `${scope.origin}/users/moved-new`)).toBe(true);
+    await upsertActor(uri, base(uri), []);
+
+    expect((await readActor(uri))?.movedTo).toBe(`${scope.origin}/users/moved-new`);
+    expect(await setActorMovedTo(`${scope.origin}/users/nobody`, uri)).toBe(false);
   });
 });

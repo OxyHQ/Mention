@@ -148,6 +148,14 @@ export const federatedActors = pgTable(
     featuredTagsUrl: text(),
     /** `alsoKnownAs` — a scalar list of URIs, never joined. */
     alsoKnownAs: text().array(),
+    /**
+     * The actor URI this account announced it MOVED to, from a verified inbound
+     * `Move` whose target lists this actor in its `alsoKnownAs`
+     * (`recordRemoteMove`). NOT refreshed by the actor resolver, which does not
+     * expose the actor's own `movedTo`, so an ordinary profile refresh leaves it
+     * in place. NULL for an account that never moved.
+     */
+    movedTo: text(),
     remoteCreatedAt: timestamptz(),
     /**
      * Remote aggregate counts, stored as the remote reports them. UNVERIFIABLE

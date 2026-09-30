@@ -93,7 +93,10 @@ import { findClusterByPostId } from '../../../db/posts/postEquivalenceRepository
 import { clearFederationScope, federationScope, seedActor, seedFollow, seedPost } from '../../helpers/federationFixtures';
 import '../../../connectors/activitypub/inbox.service';
 import { parseInboundActivity } from '../../../connectors/activitypub/apSchemas';
-import { applyInboundMove } from '../../../connectors/activitypub/move.service';
+import { applyInboundMove, recordRemoteMove } from '../../../connectors/activitypub/move.service';
+import { actorService } from '../../../connectors/activitypub/actor.service';
+import { findActorByUri } from '../../../db/federation/actorRepository';
+import { loadRemoteProfileStats } from '../../../services/federation/remoteProfileStats';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 import { reconcileActorIdentityProjection } from '../../../services/ActorIdentityProjectionService';
 import { collapseImportedCopies } from '../../../services/PostEquivalenceService';
@@ -380,5 +383,62 @@ describe('local follows of the old actor', () => {
     expect(undo).not.toHaveBeenCalled();
     expect(mocks.getUsersByIds).not.toHaveBeenCalled();
     undo.mockRestore();
+  });
+});
+
+describe('a move to another server (remote → remote)', () => {
+  const NEW_ACTOR = `${scope.origin}/users/alice-new`;
+  const REMOTE_MOVE = { activityId: MOVE_ID, oldActorUri: OLD_ACTOR, targetActorUri: NEW_ACTOR };
+
+  async function seedTarget(alsoKnownAs: string[]) {
+    return seedActor(scope, { username: 'alice-new', uri: NEW_ACTOR, alsoKnownAs });
+  }
+
+  it('records the target on the old actor when the target lists it as an alias', async () => {
+    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW });
+    const target = await seedTarget([OLD_ACTOR]);
+    const fetch = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue({ ...target, _id: target.id });
+    mocks.serviceRequest.mockRejectedValue(oxyError(422, 'target_not_local'));
+
+    await applyInboundMove(REMOTE_MOVE);
+
+    // The alias is read FRESH, not from a cache that predates it.
+    expect(fetch).toHaveBeenCalledWith(NEW_ACTOR);
+    expect((await findActorByUri(OLD_ACTOR))?.movedTo).toBe(NEW_ACTOR);
+    // Oxy still gets the Move; its refusal changes nothing recorded here.
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/move', expect.anything());
+    // The profile page is told where the account went, by the new handle.
+    expect((await loadRemoteProfileStats(SHADOW))?.movedTo).toEqual({
+      handle: `alice-new@${scope.domain}`,
+      actorUri: NEW_ACTOR,
+    });
+    fetch.mockRestore();
+  });
+
+  it('refuses a move whose target does not name the old actor in alsoKnownAs', async () => {
+    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW });
+    const target = await seedTarget([]);
+    const fetch = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue({ ...target, _id: target.id });
+
+    await expect(recordRemoteMove(REMOTE_MOVE)).resolves.toBe('alias_missing');
+    expect((await findActorByUri(OLD_ACTOR))?.movedTo).toBeUndefined();
+    expect((await loadRemoteProfileStats(SHADOW))?.movedTo).toBeUndefined();
+    fetch.mockRestore();
+  });
+
+  it('records nothing when the target cannot be resolved or the old actor is unknown', async () => {
+    const fetch = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue(null);
+    await expect(recordRemoteMove(REMOTE_MOVE)).resolves.toBe('unknown_old_actor');
+    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW });
+    await expect(recordRemoteMove(REMOTE_MOVE)).resolves.toBe('target_unresolved');
+    expect((await findActorByUri(OLD_ACTOR))?.movedTo).toBeUndefined();
+    fetch.mockRestore();
+  });
+
+  it('leaves a move to one of our own accounts to Oxy', async () => {
+    const fetch = vi.spyOn(actorService, 'fetchRemoteActor');
+    await expect(recordRemoteMove(MOVE)).resolves.toBe('local_target');
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockRestore();
   });
 });

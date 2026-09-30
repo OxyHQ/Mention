@@ -106,6 +106,7 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     featuredUrl: optional(row.featuredUrl),
     featuredTagsUrl: optional(row.featuredTagsUrl),
     alsoKnownAs: optional(row.alsoKnownAs),
+    movedTo: optional(row.movedTo),
     remoteCreatedAt: optional(row.remoteCreatedAt),
     followersCount: row.followersCount,
     followingCount: row.followingCount,
@@ -591,6 +592,23 @@ export async function setActorOxyUserId(
     .update(federatedActors)
     .set({ oxyUserId, updatedAt: new Date() })
     .where(eq(federatedActors.id, actorId));
+}
+
+/**
+ * Record that the actor at `uri` moved to `movedTo`. Idempotent; returns whether
+ * a row matched. The caller verifies the move first — see `recordRemoteMove`.
+ */
+export async function setActorMovedTo(
+  uri: string,
+  movedTo: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const rows = await db
+    .update(federatedActors)
+    .set({ movedTo, updatedAt: new Date() })
+    .where(eq(federatedActors.uri, uri))
+    .returning({ id: federatedActors.id });
+  return rows.length > 0;
 }
 
 /**
