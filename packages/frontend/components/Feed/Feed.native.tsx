@@ -344,7 +344,7 @@ const Feed = ((props: FeedProps) => {
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
-    const { user: currentUser, isAuthenticated, canUsePrivateApi, signIn } = useAuth();
+    const { user: currentUser, isAuthenticated, canUsePrivateApi } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
@@ -382,19 +382,16 @@ const Feed = ((props: FeedProps) => {
         }
     }, [feedRefresh, onRefresh]);
 
-    // Handle load more - debounced in hook
-    // For unauthenticated users, show sign-in prompt instead of loading more
+    // Infinite scroll for everyone, anonymous included, exactly as on web
+    // (`Feed.web.tsx`). This used to call `signIn()` instead of loading more for
+    // an anonymous reader, which opened the SDK sign-in sheet unprompted as soon
+    // as the first page's end came within draw distance — one fling into public
+    // browse. The "Sign in to see more" footer is the only sign-in affordance,
+    // and it fires `signIn()` on a tap.
     const handleLoadMore = useCallback(() => {
         if (!canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })) return;
-
-        // If user is not authenticated, show sign-in prompt instead of loading more
-        if (!isAuthenticated) {
-            signIn().catch(() => {});
-            return;
-        }
-
         feedLoadMore();
-    }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated, signIn]);
+    }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore]);
 
     // Transform slices (or items) into FeedRows with thread state, and splice in
     // the server's recommendation cards.
