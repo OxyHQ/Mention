@@ -1,0 +1,15 @@
+-- Drop the plaintext ActivityPub private keys.
+--
+-- `actor_key_pairs.private_key_pem` held the secret half of each local user's
+-- signing key, unencrypted. Signing is custodial in oxy-api
+-- (`connectors/activitypub/crypto.ts` → `signViaOxy`), and nothing in Mention has
+-- read the column since, so the only thing it still did was sit in every database
+-- dump and backup where a leak would let anyone forge that user's federation
+-- traffic. Mastodon 4.7 started encrypting these keys at rest; Mention does not
+-- need them at all.
+--
+-- The row, `public_key_pem` and `key_id` stay: `hasActorKeyPair` uses the row as
+-- the "local federated actor" marker. `IF EXISTS` for the same reason as `0024`:
+-- the post-condition is absence, asserted by
+-- `__tests__/db/actorPrivateKeysDropped.test.ts`.
+ALTER TABLE "actor_key_pairs" DROP COLUMN IF EXISTS "private_key_pem";

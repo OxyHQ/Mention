@@ -3,14 +3,13 @@
  * fields), `federated_follows`, `federated_media_cache`,
  * `federation_delivery_queue`.
  *
- * ## `actor_key_pairs.private_key_pem` is a PROTECTED column
+ * ## `actor_key_pairs` holds no private key
  *
- * Mongoose marked nothing `select: false` anywhere in Mention, so
- * `ActorKeyPair.privateKeyPem` — the secret half of the key that signs every
- * outbound ActivityPub request for a user — was fully selectable and only stayed
- * out of responses because no DTO happened to include it. Drizzle's `select()`
- * returns every column, so the guard has to be added at the port rather than
- * inherited. See `protectedColumns.ts`.
+ * The table used to carry `private_key_pem`, the secret half of the key that
+ * signed a user's outbound ActivityPub requests, as plaintext. Signing moved to
+ * oxy-api (`connectors/activitypub/crypto.ts` calls `signViaOxy`) and nothing
+ * read the column afterwards, so migration 0058 dropped it: a key Mention does
+ * not use is only something a database dump or backup could leak.
  *
  * ## The schema does not normalize text, and that is deliberate
  *
@@ -74,8 +73,10 @@ export const FEDERATED_MEDIA_CACHE_STATES = ['pending', 'cached', 'evicted', 'fa
 export const DELIVERY_STATUSES = ['pending', 'delivered', 'failed'] as const;
 
 /**
- * `actor_key_pairs` — the RSA keypair Mention signs a local user's outbound
- * ActivityPub requests with. One per user.
+ * `actor_key_pairs` — the PUBLIC half of the RSA key a local user's outbound
+ * ActivityPub requests are signed with. One per user. The private half lives in
+ * oxy-api, which does the signing; a row here also marks the account as a local
+ * federated actor (`hasActorKeyPair`).
  */
 export const actorKeyPairs = pgTable(
   'actor_key_pairs',
@@ -84,8 +85,6 @@ export const actorKeyPairs = pgTable(
     /** An Oxy account id — no foreign key. One keypair per user. */
     oxyUserId: text().notNull().unique('actor_key_pairs_oxy_user_id_key'),
     publicKeyPem: text().notNull(),
-    /** SECRET. Protected — see `protectedColumns.ts`. */
-    privateKeyPem: text().notNull(),
     /** The advertised `keyId` URI (`https://<domain>/ap/users/<name>#main-key`). */
     keyId: text().notNull(),
     createdAt: createdAt(),

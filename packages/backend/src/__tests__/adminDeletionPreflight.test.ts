@@ -1349,7 +1349,6 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
         await getDb().insert(actorKeyPairs).values({
           oxyUserId: s.oxyUserId,
           publicKeyPem: 'probe-public',
-          privateKeyPem: 'probe-private',
           keyId: `${s.actorUri}#main-key`,
         });
       },

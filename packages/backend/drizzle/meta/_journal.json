@@ -407,6 +407,13 @@
       "when": 1790598725280,
       "tag": "0057_drop_mention_identity_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790741440192,
+      "tag": "0058_drop_plaintext_actor_private_keys",
+      "breakpoints": true
     }
   ]
 }
