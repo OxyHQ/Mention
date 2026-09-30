@@ -18,92 +18,28 @@ import Animated, {
     useSharedValue,
     type AnimatedProps,
 } from 'react-native-reanimated';
-import type { FeedType } from '@mention/shared-types';
-import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
-import { useAuth } from '@oxy.so/services/ui/client';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/styles/shared';
-import { useRouter, useIsFocused } from 'expo-router';
+import { useIsFocused } from 'expo-router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
-import { useTranslation } from 'react-i18next';
-import { createLogger } from '@oxy.so/core/logger';
-import { useFeedState } from '@/hooks/useFeedState';
-import { feedReceivesOwnNewPost, useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
-import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
+import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
+import { getItemKey } from '@/utils/feedUtils';
 import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
-import { FeedHeader } from './FeedHeader';
-import { FeedFooter } from './FeedFooter';
-import { FeedEmptyState } from './FeedEmptyState';
-import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 import {
     getFeedScrollOffset,
     setFeedScrollOffset,
 } from '@/stores/feedScrollStore';
-import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
-import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
 import {
     type FeedItem,
     type FeedRow,
-    buildFeedRows,
-    boundFeedRows,
-    canLoadMoreFeed,
     renderFeedRow,
     feedRowKey,
     feedRowType,
     feedRowStyles,
 } from './feedRows';
-
-const logger = createLogger('Feed');
-
-interface FeedProps {
-    type: FeedType;
-    userId?: string;
-    showComposeButton?: boolean;
-    onComposePress?: () => void;
-    hideHeader?: boolean;
-    hideRefreshControl?: boolean;
-    scrollEnabled?: boolean;
-    showOnlySaved?: boolean;
-    filters?: FeedFilters;
-    reloadKey?: string | number;
-    style?: React.ComponentProps<typeof View>['style'];
-    contentContainerStyle?: React.ComponentProps<typeof View>['style'];
-    listHeaderComponent?: React.ReactElement | null;
-    /** A normal virtualized row rendered before the sticky row. */
-    listContentHeaderComponent?: React.ReactElement | null;
-    /**
-     * A data-row header that sticks independently from `listHeaderComponent`.
-     * Kept separate so callers can scroll a large summary away while pinning
-     * only the compact navigation row below it.
-     */
-    listStickyHeaderComponent?: React.ReactElement | null;
-    /** Optional non-sticky row rendered immediately after the sticky header. */
-    listLeadingComponent?: React.ReactElement | null;
-    threaded?: boolean;
-    threadPostId?: string;
-    /** Extra data owned by the screen chrome that shares this pull gesture. */
-    onRefresh?: () => Promise<void>;
-    /**
-     * An EMBEDDED preview (`scrollEnabled={false}` inside a parent scroller):
-     * render at most this many rows and never page. An embedded feed is not
-     * virtualized — every row it holds is mounted — so without a bound it grows
-     * with every page the parent's scroll pulls in (#1103). Every non-scrolling
-     * Feed must be bounded; `validate:feed-hot-path` checks it.
-     */
-    previewLimit?: number;
-}
-
-const DEFAULT_FEED_PROPS = {
-    showComposeButton: false,
-    hideHeader: false,
-    hideRefreshControl: false,
-    scrollEnabled: true,
-    showOnlySaved: false,
-} as const;
+import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
 
 // FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
 // is the one render-ahead lever that still applies, and it is measured in
@@ -300,69 +236,50 @@ const NonScrollingScrollComponent = forwardRef<ScrollView, ScrollViewProps>(
 );
 NonScrollingScrollComponent.displayName = 'NonScrollingScrollComponent';
 
+/**
+ * The native feed: FlashList, scrolled on the UI thread. What the feed shows and
+ * does comes from {@link useFeedCore}; this file owns only how it scrolls.
+ */
 const Feed = ((props: FeedProps) => {
+    const core = useFeedCore(props);
     const {
-        type,
-        userId,
-        showComposeButton,
-        onComposePress,
-        hideHeader,
-        hideRefreshControl,
-        scrollEnabled,
-        showOnlySaved,
-        filters,
-        previewLimit,
-        reloadKey,
-        style,
-        contentContainerStyle,
-        listHeaderComponent,
-        listContentHeaderComponent,
-        listStickyHeaderComponent,
-        listLeadingComponent,
-        threaded,
-        threadPostId,
-        onRefresh,
-    } = { ...DEFAULT_FEED_PROPS, ...props };
+        props: {
+            type,
+            hideRefreshControl,
+            scrollEnabled,
+            style,
+            contentContainerStyle,
+            listContentHeaderComponent,
+            listStickyHeaderComponent,
+        },
+        theme,
+        router,
+        feedState,
+        feedRows,
+        leading,
+        handleLoadMore,
+        handleRefresh,
+        refreshing,
+        feedDescriptor,
+        impressionTracker,
+        receivesOwnNewPost,
+    } = core;
 
-    const { t } = useTranslation();
-    const theme = useTheme();
     const headerDockInset = useHeaderDockInset();
-    const router = useRouter();
     // With the (app) center now a Stack, multiple feed screens can be mounted at
     // once (e.g. the home feed stays mounted behind a pushed profile). Only the
     // FOCUSED feed may drive the shared scrollY (header/FAB/BottomBar hide) and be
-    // the registered scrollable for web wheel forwarding — otherwise a frozen
-    // background feed could move the shared value or steal wheel targeting.
+    // the registered scrollable — otherwise a frozen background feed could move
+    // the shared value.
     const isFocused = useIsFocused();
     const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
-    // The Bloom restoration hook is registered after feed identity is resolved.
-    const [refreshing, setRefreshing] = useState(false);
     const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
 
     // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
-    // bar overlay (home, explore). Reserved as constant scrollable top padding so
-    // the overlay chrome only translates and never reflows the list. Native +
-    // scroll-owning feeds only: embedded feeds (scrollEnabled === false) own no
-    // scrolling, and on web the chrome is sticky in normal flow (no inset needed).
+    // bar overlay. Reserved as constant scrollable top padding so the overlay
+    // chrome only translates and never reflows the list.
     const topInset = 0;
 
-    // Determine if we should use scoped (local) feed state
-    const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
-
-    const { user: currentUser, isAuthenticated, canUsePrivateApi } = useAuth();
-    const { blockedSet } = usePrivacyControls();
-
-    // Use the feed state hook for all feed operations
-    const feedState = useFeedState({
-        type,
-        userId,
-        showOnlySaved,
-        filters,
-        useScoped,
-        reloadKey,
-        isAuthenticated,
-        currentUserId: currentUser?.id,
-    });
     // Bloom is a no-op on native today, but pass the same identity sub-key used
     // on web so feeds hosted by one route can never share an offset if native
     // restoration becomes active.
@@ -371,78 +288,21 @@ const Feed = ((props: FeedProps) => {
         key: feedState.feedScrollKey,
     });
 
-    // Destructure stable function references from feedState to avoid re-creating
-    // callbacks whenever the feedState object identity changes.
-    const { refresh: feedRefresh, loadMore: feedLoadMore, clearError: feedClearError, fetchInitial: feedFetchInitial } = feedState;
-
-    // Handle refresh with loading state
-    const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        try {
-            await Promise.all([feedRefresh(), onRefresh?.()]);
-        } catch (err) {
-            logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
-        } finally {
-            setRefreshing(false);
-        }
-    }, [feedRefresh, onRefresh]);
-
-    // Infinite scroll for everyone, anonymous included, exactly as on web
-    // (`Feed.web.tsx`). This used to call `signIn()` instead of loading more for
-    // an anonymous reader, which opened the SDK sign-in sheet unprompted as soon
-    // as the first page's end came within draw distance — one fling into public
-    // browse. The "Sign in to see more" footer is the only sign-in affordance,
-    // and it fires `signIn()` on a tap.
-    const handleLoadMore = useCallback(() => {
-        if (!canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })) return;
-        feedLoadMore();
-    }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore]);
-
-    // Transform slices (or items) into FeedRows with thread state, and splice in
-    // the server's recommendation cards.
-    const allFeedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
-        slices: feedState.slices,
-        items: feedState.items,
-        interstitials: feedState.interstitials,
-        type,
-        showOnlySaved,
-        currentUserId: currentUser?.id,
-        blockedSet,
-        threaded,
-        threadPostId,
-    }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
-    const feedRows = useMemo(
-        () => boundFeedRows(allFeedRows, previewLimit),
-        [allFeedRows, previewLimit],
-    );
-
     const listRows = useMemo<NativeFeedRow[]>(() => {
         const auxiliaryRows: AuxiliaryFeedRow[] = [];
         if (listContentHeaderComponent) {
-            auxiliaryRows.push({
-                kind: 'auxiliary',
-                key: 'content-header',
-                element: listContentHeaderComponent,
-            });
+            auxiliaryRows.push({ kind: 'auxiliary', key: 'content-header', element: listContentHeaderComponent });
         }
         if (listStickyHeaderComponent) {
-            auxiliaryRows.push({
-                kind: 'auxiliary',
-                key: 'sticky-header',
-                element: listStickyHeaderComponent,
-            });
+            auxiliaryRows.push({ kind: 'auxiliary', key: 'sticky-header', element: listStickyHeaderComponent });
         }
-        if (listLeadingComponent) {
-            auxiliaryRows.push({
-                kind: 'auxiliary',
-                key: 'leading',
-                element: listLeadingComponent,
-            });
+        if (leading) {
+            auxiliaryRows.push({ kind: 'auxiliary', key: 'leading', element: leading });
         }
         return auxiliaryRows.length > 0
             ? [...auxiliaryRows, ...feedRows]
             : feedRows;
-    }, [feedRows, listContentHeaderComponent, listLeadingComponent, listStickyHeaderComponent]);
+    }, [feedRows, listContentHeaderComponent, leading, listStickyHeaderComponent]);
 
     // Bloom intentionally delegates native restoration to the navigator, but a
     // route/tab swap can genuinely unmount a feed. Restore the last feed-scoped
@@ -488,18 +348,9 @@ const Feed = ((props: FeedProps) => {
         enabled: scrollEnabled !== false
             && isFocused
             && listRows.length > 0
-            && feedReceivesOwnNewPost({ type, userId, filters, showOnlySaved, currentUserId: currentUser?.id }),
+            && receivesOwnNewPost,
         scrollToTop: revealOwnNewPost,
     });
-
-    // Feed-ranking telemetry: derive the descriptor this feed reports against and
-    // own an impression tracker for the session. The session resets when the
-    // descriptor changes or the feed is reloaded (reloadKey), so impressions are
-    // counted once per post per session. `canUsePrivateApi` short-circuits
-    // reporting for anonymous viewers so a public browse never POSTs (and never
-    // 401-loops) — the same gate the web feed applies.
-    const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
-    const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canUsePrivateApi);
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: NativeFeedRow; index: number }) => {
@@ -743,80 +594,21 @@ const Feed = ((props: FeedProps) => {
                     // height so the following sticky row starts immediately.
                     style={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
                 >
-                    {listHeaderComponent ?? <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />}
+                    {core.header}
                 </View>
             </VideoViewabilityScope>
         ),
-        [listHeaderComponent, showComposeButton, onComposePress, hideHeader, handleHeaderLayout]
+        [core.header, handleHeaderLayout]
     );
 
-    // Memoize empty state retry handler
-    const handleRetry = useCallback(async () => {
-        feedClearError();
-        try {
-            await feedFetchInitial(true);
-        } catch (retryError) {
-            // `fetchInitial` reports its own failures and resolves; anything
-            // that escapes it is a transport failure the feed has already
-            // retried, so it is a warn with a bounded context, not a red
-            // console entry (or a LogBox pop-up) over a passing hiccup.
-            logFeedFailure(logger, 'Feed retry failed', classifyFeedFailure(retryError));
-        }
-    }, [feedClearError, feedFetchInitial]);
-
-    const emptyStateComponent = useMemo(
-        () => (
-            <FeedEmptyState
-                isLoading={feedState.isLoading}
-                error={feedState.error}
-                errorKind={feedState.errorKind}
-                hasItems={false}
-                type={type}
-                showOnlySaved={showOnlySaved}
-                onRetry={handleRetry}
-                pending={feedState.pending}
-                isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
-            />
-        ),
-        [feedState.isLoading, feedState.error, feedState.errorKind, feedState.pending, type, showOnlySaved, handleRetry]
-    );
-
-    // Track if we're loading more (loading while we already have items)
-    const isLoadingMore = feedState.isLoading && feedRows.length > 0;
-
-    // Show footer for loading more or sign-in prompt for unauthenticated users
-    const showFooter = isLoadingMore || (!isAuthenticated && feedRows.length > 0);
-
-    const footerComponent = useMemo(
-        () => (
-            <FeedFooter
-                showOnlySaved={showOnlySaved}
-                hasMore={previewLimit === undefined && feedState.hasMore}
-                isLoadingMore={isLoadingMore}
-                hasItems={feedRows.length > 0}
-            />
-        ),
-        [showOnlySaved, previewLimit, feedState.hasMore, isLoadingMore, feedRows.length]
-    );
     const hasAuxiliaryRows = listRows.length > feedRows.length;
-    const renderedEmptyComponent = hasAuxiliaryRows ? null : emptyStateComponent;
+    const renderedEmptyComponent = hasAuxiliaryRows ? null : core.emptyState;
     const renderedFooterComponent = feedRows.length === 0 && hasAuxiliaryRows
-        ? emptyStateComponent
-        : showFooter
-            ? footerComponent
-            : null;
-
-    const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-        logger.error('Error caught by boundary', error, { errorInfo });
-    }, []);
+        ? core.emptyState
+        : core.footer;
 
     return (
-        <ErrorBoundary
-            title={t("error.boundary.title")}
-            message={t("error.boundary.message")}
-            retryLabel={t("error.boundary.retry")}
-            onError={handleBoundaryError}
-        >
+        <FeedErrorBoundary>
             <View
                 className={scrollEnabled === false ? undefined : "flex-1"}
                 style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
@@ -872,42 +664,10 @@ const Feed = ((props: FeedProps) => {
                     />
                 </VideoViewabilityProvider>
             </View>
-        </ErrorBoundary>
+        </FeedErrorBoundary>
     );
 });
 
-/**
- * Optimized props comparison to prevent unnecessary re-renders
- * Uses deep comparison for filters to avoid re-renders when filter objects change by reference only
- */
-const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
-    // Fast path checks - most common changes
-    if (
-        prevProps.reloadKey !== nextProps.reloadKey ||
-        prevProps.type !== nextProps.type ||
-        prevProps.userId !== nextProps.userId ||
-        prevProps.showOnlySaved !== nextProps.showOnlySaved ||
-        prevProps.scrollEnabled !== nextProps.scrollEnabled ||
-        prevProps.previewLimit !== nextProps.previewLimit ||
-        prevProps.threaded !== nextProps.threaded ||
-        prevProps.threadPostId !== nextProps.threadPostId ||
-        prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
-        prevProps.listContentHeaderComponent !== nextProps.listContentHeaderComponent ||
-        prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
-        prevProps.listLeadingComponent !== nextProps.listLeadingComponent
-    ) {
-        return false;
-    }
-
-    // Shallow comparison for the flat filters bag (avoids JSON.stringify).
-    if (!shallowFiltersEqual(prevProps.filters, nextProps.filters)) {
-        return false;
-    }
-
-    // Props are equal, skip re-render
-    return true;
-};
-
-const MemoizedFeed = memo(Feed, arePropsEqual);
+const MemoizedFeed = memo(Feed, areFeedPropsEqual);
 MemoizedFeed.displayName = 'Feed';
 export default MemoizedFeed;
