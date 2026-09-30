@@ -223,9 +223,6 @@
     "gates. The policy fails if one of them gains coverage and stays on this list."
   ],
   "unenforceable": {
-    "lib/chunkReload.web.ts": {
-      "reason": "Web-only fork, no direct test; jest resolves lib/chunkReload.native.ts instead."
-    },
     "lib/hlsPlayback.web.ts": {
       "reason": "Web-only fork, no direct test; jest resolves lib/hlsPlayback.native.ts instead."
     },
