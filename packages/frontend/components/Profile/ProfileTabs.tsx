@@ -248,16 +248,12 @@ export const ProfileTabs = memo(function ProfileTabs({
 
   return (
     <View>
-      {/* bounded-feed: on native this non-scrolling path is reached only by a
-          private profile the viewer does not own (every other feed tab lets the
-          Feed own the scroll — `shouldFeedOwnProfileScroll`), and that feed is
-          empty by construction.
-
-          The pinned post is the feed's LEADING element rather than a sibling
-          above it: its own request and the feed's race, and whichever lost used
-          to land on top of what the other had already painted, pushing the
-          whole column down (#1216). The feed waits for it on its first
-          presentation (`leadingPending`), so both appear together. */}
+      {/* The pinned post is the feed's LEADING element, not a sibling above it:
+          the two requests race and the loser used to shove the column down
+          (#1216). The feed waits for it (`leadingPending`), so both appear
+          together.
+          bounded-feed: on native this path is reached only by a private
+          profile the viewer does not own, and that feed is empty. */}
       <Feed
         type={tab as FeedType}
         userId={laneId ? undefined : profileId}
