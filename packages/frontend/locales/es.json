@@ -201,6 +201,7 @@
   "profile.editProfile": "Editar Perfil",
   "profile.chat": "Chat",
   "profile.followsYou": "Te sigue",
+  "profile.movedTo": "Esta cuenta se ha mudado a @{{handle}}",
   "profile.tabs.posts": "Publicaciones",
   "profile.tabs.replies": "Respuestas",
   "profile.tabs.media": "Medios",

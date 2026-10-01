@@ -113,6 +113,8 @@ export interface FederatedActorRecord {
   featuredUrl?: string;
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
+  /** The actor URI this account moved to — see the column comment. */
+  movedTo?: string;
   remoteCreatedAt?: Date;
   /**
    * Remote aggregate counts, as the remote reports them. Unverifiable. `null` is

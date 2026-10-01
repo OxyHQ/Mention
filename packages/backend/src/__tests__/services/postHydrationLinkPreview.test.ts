@@ -18,12 +18,16 @@ const AUTHOR_OXY_ID = 'oxy-author';
 const POST_URL = 'https://example.com/some-article';
 const SECOND_URL = 'https://example.org/another-article';
 
-const { getUserById, getUsersByIds, resolveDocuments, cacheStore } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, resolveDocuments, findPostLinkPreviews, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   resolveDocuments: vi.fn(),
+  findPostLinkPreviews: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
 }));
+
+// The FEP-8967 cards a federated post arrived with (`post_link_previews`).
+vi.mock('../../db/posts/postLinkPreviewRepository', () => ({ findPostLinkPreviews }));
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
@@ -105,6 +109,8 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     getUserById.mockReset();
     getUsersByIds.mockReset();
     resolveDocuments.mockReset();
+    findPostLinkPreviews.mockReset();
+    findPostLinkPreviews.mockResolvedValue(new Map());
     getUsersByIds.mockResolvedValue([makeOxyUser(AUTHOR_OXY_ID, 'author', 'Author')]);
     service = new PostHydrationService();
   });
@@ -330,6 +336,68 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     });
 
     expect(resolveDocuments).not.toHaveBeenCalled();
+  });
+
+  describe('the card a federated post arrived with (FEP-8967)', () => {
+    const card = { url: POST_URL, title: 'Remote title', description: 'Remote description' };
+
+    it('stands in for a link Clarity is still indexing, and settles the post', async () => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'queued' }] });
+      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [card]]]));
+
+      const hydrated = await hydrate();
+
+      expect(findPostLinkPreviews).toHaveBeenCalledWith([POST_ID]);
+      expect(hydrated.documents).toEqual([
+        expect.objectContaining({ canonicalUrl: POST_URL, title: 'Remote title', description: 'Remote description' }),
+      ]);
+      // No remote image ever reaches the reader.
+      expect(hydrated.documents?.[0]).not.toHaveProperty('imageUrl');
+      expect(hydrated).not.toHaveProperty('documentsPending');
+    });
+
+    it('stands in for a link Clarity gave up on', async () => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'failed' }] });
+      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [card]]]));
+
+      expect((await hydrate()).documents?.map((doc) => doc.title)).toEqual(['Remote title']);
+    });
+
+    it('matches the card to the link however either was spelled', async () => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: 'https://Example.com/some-article', status: 'failed' }] });
+      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [card]]]));
+
+      const hydrated = await hydrate('look at this https://Example.com/some-article');
+      expect(hydrated.documents?.map((doc) => doc.title)).toEqual(['Remote title']);
+    });
+
+    it('never replaces a document Clarity has, and is not even read for it', async () => {
+      mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'Clarity title') });
+      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [card]]]));
+
+      const hydrated = await hydrate();
+
+      expect(hydrated.documents?.map((doc) => doc.title)).toEqual(['Clarity title']);
+      expect(findPostLinkPreviews).not.toHaveBeenCalled();
+    });
+
+    it('ignores a card for a link the body does not carry', async () => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'queued' }] });
+      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [{ ...card, url: 'https://elsewhere.example/' }]]]));
+
+      const hydrated = await hydrate();
+      expect(hydrated.documents).toEqual([]);
+      expect(hydrated.documentsPending).toBe(true);
+    });
+
+    it('still hydrates when the stored cards cannot be read', async () => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'queued' }] });
+      findPostLinkPreviews.mockRejectedValue(new Error('db down'));
+
+      const hydrated = await hydrate();
+      expect(hydrated.documents).toEqual([]);
+      expect(hydrated.documentsPending).toBe(true);
+    });
   });
 
   /**

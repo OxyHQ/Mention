@@ -321,23 +321,27 @@ decode entities BEFORE normalizing. Nothing was added back.
 **Mongoose had `select: false`; Mention used it on no model.** That is the reason
 to have this module, not to skip it: a column only stayed out of a response
 because no DTO happened to include it, and `db.select().from(t)` returns EVERY
-column. The first naive port of a query was the first time
-`actor_key_pairs.private_key_pem` — the key that signs every outbound
-ActivityPub request for a user — can leave the process.
+column. The first naive query over a table holding a secret is the first time
+that secret can leave the process.
 
 Four parts, and the third is the one a convention could not give you:
 
 1. **The registry is data** (`PROTECTED_COLUMNS`), one entry per column with its
    reason.
 2. **`publicColumns(table)` is the sanctioned read.**
-3. **The exclusion is at the TYPE level.** The row type has no `privateKeyPem`
+3. **The exclusion is at the TYPE level.** The row type has no protected
    property, so a serializer that reads one fails `tsc` rather than shipping it.
-4. **Opting in is explicit and greppable.** A signing path names the column.
+4. **Opting in is explicit and greppable.** A path that needs the secret names
+   the column.
    There is deliberately no helper — it must read differently from an ordinary
    select.
 
-The registry is SHORT because Mention holds exactly one secret at rest. Its value
-is the SCAN, which fails a bare `select()` anywhere in `src/`.
+The registry is EMPTY because Mention holds no secret at rest: the one it had,
+`actor_key_pairs.private_key_pem`, was dropped by migration 0059 once signing
+moved to oxy-api. **Do not store a secret you can avoid**; when one is
+unavoidable, register it here before the first query touches it. The value is
+the SCAN, which fails a bare `select()` anywhere in `src/` against a registered
+table.
 
 ## Generated columns
 

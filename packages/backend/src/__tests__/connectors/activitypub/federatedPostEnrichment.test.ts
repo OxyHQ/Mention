@@ -116,6 +116,7 @@ import { like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
+import { findPostLinkPreviews } from '../../../db/posts/postLinkPreviewRepository';
 import { activityPubConnector } from '../../../connectors/activitypub/ActivityPubConnector';
 
 /**
@@ -374,5 +375,33 @@ describe('Federated ingest — inbox Create routes links into the warming path',
     expect(createdPrimaryText()).not.toContain('http');
     expect(warmedSingleUrls()).toEqual([]);
     expect(warmedBatchUrls()).toEqual([]);
+  });
+});
+
+/**
+ * FEP-8967: a note that arrives with the card its server rendered for a link
+ * keeps that card beside the post — the fallback hydration shows while Clarity
+ * has no document for the link (`postHydrationLinkPreview.test.ts`).
+ */
+describe('Federated ingest — outbox backfill keeps the FEP-8967 cards', () => {
+  it('stores the text of each card, in order, for the post that carried it', async () => {
+    const note = createNote('withcard', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`);
+    Object.assign(note.object, {
+      attachment: [
+        { type: 'Link', href: ARTICLE_URL, preview: { type: 'Article', name: 'Article one', summary: '<p>What it says</p>' } },
+      ],
+    });
+    stubOutbox([note, createNote('nocard', `<p>No card ${linkAnchor(SECOND_ARTICLE_URL)}</p>`)]);
+
+    await runOutboxSync();
+
+    const stored = await getDb()
+      .select({ id: posts.id, activityId: posts.federationActivityId })
+      .from(posts)
+      .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+    const cards = await findPostLinkPreviews(stored.map((row) => row.id));
+    const withCard = stored.find((row) => row.activityId?.includes('withcard'));
+    expect(cards.get(withCard!.id)).toEqual([{ url: ARTICLE_URL, title: 'Article one', description: 'What it says' }]);
+    expect(cards.size).toBe(1);
   });
 });

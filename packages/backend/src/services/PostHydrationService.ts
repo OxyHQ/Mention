@@ -66,6 +66,8 @@ import {
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
 import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
+import { findPostLinkPreviews, type StoredLinkPreview } from '../db/posts/postLinkPreviewRepository';
+import { linkPreviewKey } from '../connectors/activitypub/apLinkPreview';
 
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
@@ -74,6 +76,24 @@ import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/sh
  * the posts with a link Clarity is still indexing (reported to the client as
  * `documentsPending`, so it can ask `POST /posts/documents` again).
  */
+/**
+ * A federated post's own card for `url`, in the shape the app renders. Marked as
+ * the remote server's (`id`), with no image: see `post_link_previews`.
+ */
+function remoteCardDocument(url: string, card: StoredLinkPreview): ClarityDocument {
+  return {
+    id: `remote-card:${url}`,
+    canonicalUrl: url,
+    requestedUrl: url,
+    ...(card.title ? { title: card.title } : {}),
+    ...(card.description ? { description: card.description } : {}),
+    type: 'page',
+    status: 'indexed',
+    authors: [],
+    evidence: {},
+  };
+}
+
 interface ClarityDocumentMap {
   documents: Map<string, ClarityDocument[]>;
   pending: Set<string>;
@@ -2084,11 +2104,31 @@ export class PostHydrationService {
 
     const resolved = await resolveClarityDocuments([...uniqueUrls], { waitMs });
 
+    // The card a federated post ARRIVED with (FEP-8967) stands in for a link
+    // Clarity has no document for — pending, or given up on — so the reader sees
+    // the author's server's card instead of none. Read only for those posts, and
+    // only ever applied to the post that carried it.
+    const uncovered = [...postToUrls].filter(([, urls]) => urls.some((url) => !resolved.documents.has(url)));
+    const remoteCards = uncovered.length > 0
+      ? await findPostLinkPreviews(uncovered.map(([postId]) => postId)).catch(() => new Map<string, StoredLinkPreview[]>())
+      : new Map<string, StoredLinkPreview[]>();
+
     for (const [postId, urls] of postToUrls) {
+      const cards = new Map<string, StoredLinkPreview>();
+      for (const card of remoteCards.get(postId) ?? []) {
+        const key = linkPreviewKey(card.url);
+        if (key) cards.set(key, card);
+      }
       const documents: ClarityDocument[] = [];
       for (const url of urls) {
         const document = resolved.documents.get(url);
-        if (document) documents.push(document);
+        if (document) {
+          documents.push(document);
+          continue;
+        }
+        const key = linkPreviewKey(url);
+        const card = key ? cards.get(key) : undefined;
+        if (card) documents.push(remoteCardDocument(url, card));
         else if (resolved.pending.has(url)) result.pending.add(postId);
       }
       if (documents.length > 0) result.documents.set(postId, documents);

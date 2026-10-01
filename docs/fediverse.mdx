@@ -381,6 +381,11 @@ their own schedule.
 Mention reattributes the old account's posts here, keeps one card for each
 imported post, and unfollows the old account for local users. The steps are in [content import](./import.mdx).
 
+A `Move` to ANOTHER server is recorded rather than applied: once the target's
+`alsoKnownAs` confirms it, the old actor's `moved_to` is set and its profile says
+where the account went. Moving local follows to the new server is Oxy's
+(OxyHQ/oxy#1502). See [federation behaviors](./federation-behaviors.md).
+
 ## Optional AT Protocol connector
 
 AT Protocol handle resolution and read/discovery are on unless

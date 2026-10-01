@@ -201,6 +201,7 @@
   "profile.editProfile": "プロフィールを編集",
   "profile.chat": "チャット",
   "profile.followsYou": "あなたをフォローしています",
+  "profile.movedTo": "このアカウントは @{{handle}} に移転しました",
   "profile.tabs.posts": "投稿",
   "profile.tabs.replies": "返信",
   "profile.tabs.media": "メディア",

@@ -201,6 +201,7 @@
   "profile.editProfile": "Profili düzenle",
   "profile.chat": "Sohbet",
   "profile.followsYou": "Seni takip ediyor",
+  "profile.movedTo": "Bu hesap @{{handle}} adresine taşındı",
   "profile.tabs.posts": "Gönderiler",
   "profile.tabs.replies": "Yanıtlar",
   "profile.tabs.media": "Medya",

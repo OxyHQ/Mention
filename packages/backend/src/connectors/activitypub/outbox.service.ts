@@ -42,6 +42,7 @@ import {
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { derivePostType } from '../../services/PostCreationService';
+import { storeRemoteLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
@@ -768,6 +769,7 @@ export class OutboxSyncService {
       // back — the same reason the Mongo version minted its own `ObjectId`
       // rather than letting the driver do it.
       const newDocs: PostRecordInput[] = [];
+      const linkPreviewsByPostId = new Map<string, RemoteLinkPreview[]>();
       // Federated replies inserted in this batch, to be linked into their threads
       // AFTER the raw insert (so a self-thread whose root + replies arrive in the
       // same batch resolve against the now-inserted parents). Captured separately
@@ -874,7 +876,7 @@ export class OutboxSyncService {
           });
           continue;
         }
-        const { text, media, attachments, hashtags, summary, sensitive, variants } = built;
+        const { text, media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
 
         // When this note QUOTES another post, link it — the SAME rule the inbox
         // `Create` path applies. This loop knew about `inReplyTo` and nothing
@@ -931,10 +933,12 @@ export class OutboxSyncService {
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
         const visibility = mapApVisibility(note.to, note.cc);
 
+        const postId = uuidv7();
+        if (linkPreviews.length > 0) linkPreviewsByPostId.set(postId, linkPreviews);
         newDocs.push({
           // Assigned here rather than read back afterwards so the post-insert
           // metadata-enrich pass below can address each row directly.
-          id: uuidv7(),
+          id: postId,
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
           federation: buildFederatedNoteProvenance({
@@ -1057,6 +1061,13 @@ export class OutboxSyncService {
         // it would be work against a post this task never wrote. It is also where
         // the generated id lives.
         enrichIngestedPosts(inserted);
+
+        // FEP-8967 cards, for the INSERTED posts only — a row that lost the
+        // unique race belongs to whichever task stored it.
+        for (const post of inserted) {
+          const previews = linkPreviewsByPostId.get(post.id);
+          if (previews) await storeRemoteLinkPreviews(post.id, previews);
+        }
       }
 
       // Link federated replies into their threads. Done AFTER the insert so a

@@ -201,6 +201,7 @@
   "profile.editProfile": "Редактировать профиль",
   "profile.chat": "Чат",
   "profile.followsYou": "Подписан(а) на вас",
+  "profile.movedTo": "Этот аккаунт переехал на @{{handle}}",
   "profile.tabs.posts": "Посты",
   "profile.tabs.replies": "Ответы",
   "profile.tabs.media": "Медиа",

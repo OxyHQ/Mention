@@ -201,6 +201,7 @@
   "profile.editProfile": "प्रोफ़ाइल संपादित करें",
   "profile.chat": "चैट",
   "profile.followsYou": "आपको फ़ॉलो करते हैं",
+  "profile.movedTo": "यह खाता @{{handle}} पर चला गया है",
   "profile.tabs.posts": "पोस्ट",
   "profile.tabs.replies": "जवाब",
   "profile.tabs.media": "मीडिया",
