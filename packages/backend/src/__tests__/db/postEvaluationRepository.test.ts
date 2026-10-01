@@ -13,6 +13,7 @@ import { mapApVisibility } from '../../connectors/activitypub/helpers';
 import { postContentVariants } from '../../db/schema/postContent';
 import { postImports } from '../../db/schema/imports';
 import { userSettings } from '../../db/schema/userProfile';
+import { updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
 
@@ -60,6 +61,22 @@ async function setProfile(visibility: 'public' | 'private' | 'followers_only') {
   await getDb().insert(userSettings).values({ oxyUserId: scope.user('author'), privacyProfileVisibility: visibility })
     .onConflictDoUpdate({ target: userSettings.oxyUserId, set: { privacyProfileVisibility: visibility } });
 }
+function barrier() {
+  let open!: () => void;
+  const reached = new Promise<void>(resolve => { open = resolve; });
+  return { open, reached };
+}
+/** Resolves once some session is queued on the author's profile-visibility lock. */
+async function untilProfileLockHasWaiter() {
+  const key = `profile-visibility:${scope.user('author')}`;
+  await vi.waitFor(async () => {
+    const [row] = await getDb().execute<{ waiting: number }>(sql`select count(*)::int as waiting from pg_locks
+      where locktype = 'advisory' and not granted
+        and ((classid::bigint << 32) | objid::bigint) = hashtext(${key})::bigint`);
+    expect(row?.waiting).toBeGreaterThan(0);
+  }, { timeout: 3_000, interval: 10 });
+}
+const makePrivate = { set: { 'privacy.profileVisibility': 'followers_only' } };
 async function followFixture(edges: Array<typeof federatedFollows.$inferInsert>) {
   if (edges.length) await getDb().insert(federatedFollows).values(edges);
   return getDb().transaction(async tx => {
@@ -232,6 +249,63 @@ describe('durable shadow evaluation ledger', () => {
     // The cancelled row may have incurred cost: no second claim for that revision.
     expect(await claimPostEvaluation(post.id, release)).toBeNull();
   });
+
+  for (const row of ['existing', 'missing'] as const) {
+    it(`cancels when a concurrent profile change (${row} settings row) takes the lock first`, async () => {
+      if (row === 'existing') await setProfile('public');
+      const post = await fixture();
+      const claim = await requiredClaim(post.id);
+      const writerHolds = barrier();
+      const commitWriter = barrier();
+      const writer = getDb().transaction(async tx => {
+        await updateUserSettings(scope.user('author'), makePrivate, tx);
+        writerHolds.open();
+        await commitWriter.reached;
+      });
+      await writerHolds.reached;
+      const completion = completePostEvaluation(claim, signals);
+      try {
+        await untilProfileLockHasWaiter(); // Completion is queued behind the uncommitted change.
+      } finally {
+        commitWriter.open(); // A failure must never leave a session holding the lock.
+        await writer;
+      }
+      expect(await completion).toBe(false);
+      expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+    });
+
+    it(`serializes a concurrent profile change (${row} settings row) after a completion that holds the lock`, async () => {
+      if (row === 'existing') await setProfile('public');
+      const post = await fixture();
+      const claim = await requiredClaim(post.id);
+      const completionHolds = barrier();
+      const commitCompletion = barrier();
+      const transaction = getDb().transaction.bind(getDb());
+      vi.spyOn(getDb(), 'transaction').mockImplementationOnce(callback => transaction(async tx => {
+        const result = await callback(tx);
+        completionHolds.open(); // Every check and the write are done; the commit waits.
+        await commitCompletion.reached;
+        return result;
+      }));
+      const completion = completePostEvaluation(claim, signals);
+      await completionHolds.reached;
+      let changed = false;
+      const writer = updateUserSettings(scope.user('author'), makePrivate).then(() => { changed = true; });
+      try {
+        await untilProfileLockHasWaiter(); // The change is queued behind the completion.
+        expect(changed).toBe(false);
+      } finally {
+        commitCompletion.open();
+        await Promise.allSettled([completion, writer]);
+      }
+      expect(await completion).toBe(true);
+      await writer;
+      expect((await ledger(post.id))[0]?.state).toBe('completed');
+      const [settings] = await getDb().select().from(userSettings).where(eq(userSettings.oxyUserId, scope.user('author')));
+      expect(settings?.privacyProfileVisibility).toBe('followers_only');
+      expect(await claimPostEvaluation((await fixture()).id, release)).toBeNull(); // Applied afterwards.
+    });
+  }
 
   it('abstains without inferring or recording low scores for unsupported and media-only posts', async () => {
     const post = await fixture();

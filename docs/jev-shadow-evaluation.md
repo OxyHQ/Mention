@@ -53,8 +53,24 @@ state:
   `canViewAuthorFeed` and the sitemap's `publicSeoPost`. No settings row is the
   default public profile; a post with no owner fails closed.
 
-A profile or import change during inference cancels the result. A successful
-unique insert claims `(post, full rendition fingerprint, model revision, Oxy
+A profile or import change during inference cancels the result.
+
+The profile check is serialized with profile changes, not merely re-read.
+`updateUserSettings` takes an exclusive per-account advisory lock
+(`profile-visibility:<id>`) before writing any `privacyProfileVisibility`,
+including the insert of a row that did not exist. Claim and completion take it
+shared after the post locks, then read the settings. A change that holds the
+lock first is seen, and cancels the result. A change that arrives while a
+completion holds the lock waits until that completion commits. Writers take no
+lock before it, so the order cannot invert, and no transaction spans
+inference. The other `user_settings` writers cannot change the answer: label
+subscriptions and `ensureUserSettings` insert the default public row, which
+reads the same as no row, and the restricted-users pulls do not touch
+visibility. Account erasure and channel deletion delete the settings row only
+after removing the account's posts in an earlier step. A future writer of
+profile visibility must call `lockProfileVisibility`.
+
+A successful unique insert claims `(post, full rendition fingerprint, model revision, Oxy
 policy reference/version, evaluation version)` **before** inference. The claim's
 ID is the future SDK idempotency key. Replays, leadership changes and crashes
 cannot acquire another claim. An abandoned `claimed` row is unresolved cost, not

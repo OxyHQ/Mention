@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, ne, notExists } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, notExists } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
@@ -6,6 +6,7 @@ import { postEvaluations, postEvaluationTopics } from '../schema/postEvaluations
 import { federatedActors, federatedFollows } from '../schema/federation';
 import { postImports } from '../schema/imports';
 import { userSettings } from '../schema/userProfile';
+import { lockProfileVisibility } from '../userProfile/userSettingsRepository';
 import { lockPostContent } from './postRepository';
 import { logger } from '../../utils/logger';
 import {
@@ -24,8 +25,9 @@ import {
  *
  * A private or followers-only profile overrides its posts' own `public` flag,
  * as in `canViewAuthorFeed` and the SEO sitemap's `publicSeoPost`: no settings
- * row is the default public profile, a missing owner fails closed. Following
- * is a quality signal, never a privacy grant; security enforcement stays separate.
+ * row is the default public profile, a missing owner fails closed. That check is
+ * {@link publicProfileLocked}. Following is a quality signal, never a privacy
+ * grant; security enforcement stays separate.
  */
 const eligibleSource = (tx: Transaction) => and(
   isNull(posts.federationActivityId), isNull(posts.federationActorUri), isNotNull(posts.oxyUserId),
@@ -33,9 +35,20 @@ const eligibleSource = (tx: Transaction) => and(
     .where(eq(federatedActors.oxyUserId, posts.oxyUserId))),
   notExists(tx.select({ postId: postImports.postId }).from(postImports)
     .where(eq(postImports.postId, posts.id))),
-  notExists(tx.select({ id: userSettings.id }).from(userSettings).where(and(
-    eq(userSettings.oxyUserId, posts.oxyUserId), ne(userSettings.privacyProfileVisibility, 'public')))),
 );
+
+/**
+ * Hold the owner's profile visibility steady until commit, then read it. A
+ * writer that committed first is seen by this fresh read; one that comes later
+ * waits for this transaction. Taken after the post locks: writers take nothing
+ * before it, so the order cannot invert.
+ */
+async function publicProfileLocked(tx: Transaction, owner: string): Promise<boolean> {
+  await lockProfileVisibility(tx, owner, 'read');
+  const [settings] = await tx.select({ visibility: userSettings.privacyProfileVisibility })
+    .from(userSettings).where(eq(userSettings.oxyUserId, owner));
+  return !settings || settings.visibility === 'public';
+}
 
 /** Lock order matches content writers: rendition advisory lock, then post row. */
 async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnapshot | null> {
@@ -48,7 +61,7 @@ async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnap
     eq(posts.id, postId), eq(posts.visibility, 'public'), eq(posts.status, 'published'),
     isNull(posts.boostOf), eligibleSource(tx),
   )).for('update');
-  if (!post) return null;
+  if (!post?.owner || !await publicProfileLocked(tx, post.owner)) return null;
   const renditions = await tx.select({
     id: postContentVariants.id, position: postContentVariants.position,
     tag: postContentVariants.tag, source: postContentVariants.source,
