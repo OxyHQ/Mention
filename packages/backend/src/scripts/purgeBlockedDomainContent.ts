@@ -251,6 +251,8 @@ const ENGAGEMENT_PAGE_SIZE = 200;
  * about it — which is the correct failure.
  */
 export const CASCADED_POST_REFERENCES: readonly PostReferenceProbeName[] = [
+  // Claims, results and topic probabilities cascade with the post in PostgreSQL.
+  'post_evaluations.post_id',
   'notifications.entity_id',
   'polls.post_id',
   'articles.post_id',

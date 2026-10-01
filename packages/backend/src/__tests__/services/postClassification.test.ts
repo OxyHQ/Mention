@@ -1,5 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
+import { eq } from 'drizzle-orm';
+import * as jevShadow from '../../services/contentClassification/jevShadow';
+import { postEvaluations } from '../../db/schema/postEvaluations';
 
 /**
  * Coverage for the Stage-B AI post-classification batch service.
@@ -79,9 +82,11 @@ vi.mock('../../services/TopicService', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postImports } from '../../db/schema/imports';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { insertPostRecord, updatePostRecord } from '../../db/posts/postRepository';
+import { insertPostRecord, lockPostContent, updatePostRecord } from '../../db/posts/postRepository';
+import { logger } from '../../utils/logger';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { postClassificationService } from '../../services/PostClassificationService';
+import { PostClassificationService, postClassificationService } from '../../services/PostClassificationService';
+import { config } from '../../config';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-classification');
@@ -233,6 +238,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await clearServiceScope(scope);
 });
 
@@ -1175,5 +1181,158 @@ describe('PostClassificationService — imported posts never displace live work'
     // The two YOUNGEST (index 0 and 1 are the least old) wait for the next idle cycle.
     expect(statuses[0].status).toBe('pending');
     expect(statuses[1].status).toBe('pending');
+  });
+});
+
+describe('PostClassificationService — shadow fanout', () => {
+  const release: jevShadow.ShadowRelease = {
+    model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
+    evaluationVersion: 'shadow-v1', supportedLanguages: ['en'],
+  };
+
+  it('keeps the production gate closed even when a projection binding is supplied', async () => {
+    const post = await seedSubject('Synthetic public news', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn();
+    await new PostClassificationService({ release, evaluate }).processQueue();
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('finishes canonical classification while a slow shadow evaluation is still pending', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic slow projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    let finish: ((value: jevShadow.ShadowSignals) => void) | undefined;
+    const evaluate = vi.fn(() => new Promise<jevShadow.ShadowSignals>(resolve => { finish = resolve; }));
+    const worker = new PostClassificationService({ release, evaluate });
+    const pending = worker.processQueue();
+    try {
+      await vi.waitFor(async () => {
+        expect(evaluate).toHaveBeenCalledTimes(1);
+        expect((await classificationOf(post.id)).status).toBe('classified');
+      });
+    } finally {
+      finish?.({ topics: [], languages: ['en'], spam: 0, repetition: 0, feedValue: 0.5 });
+      await pending;
+    }
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the worker after a hung evaluator and processes the next batch without retrying it', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic hung projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    let signal: AbortSignal | undefined;
+    const evaluate = vi.fn((input: { signal: AbortSignal }) => {
+      signal = input.signal;
+      return new Promise<jevShadow.ShadowSignals>(() => {});
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    const originalTimeout = config.inference.timeoutMs;
+    config.inference.timeoutMs = 1_000;
+    try {
+      await worker.processQueue();
+      expect(signal?.aborted).toBe(true);
+      expect((await classificationOf(post.id)).status).toBe('classified');
+      expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+        .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+      const next = await seedSubject('Next canonical batch');
+      await padBatch(1);
+      await worker.processQueue();
+      expect((await classificationOf(next.id)).status).toBe('classified');
+      expect(evaluate).toHaveBeenCalledTimes(1);
+    } finally {
+      config.inference.timeoutMs = originalTimeout;
+    }
+  });
+
+  it('quarantines schema-invalid shadow output without using a legacy attempt', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic invalid projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn(async () => ({ topics: [], languages: ['en'], spam: NaN, repetition: 0, feedValue: 0.5 }));
+    await new PostClassificationService({ release, evaluate }).processQueue();
+    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect((await classificationOf(post.id)).attempts).toBe(0);
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+      .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+  });
+
+  it('releases, never quarantines, a claim whose deadline ran out before any evaluator call', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic pre-spend deadline', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn();
+    const info = vi.spyOn(logger, 'info');
+    const originalTimeout = config.inference.timeoutMs;
+    config.inference.timeoutMs = 200;
+    let held: (() => void) | undefined;
+    // Holding the post's content lock makes the claim itself outlive the budget.
+    const holder = getDb().transaction(async tx => {
+      await lockPostContent(tx, post.id);
+      await new Promise<void>(resolve => { held = resolve; });
+    });
+    try {
+      await vi.waitFor(() => expect(held).toBeDefined());
+      const pending = new PostClassificationService({ release, evaluate }).processQueue();
+      await new Promise(resolve => setTimeout(resolve, 400));
+      held?.();
+      await holder;
+      await pending;
+    } finally {
+      held?.();
+      config.inference.timeoutMs = originalTimeout;
+    }
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('released before any evaluator call'),
+      expect.objectContaining({ evaluationId: expect.any(String) }));
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('never sends an imported post to shadow evaluation, even from the imported lane', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic imported unlisted', { classification: { languages: ['en'] } });
+    await getDb().insert(postImports).values({ postId: post.id, oxyUserId: AUTHOR, platform: 'mastodon',
+      sourceId: `${scope.name}-shadow-${post.id}`, sourceUrl: `https://mastodon.example/@author/${post.id}`,
+      importBatchId: `${scope.name}-shadow-batch` });
+    respondWith([]);
+    const evaluate = vi.fn();
+    await new PostClassificationService({ release, evaluate }).processQueue();
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('claims before synthetic inference, truncates only its input and never retries cost-uncertain work', async () => {
+    // Synthetic domain binding only: production gate and SDK remain closed.
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('x'.repeat(1200), { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn(async (input: { idempotencyKey: string; text: string }) => {
+      const [claim] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, input.idempotencyKey));
+      expect(claim).toMatchObject({ postId: post.id, state: 'claimed', model: release.model });
+      expect(input.text).toHaveLength(1000);
+      throw new Error('Synthetic ambiguous timeout');
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect((await classificationOf(post.id)).attempts).toBe(0);
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+      .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+    await updatePostRecord(post.id, { postClassification: { status: 'pending' } });
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 });

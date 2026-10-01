@@ -32,6 +32,7 @@ export * from './moderation';
 export * from './mtn';
 export * from './outbox';
 export * from './postContent';
+export * from './postEvaluations';
 export * from './posts';
 export * from './polls';
 export * from './userProfile';

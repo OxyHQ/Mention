@@ -56,6 +56,7 @@ import {
   postRecentRepliers,
 } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
+import { postEvaluations } from '../../db/schema/postEvaluations';
 import { laneMutes, lanes } from '../../db/schema/channels';
 import { mcpConnections } from '../../db/schema/mcp';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
@@ -173,6 +174,7 @@ function unique(values: readonly string[]): string[] {
  * names.
  */
 export const POST_REFERENCE_PROBE_NAMES = [
+  'post_evaluations.post_id',
   'notifications.entity_id',
   'polls.post_id',
   'articles.post_id',
@@ -257,6 +259,8 @@ function buildPostReferenceProbes(
   ]);
 
   return {
+    'post_evaluations.post_id': () =>
+      anyRow(postEvaluations, postEvaluations.id, inArray(postEvaluations.postId, idStrings)),
     'notifications.entity_id': () =>
       anyRow(
         notifications,

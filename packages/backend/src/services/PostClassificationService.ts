@@ -13,6 +13,10 @@ import { config } from '../config';
 import { topicService } from './TopicService';
 import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
+import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
+import {
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation, type ShadowClaim,
+} from '../db/posts/postEvaluationRepository';
 
 /**
  * AI-powered post classification service.
@@ -129,7 +133,11 @@ function importLedgerRow() {
     .where(eq(postImports.postId, posts.id));
 }
 
-class PostClassificationService {
+export class PostClassificationService {
+  // No production binding until the published typed SDK and independent reviews
+  // are available. This domain projection is not a provider/transport adapter.
+  constructor(private readonly shadowEvaluation?: ShadowEvaluation) {}
+
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
   private isClassifying = false;
@@ -271,6 +279,17 @@ class PostClassificationService {
 
     logger.info(`[PostClassification] Classifying batch of ${queue.length} posts`);
 
+    // Fan out from the existing live/import worker. A shadow error must not
+    // consume a legacy attempt or prevent canonical enrichment.
+    const outcomes = await Promise.allSettled([this.classifyCanonicalBatch(queue), this.enrichShadowBatch(queue)]);
+    // Keep the cycle's re-entrancy guard until both branches finish, even if a
+    // canonical database write fails while shadow inference is still pending.
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') throw outcome.reason;
+    }
+  }
+
+  private async classifyCanonicalBatch(queue: QueueDoc[]): Promise<void> {
     // Classify the PRIMARY rendition — what the author actually wrote. A machine
     // translation is derived from it and would only feed the classifier its own
     // output back; a second author language says the same thing twice.
@@ -386,6 +405,53 @@ class PostClassificationService {
       );
     }
     return byIndex;
+  }
+
+  private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {
+    const evaluation = this.shadowEvaluation;
+    if (!isJevShadowReleased() || !evaluation) return;
+    const deadline = Date.now() + config.inference.timeoutMs;
+    // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
+    for (const post of queue) {
+      if (Date.now() >= deadline) break;
+      let claim: ShadowClaim | null = null;
+      let sent = false;
+      try {
+        claim = await claimPostEvaluation(post.id, evaluation.release);
+        if (!claim) continue;
+        const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
+        if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          // The claim itself used the budget: its id never left this process.
+          await releaseUnsentPostEvaluation(claim);
+          break;
+        }
+        sent = true;
+        const signals = await evaluateShadowWithDeadline(evaluation, {
+          text: primary.body.slice(0, this.MAX_TEXT_LENGTH),
+          languages: claim.snapshot.languages,
+          idempotencyKey: claim.id,
+        }, remaining);
+        const completed = await completePostEvaluation(claim, signals);
+        if (!completed) {
+          logger.info('[PostClassification] Shadow result superseded; cost requires reconciliation', {
+            evaluationId: claim.id,
+          });
+        }
+      } catch (error) {
+        logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
+        if (claim) {
+          try {
+            if (sent) await markPostEvaluationUncertain(claim);
+            else await releaseUnsentPostEvaluation(claim);
+          } catch (ledgerError) {
+            // An abandoned claim is also never reclaimed with a fresh request id.
+            logger.warn('[PostClassification] Shadow claim remains unresolved', ledgerError);
+          }
+        }
+      }
+    }
   }
 
   /** Persist a retry/expire update for every post in a wholesale-failed batch. */
