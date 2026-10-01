@@ -13,8 +13,8 @@ import { config } from '../config';
 import { topicService } from './TopicService';
 import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
-import { isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
-import { claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain } from '../db/posts/postEvaluationRepository';
+import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
+import { claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, type ShadowClaim } from '../db/posts/postEvaluationRepository';
 
 /**
  * AI-powered post classification service.
@@ -279,8 +279,15 @@ export class PostClassificationService {
 
     // Fan out from the existing live/import worker. A shadow error must not
     // consume a legacy attempt or prevent canonical enrichment.
-    await this.enrichShadowBatch(queue);
+    const outcomes = await Promise.allSettled([this.classifyCanonicalBatch(queue), this.enrichShadowBatch(queue)]);
+    // Keep the cycle's re-entrancy guard until both branches finish, even if a
+    // canonical database write fails while shadow inference is still pending.
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') throw outcome.reason;
+    }
+  }
 
+  private async classifyCanonicalBatch(queue: QueueDoc[]): Promise<void> {
     // Classify the PRIMARY rendition — what the author actually wrote. A machine
     // translation is derived from it and would only feed the classifier its own
     // output back; a second author language says the same thing twice.
@@ -401,20 +408,27 @@ export class PostClassificationService {
   private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation) return;
+    const deadline = Date.now() + config.inference.timeoutMs;
     // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
     for (const post of queue) {
-      let claim;
+      if (Date.now() >= deadline) break;
+      let claim: ShadowClaim | null = null;
       try {
         claim = await claimPostEvaluation(post.id, evaluation.release);
         if (!claim) continue;
         const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
-        const signals = await evaluation.evaluate({
+        const signals = await evaluateShadowWithDeadline(evaluation, {
           text: primary.body.slice(0, this.MAX_TEXT_LENGTH),
           languages: claim.snapshot.languages,
           idempotencyKey: claim.id,
-        });
-        await completePostEvaluation(claim, signals);
+        }, deadline - Date.now());
+        const completed = await completePostEvaluation(claim, signals);
+        if (!completed) {
+          logger.info('[PostClassification] Shadow result superseded; cost requires reconciliation', {
+            evaluationId: claim.id,
+          });
+        }
       } catch (error) {
         logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
         if (claim) {

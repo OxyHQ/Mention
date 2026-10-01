@@ -85,6 +85,7 @@ import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/
 import { insertPostRecord, updatePostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { PostClassificationService, postClassificationService } from '../../services/PostClassificationService';
+import { config } from '../../config';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-classification');
@@ -1197,6 +1198,70 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(evaluate).not.toHaveBeenCalled();
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
     expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('finishes canonical classification while a slow shadow evaluation is still pending', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic slow projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    let finish: ((value: jevShadow.ShadowSignals) => void) | undefined;
+    const evaluate = vi.fn(() => new Promise<jevShadow.ShadowSignals>(resolve => { finish = resolve; }));
+    const worker = new PostClassificationService({ release, evaluate });
+    const pending = worker.processQueue();
+    try {
+      await vi.waitFor(async () => {
+        expect(evaluate).toHaveBeenCalledTimes(1);
+        expect((await classificationOf(post.id)).status).toBe('classified');
+      });
+    } finally {
+      finish?.({ topics: [], languages: ['en'], spam: 0, repetition: 0, feedValue: 0.5 });
+      await pending;
+    }
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the worker after a hung evaluator and processes the next batch without retrying it', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic hung projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    let signal: AbortSignal | undefined;
+    const evaluate = vi.fn((input: { signal: AbortSignal }) => {
+      signal = input.signal;
+      return new Promise<jevShadow.ShadowSignals>(() => {});
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    const originalTimeout = config.inference.timeoutMs;
+    config.inference.timeoutMs = 1_000;
+    try {
+      await worker.processQueue();
+      expect(signal?.aborted).toBe(true);
+      expect((await classificationOf(post.id)).status).toBe('classified');
+      expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+        .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+      const next = await seedSubject('Next canonical batch');
+      await padBatch(1);
+      await worker.processQueue();
+      expect((await classificationOf(next.id)).status).toBe('classified');
+      expect(evaluate).toHaveBeenCalledTimes(1);
+    } finally {
+      config.inference.timeoutMs = originalTimeout;
+    }
+  });
+
+  it('quarantines schema-invalid shadow output without using a legacy attempt', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Synthetic invalid projection', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn(async () => ({ topics: [], languages: ['en'], spam: NaN, repetition: 0, feedValue: 0.5 }));
+    await new PostClassificationService({ release, evaluate }).processQueue();
+    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect((await classificationOf(post.id)).attempts).toBe(0);
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+      .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
   });
 
   it('claims before synthetic inference, truncates only its input and never retries cost-uncertain work', async () => {

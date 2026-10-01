@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  isJevShadowReleased, JEV_SHADOW_BLOCKERS, shadowAbstention, shadowFingerprint,
-  shadowSignalsSchema, validateShadowRelease, type ShadowRelease, type ShadowSnapshot,
+  evaluateShadowWithDeadline, isJevShadowReleased, JEV_SHADOW_BLOCKERS, shadowAbstention, shadowFingerprint,
+  shadowSignalsSchema, validateShadowRelease, type ShadowRelease, type ShadowSignals, type ShadowSnapshot,
 } from '../../services/contentClassification/jevShadow';
 
 const release: ShadowRelease = {
@@ -22,6 +22,8 @@ describe('Jev shadow policy', () => {
     expect(JEV_SHADOW_BLOCKERS).toEqual([
       'published_decisions_sdk', 'reviewed_exact_model_and_oxy_policy',
       'internal_provider_eligibility', 'privacy_and_zdr',
+      'federated_public_visibility_provenance',
+      'semantic_revision_and_receipt_reconciliation',
     ]);
   });
 
@@ -70,5 +72,38 @@ describe('Jev shadow policy', () => {
     }
     expect(() => validateShadowRelease({ ...release, policyVersion: 0 })).toThrow(/immutable/);
     expect(() => validateShadowRelease({ ...release, evaluationVersion: '' })).toThrow(/immutable/);
+  });
+});
+
+describe('shadow evaluation deadline', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('aborts an unresponsive evaluator and ignores its late successful result', async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    let finish: ((value: ShadowSignals) => void) | undefined;
+    const evaluate = vi.fn((input: { signal: AbortSignal }) => {
+      signal = input.signal;
+      return new Promise<ShadowSignals>(resolve => { finish = resolve; });
+    });
+    const pending = evaluateShadowWithDeadline({ release, evaluate },
+      { text: 'synthetic', languages: ['en'], idempotencyKey: 'same-claim' }, 30_000);
+    const rejected = expect(pending).rejects.toThrow(/cost uncertain/);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await rejected;
+    expect(signal?.aborted).toBe(true);
+    // The late resolution cannot change the settled deadline outcome.
+    expect(finish).toBeTypeOf('function');
+    finish?.({ topics: [], languages: ['en'], spam: 0, repetition: 0, feedValue: 0.5 });
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    await expect(pending).rejects.toThrow(/cost uncertain/);
+  });
+
+  it('does not start another request when the batch budget is exhausted', async () => {
+    const evaluate = vi.fn();
+    await expect(evaluateShadowWithDeadline({ release, evaluate },
+      { text: 'synthetic', languages: ['en'], idempotencyKey: 'same-claim' }, 0))
+      .rejects.toThrow(/exhausted/);
+    expect(evaluate).not.toHaveBeenCalled();
   });
 });
