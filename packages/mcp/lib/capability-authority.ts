@@ -52,7 +52,11 @@ export function createMentionCapabilityAuthority(
         continue;
       }
       if (!response.ok) {
-        throw new Error(`Oxy capability authority returned ${response.status}`);
+        // Oxy's own reason (`insufficient_service_scope`, `missing_application_capability`…)
+        // is what tells an operator WHICH grant is missing; the status alone
+        // made a binding without `capabilities:read` an anonymous 503.
+        const reason = (await response.text().catch(() => "")).slice(0, 200);
+        throw new Error(`Oxy capability authority returned ${response.status}${reason ? `: ${reason}` : ""}`);
       }
       return response.json();
     }

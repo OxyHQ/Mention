@@ -75,7 +75,13 @@ export async function handleMentionCapabilityRequest(
   let claims: CapabilityTicketClaims | null;
   try {
     claims = await authority.introspect(ticket);
-  } catch {
+  } catch (error) {
+    // The caller only learns "unavailable"; the cause belongs in the log, or a
+    // missing service scope looks exactly like an Oxy outage.
+    logWarn("Mention capability introspection unavailable", {
+      tool: tool.name,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
     return { matched: true, status: 503, body: { error: "capability_authority_unavailable" } };
   }
   if (!claims) {
