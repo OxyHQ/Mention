@@ -117,6 +117,7 @@ type ReferenceDisposition =
  * thought about yet rather than silently leaving it behind.
  */
 const POST_REFERENCE_DISPOSITION: Record<PostReferenceProbeName, ReferenceDisposition> = {
+  'post_evaluations.post_id': 'database',
   // Polymorphic by a type column, so no foreign key can carry them.
   'notifications.entity_id': 'cascade',
   'content_labels.target_id(post)': 'cascade',

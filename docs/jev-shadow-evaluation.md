@@ -1,0 +1,91 @@
+# Jev shadow evaluation (blocked candidate)
+
+This branch adds a shadow ledger and a gated fanout in the existing
+`PostClassificationService`. It does **not** enable Jev inference. The installed
+`@oxy.so/core@4.0.0` has no `decide()` method. The Oxy decisions foundation is
+unpublished; consume its published SDK through a normal dependency/lockfile bump
+before implementing the typed request and receipt projection. There is no local
+HTTP transport, provider client, contract copy, package override, or production
+binding for the domain projection seam.
+
+The pilot is stacked on [Mention PR #1300](https://github.com/OxyHQ/Mention/pull/1300)
+at `a97ed9fef846c370fdfe132e6570b8e4266b96ea`. Its migrations 0058–0060 and
+hydration/federation behavior are retained; this pilot adds migration 0061.
+After that foundation merges, rebase the pilot onto main rather than merging the
+topic branch. The unpublished SDK dependency is
+[Oxy PR #1503](https://github.com/OxyHQ/oxy/pull/1503); its handoff can change
+during independent review, so its final published types remain authoritative.
+
+## Worker and persistence
+
+Stage A v11 and canonical Stage B behavior remain unchanged: five-minute worker,
+25 live posts, then 10 imported posts only when the live queue is empty, primary
+text limited to 1,000 characters, three legacy attempts. Edits reset the existing
+pending queue. Imports are retained. Shadow failures never consume a legacy
+attempt. There is no second service, scheduler, or feed-ranking consumer.
+
+The shadow repository admits only public, published, original posts. A successful
+unique insert claims `(post, full rendition fingerprint, model revision, Oxy
+policy reference/version, evaluation version)` **before** inference. The claim's
+ID is the future SDK idempotency key. Replays, leadership changes and crashes
+cannot acquire another claim. An abandoned `claimed` row is unresolved cost, not
+permission to try again. A timeout, invalid result or uncertain write becomes
+`cost_uncertain`; this worker never retries it or creates a fresh request ID.
+Future receipt reconciliation must use the existing identity.
+
+The fingerprint includes rendition IDs (so an edit away and back is a new
+revision), ordered tags/sources/full bodies/article fields, canonical language
+evidence and original actor identity. It excludes `posts.updatedAt`, counters
+and other incidental post metadata. Only inference input is truncated. Claim
+and completion acquire the existing rendition advisory lock, then lock the post
+and rendition rows. The final transaction rechecks public/published state and
+the exact fingerprint. Edits cancel stale results; deletion cascades claims and
+topic rows, preventing result resurrection. No transaction spans inference.
+
+Topics live in `post_evaluation_topics` as independent probabilities. Language,
+spam, repetition and feed value remain separate from each other and from
+canonical topics/scores. Media-only, unknown-language and unsupported-language
+inputs abstain with null scores. The existing worker neutralizes media-only
+posts before queue selection; it does not send them to shadow inference.
+
+## Follow and context boundaries
+
+Completion reads accepted **outbound** edges for the post's canonical original
+actor URI or DID immediately before saving. Pending and inbound follows, quote
+subjects, boosting actors, ancestors and exact-view context do not supply that
+edge. Local Oxy graph evidence and failed lookups are `unknown`, never rejection.
+The evidence is an observation at commit, not a lasting admission verdict.
+
+No shadow record affects storage, discovery admission, security checks, local
+reply/mention eligibility, thread integrity or ranking. Thus a later follow
+requires no recovery from a shadow rejection: no content was discarded. Any
+future admission implementation must resolve current follows before discovery
+quality, preserve contextual views, and fail unknown lookups without rejecting
+content. Security enforcement remains independent.
+
+## Closed release gates and remaining integration
+
+`JEV_SHADOW_BLOCKERS` is a hard application gate, with no environment bypass.
+Removing it requires independent review of all of the following:
+
+- Published Oxy decisions SDK/contracts, consumed normally. Build typed questions
+  there: one Noul per overlapping topic, independent spam/repetition questions,
+  separate language evidence, and an ordered feed-value Score. Never use an
+  exclusive Choice for overlapping topics or manufacture confidence.
+- Exact immutable model revision, supported languages, question-set/evaluation
+  version and Oxy policy reference/version. Validate the SDK result's model,
+  exact question IDs/kinds/cardinality, policy receipt and normalized score
+  mapping before projecting into Mention's shadow storage. Persist the Oxy
+  request/receipt reference using the published SDK contract when available.
+- Affirmative internal provider eligibility, privacy and ZDR evidence on the
+  exact reviewed route. TypeSafe standalone resale and OpenRouter resale /
+  competitor terms block ordinary credentials; internal use is not automatically
+  eligible. No public Jev service enablement is included.
+- Oxy remains control-plane authority. Only Oxy signs execution authority for
+  Kaana, whose sole canonical signed origin is `https://kaana.ai`.
+
+The synthetic tests cover ledger concurrency, content/privacy/deletion changes,
+independent signals, follow timing and worker isolation. They prove neither
+provider eligibility nor a deployed route. No real provider calls are needed
+or authorized for these checks. Merge and deployment require the independent
+review coordinator.
