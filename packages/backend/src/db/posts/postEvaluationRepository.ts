@@ -1,9 +1,11 @@
-import { and, asc, eq, isNull, notExists } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, ne, notExists } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
 import { postEvaluations, postEvaluationTopics } from '../schema/postEvaluations';
 import { federatedActors, federatedFollows } from '../schema/federation';
+import { postImports } from '../schema/imports';
+import { userSettings } from '../schema/userProfile';
 import { lockPostContent } from './postRepository';
 import { logger } from '../../utils/logger';
 import {
@@ -12,18 +14,27 @@ import {
 } from '../../services/contentClassification/jevShadow';
 
 /**
- * Only native Mention posts can leave for an external classifier. A federated
- * `public` is not proof of a listed post: ActivityPub maps `Public` in `cc`
- * (unlisted) to public too, and remote actors' `discoverable` is hardcoded true
- * for atproto and Instagram. Until ingestion stores durable listed provenance,
- * anything from a federated source — by activity, actor, or a minted federated
- * author account — is ineligible, followed or not. Following is a quality
- * signal, never a privacy grant; security enforcement stays separate.
+ * Only posts written natively on Mention by an author with a public profile can
+ * leave for an external classifier. A `public` row is not proof of a listed
+ * post: ActivityPub maps `Public` in `cc` (unlisted) to public, Oxy Move imports
+ * Mastodon unlisted posts as public, and remote actors' `discoverable` is
+ * hardcoded true for atproto and Instagram. Until durable listed provenance
+ * exists, a federated source (activity, actor, or a minted federated author
+ * account) and any imported post are ineligible, followed or not.
+ *
+ * A private or followers-only profile overrides its posts' own `public` flag,
+ * as in `canViewAuthorFeed` and the SEO sitemap's `publicSeoPost`: no settings
+ * row is the default public profile, a missing owner fails closed. Following
+ * is a quality signal, never a privacy grant; security enforcement stays separate.
  */
-const nativeAuthor = (tx: Transaction) => and(
-  isNull(posts.federationActivityId), isNull(posts.federationActorUri),
+const eligibleSource = (tx: Transaction) => and(
+  isNull(posts.federationActivityId), isNull(posts.federationActorUri), isNotNull(posts.oxyUserId),
   notExists(tx.select({ id: federatedActors.id }).from(federatedActors)
     .where(eq(federatedActors.oxyUserId, posts.oxyUserId))),
+  notExists(tx.select({ postId: postImports.postId }).from(postImports)
+    .where(eq(postImports.postId, posts.id))),
+  notExists(tx.select({ id: userSettings.id }).from(userSettings).where(and(
+    eq(userSettings.oxyUserId, posts.oxyUserId), ne(userSettings.privacyProfileVisibility, 'public')))),
 );
 
 /** Lock order matches content writers: rendition advisory lock, then post row. */
@@ -35,7 +46,7 @@ async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnap
     languages: posts.classificationLanguages,
   }).from(posts).where(and(
     eq(posts.id, postId), eq(posts.visibility, 'public'), eq(posts.status, 'published'),
-    isNull(posts.boostOf), nativeAuthor(tx),
+    isNull(posts.boostOf), eligibleSource(tx),
   )).for('update');
   if (!post) return null;
   const renditions = await tx.select({
@@ -129,4 +140,15 @@ export async function completePostEvaluation(claim: ShadowClaim, input: ShadowSi
 export async function markPostEvaluationUncertain(claim: ShadowClaim): Promise<void> {
   await getDb().update(postEvaluations).set({ state: 'cost_uncertain', finishedAt: new Date() })
     .where(and(eq(postEvaluations.id, claim.id), eq(postEvaluations.state, 'claimed')));
+}
+
+/**
+ * Only for a claim whose id was never handed to an evaluator: nothing can have
+ * been spent, so the revision may be claimed again later under a new id. Any
+ * call that may have started is `cost_uncertain` instead, never released.
+ */
+export async function releaseUnsentPostEvaluation(claim: ShadowClaim): Promise<void> {
+  await getDb().delete(postEvaluations)
+    .where(and(eq(postEvaluations.id, claim.id), eq(postEvaluations.state, 'claimed')));
+  logger.info('[PostClassification] Shadow claim released before any evaluator call', { evaluationId: claim.id });
 }

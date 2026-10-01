@@ -14,7 +14,9 @@ import { topicService } from './TopicService';
 import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
-import { claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, type ShadowClaim } from '../db/posts/postEvaluationRepository';
+import {
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation, type ShadowClaim,
+} from '../db/posts/postEvaluationRepository';
 
 /**
  * AI-powered post classification service.
@@ -413,16 +415,24 @@ export class PostClassificationService {
     for (const post of queue) {
       if (Date.now() >= deadline) break;
       let claim: ShadowClaim | null = null;
+      let sent = false;
       try {
         claim = await claimPostEvaluation(post.id, evaluation.release);
         if (!claim) continue;
         const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          // The claim itself used the budget: its id never left this process.
+          await releaseUnsentPostEvaluation(claim);
+          break;
+        }
+        sent = true;
         const signals = await evaluateShadowWithDeadline(evaluation, {
           text: primary.body.slice(0, this.MAX_TEXT_LENGTH),
           languages: claim.snapshot.languages,
           idempotencyKey: claim.id,
-        }, deadline - Date.now());
+        }, remaining);
         const completed = await completePostEvaluation(claim, signals);
         if (!completed) {
           logger.info('[PostClassification] Shadow result superseded; cost requires reconciliation', {
@@ -433,7 +443,8 @@ export class PostClassificationService {
         logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
         if (claim) {
           try {
-            await markPostEvaluationUncertain(claim);
+            if (sent) await markPostEvaluationUncertain(claim);
+            else await releaseUnsentPostEvaluation(claim);
           } catch (ledgerError) {
             // An abandoned claim is also never reclaimed with a fresh request id.
             logger.warn('[PostClassification] Shadow claim remains unresolved', ledgerError);

@@ -26,12 +26,34 @@ attempt. There is no second service, scheduler, or feed-ranking consumer.
 Canonical and shadow enrichment start independently on the selected batch. Shadow
 inference shares one batch deadline from the existing inference timeout and gets
 an abort signal. A hung evaluator cannot hold the worker indefinitely; timeout
-quarantines the claim as cost-uncertain and late results are ignored.
+quarantines the claim as cost-uncertain and late results are ignored. If the
+claim transaction itself exhausts the budget, the evaluator is never called and
+the claim row is deleted (logged with its ID): that ID never left the process,
+so nothing was spent and no retry follows in this cycle.
+
+**Shadow coverage is opportunistic, not a sample.** The shadow pass rides the
+canonical cycle. Posts it does not reach before the batch deadline are still
+classified canonically, leave the pending queue, and are never shadow-evaluated;
+one slow call can skip the rest of its batch. Imported posts and ineligible
+authors are excluded outright. Any shadow-versus-canonical comparison is biased
+toward fast, early-in-batch, native public posts, and gate reviewers must treat
+it that way.
 
 The shadow repository admits only public, published, original posts written
-natively on Mention. A post with an inbound activity ID, a remote actor URI, or
-an author account minted for a federated actor is refused at claim and again at
-completion, whatever its visibility, actor flags or follow state. A successful
+natively on Mention by an owner whose profile is public. Refused at claim and
+again at completion, whatever the post's visibility, actor flags or follow
+state:
+
+- a post with an inbound activity ID or a remote actor URI, or whose author
+  account was minted for a federated actor;
+- any post with a `post_imports` row. Oxy Move imports Mastodon unlisted posts
+  as `public` with no federation columns, so an import never proves listed;
+- a post whose owner's `privacy_profile_visibility` is `private` or
+  `followers_only`. That overrides the post's own `public`, as in
+  `canViewAuthorFeed` and the sitemap's `publicSeoPost`. No settings row is the
+  default public profile; a post with no owner fails closed.
+
+A profile or import change during inference cancels the result. A successful
 unique insert claims `(post, full rendition fingerprint, model revision, Oxy
 policy reference/version, evaluation version)` **before** inference. The claim's
 ID is the future SDK idempotency key. Replays, leadership changes and crashes
@@ -110,11 +132,12 @@ The review of the dormant candidate identified release conditions beyond SDK
 publication. They are explicit hard blockers, not implied by `visibility=public`:
 
 - ActivityPub maps `Public` in either `to` or `cc` to Mention's public value,
-  losing the listed/unlisted distinction, and atproto and Instagram actors are
-  stored `discoverable: true` unconditionally. Neither column proves a remote
-  author opted into discovery, so the repository enforces native-only
-  eligibility (above): unlisted, non-discoverable and suspended remote sources
-  are never claimed. The `federated_public_visibility_provenance` gate stays
+  losing the listed/unlisted distinction; Oxy Move does the same for imported
+  Mastodon unlisted posts; atproto and Instagram actors are stored
+  `discoverable: true` unconditionally. None of these proves the author opted
+  into discovery, so the repository enforces native, non-imported,
+  public-profile eligibility (above): unlisted, imported, non-discoverable,
+  suspended and private-profile sources are never claimed. The `federated_public_visibility_provenance` gate stays
   closed until ingestion stores durable listed provenance and real actor
   discoverability; only then can federated sources be reconsidered. Existing
   ingestion, follows, security checks and feed behavior are unchanged.
@@ -136,7 +159,10 @@ publication. They are explicit hard blockers, not implied by `visibility=public`
   the unpublished contract with guessed result checks.
 
 Synthetic unlisted, listed, non-discoverable, suspended, followed atproto,
-activity-only and minted-account federated sources, follow-query failure,
+activity-only and minted-account federated sources, imported posts (including
+the imported worker lane and imports landing mid-inference), private and
+followers-only profiles (including a transition mid-inference), ownerless
+posts, a claim that exhausts the deadline before any call, follow-query failure,
 missing local graph evidence, restricted/boost eligibility, privacy toggles,
 machine-translation caching and replacement, author rendition additions,
 invalid output, late results and independent canonical progress

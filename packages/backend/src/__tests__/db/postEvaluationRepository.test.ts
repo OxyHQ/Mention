@@ -11,6 +11,8 @@ import { posts } from '../../db/schema/posts';
 import { federatedActors, federatedFollows } from '../../db/schema/federation';
 import { mapApVisibility } from '../../connectors/activitypub/helpers';
 import { postContentVariants } from '../../db/schema/postContent';
+import { postImports } from '../../db/schema/imports';
+import { userSettings } from '../../db/schema/userProfile';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
 
@@ -42,6 +44,7 @@ afterEach(async () => {
   await clearPostScope(scope);
   await getDb().delete(federatedFollows).where(eq(federatedFollows.localUserId, scope.user('follower')));
   await getDb().delete(federatedActors).where(eq(federatedActors.domain, ACTOR_DOMAIN));
+  await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, scope.user('author')));
 });
 
 const ACTOR_DOMAIN = 'jev-shadow-ledger.test';
@@ -52,6 +55,10 @@ async function seedRemoteActor(username: string, overrides: Partial<typeof feder
     acct: `${username}@${ACTOR_DOMAIN}`, oxyUserId: scope.user(`minted-${username}`), ...overrides,
   }).returning();
   return actor;
+}
+async function setProfile(visibility: 'public' | 'private' | 'followers_only') {
+  await getDb().insert(userSettings).values({ oxyUserId: scope.user('author'), privacyProfileVisibility: visibility })
+    .onConflictDoUpdate({ target: userSettings.oxyUserId, set: { privacyProfileVisibility: visibility } });
 }
 async function followFixture(edges: Array<typeof federatedFollows.$inferInsert>) {
   if (edges.length) await getDb().insert(federatedFollows).values(edges);
@@ -170,6 +177,60 @@ describe('durable shadow evaluation ledger', () => {
     await seedRemoteActor('late', { oxyUserId: post.oxyUserId });
     expect(await completePostEvaluation(claim, signals)).toBe(false);
     expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+  });
+
+  it('refuses imported posts, whatever their visibility mapping or follow state', async () => {
+    const post = await fixture();
+    await getDb().insert(postImports).values({ postId: post.id, oxyUserId: scope.user('author'),
+      platform: 'mastodon', sourceId: `${post.id}-unlisted`, sourceUrl: `https://${ACTOR_DOMAIN}/@author/1`,
+      importBatchId: 'synthetic-move-batch' });
+    // A Move import carries no federation columns; following its source grants nothing.
+    await getDb().insert(federatedFollows).values({ localUserId: scope.user('follower'),
+      remoteActorUri: `https://${ACTOR_DOMAIN}/users/author`, direction: 'outbound', status: 'accepted' });
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    expect(await ledger(post.id)).toEqual([]);
+  });
+
+  it('cancels an in-flight result when the post is imported after the claim', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    await getDb().insert(postImports).values({ postId: post.id, oxyUserId: scope.user('author'),
+      platform: 'mastodon', sourceId: `${post.id}-late`, sourceUrl: `https://${ACTOR_DOMAIN}/@author/2`,
+      importBatchId: 'synthetic-move-batch' });
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+  });
+
+  it('requires a public author profile: no settings row is public, private and followers-only are not', async () => {
+    expect(await claimPostEvaluation((await fixture()).id, release)).not.toBeNull(); // No settings row.
+    await setProfile('public');
+    expect(await claimPostEvaluation((await fixture()).id, release)).not.toBeNull();
+    for (const visibility of ['private', 'followers_only'] as const) {
+      await setProfile(visibility);
+      const post = await fixture();
+      await getDb().insert(federatedFollows).values({ localUserId: scope.user('follower'),
+        remoteActorUri: `https://${ACTOR_DOMAIN}/users/${visibility}`, direction: 'outbound', status: 'accepted' });
+      expect(await claimPostEvaluation(post.id, release)).toBeNull();
+      expect(await ledger(post.id)).toEqual([]);
+    }
+  });
+
+  it('fails closed for a post with no owner', async () => {
+    const post = await fixture();
+    await getDb().update(posts).set({ oxyUserId: null }).where(eq(posts.id, post.id));
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    expect(await ledger(post.id)).toEqual([]);
+  });
+
+  it('cancels an in-flight result when the author makes the profile private', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    await setProfile('followers_only');
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+    await setProfile('public');
+    // The cancelled row may have incurred cost: no second claim for that revision.
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
   });
 
   it('abstains without inferring or recording low scores for unsupported and media-only posts', async () => {
