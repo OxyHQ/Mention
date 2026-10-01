@@ -407,6 +407,13 @@
       "when": 1790598725280,
       "tag": "0057_drop_mention_identity_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790849824922,
+      "tag": "0058_jev_shadow_ledger",
+      "breakpoints": true
     }
   ]
 }

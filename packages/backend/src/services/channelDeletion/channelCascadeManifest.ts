@@ -204,6 +204,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       '`ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_evaluations',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'Shadow claims and results belong to the post. `ON DELETE CASCADE` also removes their topic probabilities.',
+  },
+  {
     table: 'post_recent_repliers',
     column: 'postId',
     scope: 'channel-posts',
@@ -1193,6 +1200,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
  * topic ids, file ids and run ids too. Each is dismissed once, here, in writing.
  */
 export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
+  ['post_evaluation_topics.evaluationId', 'the shadow evaluation owning this probability; cascades through the evaluation when its post is deleted'],
   ['account_erasures.eventId', 'an Oxy account-event id, not an account or a post'],
   ['account_list_members.listId', 'the AccountList the membership row belongs to; it cascades from the list'],
   ['actor_key_pairs.keyId', 'the key pair\'s own AP key identifier, not an account'],
