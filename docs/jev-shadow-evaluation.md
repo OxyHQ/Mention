@@ -9,7 +9,7 @@ HTTP transport, provider client, contract copy, package override, or production
 binding for the domain projection seam.
 
 The pilot is stacked on [Mention PR #1300](https://github.com/OxyHQ/Mention/pull/1300)
-at `a97ed9fef846c370fdfe132e6570b8e4266b96ea`. Its migrations 0058–0060 and
+at `0a77c95cf756b1e79f98932bd10c96d96b55fd6e`. Its migrations 0058–0060 and
 hydration/federation behavior are retained; this pilot adds migration 0061.
 After that foundation merges, rebase the pilot onto main rather than merging the
 topic branch. The unpublished SDK dependency is
@@ -28,7 +28,10 @@ inference shares one batch deadline from the existing inference timeout and gets
 an abort signal. A hung evaluator cannot hold the worker indefinitely; timeout
 quarantines the claim as cost-uncertain and late results are ignored.
 
-The shadow repository admits only public, published, original posts. A successful
+The shadow repository admits only public, published, original posts written
+natively on Mention. A post with an inbound activity ID, a remote actor URI, or
+an author account minted for a federated actor is refused at claim and again at
+completion, whatever its visibility, actor flags or follow state. A successful
 unique insert claims `(post, full rendition fingerprint, model revision, Oxy
 policy reference/version, evaluation version)` **before** inference. The claim's
 ID is the future SDK idempotency key. Replays, leadership changes and crashes
@@ -37,9 +40,12 @@ permission to try again. A timeout, invalid result or uncertain write becomes
 `cost_uncertain`; this worker never retries it or creates a fresh request ID.
 Future receipt reconciliation must use the existing identity.
 
-The fingerprint includes rendition IDs (so an edit away and back is a new
-revision), ordered tags/sources/full bodies/article fields, canonical language
-evidence and original actor identity. It excludes `posts.updatedAt`, counters
+The fingerprint includes author rendition IDs (so an edit away and back is a
+new revision), ordered tags/full bodies/article fields, canonical language
+evidence and original actor identity. Machine translations are excluded: the
+inference input is the author primary and the canonical languages, so caching
+or replacing a translation neither cancels an in-flight result nor opens a
+second claim. It excludes `posts.updatedAt`, counters
 and other incidental post metadata. Only inference input is truncated. Claim
 and completion acquire the existing rendition advisory lock, then lock the post
 and rendition rows. The final transaction rechecks public/published state and
@@ -55,7 +61,11 @@ posts before queue selection; it does not send them to shadow inference.
 ## Follow and context boundaries
 
 Completion reads accepted **outbound** edges for the post's canonical original
-actor URI or DID immediately before saving. Pending and inbound follows, quote
+actor URI or DID immediately before saving. Because only native posts are
+eligible today, completed rows record `unknown`; the lookup is kept, and tested
+directly, for when federated sources carry durable listed provenance. Following
+an actor is a quality signal and never makes its posts eligible: privacy
+eligibility and the follow override stay separate, as does security. Pending and inbound follows, quote
 subjects, boosting actors, ancestors and exact-view context do not supply that
 edge. Local Oxy graph evidence and failed lookups are `unknown`, never rejection.
 The evidence is an observation at commit, not a lasting admission verdict.
@@ -99,15 +109,19 @@ review coordinator.
 The review of the dormant candidate identified release conditions beyond SDK
 publication. They are explicit hard blockers, not implied by `visibility=public`:
 
-- ActivityPub currently maps `Public` in either `to` or `cc` to Mention's public
-  value. That loses the distinction between listed and unlisted. Actor discovery
-  opt-out and suspension also need affirmative eligibility handling. The
-  `federated_public_visibility_provenance` gate stays closed until durable source
-  provenance can prove the intended boundary. Existing ingestion, follows,
-  security checks and feed behavior are unchanged by this pilot.
-- Exact rendition identity intentionally remains conservative. A pass-through
-  content replacement or added machine translation invalidates the snapshot,
-  even if primary text is unchanged. A public/private/public toggle cannot
+- ActivityPub maps `Public` in either `to` or `cc` to Mention's public value,
+  losing the listed/unlisted distinction, and atproto and Instagram actors are
+  stored `discoverable: true` unconditionally. Neither column proves a remote
+  author opted into discovery, so the repository enforces native-only
+  eligibility (above): unlisted, non-discoverable and suspended remote sources
+  are never claimed. The `federated_public_visibility_provenance` gate stays
+  closed until ingestion stores durable listed provenance and real actor
+  discoverability; only then can federated sources be reconsidered. Existing
+  ingestion, follows, security checks and feed behavior are unchanged.
+- Author rendition identity intentionally remains conservative. A pass-through
+  content replacement (`replacePostContent` re-inserts every rendition with new
+  IDs) invalidates the snapshot, even if primary text is unchanged. Machine
+  translations no longer do (above). A public/private/public toggle cannot
   acquire another claim for the same fingerprint. These states may have incurred
   cost: `cancelled` never means refunded or free. Superseded successful results
   log their existing evaluation ID for reconciliation. The
@@ -121,6 +135,9 @@ publication. They are explicit hard blockers, not implied by `visibility=public`
   question IDs remain SDK integration requirements. A consumer cannot replace
   the unpublished contract with guessed result checks.
 
-Synthetic follow-query failure, missing local graph evidence, restricted/boost
-eligibility, privacy toggles, machine-rendition changes, invalid output, late
-results and independent canonical progress are covered in the pilot tests.
+Synthetic unlisted, listed, non-discoverable, suspended, followed atproto,
+activity-only and minted-account federated sources, follow-query failure,
+missing local graph evidence, restricted/boost eligibility, privacy toggles,
+machine-translation caching and replacement, author rendition additions,
+invalid output, late results and independent canonical progress
+are covered in the pilot tests.

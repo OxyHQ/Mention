@@ -40,6 +40,18 @@ describe('Jev shadow policy', () => {
     expect(shadowFingerprint({ ...snapshot, languages: ['es'] })).not.toBe(shadowFingerprint(snapshot));
   });
 
+  it('ignores machine translations, which are never inference input', () => {
+    const machine = { id: 'machine-es', position: 1, source: 'machine' as const, tag: 'es', body: 'traducción',
+      articleTitle: null, articleBody: null, articleExcerpt: null };
+    const translated = { ...snapshot, renditions: [...snapshot.renditions, machine] };
+    expect(shadowFingerprint(translated)).toBe(shadowFingerprint(snapshot));
+    expect(shadowFingerprint({ ...translated, renditions: [...snapshot.renditions, { ...machine, id: 'machine-es-2' }] }))
+      .toBe(shadowFingerprint(snapshot));
+    const authored = { ...machine, id: 'author-es', source: 'author' as const };
+    expect(shadowFingerprint({ ...snapshot, renditions: [...snapshot.renditions, authored] }))
+      .not.toBe(shadowFingerprint(snapshot));
+  });
+
   it('does not fingerprint engagement timestamps or incidental property ordering', () => {
     const withUpdatedAt = { ...snapshot, updatedAt: new Date() };
     expect(shadowFingerprint(withUpdatedAt)).toBe(shadowFingerprint(snapshot));

@@ -2,11 +2,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain } from '../../db/posts/postEvaluationRepository';
-import { replacePostContent } from '../../db/posts/postRepository';
+import {
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState,
+} from '../../db/posts/postEvaluationRepository';
+import { replacePostContent, storeMachineVariant } from '../../db/posts/postRepository';
 import { postEvaluations, postEvaluationTopics } from '../../db/schema/postEvaluations';
 import { posts } from '../../db/schema/posts';
-import { federatedFollows } from '../../db/schema/federation';
+import { federatedActors, federatedFollows } from '../../db/schema/federation';
+import { mapApVisibility } from '../../connectors/activitypub/helpers';
 import { postContentVariants } from '../../db/schema/postContent';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
@@ -20,7 +23,6 @@ const signals: ShadowSignals = { topics: [{ topic: 'science', probability: 0.9 }
 async function fixture() {
   const post = await seedPost(scope, {
     content: { variants: [{ source: 'author', tag: 'en', text: 'Synthetic science news.' }] },
-    federation: { actorUri: 'did:plc:jev-shadow-original' },
   });
   await getDb().update(posts).set({ classificationLanguages: ['en'] }).where(eq(posts.id, post.id));
   return post;
@@ -39,7 +41,26 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await clearPostScope(scope);
   await getDb().delete(federatedFollows).where(eq(federatedFollows.localUserId, scope.user('follower')));
+  await getDb().delete(federatedActors).where(eq(federatedActors.domain, ACTOR_DOMAIN));
 });
+
+const ACTOR_DOMAIN = 'jev-shadow-ledger.test';
+const ORIGINAL = 'did:plc:jev-shadow-original';
+async function seedRemoteActor(username: string, overrides: Partial<typeof federatedActors.$inferInsert> = {}) {
+  const [actor] = await getDb().insert(federatedActors).values({
+    uri: `https://${ACTOR_DOMAIN}/users/${username}`, username, domain: ACTOR_DOMAIN,
+    acct: `${username}@${ACTOR_DOMAIN}`, oxyUserId: scope.user(`minted-${username}`), ...overrides,
+  }).returning();
+  return actor;
+}
+async function followFixture(edges: Array<typeof federatedFollows.$inferInsert>) {
+  if (edges.length) await getDb().insert(federatedFollows).values(edges);
+  return getDb().transaction(async tx => {
+    const state = await originalActorFollowState(tx, ORIGINAL);
+    await tx.execute(sql`select 1`); // The surrounding write transaction stays usable.
+    return state;
+  });
+}
 afterAll(() => closePostgres());
 
 describe('durable shadow evaluation ledger', () => {
@@ -99,25 +120,56 @@ describe('durable shadow evaluation ledger', () => {
     expect(await ledger(post.id)).toEqual([]);
   });
 
-  it('re-reads accepted outbound follows of the original DID at completion', async () => {
-    const post = await fixture();
-    const claim = await requiredClaim(post.id);
-    await getDb().insert(federatedFollows).values({ localUserId: scope.user('follower'),
-      remoteActorUri: 'did:plc:jev-shadow-original', direction: 'outbound', status: 'accepted', network: 'atproto' });
-    expect(await completePostEvaluation(claim, signals)).toBe(true);
-    expect((await ledger(post.id))[0]?.followState).toBe('accepted');
+  it('reads only accepted outbound follows of the original actor as follow evidence', async () => {
+    expect(await followFixture([{ localUserId: scope.user('follower'), remoteActorUri: ORIGINAL,
+      direction: 'outbound', status: 'accepted', network: 'atproto' }])).toBe('accepted');
   });
 
   it('does not count pending, inbound, or contextual actor edges as follows', async () => {
+    expect(await followFixture([
+      { localUserId: scope.user('follower'), remoteActorUri: ORIGINAL, direction: 'inbound', status: 'accepted' },
+      { localUserId: scope.user('follower'), remoteActorUri: ORIGINAL, direction: 'outbound', status: 'pending' },
+      { localUserId: scope.user('follower'), remoteActorUri: 'did:plc:contextual-actor', direction: 'outbound', status: 'accepted' },
+    ])).toBe('not_followed');
+  });
+
+  it('refuses every federated source, listed or not, followed or not, before claiming', async () => {
+    const unlisted = mapApVisibility(['https://jev-shadow-ledger.test/followers'],
+      ['https://www.w3.org/ns/activitystreams#Public']);
+    expect(unlisted).toBe(PostVisibility.PUBLIC); // The mapping that loses listed provenance.
+    const listed = await seedRemoteActor('listed');
+    const hidden = await seedRemoteActor('hidden', { discoverable: false });
+    const suspended = await seedRemoteActor('suspended', { suspended: true });
+    const bridged = await seedRemoteActor('bridged', { protocol: 'atproto', uri: ORIGINAL });
+    await getDb().insert(federatedFollows).values({ localUserId: scope.user('follower'),
+      remoteActorUri: ORIGINAL, direction: 'outbound', status: 'accepted', network: 'atproto' });
+    const sources = [
+      { visibility: unlisted, federation: { activityId: `${listed.uri}/statuses/unlisted`, actorUri: listed.uri } },
+      { federation: { activityId: `${listed.uri}/statuses/listed`, actorUri: listed.uri } },
+      { federation: { actorUri: hidden.uri } },
+      { federation: { actorUri: suspended.uri } },
+      { federation: { activityId: `at://${ORIGINAL}/app.bsky.feed.post/1`, actorUri: ORIGINAL } },
+      { federation: { activityId: `${listed.uri}/statuses/activity-only` } },
+      // A minted federated account with no federation columns on the row.
+      { oxyUserId: bridged.oxyUserId ?? undefined },
+    ];
+    for (const overrides of sources) {
+      const post = await seedPost(scope, {
+        content: { variants: [{ source: 'author', tag: 'en', text: 'Synthetic remote science news.' }] },
+        ...overrides,
+      });
+      await getDb().update(posts).set({ classificationLanguages: ['en'] }).where(eq(posts.id, post.id));
+      expect(await claimPostEvaluation(post.id, release)).toBeNull();
+      expect(await ledger(post.id)).toEqual([]);
+    }
+  });
+
+  it('re-applies native eligibility at completion and cancels a result for a federated author', async () => {
     const post = await fixture();
     const claim = await requiredClaim(post.id);
-    await getDb().insert(federatedFollows).values([
-      { localUserId: scope.user('follower'), remoteActorUri: 'did:plc:jev-shadow-original', direction: 'inbound', status: 'accepted' },
-      { localUserId: scope.user('follower'), remoteActorUri: 'did:plc:jev-shadow-original', direction: 'outbound', status: 'pending' },
-      { localUserId: scope.user('follower'), remoteActorUri: 'did:plc:contextual-actor', direction: 'outbound', status: 'accepted' },
-    ]);
-    expect(await completePostEvaluation(claim, signals)).toBe(true);
-    expect((await ledger(post.id))[0]?.followState).toBe('not_followed');
+    await seedRemoteActor('late', { oxyUserId: post.oxyUserId });
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
   });
 
   it('abstains without inferring or recording low scores for unsupported and media-only posts', async () => {
@@ -143,25 +195,22 @@ describe('durable shadow evaluation ledger', () => {
 
   it('keeps missing local follow evidence unknown', async () => {
     const post = await fixture();
-    await getDb().update(posts).set({ federationActorUri: null }).where(eq(posts.id, post.id));
     expect(await completePostEvaluation(await requiredClaim(post.id), signals)).toBe(true);
     expect((await ledger(post.id))[0]?.followState).toBe('unknown');
   });
 
   it('recovers from a failed follow query using the savepoint and records unknown', async () => {
-    const post = await fixture();
-    const claim = await requiredClaim(post.id);
-    const transaction = getDb().transaction.bind(getDb());
-    vi.spyOn(getDb(), 'transaction').mockImplementationOnce(callback => transaction(async tx => {
+    const state = await getDb().transaction(async tx => {
       const savepoint = tx.transaction.bind(tx);
       vi.spyOn(tx, 'transaction').mockImplementationOnce(() => savepoint(async lookup => {
         await lookup.execute(sql`select 1 / 0`);
         throw new Error('Division by zero must fail inside the follow savepoint');
       }));
-      return callback(tx);
-    }));
-    expect(await completePostEvaluation(claim, signals)).toBe(true);
-    expect((await ledger(post.id))[0]?.followState).toBe('unknown');
+      const result = await originalActorFollowState(tx, ORIGINAL);
+      await tx.execute(sql`select 1`); // Not poisoned: the final write could still commit.
+      return result;
+    });
+    expect(state).toBe('unknown');
   });
 
   it('refuses boosts, followers-only and restricted posts before claiming', async () => {
@@ -187,11 +236,25 @@ describe('durable shadow evaluation ledger', () => {
     expect((await ledger(post.id))[0]?.state).toBe('cancelled');
   });
 
-  it('conservatively cancels on machine-rendition append until semantic revision review', async () => {
+  it('keeps a result when a machine translation is cached or replaced during inference', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    const translation = { tag: 'es', source: 'machine' as const, text: 'Noticias científicas sintéticas.' };
+    const options = { sourceMatches: () => true };
+    expect((await storeMachineVariant(post.id, translation, { ...options, force: false })).kind).toBe('stored');
+    expect((await storeMachineVariant(post.id, { ...translation, text: 'Otra traducción.' }, { ...options, force: true })).kind)
+      .toBe('stored');
+    expect(await completePostEvaluation(claim, signals)).toBe(true);
+    expect((await ledger(post.id))[0]?.state).toBe('completed');
+    // Same author revision: no second claim, so no second paid request.
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+  });
+
+  it('still cancels when an author rendition is added during inference', async () => {
     const post = await fixture();
     const claim = await requiredClaim(post.id);
     await getDb().insert(postContentVariants).values({ postId: post.id, position: 1,
-      tag: 'es', source: 'machine', body: 'Traducción sintética.' });
+      tag: 'es', source: 'author', body: 'Noticias científicas sintéticas.' });
     expect(await completePostEvaluation(claim, signals)).toBe(false);
     expect((await ledger(post.id))[0]?.state).toBe('cancelled');
   });

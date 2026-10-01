@@ -1,15 +1,30 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, notExists } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
 import { postEvaluations, postEvaluationTopics } from '../schema/postEvaluations';
-import { federatedFollows } from '../schema/federation';
+import { federatedActors, federatedFollows } from '../schema/federation';
 import { lockPostContent } from './postRepository';
 import { logger } from '../../utils/logger';
 import {
   shadowAbstention, shadowFingerprint, shadowSignalsSchema, validateShadowRelease,
   type ShadowRelease, type ShadowSignals, type ShadowSnapshot,
 } from '../../services/contentClassification/jevShadow';
+
+/**
+ * Only native Mention posts can leave for an external classifier. A federated
+ * `public` is not proof of a listed post: ActivityPub maps `Public` in `cc`
+ * (unlisted) to public too, and remote actors' `discoverable` is hardcoded true
+ * for atproto and Instagram. Until ingestion stores durable listed provenance,
+ * anything from a federated source — by activity, actor, or a minted federated
+ * author account — is ineligible, followed or not. Following is a quality
+ * signal, never a privacy grant; security enforcement stays separate.
+ */
+const nativeAuthor = (tx: Transaction) => and(
+  isNull(posts.federationActivityId), isNull(posts.federationActorUri),
+  notExists(tx.select({ id: federatedActors.id }).from(federatedActors)
+    .where(eq(federatedActors.oxyUserId, posts.oxyUserId))),
+);
 
 /** Lock order matches content writers: rendition advisory lock, then post row. */
 async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnapshot | null> {
@@ -20,7 +35,7 @@ async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnap
     languages: posts.classificationLanguages,
   }).from(posts).where(and(
     eq(posts.id, postId), eq(posts.visibility, 'public'), eq(posts.status, 'published'),
-    isNull(posts.boostOf),
+    isNull(posts.boostOf), nativeAuthor(tx),
   )).for('update');
   if (!post) return null;
   const renditions = await tx.select({
@@ -61,8 +76,10 @@ export async function claimPostEvaluation(postId: string, release: ShadowRelease
 /**
  * This only records evidence. A follow (including a future follow) can never be
  * rejected by this ledger. Replies/mentions/quotes/ancestors are not follow edges.
+ * While only native posts are eligible every completed row records `unknown`;
+ * the lookup returns once federated posts carry durable listed provenance.
  */
-async function originalActorFollowState(tx: Transaction, actorUri: string | null) {
+export async function originalActorFollowState(tx: Transaction, actorUri: string | null) {
   if (!actorUri) return 'unknown' as const; // Oxy owns the local graph.
   try {
     // Savepoint keeps a lookup failure from poisoning the final-write transaction.
