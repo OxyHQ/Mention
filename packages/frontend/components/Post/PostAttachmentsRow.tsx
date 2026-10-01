@@ -100,13 +100,6 @@ interface Props {
    * independently. Non-media attachments (polls, links, articles…) are unaffected.
    */
   sensitive?: boolean;
-  /**
-   * Width of the block this row is laid out in, when the parent already knows it.
-   * The row measures itself too, but a nested quote card is narrower than the
-   * feed row and hands its width down so the FIRST paint is already sized to it
-   * instead of reflowing a frame later.
-   */
-  containerWidth?: number;
   style?: ViewStyle;
 }
 
@@ -173,7 +166,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   text,
   documents,
   sensitive,
-  containerWidth,
   style
 }) => {
   const router = useRouter();
@@ -448,6 +440,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     ? TALL_ROW_HEIGHT
     : ROW_HEIGHT;
   const rowItemHeight = isSingleItem ? undefined : rowHeight;
+  const isTallRow = rowHeight === TALL_ROW_HEIGHT;
+  // The same two heights as classes, for the cells that take their size from
+  // layout. Literal strings: NativeWind compiles them at build time.
+  const rowCellClass = isTallRow ? 'h-[264px]' : 'h-[200px]';
 
   const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -645,12 +641,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     };
   }, [handleVideoPress, handleImagePress]);
 
-  const screenWidth = Dimensions.get('window').width;
-  // Measured width wins once layout reports it; until then the parent's own
-  // width (a nested quote card knows it) is a far better guess than the screen.
-  const [measuredWidth, setMeasuredWidth] = React.useState<number | undefined>(undefined);
-  const scrollViewWidth = measuredWidth ?? containerWidth ?? screenWidth;
-
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
@@ -722,32 +712,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   if (items.length === 0 && !showNested) return null;
 
-  const scrollerPaddingRight = 12;
-  const scrollerPaddingLeft = Math.abs(leftOffset);
-  // Content width one full-bleed child may occupy: what a nested quote card or an
-  // external embed is sized to, and the cap every media cell is clamped against.
-  const availableWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
+  const gutterStyle = leftOffset ? { paddingLeft: Math.abs(leftOffset) } : null;
 
-  return (
-    // Measured on the wrapper, not the carousel: a post whose only attachment is
-    // a quote renders no carousel, and an unmeasured row falls back to the
-    // WINDOW width — which sized the quote card past the right edge of the feed.
-    <View style={style} onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}>
-    {items.length > 0 && (
-    <ScrollView
-      ref={scrollViewRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      nestedScrollEnabled={true}
-      directionalLockEnabled={true}
-      onTouchStart={onTouchStart}
-      onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
-      onStartShouldSetResponderCapture={() => true}
-      onStartShouldSetResponder={() => true}
-      scrollEnabled={!isSingleItem}
-      contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
-    >
-      {items.map((item, idx) => {
+  // Widths are layout's job, never JS's. An item alone in the row is laid out in
+  // a plain View and fills it (`width: '100%'`), so the first frame is already
+  // the final one — there is no measurement to wait for, and nothing to reflow
+  // when it arrives. Only a row of several items scrolls, and its cells have
+  // fixed sizes.
+  const renderItem = (item: AttachmentItem, idx: number): React.ReactNode => {
         if (item.type === 'article') {
           return (
             <PostAttachmentArticle
@@ -755,7 +727,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               title={article?.title?.trim()}
               body={article?.body?.trim()}
               onPress={onArticlePress || undefined}
-              style={isSingleItem ? { width: availableWidth } : { width: 200, height: rowItemHeight }}
+              className={isSingleItem ? 'w-full' : `w-[200px] ${rowCellClass}`}
             />
           );
         }
@@ -767,7 +739,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               date={event?.date || ''}
               location={event?.location}
               onPress={onEventPress || undefined}
-              style={isSingleItem ? { width: availableWidth } : { width: 240, height: rowItemHeight }}
+              className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
             />
           );
         }
@@ -781,7 +753,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               topic={room?.topic}
               host={room?.host}
               onPress={onRoomPress || undefined}
-              style={isSingleItem ? { width: availableWidth } : { width: 260, height: rowItemHeight }}
+              className={isSingleItem ? undefined : `w-[260px] ${rowCellClass}`}
             />
           );
         }
@@ -791,7 +763,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             <PostPodcastAttachment
               key={`podcast-${idx}`}
               podcast={podcast}
-              width={isSingleItem ? availableWidth : Math.min(availableWidth, podcast.episode?.videoUrl ? 300 : 340)}
+              width={isSingleItem ? '100%' : podcast.episode?.videoUrl ? 300 : 340}
               height={rowItemHeight}
             />
           );
@@ -811,7 +783,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
                 description={item.description}
                 image={item.image}
                 siteName={item.siteName}
-                width={availableWidth}
               />
             );
           }
@@ -823,14 +794,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               description={item.description}
               image={item.image}
               siteName={item.siteName}
-              width={isSingleItem ? availableWidth : 280}
-              constrainedHeight={rowItemHeight}
+              coverFill={!isSingleItem}
+              className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
             />
           );
         }
         if (item.type === 'job') {
           if (!job) return null;
-          return <JobCard key={`job-${idx}`} job={job} width={isSingleItem ? availableWidth : 280} height={rowItemHeight} />;
+          return <JobCard key={`job-${idx}`} job={job} className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`} />;
         }
         if (item.type === 'poll') {
           return (
@@ -838,8 +809,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               key={`poll-${idx}`}
               pollId={pollId}
               pollData={pollData ?? undefined}
-              width={isSingleItem ? availableWidth : 280}
-              style={rowItemHeight !== undefined ? { height: rowItemHeight } : undefined}
+              className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
             />
           );
         }
@@ -856,8 +826,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               height={item.height}
               aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
-              availableWidth={availableWidth}
-              rowHeight={rowItemHeight}
+              tallRow={isTallRow}
               sensitive={sensitive}
             />
           );
@@ -884,23 +853,42 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               onPress={pressHandlerByMedia(mediaId, item.type)}
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
-              availableWidth={availableWidth}
-              rowHeight={rowItemHeight}
+              tallRow={isTallRow}
               sensitive={sensitive}
             />
           );
         }
         return null;
-      })}
+  };
+
+  return (
+    <View style={style}>
+    {items.length === 1 && (
+      // Claims the touch that no child did, as the carousel's ScrollView did, so
+      // a tap on an attachment's padding never falls through to open the post.
+      <View className="pr-3" style={gutterStyle} onStartShouldSetResponder={() => true}>
+        {renderItem(items[0], 0)}
+      </View>
+    )}
+    {items.length > 1 && (
+    <ScrollView
+      ref={scrollViewRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      nestedScrollEnabled={true}
+      directionalLockEnabled={true}
+      onTouchStart={onTouchStart}
+      onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
+      onStartShouldSetResponderCapture={() => true}
+      onStartShouldSetResponder={() => true}
+      contentContainerStyle={[styles.scroller, gutterStyle]}
+    >
+      {items.map(renderItem)}
     </ScrollView>
     )}
     {showNested && nestedPost && (
-      <View style={{ paddingLeft: Math.abs(leftOffset), paddingRight: scrollerPaddingRight, marginTop: items.length > 0 ? 8 : 0 }}>
-        <PostAttachmentNested
-          nestedPost={nestedPost}
-          nestingDepth={nestingDepth}
-          width={availableWidth}
-        />
+      <View className={items.length > 0 ? 'pr-3 mt-2' : 'pr-3'} style={gutterStyle}>
+        <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
       </View>
     )}
     {/* Mounted on the first tap, not with the row: the viewer is ~100 hook
@@ -931,8 +919,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.location === nextProps.location &&
     prevProps.sources === nextProps.sources &&
     prevProps.onSourcesPress === nextProps.onSourcesPress &&
-    prevProps.sensitive === nextProps.sensitive &&
-    prevProps.containerWidth === nextProps.containerWidth
+    prevProps.sensitive === nextProps.sensitive
   );
 });
 

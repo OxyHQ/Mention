@@ -381,8 +381,6 @@ return {
                 // the R8 -optimize proguard file, and the real release signing
                 // config (credentials come from Gradle properties, never the repo).
                 './plugins/withAndroidReleaseBuild',
-                // Android sharedUserId for cross-app authentication
-                './plugins/withSharedUserId',
                 [
                     // Points the Android home-screen widgets (`modules/mention-widgets`)
                     // at the same backend the app uses. The native module itself is
@@ -396,11 +394,12 @@ return {
                         webBaseUrl: WIDGET_WEB_BASE_URL,
                     },
                 ],
-                // Reader side of the shared-identity native module (ships in
-                // @oxy.so/services): request the signature permission + <queries>
-                // so cold boot can silently read the Commons-hosted shared
-                // identity (silent "Sign in with Oxy").
-                '@oxy.so/services/plugins/withSharedIdentityReader',
+                // Mention runs under its own Android UID. This declares and
+                // requests the signature permissions so.oxy.permission.IDENTITY
+                // and DEVICE_SESSION, plus <queries> for the Commons/Accounts
+                // providers, so cold boot can ask Commons for a signed identity
+                // proof and share the device session (silent "Sign in with Oxy").
+                '@oxy.so/services/plugins/withOxySharedPermissions',
             ];
 
             // Only include native-only plugins for native builds (android/ios)

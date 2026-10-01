@@ -15,7 +15,6 @@ const logger = createLogger('PollCard');
 
 interface PollCardProps {
   pollId: string;
-  width?: number;
 }
 
 /** Whether a poll's end time has passed. Outside the component: it reads the clock. */
@@ -32,7 +31,7 @@ function hasEnded(endsAt: string | undefined): boolean {
  * (#1103). One cached answer per viewer and poll; a vote writes its own
  * response into that entry.
  */
-const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
+const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = viewerQueryKeys.poll(user?.id, pollId);
@@ -93,7 +92,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <Card  radius="radius-16" className="flex-1 w-full p-3" style={{ width }} appearance="outline">
+    <Card  radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
       <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
     </Card>
   );
@@ -103,7 +102,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const locked = ended || (hasVoted && !poll.isMultipleChoice);
 
   return (
-    <Card  radius="radius-16" className="flex-1 w-full p-3" style={{ width }} appearance="outline">
+    <Card  radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
       <View className="gap-1">
         {poll.options.map((opt: PollDetailOption) => {

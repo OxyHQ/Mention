@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 42.76,
-      "covered": 11551,
-      "total": 27012
+      "pct": 43.03,
+      "covered": 11651,
+      "total": 27072
     },
     "branches": {
-      "pct": 37.34,
-      "covered": 7256,
-      "total": 19431
+      "pct": 37.57,
+      "covered": 7338,
+      "total": 19530
     },
     "functions": {
-      "pct": 37.94,
-      "covered": 2615,
-      "total": 6892
+      "pct": 38.11,
+      "covered": 2629,
+      "total": 6897
     },
     "lines": {
-      "pct": 43.5,
-      "covered": 10503,
-      "total": 24142
+      "pct": 43.77,
+      "covered": 10590,
+      "total": 24194
     }
   },
   "pins": {
@@ -606,10 +606,10 @@
       "lines": 80
     },
     "hooks/useScheduleManager.ts": {
-      "statements": 85,
-      "branches": 75,
-      "functions": 75,
-      "lines": 85
+      "statements": 96,
+      "branches": 100,
+      "functions": 100,
+      "lines": 96
     },
     "hooks/useScheduledPosts.ts": {
       "statements": 78,
@@ -766,6 +766,12 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
+    },
+    "lib/chunkReload.web.ts": {
+      "statements": 23,
+      "branches": 35,
+      "functions": 22,
+      "lines": 23
     },
     "lib/colorEntitlement.ts": {
       "statements": 100,
@@ -1410,7 +1416,7 @@
       "lines": 100
     },
     "utils/embedPlayer.ts": {
-      "statements": 24,
+      "statements": 25,
       "branches": 25,
       "functions": 100,
       "lines": 24

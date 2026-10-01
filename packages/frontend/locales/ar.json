@@ -2635,6 +2635,7 @@
   "post.summary.replies_many": "{{formattedCount}} ردًا",
   "post.summary.replies_other": "{{formattedCount}} رد",
   "compose.event.nameRequired": "أعطِ الحدث اسمًا لإرفاقه.",
+  "compose.event.timeInvalid": "أدخل وقتًا صالحًا، مثل 20:30.",
   "compose.saveDraftFailed": "تعذّر حفظ المسودة. حاول مرة أخرى.",
   "compose.toolbar.media": "إضافة صور أو فيديوهات",
   "compose.toolbar.gif": "إضافة صورة GIF",

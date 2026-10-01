@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 import React, { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { cn } from '@/lib/utils';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -44,9 +45,8 @@ interface JobCardProps {
    * apparent status, and there is no second round trip to render the card.
    */
   job: PostJobContent;
-  width?: number;
-  /** Fixed height, when the card shares an attachments row whose items all take one height. */
-  height?: number;
+  /** Layout classes: `w-full` alone in the attachments row, width and row height beside others. */
+  className?: string;
 }
 
 /**
@@ -60,7 +60,7 @@ interface JobCardProps {
  * so the handle is resolved on tap via the Oxy SDK's cached `users.get`
  * rather than upfront for every rendered card.
  */
-const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
   const vocabulary = useJobVocabulary();
@@ -102,8 +102,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
   return (
     <Pressable
       onPress={openJob}
-      className="border border-border bg-muted rounded-[14px] overflow-hidden p-3"
-      style={{ width, height }}
+      className={cn('border border-border bg-muted rounded-[14px] overflow-hidden p-3', className)}
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >

@@ -428,29 +428,68 @@ iterations). Even at 10× on Hermes that is well under 0.1 ms, against
 millisecond row mounts. The cost of an entity-heavy body is the elements it
 creates, and those are counted above.
 
-### FlashList tuning (Phase 6): not changed, deliberately
+### Release device baseline (#1103)
 
-`FEED_DRAW_DISTANCE = 1000` and `maxItemsInRecyclePool={20}` stay as they are.
-#1103's rule is to re-tune them only against measured blank or late rows during
-a deterministic fling, and that measurement needs a release build on a device.
-The harness cannot see blank cells or time-to-visible. The procedure, once a
-device run exists:
+The Jest harness measures structure; this measures the device. Script:
+`packages/frontend/scripts/perf/android-feed-scroll.sh` (release APK, adb). Each
+run: cold start, 40 fixed-distance drags (1300 px, 700 ms, no momentum, so every
+build scrolls the same distance), then gfxinfo, meminfo and per-thread CPU from
+`/proc`; then 24 fast flings with a screenshot during each, scored for blank
+rows by `blank-band.py`. Builds were interleaved in the same session so the live
+feed was the same for both.
 
-1. Release build on the reference Android device, with the seeded feed (the
-   harness fixtures as a mock-server response).
-2. Fling top→bottom at fixed velocity (adb `input swipe` scripted, 5 runs).
-3. Record blank-cell frames and JS long frames (Perf Monitor / systrace) at
-   drawDistance 1000, 750, 500, 250.
-4. Keep the smallest value with zero blank frames; then vary the recycle pool
-   (20, 12, 8) against RSS after 500 posts.
+Pixel 8a (Android 16), release `assembleRelease` arm64, signed-out For You feed,
+2026-09-30. Median of 3 runs after a discarded warm-up. CPU is in 10 ms ticks
+over the 40 drags. "Before" is a1705141f, the commit before #1103's first PR;
+"after" is main at bf6eeb66c. Both builds include #1272's anonymous-pagination
+fix, which the signed-out fling needs in order to scroll at all:
 
-The harness's per-row numbers are the reason to expect a lower drawDistance to
-hold: rows now build with ~40% fewer hook slots and none of the per-row
-controllers. That is an expectation to test, not a result.
+| | before #1103 | after #1103 |
+|---|---:|---:|
+| JS thread (`mqt_v_js`) CPU | 1,911 | 1,864 (−2%) |
+| UI thread CPU | 1,657 | 1,649 |
+| RenderThread CPU | 1,652 | 1,733 |
+| Janky frames | 0.28% | 0.35% |
+| p90 / p99 frame | 8 / 12 ms | 9 / 13 ms |
+| RSS after 40 drags | 829 MB | 862 MB |
+| Blank rows during fast flings | 0 / 24 | 0 / 24 |
 
-What this harness cannot see: device frame drops, native RSS, blank-cell
-incidence and time-to-visible. Those need a release build on hardware and are
-listed below as still uninstrumented.
+**The row work did not move the device.** Hook slots per row fell 39–46% in
+the harness above, but the JS thread's cost during a scroll is not dominated by
+building rows. `simpleperf` (DWARF call graphs) on `mqt_v_js` puts 47.8% of it
+in Fabric state updates from the ScrollView, each committing the whole tree
+and re-running Yoga layout from the root. Of that, 26% is a recursive
+pixel-grid rounding pass, with `fmod` alone at 11% self time. That pass walks
+every mounted node on every scroll frame. Rendering and row construction are
+the minority. Follow-up: #1280.
+
+Unrelated main changes between the two commits (a Bloom major, stickers) are in
+"after" too, so this is main-before vs main-after, not #1103 in isolation.
+
+**Long scroll memory is bounded.** 200 drags (~260,000 px, several hundred
+posts) on the after build: RSS 925 → 924 → 1,037 → 1,014 → 996 MB at 40-drag
+checkpoints, Java heap flat at 39–41 MB, native heap plateaus at ~288 MB after
+120 drags. It levels off rather than growing with every post visited.
+
+### FlashList tuning (Phase 6): measured, kept at 1000
+
+| drawDistance / pool | JS CPU | Janky | RSS | Blank rows (fast flings) |
+|---|---:|---:|---:|---:|
+| 1000 / 20 (shipped) | 1,864 | 0.35% | 862 MB | 0 / 24 |
+| 500 / 20 | 1,836 | 0.48% | 857 MB | 0 / 24 |
+| 250 / 20 | 1,888 | 0.41% | 845 MB | 0 / 24 |
+
+Lowering `drawDistance` shows no blank rows on this device, but it buys
+nothing measurable either: JS CPU moves less than run-to-run noise, and RSS
+moves 5–17 MB. 250 was previously reported as rows arriving late on a slower
+build (see the comment on `FEED_DRAW_DISTANCE`), so with no measured gain the
+margin stays. `maxItemsInRecyclePool={20}` stays for the same reason: the 8-pool
+run was lost to a stuck cold start and not repeated, because the pool has no
+lever on the cost that dominates.
+
+Not measured: time-to-visible for a row entering the viewport (the blank-band
+score is the proxy), iOS, and a signed-in feed (the device has no identity to
+sign in with).
 
 ### How to profile a feed regression
 
@@ -469,18 +508,11 @@ listed below as still uninstrumented.
 
 ## What has no instrumentation at all
 
-Native frame timing during a fling (dropped frames, time-to-visible, blank
-cells), native memory (RSS) after a long scroll, and cold-start /
-first-usable-screen timing on native (iOS/Android) have no measurement in this
-repository today — they need a release build on hardware. The row's JS
-structure, re-render isolation and per-row network side effects ARE measured,
-by the Jest harness above. Web LCP is covered by the real-user web
-vitals above; native cold start is not.
-
-For #1103 specifically, these acceptance items are still waiting for that
-device run: fixed-fling dropped/janky frames against baseline, long-scroll
-RSS staying bounded, time-to-visible under a re-tuned drawDistance, and a
-release-build baseline of the "~40 ms per row" dev-build figure.
+Native cold start / first-usable-screen timing (iOS and Android), iOS scroll,
+and time-to-visible for a row entering the viewport have no measurement in this
+repository. Android release scroll (frames, per-thread CPU, RSS, blank rows) is
+measured by the device script above, by hand, not in CI: it needs hardware. Web
+LCP is covered by the real-user web vitals above.
 
 ## Recommended next step, not taken in this pass
 

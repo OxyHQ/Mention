@@ -2553,6 +2553,7 @@
   "post.summary.replies_many": "{{formattedCount}} risposte",
   "post.summary.replies_other": "{{formattedCount}} risposte",
   "compose.event.nameRequired": "Dai un nome all'evento per allegarlo.",
+  "compose.event.timeInvalid": "Inserisci un orario valido, ad esempio 20:30.",
   "compose.saveDraftFailed": "Impossibile salvare la bozza. Riprova.",
   "compose.toolbar.media": "Aggiungi foto o video",
   "compose.toolbar.gif": "Aggiungi una GIF",

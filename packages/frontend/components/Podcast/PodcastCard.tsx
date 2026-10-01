@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle, type DimensionValue } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@/components/common/Ionicons';
 import Svg, { Path } from 'react-native-svg';
@@ -46,7 +46,7 @@ interface PodcastCardProps {
   /** Card background; derived from the artwork when absent. */
   accentColor?: string;
   /** Rendered width of the attachment variants. Defaults to 320 (card) / 100% (video). */
-  width?: number;
+  width?: DimensionValue;
   /**
    * Fixed height, when the card shares a row whose items all take one height.
    * The plain card fills it with its content centred (the artwork never grows);

@@ -1,0 +1,130 @@
+# Build the backend and MCP production images ONCE, in the merge queue.
+#
+# main moves only through the merge queue (squash, one entry built at a time),
+# and the commit a `merge_group` run tests is the commit main is then
+# fast-forwarded to, SHA for SHA (release-provenance.sh relies on the same
+# fact). So the image built here from `github.sha` is the image the deploy
+# would build on the push to main. Each job pushes `oxy/<app>:mq-<sha>` in
+# parallel with CI, and the deploys (.github/scripts/resolve-queue-image.sh)
+# roll that exact image out by digest instead of rebuilding it.
+#
+# NOT a required check, and not part of ci.yml: `CI complete` is the only
+# check the queue requires. Deliberate: this needs AWS, and an AWS or runner
+# hiccup here must never hold the queue. When the image is missing the deploy
+# builds it itself, exactly as before, so a failure here costs one build.
+#
+# CREDENTIALS. Only `merge_group` triggers this, never pull_request or push, so
+# no pull request's code and no fork reaches the AWS step. The role,
+# `oxy-github-queue-image-mention` (oxy-infra iam-github-queue-image.tf),
+# trusts only `...:ref:refs/heads/gh-readonly-queue/main/*` and can only push
+# to oxy/mention and oxy/mention-mcp. No ECS, no SSM, no task definitions.
+# Releasing stays with `oxy-github-deploy`, which only main can assume.
+#
+# LIFECYCLE. `mq-*` images expire three days after the push unless a deploy
+# re-tagged them `deployed-<sha>` (ecr.tf, in oxy-infra), so entries the queue
+# ejects do not pile up, and a released image is never counted out by them.
+#
+# BUILD CACHE: READ-ONLY, from the same `type=gha` scopes as the deploys. An
+# Actions cache is readable from the ref that wrote it and from the default
+# branch, so this reads what main wrote: the deploys' fallback builds and the
+# weekly no-cache rebuild (refresh-image-cache.yml). It writes nothing back:
+# every queue entry has its own ref (`gh-readonly-queue/main/pr-<n>-<base>`),
+# so an export from here could be read by no later run, and it would only push
+# the repository past its 10 GB Actions cache quota and evict main's entries
+# (least recently used first).
+name: Merge queue image
+
+on:
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One per queue entry; a re-queued entry supersedes its own earlier run.
+  group: merge-queue-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+
+jobs:
+  image:
+    name: Production image (${{ matrix.target }})
+    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/Mention'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Mirrors deploy-aws.yml (backend) and deploy-mcp-aws.yml (mcp): the
+        # same Dockerfile, repository and cache scope each deploy builds with.
+        include:
+          - target: backend
+            app: mention
+            dockerfile: packages/backend/Dockerfile
+            cache_scope: mention-backend
+          - target: mcp
+            app: mention-mcp
+            dockerfile: packages/mcp/Dockerfile
+            cache_scope: mention-mcp
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # deployment-scope.sh diffs from the `deployed/<target>` marker tag,
+          # so it needs the tags and the history joining them to this commit.
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      # The deploy's own scope decision (deployment-scope.sh), asked of this
+      # commit: an image for a commit that target will not release is a wasted
+      # runner. If the marker moves before the release, the deploy decides
+      # again and builds whatever it finds missing.
+      - name: Does the ${{ matrix.target }} deploy ship this entry?
+        id: scope
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: bash .github/scripts/deployment-scope.sh ${{ matrix.target }}
+
+      - name: Configure AWS credentials (OIDC, ECR push only)
+        if: steps.scope.outputs.deploy == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-queue-image-mention
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        if: steps.scope.outputs.deploy == 'true'
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Set up Docker Buildx
+        if: steps.scope.outputs.deploy == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # The same build as the deploy's fallback, reading (never writing) its
+      # cache scope. Only the tag differs.
+      - name: Build and push immutable ${{ matrix.target }} image
+        if: steps.scope.outputs.deploy == 'true'
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/oxy/${{ matrix.app }}:mq-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          provenance: true
+          sbom: true
+
+      - name: Record the image
+        if: steps.scope.outputs.deploy == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE: ${{ env.ECR_REGISTRY }}/oxy/${{ matrix.app }}:mq-${{ github.sha }}
+        run: echo "Built $IMAGE -> $DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"

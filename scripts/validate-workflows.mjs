@@ -92,13 +92,39 @@ for (const workflowName of workflowNames) {
           );
         }
       }
-      const currentMainGuardCount = source
-        .split("require-current-main.sh")
-        .length - 1;
-      if (currentMainGuardCount < 2) {
-        failures.push(
-          `${workflowName}: AWS production workflows must verify current origin/main before build and execution`,
-        );
+      // The merge-queue image build is the one AWS workflow that is not a
+      // production release: it runs on the queue's temporary ref, where there
+      // is no current main to verify, and its role can only push images. So it
+      // is held to what makes that safe instead: `merge_group` is its only
+      // trigger (never pull_request or push, so no pull request's code and no
+      // fork reaches AWS), and it assumes the push-only queue role, never the
+      // deploy role.
+      const triggers =
+        typeof workflow?.on === "string" ? [workflow.on] : Object.keys(workflow?.on || {});
+      const queueImageBuild = triggers.length === 1 && triggers[0] === "merge_group";
+      if (queueImageBuild) {
+        if (
+          !source.includes("role/oxy-github-queue-image-mention") ||
+          source.includes("role/oxy-github-deploy")
+        ) {
+          failures.push(
+            `${workflowName}: a merge_group-only AWS workflow must assume oxy-github-queue-image-mention and never the deploy role`,
+          );
+        }
+      } else {
+        const currentMainGuardCount = source
+          .split("require-current-main.sh")
+          .length - 1;
+        if (currentMainGuardCount < 2) {
+          failures.push(
+            `${workflowName}: AWS production workflows must verify current origin/main before build and execution`,
+          );
+        }
+        if (source.includes("role/oxy-github-queue-image-mention")) {
+          failures.push(
+            `${workflowName}: only a merge_group-only workflow may assume the merge-queue image role`,
+          );
+        }
       }
       if (source.includes("aws ecr describe-images")) {
         failures.push(

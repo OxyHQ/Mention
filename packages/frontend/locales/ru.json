@@ -2581,6 +2581,7 @@
   "post.summary.replies_many": "{{formattedCount}} ответов",
   "post.summary.replies_other": "{{formattedCount}} ответа",
   "compose.event.nameRequired": "Назовите событие, чтобы прикрепить его.",
+  "compose.event.timeInvalid": "Введите корректное время, например 20:30.",
   "compose.saveDraftFailed": "Не удалось сохранить черновик. Попробуйте ещё раз.",
   "compose.toolbar.media": "Добавить фото или видео",
   "compose.toolbar.gif": "Добавить GIF",

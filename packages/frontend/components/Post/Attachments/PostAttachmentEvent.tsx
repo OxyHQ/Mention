@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
+import { cn } from '@/lib/utils';
 
 interface PostAttachmentEventProps {
   name: string;
@@ -8,6 +9,8 @@ interface PostAttachmentEventProps {
   location?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Layout classes from the row (e.g. `w-full` when the event is alone). */
+  className?: string;
 }
 
 const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
@@ -15,7 +18,8 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   date,
   location,
   onPress,
-  style
+  style,
+  className,
 }) => {
   // Parse date and format
   const eventDate = React.useMemo(() => {
@@ -42,7 +46,7 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
     // given `onPress`, the press dip; without one it is a plain, inert view.
     <Card
       radius="radius-16"
-      className="w-[200px] min-h-[140px] flex-row"
+      className={cn('w-[200px] min-h-[140px] flex-row', className)}
       style={style}
       onPress={onPress} appearance="outline"
     >

@@ -128,12 +128,6 @@ jest.mock('@/hooks/usePrivacyControls', () => ({
     usePrivacyControls: () => ({ blockedSet: new Set<string>() }),
 }));
 
-jest.mock('@/components/shell/PanelChrome', () => ({
-    usePanelChromeTopInset: () => 0,
-    PANEL_HEADER_HEIGHT: 56,
-    PANEL_CHROME_TOP_INSET: 56,
-}));
-
 jest.mock('@/utils/feedTelemetry', () => ({
     resolveFeedDescriptor: () => 'for_you',
     useFeedImpressionTracker: () => ({ current: { syncVisible: jest.fn() } }),
@@ -155,8 +149,6 @@ jest.mock('../feedRows', () => ({
     feedRowKey: (row: { key?: string }) => row.key ?? 'row',
     feedRowType: () => 'post',
     feedRowStyles: { container: {}, list: {}, listEmbedded: {}, listContent: {} },
-    boundFeedRows: <T,>(rows: T[]) => rows,
-    canLoadMoreFeed: () => false,
 }));
 
 jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));

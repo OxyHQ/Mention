@@ -16,8 +16,6 @@ interface PostAttachmentExternalEmbedProps {
   description?: string;
   image?: string;
   siteName?: string;
-  /** Available render width for the embed (treated as full-width primary media). */
-  width: number;
   style?: ViewStyle;
 }
 
@@ -37,7 +35,6 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   description,
   image,
   siteName,
-  width,
   style,
 }) => {
   const params = useMemo(() => parseEmbedPlayerFromUrl(url), [url]);
@@ -75,6 +72,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         description={description}
         image={image}
         siteName={siteName}
+        className="w-full"
         style={style}
       />
     );
@@ -84,7 +82,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   // `hideDetails` is set for GIFs, so no title/domain footer.
   if (params.isGif) {
     return (
-      <View style={[{ width }, style]} className="overflow-hidden rounded-2xl border border-border bg-card">
+      <View style={style} className="w-full overflow-hidden rounded-2xl border border-border bg-card">
         <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
           <Image
             source={{ uri: proxyExternalUrl(params.playerUri) }}
@@ -97,13 +95,12 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   }
 
   return (
-    <View style={[{ width }, style]} className="overflow-hidden rounded-2xl border border-border bg-card">
+    <View style={style} className="w-full overflow-hidden rounded-2xl border border-border bg-card">
       <EmbedConsentDialog control={consentControl} source={params.source} onAccept={onAccept} />
 
       <ExternalEmbedPlayer
         params={params}
         thumb={image}
-        width={width}
         active={active}
         onPressPlay={onPressPlay}
         onDeactivate={onDeactivate}

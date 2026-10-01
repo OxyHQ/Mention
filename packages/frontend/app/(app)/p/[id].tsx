@@ -29,7 +29,6 @@ import type {
   FeedBoost as Boost,
 } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
@@ -148,19 +147,15 @@ const PostDetailScreen: React.FC = () => {
 
     // Web: <PanelStickyFooter> pins with `position: sticky`, so it takes real flow
     // space at the end of the document and only ever OVERLAYS content mid-scroll —
-    // the last reply is reachable without extra padding, and `bottom` is overridden
-    // only to clear the BottomBar. Native: the footer is a bottom-anchored absolute
-    // overlay, so it both carries the bar/safe-area inset itself and needs the feed
-    // to reserve its height as scrollable bottom padding.
-    // Opaque in the colour of the column the thread is in, so replies never
-    // show through the pinned composer — see the call site.
-    const surfaceFill = useSurfaceFill();
-
+    // the last reply is reachable without extra padding. Native: the footer is a
+    // bottom-anchored absolute overlay, so the feed reserves its height as
+    // scrollable bottom padding. Either way the BottomBar / safe-area inset is
+    // PADDING inside the footer, not an offset of it, so the footer's edge scrim
+    // reaches the screen edge instead of ending above it in a line.
     const stickyComposerStyle = useMemo(() => {
-        const backgroundColor = surfaceFill;
-        if (effectiveBottomInset > 0) return { backgroundColor, bottom: effectiveBottomInset };
-        return IS_WEB ? { backgroundColor } : { backgroundColor, bottom: insets.bottom };
-    }, [effectiveBottomInset, insets.bottom, surfaceFill]);
+        if (effectiveBottomInset > 0) return { paddingBottom: effectiveBottomInset };
+        return IS_WEB ? undefined : { paddingBottom: insets.bottom };
+    }, [effectiveBottomInset, insets.bottom]);
 
     const feedContentStyle = useMemo(() => ({
         paddingBottom: IS_WEB
@@ -557,9 +552,9 @@ const PostDetailScreen: React.FC = () => {
                         {/* The reply composer stays reachable at the bottom of the
                             screen no matter how far down the replies are scrolled.
                             It must be the LAST flow sibling for `position: sticky`
-                            to pin it on web. It paints the surface the column
-                            published, which is what the feed rows paint too, so
-                            replies never show through it while it overlays them.
+                            to pin it on web. The replies fade out beneath it
+                            through the footer's edge scrim, the header's edge
+                            effect mirrored, and the rounded prompt floats on it.
 
                             Absent on a post that takes no replies — the server
                             refused them, or its author closed them to everybody.

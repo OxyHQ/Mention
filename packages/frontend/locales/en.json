@@ -2856,6 +2856,7 @@
   "post.summary.replies_one": "{{formattedCount}} reply",
   "post.summary.replies_other": "{{formattedCount}} replies",
   "compose.event.nameRequired": "Give the event a name to attach it.",
+  "compose.event.timeInvalid": "Enter a valid time, like 20:30.",
   "compose.saveDraftFailed": "Couldn't save the draft. Try again.",
   "compose.toolbar.media": "Add photos or videos",
   "compose.toolbar.gif": "Add a GIF",

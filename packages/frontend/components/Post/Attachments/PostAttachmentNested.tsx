@@ -8,7 +8,6 @@ type NestedPostItemProps = {
   post: HydratedPostSummary;
   isNested?: boolean;
   nestingDepth?: number;
-  containerWidth?: number;
 };
 
 // Lazy loading breaks PostItem -> PostAttachmentsRow -> PostItem without a
@@ -20,25 +19,19 @@ const PostItem = lazy(() => import('../../Feed/PostItem')) as React.LazyExoticCo
 interface PostAttachmentNestedProps {
   nestedPost: HydratedPostSummary;
   nestingDepth: number;
-  width: number;
 }
 
 const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   nestedPost,
   nestingDepth,
-  width,
 }) => {
   return (
-    <View style={[styles.nestedContainer, { width }]}>
+    <View style={styles.nestedContainer}>
       <Suspense fallback={null}>
-        {/* The quote card is narrower than the feed row, and its own media takes
-            the identical render path — hand the width down so nothing inside it
-            is sized against the outer row. */}
         <PostItem
           post={nestedPost}
           isNested={true}
           nestingDepth={nestingDepth + 1}
-          containerWidth={width}
         />
       </Suspense>
     </View>
@@ -46,8 +39,9 @@ const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // Fills the row; the quote card's own attachments size against it by layout.
   nestedContainer: {
-    // Width is set dynamically to fill available space
+    width: '100%',
   },
 });
 

@@ -2525,6 +2525,7 @@
   "post.summary.replies_one": "{{formattedCount}} 条回复",
   "post.summary.replies_other": "{{formattedCount}} 条回复",
   "compose.event.nameRequired": "为活动命名后即可附加。",
+  "compose.event.timeInvalid": "请输入有效时间，例如 20:30。",
   "compose.saveDraftFailed": "无法保存草稿。请重试。",
   "compose.toolbar.media": "添加照片或视频",
   "compose.toolbar.gif": "添加 GIF",

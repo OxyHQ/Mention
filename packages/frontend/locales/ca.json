@@ -2553,6 +2553,7 @@
   "post.summary.replies_many": "{{formattedCount}} respostes",
   "post.summary.replies_other": "{{formattedCount}} respostes",
   "compose.event.nameRequired": "Posa un nom a l'esdeveniment per adjuntar-lo.",
+  "compose.event.timeInvalid": "Introdueix una hora vàlida, com 20:30.",
   "compose.saveDraftFailed": "No s'ha pogut desar l'esborrany. Torna-ho a provar.",
   "compose.toolbar.media": "Afegeix fotos o vídeos",
   "compose.toolbar.gif": "Afegeix un GIF",

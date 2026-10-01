@@ -10,14 +10,14 @@ interface PostAttachmentLinkProps {
   image?: string;
   siteName?: string;
   /**
-   * When set, the card is bound to this height and the cover image flexes to
-   * fill it (`coverFill`) so the link matches the media row's item height when
-   * it shares the horizontal attachment row. Left undefined when the link is
-   * the sole attachment, keeping the card's intrinsic sizing.
+   * The card sits in the attachments carousel, whose `className` binds it to the
+   * row's height: the cover image then flexes to fill it (`coverFill`) so the
+   * link matches the other items. False when the link is alone, keeping the
+   * card's intrinsic height.
    */
-  constrainedHeight?: number;
-  /** Card width; 280 when absent. A link alone in the row passes the row width. */
-  width?: number;
+  coverFill?: boolean;
+  /** Layout classes: `w-full` alone in the row, the card width and row height in the carousel. */
+  className?: string;
   style?: ViewStyle;
 }
 
@@ -31,8 +31,8 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   description,
   image,
   siteName,
-  constrainedHeight,
-  width = 280,
+  coverFill = false,
+  className = 'w-[280px]',
   style,
 }) => {
   return (
@@ -43,8 +43,9 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       image={image}
       siteName={siteName}
       onPress={() => openExternalLink(url)}
-      coverFill={constrainedHeight !== undefined}
-      style={[{ width }, constrainedHeight !== undefined ? { height: constrainedHeight } : null, webGrabCursorStyle, style]}
+      coverFill={coverFill}
+      className={className}
+      style={[webGrabCursorStyle, style]}
     />
   );
 };
