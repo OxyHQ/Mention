@@ -201,6 +201,7 @@
   "profile.editProfile": "Edita el perfil",
   "profile.chat": "Xat",
   "profile.followsYou": "Et segueix",
+  "profile.movedTo": "Aquest compte s'ha traslladat a @{{handle}}",
   "profile.tabs.posts": "Publicacions",
   "profile.tabs.replies": "Respostes",
   "profile.tabs.media": "Multimèdia",

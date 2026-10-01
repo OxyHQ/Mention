@@ -201,6 +201,7 @@
   "profile.editProfile": "编辑资料",
   "profile.chat": "聊天",
   "profile.followsYou": "关注了你",
+  "profile.movedTo": "此账号已迁移至 @{{handle}}",
   "profile.tabs.posts": "帖子",
   "profile.tabs.replies": "回复",
   "profile.tabs.media": "媒体",

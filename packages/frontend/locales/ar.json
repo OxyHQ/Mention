@@ -201,6 +201,7 @@
   "profile.editProfile": "تعديل الملف الشخصي",
   "profile.chat": "دردشة",
   "profile.followsYou": "يتابعك",
+  "profile.movedTo": "انتقل هذا الحساب إلى @{{handle}}",
   "profile.tabs.posts": "المنشورات",
   "profile.tabs.replies": "الردود",
   "profile.tabs.media": "الوسائط",

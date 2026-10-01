@@ -201,6 +201,7 @@
   "profile.editProfile": "Edit Profil",
   "profile.chat": "Obrolan",
   "profile.followsYou": "Mengikutimu",
+  "profile.movedTo": "Akun ini telah pindah ke @{{handle}}",
   "profile.tabs.posts": "Postingan",
   "profile.tabs.replies": "Balasan",
   "profile.tabs.media": "Media",
