@@ -30,7 +30,7 @@
  * first write instead of being quietly dropped forever.
  */
 
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { EXTERNAL_EMBED_SOURCES, type ExternalEmbedsSettings, type FeedTuning } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { userSettings, userSettingsLabelActions } from '../schema/userProfile';
@@ -471,6 +471,28 @@ export async function ensureUserSettings(
   return record;
 }
 
+/**
+ * Serialize changes to one account's profile visibility against readers that
+ * must act on a stable answer until they commit (the shadow evaluation ledger).
+ * Writers take it exclusively BEFORE touching the row, which also covers the
+ * insert of a row that did not exist; readers take it shared. Writers hold no
+ * other lock first, so a reader may take it after its own post locks.
+ *
+ * Inserts of a default (public) row and deletes of the row change no answer:
+ * no row already reads as public, and account erasure and channel deletion
+ * remove the account's posts in an earlier phase than its settings row.
+ */
+export async function lockProfileVisibility(
+  tx: DatabaseOrTransaction,
+  oxyUserId: string,
+  mode: 'write' | 'read',
+): Promise<void> {
+  const key = `profile-visibility:${oxyUserId}`;
+  await tx.execute(mode === 'write'
+    ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
+    : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`);
+}
+
 /** A Mongo-shaped update, as the settings routes already build one. */
 export interface UserSettingsUpdate {
   set?: Record<string, unknown>;
@@ -498,10 +520,16 @@ export async function updateUserSettings(
 
   if (Object.keys(values).length === 0) return ensureUserSettings(oxyUserId, db);
 
-  await db
-    .insert(userSettings)
-    .values({ oxyUserId, ...values })
-    .onConflictDoUpdate({ target: userSettings.oxyUserId, set: values });
+  const write = async (tx: DatabaseOrTransaction) => {
+    if ('privacyProfileVisibility' in values) await lockProfileVisibility(tx, oxyUserId, 'write');
+    await tx
+      .insert(userSettings)
+      .values({ oxyUserId, ...values })
+      .onConflictDoUpdate({ target: userSettings.oxyUserId, set: values });
+  };
+  // The advisory lock is transaction-scoped, so a visibility change needs one.
+  if ('privacyProfileVisibility' in values) await db.transaction(write);
+  else await write(db);
 
   const record = await loadUserSettings(oxyUserId, db);
   if (!record) {

@@ -261,4 +261,14 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'Appends to the caller\'s own failure log rows, keyed by the ids it was given.',
   },
+  // The repo-ROOT scripts/lib, not src/scripts: the import regex matches any
+  // `../`-depth, so the root helper lands here under the same key shape.
+  'lib/jevOwnedPg.mjs': {
+    scope: 'caller-scoped',
+    reason:
+      'The owned-cluster guards behind scripts/test-jev-owned-pg.sh: identity, url and path ' +
+      'validation, injected filesystem/process probes, and a check of postgres-js\'s lazy ' +
+      'options before any query. No driving select over user data and no write; its only ' +
+      'server contact is the SHOW data_directory/listen_addresses identity proof its caller runs.',
+  },
 };

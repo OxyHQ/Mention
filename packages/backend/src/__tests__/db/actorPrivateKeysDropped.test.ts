@@ -1,7 +1,7 @@
 /**
  * `actor_key_pairs.private_key_pem` is gone from a fully-migrated database, and
  * the columns the local-actor marker still needs are not. Same instrument as
- * `identityAuthorityDropped`: a positive control, then the ledger proving 0058
+ * `identityAuthorityDropped`: a positive control, then the ledger proving 0059
  * ran.
  */
 
@@ -13,7 +13,7 @@ import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE } from '@oxy.so/db/migrate';
 import { readJournal } from '../../db/migrationsFolder';
 import { actorKeyPairs } from '../../db/schema/federation';
 
-const DROP_TAG = '0058_drop_plaintext_actor_private_keys';
+const DROP_TAG = '0059_drop_plaintext_actor_private_keys';
 
 let db: Database;
 
@@ -41,7 +41,7 @@ describe('actor_key_pairs', () => {
     expect(columns.has('key_id')).toBe(true);
   });
 
-  it('had its private keys dropped by 0058 on this database', async () => {
+  it('had its private keys dropped by 0059 on this database', async () => {
     const entry = readJournal().find((candidate) => candidate.tag === DROP_TAG);
     expect(entry).toBeDefined();
     const rows = await db.execute<{ created_at: string }>(sql`

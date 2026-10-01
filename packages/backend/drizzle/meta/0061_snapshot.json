@@ -1,6 +1,6 @@
 {
-  "id": "6b5bb74e-e9cc-4abc-9897-4254d8e75d7d",
-  "prevId": "4cd0e5cf-0235-4c15-a9df-9fd976d36255",
+  "id": "857b968e-6857-48a0-8fc7-83882610db1a",
+  "prevId": "6b71ece0-8b30-4d63-a56e-608d0ddf9c3c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3809,6 +3809,12 @@
         "also_known_as": {
           "name": "also_known_as",
           "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "moved_to": {
+          "name": "moved_to",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -10936,6 +10942,87 @@
         "post_corrections_revision_check": {
           "name": "post_corrections_revision_check",
           "value": "\"post_corrections\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.post_link_previews": {
+      "name": "post_link_previews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "post_link_previews_post_id_posts_id_fk": {
+          "name": "post_link_previews_post_id_posts_id_fk",
+          "tableFrom": "post_link_previews",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "post_link_previews_post_id_position_key": {
+          "name": "post_link_previews_post_id_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "post_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "post_link_previews_position_check": {
+          "name": "post_link_previews_position_check",
+          "value": "\"post_link_previews\".\"position\" >= 0"
+        },
+        "post_link_previews_card_check": {
+          "name": "post_link_previews_card_check",
+          "value": "\"post_link_previews\".\"title\" is not null or \"post_link_previews\".\"description\" is not null"
         }
       },
       "isRLSEnabled": false

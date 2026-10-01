@@ -1,5 +1,5 @@
 {
-  "id": "639d106c-fe71-4aed-bf27-298f63061abc",
+  "id": "4cd0e5cf-0235-4c15-a9df-9fd976d36255",
   "prevId": "b2162377-8863-449c-9c9e-66900f04082a",
   "version": "7",
   "dialect": "postgresql",
@@ -3534,6 +3534,12 @@
         },
         "public_key_pem": {
           "name": "public_key_pem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "private_key_pem": {
+          "name": "private_key_pem",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -11719,6 +11725,262 @@
         "post_variant_media_position_check": {
           "name": "post_variant_media_position_check",
           "value": "\"post_variant_media\".\"position\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.post_evaluation_topics": {
+      "name": "post_evaluation_topics",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "evaluation_id": {
+          "name": "evaluation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "topic": {
+          "name": "topic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "probability": {
+          "name": "probability",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "post_evaluation_topics_evaluation_id_post_evaluations_id_fk": {
+          "name": "post_evaluation_topics_evaluation_id_post_evaluations_id_fk",
+          "tableFrom": "post_evaluation_topics",
+          "tableTo": "post_evaluations",
+          "columnsFrom": [
+            "evaluation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "post_evaluation_topics_evaluation_topic_key": {
+          "name": "post_evaluation_topics_evaluation_topic_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "evaluation_id",
+            "topic"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "post_evaluation_topics_probability_check": {
+          "name": "post_evaluation_topics_probability_check",
+          "value": "\"post_evaluation_topics\".\"probability\" between 0 and 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.post_evaluations": {
+      "name": "post_evaluations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_ref": {
+          "name": "policy_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evaluation_version": {
+          "name": "evaluation_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abstention": {
+          "name": "abstention",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "follow_state": {
+          "name": "follow_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unknown'"
+        },
+        "languages": {
+          "name": "languages",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sdk_receipt": {
+          "name": "sdk_receipt",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "language_evidence": {
+          "name": "language_evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spam": {
+          "name": "spam",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "repetition": {
+          "name": "repetition",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "feed_value": {
+          "name": "feed_value",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "post_evaluations_post_idx": {
+          "name": "post_evaluations_post_idx",
+          "columns": [
+            {
+              "expression": "post_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "post_evaluations_post_id_posts_id_fk": {
+          "name": "post_evaluations_post_id_posts_id_fk",
+          "tableFrom": "post_evaluations",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "post_evaluations_revision_release_key": {
+          "name": "post_evaluations_revision_release_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "post_id",
+            "fingerprint",
+            "model",
+            "policy_ref",
+            "policy_version",
+            "evaluation_version"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "post_evaluations_state_check": {
+          "name": "post_evaluations_state_check",
+          "value": "\"post_evaluations\".\"state\" in ('claimed', 'completed', 'abstained', 'cancelled', 'cost_uncertain')"
+        },
+        "post_evaluations_follow_check": {
+          "name": "post_evaluations_follow_check",
+          "value": "\"post_evaluations\".\"follow_state\" in ('accepted', 'not_followed', 'unknown')"
+        },
+        "post_evaluations_abstention_check": {
+          "name": "post_evaluations_abstention_check",
+          "value": "\"post_evaluations\".\"abstention\" in ('no_primary_text', 'unknown_language', 'unsupported_language')"
+        },
+        "post_evaluations_policy_version_check": {
+          "name": "post_evaluations_policy_version_check",
+          "value": "\"post_evaluations\".\"policy_version\" > 0"
+        },
+        "post_evaluations_scores_check": {
+          "name": "post_evaluations_scores_check",
+          "value": "\"post_evaluations\".\"spam\" between 0 and 1 and \"post_evaluations\".\"repetition\" between 0 and 1 and \"post_evaluations\".\"feed_value\" between 0 and 1"
+        },
+        "post_evaluations_result_check": {
+          "name": "post_evaluations_result_check",
+          "value": "(\n    \"post_evaluations\".\"state\" = 'completed' and \"post_evaluations\".\"spam\" is not null and \"post_evaluations\".\"repetition\" is not null\n    and \"post_evaluations\".\"feed_value\" is not null and \"post_evaluations\".\"languages\" is not null\n    and \"post_evaluations\".\"sdk_receipt\" is not null and \"post_evaluations\".\"language_evidence\" is not null\n    and \"post_evaluations\".\"abstention\" is null and \"post_evaluations\".\"finished_at\" is not null\n  ) or (\n    \"post_evaluations\".\"state\" <> 'completed' and \"post_evaluations\".\"spam\" is null and \"post_evaluations\".\"repetition\" is null\n    and \"post_evaluations\".\"feed_value\" is null and \"post_evaluations\".\"languages\" is null\n    and \"post_evaluations\".\"sdk_receipt\" is null and \"post_evaluations\".\"language_evidence\" is null\n    and ((\"post_evaluations\".\"state\" = 'abstained' and \"post_evaluations\".\"abstention\" is not null)\n      or (\"post_evaluations\".\"state\" <> 'abstained' and \"post_evaluations\".\"abstention\" is null))\n  )"
         }
       },
       "isRLSEnabled": false
