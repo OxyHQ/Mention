@@ -1,5 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
+import { eq } from 'drizzle-orm';
+import * as jevShadow from '../../services/contentClassification/jevShadow';
+import { postEvaluations } from '../../db/schema/postEvaluations';
 
 /**
  * Coverage for the Stage-B AI post-classification batch service.
@@ -81,7 +84,7 @@ import { postImports } from '../../db/schema/imports';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { insertPostRecord, updatePostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { postClassificationService } from '../../services/PostClassificationService';
+import { PostClassificationService, postClassificationService } from '../../services/PostClassificationService';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-classification');
@@ -233,6 +236,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await clearServiceScope(scope);
 });
 
@@ -1175,5 +1179,47 @@ describe('PostClassificationService — imported posts never displace live work'
     // The two YOUNGEST (index 0 and 1 are the least old) wait for the next idle cycle.
     expect(statuses[0].status).toBe('pending');
     expect(statuses[1].status).toBe('pending');
+  });
+});
+
+describe('PostClassificationService — shadow fanout', () => {
+  const release: jevShadow.ShadowRelease = {
+    model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
+    evaluationVersion: 'shadow-v1', supportedLanguages: ['en'],
+  };
+
+  it('keeps the production gate closed even when a projection binding is supplied', async () => {
+    const post = await seedSubject('Synthetic public news', { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn();
+    await new PostClassificationService({ release, evaluate }).processQueue();
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('claims before synthetic inference, truncates only its input and never retries cost-uncertain work', async () => {
+    // Synthetic domain binding only: production gate and SDK remain closed.
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('x'.repeat(1200), { classification: { languages: ['en'] } });
+    await padBatch(1);
+    respondWith([]);
+    const evaluate = vi.fn(async (input: { idempotencyKey: string; text: string }) => {
+      const [claim] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, input.idempotencyKey));
+      expect(claim).toMatchObject({ postId: post.id, state: 'claimed', model: release.model });
+      expect(input.text).toHaveLength(1000);
+      throw new Error('Synthetic ambiguous timeout');
+    });
+    const worker = new PostClassificationService({ release, evaluate });
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect((await classificationOf(post.id)).attempts).toBe(0);
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id)))
+      .toEqual([expect.objectContaining({ state: 'cost_uncertain' })]);
+    await updatePostRecord(post.id, { postClassification: { status: 'pending' } });
+    await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
   });
 });

@@ -91,6 +91,11 @@ the Stage-A slug-only `postClassification.topics`, then neutral (`[]`).
 
 ## Discovery-quality rollout
 
+The [Jev shadow evaluation candidate](./jev-shadow-evaluation.md) adds a separate
+evaluation ledger and a closed worker fanout. It does not change canonical
+classification, feed ranking or admission; SDK publication and independent
+eligibility/privacy/ZDR reviews are prerequisites for inference.
+
 Two gate PROFILES, one runtime switch. For You and Explore apply the full
 discovery gate (`minLength`, `lowEffortGate`, `nativeEngagement`, `minQuality`,
 `noContentWarning`); Trending, Videos and Media apply recommendation HYGIENE only
