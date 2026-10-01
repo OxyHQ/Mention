@@ -7,6 +7,8 @@ export const JEV_SHADOW_BLOCKERS: readonly string[] = Object.freeze([
   'reviewed_exact_model_and_oxy_policy',
   'internal_provider_eligibility',
   'privacy_and_zdr',
+  'federated_public_visibility_provenance',
+  'semantic_revision_and_receipt_reconciliation',
 ] as const);
 
 /** No environment switch can bypass the pending independent release reviews. */
@@ -97,5 +99,28 @@ export interface ShadowEvaluation {
     readonly text: string;
     readonly languages: readonly string[];
     readonly idempotencyKey: string;
+    readonly signal: AbortSignal;
   }): Promise<ShadowSignals>;
+}
+
+/** Late results are ignored; a timed-out request keeps its original claim ID. */
+export async function evaluateShadowWithDeadline(
+  evaluation: ShadowEvaluation,
+  input: Omit<Parameters<ShadowEvaluation['evaluate']>[0], 'signal'>,
+  timeoutMs: number,
+): Promise<ShadowSignals> {
+  if (timeoutMs <= 0) throw new Error('Shadow batch deadline exhausted');
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error('Shadow evaluation deadline exceeded; cost uncertain'));
+      controller.abort();
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([evaluation.evaluate({ ...input, signal: controller.signal }), expired]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

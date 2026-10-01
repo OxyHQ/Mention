@@ -1,5 +1,5 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain } from '../../db/posts/postEvaluationRepository';
@@ -7,6 +7,7 @@ import { replacePostContent } from '../../db/posts/postRepository';
 import { postEvaluations, postEvaluationTopics } from '../../db/schema/postEvaluations';
 import { posts } from '../../db/schema/posts';
 import { federatedFollows } from '../../db/schema/federation';
+import { postContentVariants } from '../../db/schema/postContent';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
 
@@ -35,6 +36,7 @@ async function ledger(postId: string) {
 
 beforeAll(() => connectPostgres());
 afterEach(async () => {
+  vi.restoreAllMocks();
   await clearPostScope(scope);
   await getDb().delete(federatedFollows).where(eq(federatedFollows.localUserId, scope.user('follower')));
 });
@@ -137,5 +139,60 @@ describe('durable shadow evaluation ledger', () => {
       expect(await claimPostEvaluation(post.id, next)).not.toBeNull();
     }
     expect(await ledger(post.id)).toHaveLength(4);
+  });
+
+  it('keeps missing local follow evidence unknown', async () => {
+    const post = await fixture();
+    await getDb().update(posts).set({ federationActorUri: null }).where(eq(posts.id, post.id));
+    expect(await completePostEvaluation(await requiredClaim(post.id), signals)).toBe(true);
+    expect((await ledger(post.id))[0]?.followState).toBe('unknown');
+  });
+
+  it('recovers from a failed follow query using the savepoint and records unknown', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    const transaction = getDb().transaction.bind(getDb());
+    vi.spyOn(getDb(), 'transaction').mockImplementationOnce(callback => transaction(async tx => {
+      const savepoint = tx.transaction.bind(tx);
+      vi.spyOn(tx, 'transaction').mockImplementationOnce(() => savepoint(async lookup => {
+        await lookup.execute(sql`select 1 / 0`);
+        throw new Error('Division by zero must fail inside the follow savepoint');
+      }));
+      return callback(tx);
+    }));
+    expect(await completePostEvaluation(claim, signals)).toBe(true);
+    expect((await ledger(post.id))[0]?.followState).toBe('unknown');
+  });
+
+  it('refuses boosts, followers-only and restricted posts before claiming', async () => {
+    const original = await fixture();
+    const boost = await fixture();
+    await getDb().update(posts).set({ type: 'boost', boostOf: original.id }).where(eq(posts.id, boost.id));
+    expect(await claimPostEvaluation(boost.id, release)).toBeNull();
+    for (const patch of [{ visibility: 'followers_only' as const }, { status: 'restricted' as const }]) {
+      const post = await fixture();
+      await getDb().update(posts).set(patch).where(eq(posts.id, post.id));
+      expect(await claimPostEvaluation(post.id, release)).toBeNull();
+      expect(await ledger(post.id)).toEqual([]);
+    }
+  });
+
+  it('keeps cancellation after a privacy toggle from authorizing a second paid request', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    await getDb().update(posts).set({ visibility: 'private' }).where(eq(posts.id, post.id));
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    await getDb().update(posts).set({ visibility: 'public' }).where(eq(posts.id, post.id));
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+  });
+
+  it('conservatively cancels on machine-rendition append until semantic revision review', async () => {
+    const post = await fixture();
+    const claim = await requiredClaim(post.id);
+    await getDb().insert(postContentVariants).values({ postId: post.id, position: 1,
+      tag: 'es', source: 'machine', body: 'Traducción sintética.' });
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
   });
 });

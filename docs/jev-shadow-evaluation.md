@@ -23,6 +23,10 @@ Stage A v11 and canonical Stage B behavior remain unchanged: five-minute worker,
 text limited to 1,000 characters, three legacy attempts. Edits reset the existing
 pending queue. Imports are retained. Shadow failures never consume a legacy
 attempt. There is no second service, scheduler, or feed-ranking consumer.
+Canonical and shadow enrichment start independently on the selected batch. Shadow
+inference shares one batch deadline from the existing inference timeout and gets
+an abort signal. A hung evaluator cannot hold the worker indefinitely; timeout
+quarantines the claim as cost-uncertain and late results are ignored.
 
 The shadow repository admits only public, published, original posts. A successful
 unique insert claims `(post, full rendition fingerprint, model revision, Oxy
@@ -89,3 +93,34 @@ independent signals, follow timing and worker isolation. They prove neither
 provider eligibility nor a deployed route. No real provider calls are needed
 or authorized for these checks. Merge and deployment require the independent
 review coordinator.
+
+## Independent review disposition
+
+The review of the dormant candidate identified release conditions beyond SDK
+publication. They are explicit hard blockers, not implied by `visibility=public`:
+
+- ActivityPub currently maps `Public` in either `to` or `cc` to Mention's public
+  value. That loses the distinction between listed and unlisted. Actor discovery
+  opt-out and suspension also need affirmative eligibility handling. The
+  `federated_public_visibility_provenance` gate stays closed until durable source
+  provenance can prove the intended boundary. Existing ingestion, follows,
+  security checks and feed behavior are unchanged by this pilot.
+- Exact rendition identity intentionally remains conservative. A pass-through
+  content replacement or added machine translation invalidates the snapshot,
+  even if primary text is unchanged. A public/private/public toggle cannot
+  acquire another claim for the same fingerprint. These states may have incurred
+  cost: `cancelled` never means refunded or free. Superseded successful results
+  log their existing evaluation ID for reconciliation. The
+  `semantic_revision_and_receipt_reconciliation` gate blocks release until
+  no-op rewrites, split content/language edits, privacy transitions and paid
+  receipt recovery are addressed without fresh inference IDs.
+- Row locks are retained for atomic public/published/deletion checks. A key-share
+  lock would allow non-key visibility/status updates; an unlocked re-read would
+  reopen the check/write race. These short transactions contain no inference.
+- Model/policy receipt verification, supported result languages and exact topic
+  question IDs remain SDK integration requirements. A consumer cannot replace
+  the unpublished contract with guessed result checks.
+
+Synthetic follow-query failure, missing local graph evidence, restricted/boost
+eligibility, privacy toggles, machine-rendition changes, invalid output, late
+results and independent canonical progress are covered in the pilot tests.
