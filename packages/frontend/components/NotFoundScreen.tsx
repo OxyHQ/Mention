@@ -18,9 +18,12 @@ export default function NotFoundScreen() {
 
   return (
     <>
+      {/* The server answers an unknown path with the app and a 200, so this
+          screen is what says "not a page": indexed, it is a soft 404. */}
       <SEO
         title={t('seo.notFound.title')}
         description={t('seo.notFound.description')}
+        robots="noindex,follow"
       />
       <View className="flex-1 items-center justify-center">
         <EmptyState
