@@ -92,15 +92,19 @@ export function matchesServerSEOPath(server: ReturnType<typeof readServerSEO>, p
 export function profileSEOPolicy(
   visibility: 'public' | 'private' | 'followers_only' | undefined,
   server?: ReturnType<typeof readServerSEO>,
+  searchEngineIndexing?: boolean,
 ) {
   const restricted = visibility === 'private' || visibility === 'followers_only';
   const authoritative = restricted ? undefined : server;
   // Missing appearance data is UNKNOWN, including failed reads. Only explicit
   // public privacy can authorize fresh bio/image/schema from the client DTO.
   const detailsAllowed = visibility === 'public' && !server?.robots.startsWith('noindex');
+  // An account that opted out of search engines stays public to people: its
+  // details still render, the page is just not indexed.
+  const fresh = !detailsAllowed ? 'noindex,nofollow' : searchEngineIndexing === false ? 'noindex,follow' : 'index,follow';
   return {
     detailsAllowed,
     server: authoritative,
-    robots: restricted ? 'noindex,nofollow' : authoritative?.robots || (detailsAllowed ? 'index,follow' : 'noindex,nofollow'),
+    robots: restricted ? 'noindex,nofollow' : authoritative?.robots || fresh,
   };
 }

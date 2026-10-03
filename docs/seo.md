@@ -75,6 +75,12 @@ and that a profile renders one `<h1>` and anchors to its posts
 
 - Profiles must resolve through Oxy's public profile endpoint and have public
   Mention profile visibility.
+- An account can opt out of search engines (Settings → Privacy → "Show in
+  search engines", `privacy.searchEngineIndexing`). Its profile and posts stay
+  public to people — the pages render and unfurl as before — but are served
+  `noindex,follow` and are left out of the sitemap. A boost of an opted-out
+  author's post is `noindex` too: its words are theirs. Federated accounts have
+  no Mention settings and are indexed unless private.
 - Posts must be published, public, safe for discovery, and authored by a public
   profile.
 - Sensitive posts may still produce privacy-safe link previews, but are marked

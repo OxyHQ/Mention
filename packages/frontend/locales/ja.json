@@ -374,6 +374,8 @@
   "settings.privacy.content": "コンテンツ",
   "settings.privacy.showSensitiveContent": "センシティブなコンテンツを表示する",
   "settings.privacy.showSensitiveContentDesc": "センシティブな投稿やNSFWの投稿はフィードに表示されません。投稿者のプロフィールでは引き続き閲覧できます。",
+  "settings.privacy.searchEngines": "検索エンジンに表示する",
+  "settings.privacy.searchEnginesDesc": "Google などの検索エンジンが、あなたのプロフィールと投稿を検索結果に表示できるようにします。オフにしても、Mention 上では引き続き公開されます。",
   "settings.privacy.allowTags": "タグ付けを許可",
   "settings.privacy.allowTagsDesc": "他の人が投稿であなたをタグ付けできるようにします",
   "settings.privacy.allowMentions": "メンションを許可",

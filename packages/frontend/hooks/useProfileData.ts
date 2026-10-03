@@ -96,6 +96,8 @@ export interface ProfileData {
   design: ProfileDesign;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
+    /** `false` when the account opted out of search engines. */
+    searchEngineIndexing?: boolean;
   };
   // ProfileData spreads the full Oxy `User` plus arbitrary backend fields that
   // many consumers read positionally (links, joined date, communities, etc.).

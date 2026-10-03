@@ -577,7 +577,7 @@ export function usePersonProfileView({
     </>
   );
 
-  const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility);
+  const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility, profileData?.privacy?.searchEngineIndexing);
   // The address this profile is canonically known by — the same `/@user@instance`
   // spelling the server's canonical uses, whatever case or alias the reader typed.
   const profileUrl = profileData?.username

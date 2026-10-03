@@ -390,6 +390,8 @@
   "settings.privacy.content": "المحتوى",
   "settings.privacy.showSensitiveContent": "عرض المحتوى الحسّاس",
   "settings.privacy.showSensitiveContentDesc": "لا تظهر المنشورات الحسّاسة وغير الملائمة للعمل في خلاصاتك أبدًا، وتبقى مرئية في الملف الشخصي لصاحبها.",
+  "settings.privacy.searchEngines": "الظهور في محركات البحث",
+  "settings.privacy.searchEnginesDesc": "اسمح لمحركات البحث مثل Google بعرض ملفك الشخصي ومنشوراتك في نتائجها. عند إيقاف هذا الخيار، تبقى عامة على Mention.",
   "settings.privacy.allowTags": "السماح بالإشارات",
   "settings.privacy.allowTagsDesc": "السماح للآخرين بالإشارة إليك في المنشورات",
   "settings.privacy.allowMentions": "السماح بذكر اسمك",

@@ -30,6 +30,11 @@ interface PublicProfileDesignResponse {
   profileMedia?: ProfileMedia;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
+    /**
+     * Whether search engines may index this profile and its posts. Public by
+     * nature: every page of the profile already says it in its `robots` tag.
+     */
+    searchEngineIndexing?: boolean;
   };
   /**
    * Present only for a federated account: the origin's own totals and join
@@ -86,7 +91,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // Report the same resolved policy used by the access check, including the
     // public default when no settings row exists. Missing client privacy then
     // means unresolved/failed data rather than an implicitly public profile.
-    response.privacy = { profileVisibility };
+    response.privacy = { profileVisibility, searchEngineIndexing: doc?.privacy?.searchEngineIndexing ?? true };
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
     logger.error('[ProfileDesign] Error fetching profile design:', { userId: req.user?.id, targetUserId: req.params.userId, error });

@@ -271,6 +271,12 @@ export const userSettings = pgTable(
     privacyHideSaveCounts: boolean().notNull().default(false),
     /** Opt-IN to sensitive/NSFW content in discovery. Default false. */
     privacyShowSensitiveContent: boolean().notNull().default(false),
+    /**
+     * Whether search engines may index this account's profile and posts.
+     * Default true; false serves both `noindex` and drops them from the
+     * sitemap, without hiding anything from people.
+     */
+    privacySearchEngineIndexing: boolean().notNull().default(true),
     privacyHiddenWords: text().array(),
     /** Oxy account ids who see limited content. Read whole — no junction. */
     privacyRestrictedUsers: text().array(),

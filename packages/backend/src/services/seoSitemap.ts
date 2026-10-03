@@ -101,14 +101,33 @@ export interface SitemapCatalog {
   builtAt?: string;
 }
 
-export async function isMentionProfilePublic(oxyUserId: string | undefined): Promise<boolean> {
-  if (!oxyUserId) return true;
+/** What an account's Mention privacy settings allow its public pages. */
+export interface MentionProfileSeoPolicy {
+  /** The profile is public on Mention, so its page and posts render for anyone. */
+  visible: boolean;
+  /**
+   * Search engines may index it. False when the account opted out
+   * (`privacy.searchEngineIndexing`), and whenever it is not `visible`.
+   */
+  indexable: boolean;
+}
+
+/**
+ * An account's Mention-side publishing policy, read fresh. An account with no
+ * settings row has never changed a default: public and indexable.
+ */
+export async function mentionProfileSeoPolicy(oxyUserId: string | undefined): Promise<MentionProfileSeoPolicy> {
+  if (!oxyUserId) return { visible: true, indexable: true };
   const [settings] = await getDb()
-    .select({ visibility: userSettings.privacyProfileVisibility })
+    .select({
+      visibility: userSettings.privacyProfileVisibility,
+      searchEngineIndexing: userSettings.privacySearchEngineIndexing,
+    })
     .from(userSettings)
     .where(eq(userSettings.oxyUserId, oxyUserId))
     .limit(1);
-  return !settings || settings.visibility === 'public';
+  const visible = !settings || settings.visibility === 'public';
+  return { visible, indexable: visible && (!settings || settings.searchEngineIndexing) };
 }
 
 function publicSeoPost(): ReturnType<typeof and> {
@@ -118,6 +137,9 @@ function publicSeoPost(): ReturnType<typeof and> {
     discoverySafeSql(),
     isNotNull(posts.oxyUserId),
     or(isNull(userSettings.privacyProfileVisibility), eq(userSettings.privacyProfileVisibility, 'public')),
+    // An author who opted out of search engines lists neither their posts nor,
+    // since profiles are derived from these posts, their profile.
+    or(isNull(userSettings.privacySearchEngineIndexing), eq(userSettings.privacySearchEngineIndexing, true)),
   );
 }
 

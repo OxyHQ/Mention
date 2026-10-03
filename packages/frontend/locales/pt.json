@@ -378,6 +378,8 @@
   "settings.privacy.content": "Conteúdo",
   "settings.privacy.showSensitiveContent": "Mostrar conteúdo sensível",
   "settings.privacy.showSensitiveContentDesc": "As publicações sensíveis e NSFW nunca aparecem nos teus feeds. Continuam visíveis no perfil do autor.",
+  "settings.privacy.searchEngines": "Mostrar nos motores de pesquisa",
+  "settings.privacy.searchEnginesDesc": "Permite que motores de pesquisa como o Google mostrem o teu perfil e as tuas publicações nos resultados. Se desativares, continuam públicos no Mention.",
   "settings.privacy.allowTags": "Permitir etiquetas",
   "settings.privacy.allowTagsDesc": "Permite que outros te etiquetem em publicações",
   "settings.privacy.allowMentions": "Permitir menções",

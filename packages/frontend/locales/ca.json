@@ -378,6 +378,8 @@
   "settings.privacy.content": "Contingut",
   "settings.privacy.showSensitiveContent": "Mostra el contingut sensible",
   "settings.privacy.showSensitiveContentDesc": "Les publicacions sensibles i NSFW no apareixen mai als teus fluxos. Continuen sent visibles al perfil de l'autor.",
+  "settings.privacy.searchEngines": "Mostra als cercadors",
+  "settings.privacy.searchEnginesDesc": "Permet que cercadors com Google mostrin el teu perfil i les teves publicacions als seus resultats. Si ho desactives, continuen sent públics a Mention.",
   "settings.privacy.allowTags": "Permet les etiquetes",
   "settings.privacy.allowTagsDesc": "Deixa que altra gent t'etiqueti a les publicacions",
   "settings.privacy.allowMentions": "Permet les mencions",

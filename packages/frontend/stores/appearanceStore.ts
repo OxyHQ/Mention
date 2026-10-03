@@ -100,6 +100,8 @@ export interface UserAppearance {
   profileMedia?: ProfileMedia | null;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
+    /** `false` when the account opted out of search engines. */
+    searchEngineIndexing?: boolean;
   };
   interests?: {
     tags?: string[];

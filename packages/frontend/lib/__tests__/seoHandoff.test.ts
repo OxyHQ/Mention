@@ -97,6 +97,13 @@ test('pending or failed appearance privacy cannot authorize public bio, image or
   expect(profileSEOPolicy('private', { ...restricted, robots: 'index,follow' })).toMatchObject({ detailsAllowed: false, robots: 'noindex,nofollow', server: undefined });
 });
 
+test('an account that opted out of search engines keeps its details, without being indexed', () => {
+  expect(profileSEOPolicy('public', undefined, false)).toMatchObject({ detailsAllowed: true, robots: 'noindex,follow' });
+  expect(profileSEOPolicy('public', undefined, true)).toMatchObject({ detailsAllowed: true, robots: 'index,follow' });
+  // A private profile stays private whatever the indexing choice.
+  expect(profileSEOPolicy('private', undefined, true)).toMatchObject({ robots: 'noindex,nofollow' });
+});
+
 
 test('a verified alias retains its document and canonical proof until ready or genuine navigation', () => {
   Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/@nate-alias' });

@@ -61,13 +61,16 @@ vi.mock('../utils/cache', () => ({
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
-import { closePostgres, connectPostgres } from '../db/postgres';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { userSettings } from '../db/schema';
 import { SitemapBuildJob, buildAllSitemaps, sitemapsAreDue } from '../services/seoSitemap';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
 const scope = postScope('seo-sitemap-build');
 const AUTHOR = scope.user('author');
 const HIDDEN = scope.user('hidden');
+const OPTED_OUT = scope.user('opted-out');
 
 function bucketOf(value: string): string {
   return (Number.parseInt(createHash('md5').update(value).digest('hex').slice(0, 8), 16) % 64)
@@ -170,6 +173,29 @@ describe('SEO sitemaps', () => {
     const absent = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-7.xml`);
     expect(absent.status).toBe(404);
     expect(serviceRequest.mock.calls.length).toBe(callsBefore);
+  });
+
+  it('leaves out every post and the profile of an author who opted out of search engines', async () => {
+    await getDb().insert(userSettings).values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
+    try {
+      const listed = await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+      const optedOut = await seedPost(scope, { oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+
+      await buildAllSitemaps();
+
+      const app = makeApp();
+      const listedShard = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
+      expect(listedShard.text).toContain(`https://mention.earth/p/${listed.id}`);
+      const optedOutShard = await request(app).get(`/sitemaps/posts-${bucketOf(optedOut.id)}-0.xml`);
+      expect(optedOutShard.text).not.toContain(optedOut.id);
+      const profileShard = await request(app).get(`/sitemaps/profiles-${bucketOf(OPTED_OUT)}-0.xml`);
+      expect(profileShard.text).not.toContain(`/@u${OPTED_OUT.length}<`);
+      // The opted-out author was never even resolved for a profile entry.
+      const resolved = serviceRequest.mock.calls.flatMap(([, , body]) => (body as { ids: string[] }).ids);
+      expect(resolved).not.toContain(OPTED_OUT);
+    } finally {
+      await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, OPTED_OUT));
+    }
   });
 
   it('keeps the previous sitemaps when a build fails', async () => {

@@ -75,6 +75,8 @@ describe('user settings — read after write', () => {
     expect(record.appearance.themeMode).toBe('system');
     expect(record.privacy.profileVisibility).toBe('public');
     expect(record.privacy.showSensitiveContent).toBe(false);
+    // Every account is indexable until it opts out.
+    expect(record.privacy.searchEngineIndexing).toBe(true);
     expect(record.profileCustomization.coverPhotoEnabled).toBe(true);
     expect(record.notificationPreferences.pushEnabled).toBe(true);
     expect(record.feedSettings.diversity.enabled).toBe(true);
@@ -112,6 +114,7 @@ describe('user settings — read after write', () => {
         'privacy.profileVisibility': 'private',
         'privacy.hiddenWords': ['spoilers'],
         'privacy.showSensitiveContent': true,
+        'privacy.searchEngineIndexing': false,
         'profileCustomization.minimalistMode': true,
         'interests.tags': ['cycling'],
         'feedSettings.diversity.sameAuthorPenalty': 0.7,
@@ -127,6 +130,7 @@ describe('user settings — read after write', () => {
       profileVisibility: 'private',
       hiddenWords: ['spoilers'],
       showSensitiveContent: true,
+      searchEngineIndexing: false,
     });
     expect(record.profileCustomization.minimalistMode).toBe(true);
     expect(record.interests?.tags).toEqual(['cycling']);

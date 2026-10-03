@@ -23,6 +23,7 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
     hideReplyCounts: false,
     hideSaveCounts: false,
     showSensitiveContent: false,
+    searchEngineIndexing: true,
 };
 
 export interface PrivacySettings {
@@ -36,6 +37,8 @@ export interface PrivacySettings {
     hideReplyCounts?: boolean;
     hideSaveCounts?: boolean;
     showSensitiveContent?: boolean;
+    /** Search engines may index the profile and posts. Default true. */
+    searchEngineIndexing?: boolean;
     hiddenWords?: string[];
     restrictedUsers?: string[];
 }

@@ -78,6 +78,7 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
   'privacy.hideReplyCounts': 'privacyHideReplyCounts',
   'privacy.hideSaveCounts': 'privacyHideSaveCounts',
   'privacy.showSensitiveContent': 'privacyShowSensitiveContent',
+  'privacy.searchEngineIndexing': 'privacySearchEngineIndexing',
   'privacy.hiddenWords': 'privacyHiddenWords',
   'privacy.restrictedUsers': 'privacyRestrictedUsers',
   'privacy.labelPreferences.subscribedLabelers': 'privacySubscribedLabelers',
@@ -144,6 +145,7 @@ const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.f
   privacyHideReplyCounts: false,
   privacyHideSaveCounts: false,
   privacyShowSensitiveContent: false,
+  privacySearchEngineIndexing: true,
   profileCoverPhotoEnabled: true,
   profileMinimalistMode: false,
   feedDiversityEnabled: true,
@@ -371,6 +373,7 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
       hideReplyCounts: row.privacyHideReplyCounts,
       hideSaveCounts: row.privacyHideSaveCounts,
       showSensitiveContent: row.privacyShowSensitiveContent,
+      searchEngineIndexing: row.privacySearchEngineIndexing,
       ...(row.privacyHiddenWords ? { hiddenWords: row.privacyHiddenWords } : {}),
       ...(row.privacyRestrictedUsers ? { restrictedUsers: row.privacyRestrictedUsers } : {}),
       labelPreferences: {

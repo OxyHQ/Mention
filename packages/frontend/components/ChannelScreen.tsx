@@ -110,7 +110,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     // of the column it is in rather than naming `card`.
     const surfaceFill = useSurfaceFill();
 
-    const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility);
+    const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility, profileData?.privacy?.searchEngineIndexing);
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
 
     // A lane's owner is an `oxyUserId` and a channel account is one, so a channel

@@ -374,6 +374,8 @@
   "settings.privacy.content": "İçerik",
   "settings.privacy.showSensitiveContent": "Hassas içeriği göster",
   "settings.privacy.showSensitiveContentDesc": "Hassas ve müstehcen gönderiler akışlarında hiçbir zaman görünmez. Yazarın profilinde görünmeye devam eder.",
+  "settings.privacy.searchEngines": "Arama motorlarında göster",
+  "settings.privacy.searchEnginesDesc": "Google gibi arama motorlarının profilini ve gönderilerini sonuçlarında göstermesine izin ver. Kapalıyken Mention'da herkese açık kalmaya devam eder.",
   "settings.privacy.allowTags": "Etiketlemeye izin ver",
   "settings.privacy.allowTagsDesc": "Başkaları seni gönderilerde etiketleyebilsin",
   "settings.privacy.allowMentions": "Bahsetmeye izin ver",

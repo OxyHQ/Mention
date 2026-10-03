@@ -415,6 +415,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         'hideReplyCounts',
         'hideSaveCounts',
         'showSensitiveContent',
+        'searchEngineIndexing',
       ] as const;
       
       privacyFields.forEach(field => {
