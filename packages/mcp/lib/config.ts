@@ -1,3 +1,4 @@
+import { capabilityCatalogBindingSchema, type CapabilityCatalogBinding } from '@oxy.so/contracts';
 import { mcpDeploymentIdentity, withManagedDeploymentEnvironment, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
 import { z } from "zod/v4";
 
@@ -12,6 +13,7 @@ const apiClientEnvSchema = z.object({
 });
 
 const httpEnvSchema = z.object({
+  MENTION_INTERNAL_MCP_CATALOG_BINDING: z.string().optional(),
   MCP_PORT: z.coerce.number().int().min(0).max(65_535).default(3_100),
   MCP_MAX_REQUEST_BODY_BYTES: z.coerce
     .number()
@@ -51,6 +53,7 @@ export interface ApiClientConfig {
 }
 
 export interface McpHttpConfig {
+  internalCatalogBinding?: CapabilityCatalogBinding;
   port: number;
   maxRequestBodyBytes: number;
   maxSessions: number;
@@ -92,6 +95,7 @@ export function loadMcpHttpConfig(
 
   return {
     deploymentIdentity,
+    internalCatalogBinding: parseMentionInternalBinding(parsed.MENTION_INTERNAL_MCP_CATALOG_BINDING),
     port: parsed.MCP_PORT,
     maxRequestBodyBytes: parsed.MCP_MAX_REQUEST_BODY_BYTES,
     maxSessions: parsed.MCP_MAX_SESSIONS,
@@ -135,4 +139,9 @@ function parseEnvironment<T extends z.ZodType>(
     .map((issue) => `${issue.path.join(".") || "environment"}: ${issue.message}`)
     .join("; ");
   throw new Error(`Invalid ${label} configuration: ${details}`);
+}
+
+export function parseMentionInternalBinding(value: string | undefined): CapabilityCatalogBinding | undefined {
+  if (value === undefined) return undefined;
+  return capabilityCatalogBindingSchema.parse(JSON.parse(value));
 }
