@@ -1,0 +1,12 @@
+{
+  "archives": {
+    "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+    "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs-revoke/oxy.so-core-4.2.0.tgz": "4b509872e9ad82c5f7035ee5880fc81b15ed2ebff2f9d29e1ab0a0c435d2b61f",
+    "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-mcp-1.1.0.tgz": "6a8ee2d79fdcfdc3ac14a909a9b1e7d65794a068c9da1bc91e38e50f19a6d661",
+    "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-protocol-1.2.2.tgz": "f1b847a0da0c86b3880fbca1b9fabfdd9d2d3622fa3dbb970653f105630cc81c",
+    "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-telemetry-1.2.0.tgz": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12"
+  },
+  "exitCode": 0,
+  "publishedAcceptance": false,
+  "candidateOnly": true
+}

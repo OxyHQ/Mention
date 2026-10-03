@@ -1,0 +1,5990 @@
+[
+  {
+    "package": "@oxy.so/contracts",
+    "path": "package.json",
+    "sha256": "b10073da4ebe16bd80dde1ade37208dd7611619dbf84316dd03a56d1f20fd9a8",
+    "bytes": 2382
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "LICENSE",
+    "sha256": "8e4a5088d618b479996f6449128718c0f5961e0b3d85b59c551f1b9f266eca54",
+    "bytes": 31493
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "NOTICE",
+    "sha256": "9233d8a42ac29dffed627c86e0c96c1b106cad8d636ebc992da8bec07a31a8e7",
+    "bytes": 948
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/.tsbuildinfo",
+    "sha256": "d28f53400aec0b6c9a6e4615d8ee44b39447b37e07c87dd060e5ace714d2884b",
+    "bytes": 99371
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/accountEmail.js",
+    "sha256": "592900e06ab10f39258c6132a493cbbc33e88ff473702dd2ebf1f2f5f150ada4",
+    "bytes": 3918
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/accountGraph.js",
+    "sha256": "240ce7fbccebf6760b3e83fc7d431038802843eb9ee96f47754b7a2f1a694025",
+    "bytes": 24114
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/accountSubject.js",
+    "sha256": "14f33b5bf901ab0c57183decd6821460cca8f2d173cfe9aaea01dc47a8d3644a",
+    "bytes": 9287
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/agency.js",
+    "sha256": "0c5f7ea8d9fa7e27dcbd9192f011eee34a2dc0f9af3c1f7c6a7b4a1dc6d8be82",
+    "bytes": 24742
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/agentKeys.js",
+    "sha256": "3d329bb68af7998a2d20dc98ccca45ede7a6a505b3e35ba39d3369601a079c21",
+    "bytes": 4476
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/capabilityBindings.js",
+    "sha256": "0b73abd012d96535c11eee028fd71ff2600a102b3143e0e1797bf821e8905299",
+    "bytes": 2670
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/capabilityInvocation.js",
+    "sha256": "e708f858adb53c85e9b212a3c8377d1e0026144032e2c117d5ee6a64914897c3",
+    "bytes": 7953
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/civic.js",
+    "sha256": "df8ae38cb4c89a9506c68b97e5c5b2038b077dbe2744ebe37711192ccb901dc6",
+    "bytes": 7444
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/commonsSignIn.js",
+    "sha256": "66dd897c59bfc42d853fcef865013b16845530945ab7a8e4194907f1117d2e11",
+    "bytes": 3022
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/deviceBoot.js",
+    "sha256": "0a0114257d07dd3618845d09fd89e0af642296e41552af28e99967b2b7d4f12e",
+    "bytes": 2169
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/deviceDirectory.js",
+    "sha256": "7a5e2256a51ec3f49d4ea29402683b7289d3676ebc6fc327c660ec277cf70932",
+    "bytes": 9624
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/deviceSession.js",
+    "sha256": "583e110703e5f1841767595e680884086e6e7bf2804540238b39c7b05cefc3ae",
+    "bytes": 11434
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/email/messages.js",
+    "sha256": "61e1e2b631a13e70cb94051b24f69cf0d0f5ff128cc55a55887d0053081825e8",
+    "bytes": 12019
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/emailAgentContext.js",
+    "sha256": "3a7890740d9beef6aa2bdd453102ec55b9bbb171896f417bdf5e43292ae7c80f",
+    "bytes": 1418
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/externalIdentity.js",
+    "sha256": "cd7389ae84f2e51efcff3c5289f5344f01aff37bd2b6f1891031e500fedce7f7",
+    "bytes": 3581
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/federationInstanceFetch.js",
+    "sha256": "0200cff82d15d9db30d0cd48f302b4e1a9ce018c1e31a854bc698eff2d13de6c",
+    "bytes": 1836
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/followGraph.js",
+    "sha256": "0e19fb83de7c35ad13b8ffd4f7219f129a3ba43da1c0a37731a29c4dcdddfc5b",
+    "bytes": 1400
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/identity.js",
+    "sha256": "4b557de79e64143ec4314a7deaf3a6c537a19203392290537299c4c7c2515be2",
+    "bytes": 12356
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/identityLink.js",
+    "sha256": "93e23af30dbdc1dd74605057364fba6b294e13e6d8ec4b222d1d86d0c18659ac",
+    "bytes": 4691
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/identityProof.js",
+    "sha256": "346df97163fcdd3f18764e0634d87428a1b8b10c4b8b56bbed494550f2d97dd5",
+    "bytes": 6732
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inboxPush.js",
+    "sha256": "3bd4a733354c71ffdde5ae46bab1ab629b025f4341713ff08d6ef006012a2e5c",
+    "bytes": 1127
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/index.js",
+    "sha256": "caaabfb8aaee5adbd7ad9f06336a17c1a1abaf942a959ff0ab39ef03a5091a58",
+    "bytes": 137288
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/accountBilling.js",
+    "sha256": "05b6b766b3831895d11d12e1f8567a5e1b96e929333510b0ab1123d1b35aab54",
+    "bytes": 17033
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/aliaModelRelease.js",
+    "sha256": "2d87b3f6ad5bc984864e55e48b383d91b09f28d5f4077160dcc985bbc1373eb5",
+    "bytes": 13174
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/attribution.js",
+    "sha256": "ca586114546facc271af8acd3c084827cfb3fd8274fed16e38bf81eda4017f92",
+    "bytes": 5185
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/catalogue.js",
+    "sha256": "c3b8fbff6390e38394f13b639a897d2351efa4a2f2508c20e53e1dc2ee5e914d",
+    "bytes": 32644
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/decisions.js",
+    "sha256": "8ef94f361c4ea02e786d7f9339b805db53e62010cfafbdcc4a0a14b047885ef2",
+    "bytes": 10471
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/economics.js",
+    "sha256": "7325600d1a369823f488cad2a183ce2675050027be33e66b0f618815fdf8abd0",
+    "bytes": 7352
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/embeddings.js",
+    "sha256": "f3a908547a909fee4e6a15bc4c7a8e9227a71277a4ffc1a5be03c56af1bf996a",
+    "bytes": 2024
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/entitlement.js",
+    "sha256": "99cebcaeaceae61484c254bb030049fc5b52f185b2774f5bc7e146447c2db31b",
+    "bytes": 10091
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/errors.js",
+    "sha256": "31f158b78fc06dd77b00fbe02a09d1b5796ca8125cd5e1909818c4b2f63fda94",
+    "bytes": 15459
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/identifiers.js",
+    "sha256": "b0d523e4d767c7a414b37555b0a45b0800a920baf23ca85bb72fc0f31a8ab6ca",
+    "bytes": 12152
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/inbox.js",
+    "sha256": "0ce75b942ebaf763fb40d953e9fc36cea3b2ab7a641132faa08c458710171257",
+    "bytes": 5211
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/modelDocumentation.js",
+    "sha256": "5f985739d086202a7f20befe3866df4bf06f2761e8fd5fb1a5eb017bcbdade7c",
+    "bytes": 22881
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/money.js",
+    "sha256": "a5112d207f965d79bba4899f7dd8b5fd7d9ac1c15166ab128ccd074202c9110e",
+    "bytes": 11384
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/priceVersion.js",
+    "sha256": "e9975d5619c344281de3f872a127fbf8af225c66285ab0a4f07cd1b7038ace4d",
+    "bytes": 5074
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/providerConnection.js",
+    "sha256": "a35f7b7964705625ce9fa7e22eab3a009c31500baf0d1cf6053f3d46d2cf4b4e",
+    "bytes": 21129
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/realtime.js",
+    "sha256": "66599303a7d9b3cdbee4001914f749c624bf03a575136c9373d1f291ee619cea",
+    "bytes": 39913
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/request.js",
+    "sha256": "f5a53822ac3afecaabc4dc187d551585557f622bf9432d2a24dce87434e4db3b",
+    "bytes": 29794
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/routingPolicy.js",
+    "sha256": "05f05b5b89a655c315fb1e0dc36e7a832e529f21f2a69b6b9bbf35b7c15984e5",
+    "bytes": 17350
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/scopedExecution.js",
+    "sha256": "75ef9f4b89e702ad6b7b31d7222aecfcb9d8d88cfc17b297b3429bb14f3ff61a",
+    "bytes": 3760
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/streamEvents.js",
+    "sha256": "0a3799102415b1de20e226b3a3ca0a505fcc40bb022c08fb3bfdb8a3f3b5358e",
+    "bytes": 13634
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/usage.js",
+    "sha256": "672d44c3220c0095c88b0309f679f330ad54fe0e6f3a204684b6ebd89fe7bc84",
+    "bytes": 15909
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/inference/version.js",
+    "sha256": "788cef6aa101ee9083ca7662e53daf20663a541c14ab2b7b03a0f5bc929138c3",
+    "bytes": 6230
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/keyRecovery.js",
+    "sha256": "8acffc42d64b42b8850ed8a4a5b5925665ff0f3bd4f44ec25c2d1284ac5dabfa",
+    "bytes": 4716
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/keyRotation.js",
+    "sha256": "90b45c07b3e1b4a12786511ff1a97ecb291d3fa422aca3d353f9bcd7bc28e9e3",
+    "bytes": 3503
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/linkedAccounts.js",
+    "sha256": "77f44a114b9731acba374d007dc2957a6f49539fc00cf50f5399dd8a5f827d96",
+    "bytes": 6120
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/moderationReputation.js",
+    "sha256": "80b9a4ef9ac3d043c8d6b6e9a7979d80a4f24fa2a3b6caf3bdf96068337ece7f",
+    "bytes": 15415
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/notifications.js",
+    "sha256": "ea64aff499e19a30f751d0db1a59a8195fe8438989bb5fdcd3aeeae8464417c0",
+    "bytes": 5157
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/oauth.js",
+    "sha256": "c95bc67f3e7820b5c1a53216a9c467ae3f9f4d5b87dac549a0fbdc6320151f11",
+    "bytes": 5565
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/oxyRecordTypes.js",
+    "sha256": "1c6bdf75f7537cbfb30778739c5610cf1c58a350d351a3f2a30a7009b66b763c",
+    "bytes": 3516
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/products/access.js",
+    "sha256": "6029dd975014cdb8d2d829d946955f290c13656d899dc8de36962e56d47da469",
+    "bytes": 4594
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/products/billing.js",
+    "sha256": "8d31a7ce89645921d14e8de45790cad4c0c2f2fbcdb64bae8146047a5db0f1c2",
+    "bytes": 2814
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/protocol.js",
+    "sha256": "6593abf4a3e591f45763094b577c028c1ac3553be8d96b3292a80a9fadcca1c3",
+    "bytes": 2747
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/recommendations.js",
+    "sha256": "1d28b50459b3ca838c8f45280a782cbd8e0529698605d063d407035e6e138a06",
+    "bytes": 8177
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/reputation.js",
+    "sha256": "a477a530e26091f8e5f4a2bba62da2a67144bd3ef76747c859bf59fb622b798b",
+    "bytes": 11624
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/sessionStatus.js",
+    "sha256": "a07744530895fb23eb50bd0ffcb5f9913a983b92eab4e14110d0f71c915facdd",
+    "bytes": 6192
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/signIn.js",
+    "sha256": "609d96735c357e9be94e73808560dae360153f56e1f5a97b1d35d75775720b6e",
+    "bytes": 14781
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/stickers.js",
+    "sha256": "b2a16ea5ab8735d2ef46e111a0dae44631900eb99545174229361a8dab81c553",
+    "bytes": 8012
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/transparency.js",
+    "sha256": "63759bfba47aeed64fb5cbab18314e639b4a3c5c94f97bdbb9c9e2b61d8f97d7",
+    "bytes": 4548
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/updates.js",
+    "sha256": "4f5b25af7e5e4443f1bc3e28c4ab1eb4408691d5f527651feb448350b11307e0",
+    "bytes": 13009
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/userInvalidation.js",
+    "sha256": "f9964b7b2a226c0ec8b6a9f3a0a8c3389e9dbd72257863fdb89c4cb656255995",
+    "bytes": 4935
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/userResponse.js",
+    "sha256": "7787ca5aa355e9a7a644c61988590fd1c2a2d01901163db540da898143509855",
+    "bytes": 15618
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/cjs/username.js",
+    "sha256": "eb286465275a8577c474fa670c41fa2f5cfbe71c06750722bafb9238bfab71e7",
+    "bytes": 19116
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/.tsbuildinfo",
+    "sha256": "6b428fe7fd8e0064e467f5e01a796d92c7356045018369201eaa9ad02cbd5b16",
+    "bytes": 99756
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/accountEmail.js",
+    "sha256": "9543b3f22f68dbda97ecfb582f14192e20e6ee5b74a8b7ed12f855069d527d20",
+    "bytes": 3338
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/accountGraph.js",
+    "sha256": "41e995025818cd65cea13697339289992ece3ae998fbf0a8978e3565db6ec2d3",
+    "bytes": 23167
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/accountSubject.js",
+    "sha256": "3291243b967aec414965451ac17618a77e1d41eb37e1cdf5d67f384e3eba5bed",
+    "bytes": 8594
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/agency.js",
+    "sha256": "d206f8540cc9a68e95c83aded6443bb6d6883cc75563315c61836e4992dc076d",
+    "bytes": 22550
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/agentKeys.js",
+    "sha256": "b5bec9285390a36a79cd5954ee4e757fb4b37fbe4b7919c834f199889bcd6c8d",
+    "bytes": 3515
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/capabilityBindings.js",
+    "sha256": "cc5ef635062529f18bbc0071e0f89054ca746a875f5d77b8f20ac43e50a1f12b",
+    "bytes": 2437
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/capabilityInvocation.js",
+    "sha256": "cdb2dbe7251118ae2c2dc7d6b4ff70f3bacaaf9c9238d2a96154d871ab7dbeef",
+    "bytes": 7498
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/civic.js",
+    "sha256": "d92c9482c2d7b12bc5418d064e7b8e538c3ace013d078119efe2934835e319dc",
+    "bytes": 6060
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/commonsSignIn.js",
+    "sha256": "21d8b0be1297baa6303ba93a7382eafcef32c7ee038cfdf69cd253ca97a7b718",
+    "bytes": 2827
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/deviceBoot.js",
+    "sha256": "7804157142a4f5e0a1fa1761ab3dc0d8d5a80709cb2a7c00f51c4e9b16242761",
+    "bytes": 1954
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/deviceDirectory.js",
+    "sha256": "0276a6c1099cbc067dc73a70fb1dca1b40aa485c3b7236ddef301e35d474b120",
+    "bytes": 9014
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/deviceSession.js",
+    "sha256": "34ae7083b593a07d665e37a194afa5b3fb0b449f005e7c7460e160ed302c9e27",
+    "bytes": 10344
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/email/messages.js",
+    "sha256": "fc6ea9738f1378c1cefad6e2f0b4f194eeb466c4b8bff20424c32212d534dc6e",
+    "bytes": 10221
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/emailAgentContext.js",
+    "sha256": "8825d0a61cfd63b7d78722c91a92c995f52663bfd6ad90b1ee67749c489f877e",
+    "bytes": 1036
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/externalIdentity.js",
+    "sha256": "b211071734fa2fc6905419491a8beee0f05d140cf35668032b5ffd5881ebcd85",
+    "bytes": 2973
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/federationInstanceFetch.js",
+    "sha256": "ed477b9b5667b83dff513d79a7b1ab22e7fc51523888a0e529b034bba553802e",
+    "bytes": 1582
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/followGraph.js",
+    "sha256": "2adc6060ae6474e40282d41815744336514e03b5f28025ba57b33b651115671c",
+    "bytes": 1334
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/identity.js",
+    "sha256": "3a1cd50957a3897b101c8ee39047f94cab0857f25f4acef1c6529a6180afac3c",
+    "bytes": 10781
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/identityLink.js",
+    "sha256": "a81203f29cb3a2b349fbd37aaffddff550d9233768e19d8ab5c427d9bab4aa0e",
+    "bytes": 4119
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/identityProof.js",
+    "sha256": "94140b99c0161ed658e750f481f8a3375bcd3aeef0f9e247b770f7d46edc785a",
+    "bytes": 6075
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inboxPush.js",
+    "sha256": "b26e4b4f8d467b4c2bf57913b7e9b0e274f8cf86dc87e7c522984e4aa1f6074d",
+    "bytes": 918
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/index.js",
+    "sha256": "793538d635a805466e09a9a91c7f4af29cbe1021ec635fa0753e378c8dfc120c",
+    "bytes": 25303
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/accountBilling.js",
+    "sha256": "c0235812718b883740c9e3f2a740af8ab94165afdd7a12f44cb5adedfa93f3d7",
+    "bytes": 15451
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/aliaModelRelease.js",
+    "sha256": "6e23eee5c04cc7cd5c485e46be5eefeff6aa8f952db1ac9d0aecda86a7d1b79d",
+    "bytes": 12832
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/attribution.js",
+    "sha256": "fa656c83193230173a4d31aae0005c0cd3b29edeeb7a70b03f4b92f00cef6124",
+    "bytes": 4936
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/catalogue.js",
+    "sha256": "f3e0a697a8fee76b2c179a43921c37c23a104e4909f81ec1620cfed0525709ae",
+    "bytes": 30420
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/decisions.js",
+    "sha256": "82f0bbea5f5ea3f3c1060889bd8fb58dd867f82924424a25fcc943f1ed78573a",
+    "bytes": 9779
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/economics.js",
+    "sha256": "19dd8d159e36ff269264a8aa6d9586cb9218a59110ad91e66738a1e390af081f",
+    "bytes": 6859
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/embeddings.js",
+    "sha256": "40a2994194388d2a4d357d4ca03d32537b28a4d04ca5894dba052b12503b1fca",
+    "bytes": 1655
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/entitlement.js",
+    "sha256": "1550aa323e0b47e8f5bfe2eb2c34642dfbd425485c190db5d1e65af2f9eb84ff",
+    "bytes": 9369
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/errors.js",
+    "sha256": "1c690f7ff2895d81d85cd8c20f32ff488934399823c4ccb72293c56067dae5b7",
+    "bytes": 15022
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/identifiers.js",
+    "sha256": "b31d42efbb622f3101e9b3380830819bcb252c408cca431dd3c4957d62d3d1c6",
+    "bytes": 11294
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/inbox.js",
+    "sha256": "1a2655af8b383bd5c62fe8df8d0c4f2db13eea1c05774846d16844be0e3542ef",
+    "bytes": 4407
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/modelDocumentation.js",
+    "sha256": "cd71cbb928c90f6129e554901205bbf4aeb18f5665e17ac75e8da65121c3b492",
+    "bytes": 22145
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/money.js",
+    "sha256": "866ff4773ea4dd61cd4b26b141e0cf32c20978deaf239803aaaf24b64059de00",
+    "bytes": 10958
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/priceVersion.js",
+    "sha256": "2f035cabdd7e02ac7898799bfb222e40b08c5724ae6f1a86365fe6866c9745bc",
+    "bytes": 4812
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/providerConnection.js",
+    "sha256": "dfc67e8a109cd9bcb7e2fc1c1e8437ad05d15d4eb11d6cf11335bf63ab9e8452",
+    "bytes": 19052
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/realtime.js",
+    "sha256": "f672cf51ffeae5af5304352a7311559407403107d02bcbcc7c31391acc1d7973",
+    "bytes": 35717
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/request.js",
+    "sha256": "8bd7a3efd4939b8da115c3d97555d4ef689de2e752a6a5994364285ae0c77149",
+    "bytes": 28388
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/routingPolicy.js",
+    "sha256": "15fdad9232f995f847a601b83a0b224fec3f8dcd2aee2a6524d4af0bd2233ba5",
+    "bytes": 16605
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/scopedExecution.js",
+    "sha256": "7882c12f83abbab4a04178a98eb70d1105dbb1f0a035f144aa4fe2a887c49279",
+    "bytes": 3453
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/streamEvents.js",
+    "sha256": "cae5b45c1773813dd0352e49d9bed65a72ee4cb050df1436db757e4d508302f4",
+    "bytes": 12465
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/usage.js",
+    "sha256": "14215e405dc13c57bb6bbb5222062af47f896ac7c6fe4840d1ce1ec4d7832e66",
+    "bytes": 15057
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/inference/version.js",
+    "sha256": "4a3732f3d75b323f44f6538b55ca88435e8349eff4afdae298e4b9142539962d",
+    "bytes": 6113
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/keyRecovery.js",
+    "sha256": "baeabab6b34c2b1ba37bd2ddef8e8eb1a570e4f44acb611929f831a234d62740",
+    "bytes": 4408
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/keyRotation.js",
+    "sha256": "0439a9b69ad722f217727e424bc51ddc62d3da270d17e1d4bfe9eb3bd64df8cc",
+    "bytes": 3218
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/linkedAccounts.js",
+    "sha256": "e663448858a6959f309185026e7961f70dd3bacf15bd0e9e85f01947757f7d4c",
+    "bytes": 5278
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/moderationReputation.js",
+    "sha256": "4738454b02f6414f760dc02ffdebf12b297e74799fec661023b2aef9655b4b99",
+    "bytes": 12916
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/notifications.js",
+    "sha256": "ad8951a389e2b35fa47ccd4a6390a41fe58e1e3019d2d9e9cf89ce1b17526c0c",
+    "bytes": 4576
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/oauth.js",
+    "sha256": "76226471ea048cb0743a248771febed153eb5cf3259fffd84340e6fbcfd9854d",
+    "bytes": 4998
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/oxyRecordTypes.js",
+    "sha256": "7e6e78c6b0f1c5798d9032333168a0d84cdcf14f79384532ca3ad0ff2ecf4480",
+    "bytes": 3389
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/products/access.js",
+    "sha256": "75b41edfbf1921b72365fbf2511234f4f714629eee98dc2ce9a0d65638935b83",
+    "bytes": 3873
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/products/billing.js",
+    "sha256": "3949e9382b8978fd6fa7443fe6930c0bbc21928eb1e9df6e9fe0d8f119b39142",
+    "bytes": 2278
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/protocol.js",
+    "sha256": "8dac1512408f68a0f8e14d997b02edfadb9c92bc99b80f50fcc25f5eb2af852b",
+    "bytes": 2566
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/recommendations.js",
+    "sha256": "ec188c1067f9ba41aac2e1431756e9f2bd171e28c22d9fe6cee9bb373ceb9c8c",
+    "bytes": 7204
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/reputation.js",
+    "sha256": "6b088753a050f124d4254c007e2d41609064ab9ae3855c82d40f880d7c0d05aa",
+    "bytes": 10146
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/sessionStatus.js",
+    "sha256": "d786c0d115830ba6a09864760efd834361eee29ecc5895654f51c5c033c8980a",
+    "bytes": 5855
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/signIn.js",
+    "sha256": "74b9911efc8765527999571337d6a71179b3c27c9f760d6053a2dc61ced3fca1",
+    "bytes": 12860
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/stickers.js",
+    "sha256": "bea0febf256789d592e4b972f22e1df0b101dbbb21f08634a31f8353b93ff517",
+    "bytes": 6822
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/transparency.js",
+    "sha256": "7d615b8ce4a3fff71bca1c3cc911278e2f18e173601d7e473306af92b82b6651",
+    "bytes": 4105
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/updates.js",
+    "sha256": "ef6af53e808331050cfba6220bfb8251d09104e98d602e43f1e44fe5ea02e0eb",
+    "bytes": 11429
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/userInvalidation.js",
+    "sha256": "90984ee6a3318224e31902f2ac0618ed8600e5f8bed8d0ce6c647a3753edf348",
+    "bytes": 4600
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/userResponse.js",
+    "sha256": "c80713cf1d5f04dc886b1310418b3b2354647414a10d49739f7644038fd17c59",
+    "bytes": 14724
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/esm/username.js",
+    "sha256": "06e79cd31ee61292c454e088176fd1de25f27a3605ddf4a089af6e165fdff335",
+    "bytes": 18328
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/.tsbuildinfo",
+    "sha256": "a76b3ca310ba7fd4fdc6a059455773544d22679e06deeeabc78c27f9450bc6ef",
+    "bytes": 105606
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/accountEmail.d.ts",
+    "sha256": "899354685d864a78e3e9eb109d54c4f327ed67076b9f0f95a88051a683137538",
+    "bytes": 4116
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/accountGraph.d.ts",
+    "sha256": "892e3b13b09d6281bf474924fdc40f7c04b06cfe6bff04f0d007770d07c95ed9",
+    "bytes": 26677
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/accountSubject.d.ts",
+    "sha256": "f46ccf8ebaddcfb7654377f4fb328eda3801f38eb94b038546f11f3c7f407728",
+    "bytes": 9711
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/agency.d.ts",
+    "sha256": "bd7931c2004bfa71668b09314b3d9b9ad8071028ac29fa1a11256e60233fab9a",
+    "bytes": 92838
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/agentKeys.d.ts",
+    "sha256": "70a0153eb249c0eb42db6985c89db66482ea5f3ed2ee347ec04afb0c9f11a264",
+    "bytes": 16495
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/capabilityBindings.d.ts",
+    "sha256": "c4d96758c959128aef62a0d64e6bccb7e28d4182d423c09c57b5ad2187c00d42",
+    "bytes": 484
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/capabilityInvocation.d.ts",
+    "sha256": "1d836ba05f9a11dfc9a7474c6b8cdf79c6b6ea53f02b7088c2183f9a0be9cad4",
+    "bytes": 4329
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/civic.d.ts",
+    "sha256": "583f04b65740145a8d6220d92c1183a331b11039e47242d4ca1d652a054d8330",
+    "bytes": 15081
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/commonsSignIn.d.ts",
+    "sha256": "02b3a30e558436fb03434887fd99437e31c85e1d9708b3ce2510e95a79f89c3e",
+    "bytes": 2997
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/deviceBoot.d.ts",
+    "sha256": "93832fd7910a99b818984db7965a5e782ae1d27b77d7ddf19f8f61af0b98a3b3",
+    "bytes": 3191
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/deviceDirectory.d.ts",
+    "sha256": "12649655884285279023d849897bf0090911c04339abf9faf6af053fda73bffd",
+    "bytes": 52604
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/deviceSession.d.ts",
+    "sha256": "1565e1b7eefd90119979ee58de5e92bd5578a419157c30da063c6dea4db30272",
+    "bytes": 18548
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/email/messages.d.ts",
+    "sha256": "e60591c598f60238424f4711f5d5f8a1612a40323e6c8d165bf76e2d3a9332b7",
+    "bytes": 65027
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/emailAgentContext.d.ts",
+    "sha256": "1d4433a20701be2096a88da6793476008f0149a8fe094538d43dcae8143f774e",
+    "bytes": 6567
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/externalIdentity.d.ts",
+    "sha256": "250d39101037f0dd77bf72134fad4fd88bf3525adb9687ad42f872470bcce247",
+    "bytes": 30022
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/federationInstanceFetch.d.ts",
+    "sha256": "d48e2148452ccec7a184efa5f08322dfa962caa883edcb568925c3d800474fcc",
+    "bytes": 2163
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/followGraph.d.ts",
+    "sha256": "2e47eb8f6baccffdeaac924ff64212ab0f0f7a6f7d096a9398cfc829a4b62fc6",
+    "bytes": 6273
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/identity.d.ts",
+    "sha256": "b5ee7d433b9106f4f67e39eaf1b2989698ba86b204c390e85ae1ace5305d6e16",
+    "bytes": 17736
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/identityLink.d.ts",
+    "sha256": "3cd6ae39265f6be790d6903a95fac1bb5ff8e8688ac8498df3137f86706bc53a",
+    "bytes": 5310
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/identityProof.d.ts",
+    "sha256": "32fcf5581ebf5e814e95eb7e043b6b0c44b92f19c8f3621efc1450256239f3ec",
+    "bytes": 5796
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inboxPush.d.ts",
+    "sha256": "d7107d88df6a27124973d6d45960ebcfcba772e6365f2614ea948dd20594d1af",
+    "bytes": 1207
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/index.d.ts",
+    "sha256": "d3dd8cecd62002edfbdf89b519f39374c8158d23b9e6fb2a438807fe431c590d",
+    "bytes": 34542
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/accountBilling.d.ts",
+    "sha256": "9e8852eaa81143f27ca6bbad8f9c04a8588acf7c2eaf4ff5009b97e31267fb65",
+    "bytes": 30767
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/aliaModelRelease.d.ts",
+    "sha256": "d5b1bab41ae235a077e46b476b87d55f9b83d616454554872353f5ab06fc041d",
+    "bytes": 23862
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/attribution.d.ts",
+    "sha256": "ca70636d4802a7305f69dfb3aab432ae86d7e07fb6f8545e15aa89ddf5434fd4",
+    "bytes": 9143
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/catalogue.d.ts",
+    "sha256": "61b608913188e733abc7d81256fbcc53557cf96e55b83fbe2fce018503a720e4",
+    "bytes": 94288
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/decisions.d.ts",
+    "sha256": "1e7c9440b21184c7315e1cd9a204958748acc17db2d40a62e2e77367731252ff",
+    "bytes": 77473
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/economics.d.ts",
+    "sha256": "1fa6e798ceb9c3d58325b40d5f794060d88f6a5df80ddb4fe90eab12a0237f01",
+    "bytes": 15875
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/embeddings.d.ts",
+    "sha256": "07342f50c8b829e9ebfac5103c3a6b1fed6c521b2ad5c70d71445ac7bef7e515",
+    "bytes": 23949
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/entitlement.d.ts",
+    "sha256": "b3a9f61d58b87092d1913dac4a2a164a484c54310b50b442f0bb9ed4f084a8b9",
+    "bytes": 19538
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/errors.d.ts",
+    "sha256": "416f2602c7154e26ac5ed2c3b85aa8a34f0c90ec657e888c38e80531688422de",
+    "bytes": 16810
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/identifiers.d.ts",
+    "sha256": "7b875a71855017d4935fa0aaf787105c752d572d2e9f15bd1f1afa43eb602f69",
+    "bytes": 9420
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/inbox.d.ts",
+    "sha256": "b44eb82fae559aa5787d89737fc99473780e09a49d97105989764afe3b97718d",
+    "bytes": 17723
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/modelDocumentation.d.ts",
+    "sha256": "e61c36912a23d36f0dc80158eea7486c6bc498349e7dff90094139179957c341",
+    "bytes": 78351
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/money.d.ts",
+    "sha256": "43a58b36d02698bd6d97b873d68a802effc9132c62c32ad44ad58db050d7ac58",
+    "bytes": 13303
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/priceVersion.d.ts",
+    "sha256": "8ba338f8c07fb9d35fe4de5adb8a2cd1886a1958a289a82d73e82d59ac8e176c",
+    "bytes": 9730
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/providerConnection.d.ts",
+    "sha256": "429c7dbd4eaf2d795a7662b9339fb91724c41ede241dfefd7149948179882f99",
+    "bytes": 35698
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/realtime.d.ts",
+    "sha256": "73caa350249cde3baaae6bf20a04fa7f6ace70b2f08267d47bcb6fa334de0725",
+    "bytes": 296956
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/request.d.ts",
+    "sha256": "5827045f001828ffdd78a78bcd47c0d58aa1aa9792a252e73c8440c95ab0364e",
+    "bytes": 190135
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/routingPolicy.d.ts",
+    "sha256": "755de103c30103f89157cff59f116e3b8e29ce46492fdd47efe8aca6afc04fca",
+    "bytes": 26219
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/scopedExecution.d.ts",
+    "sha256": "832047ae747081bd02e727c24daa78bfae2430d87cd1038e9e17449a7125e7a9",
+    "bytes": 6553
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/streamEvents.d.ts",
+    "sha256": "0f26de92a3968e04b169a86d3bca0c83a8f6b4cf59f3e4d4cbc804def37e0183",
+    "bytes": 51413
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/usage.d.ts",
+    "sha256": "bb3541021c3809b4e02c5ccf36b286bd062fbbfe81717802e3dd3aee4fa67976",
+    "bytes": 57629
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/inference/version.d.ts",
+    "sha256": "5fdde675f2a8e030bad55f87b8b1cc33bf0b636526b2ca5ce6784a27a8d3d1d5",
+    "bytes": 6121
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/keyRecovery.d.ts",
+    "sha256": "5375336b2ff88c4e22b42fe7e6b5666ca74da3056d9537e0473d7ffc7ca649f5",
+    "bytes": 5745
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/keyRotation.d.ts",
+    "sha256": "1ac86052a9aae547b476924a3b43357f3e1a832d87a5bdd45284ea5be34846f6",
+    "bytes": 4127
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/linkedAccounts.d.ts",
+    "sha256": "2792f7adbe16bdf4952a88ba4b1834806e1a989baeff98221488456e98d7cb3c",
+    "bytes": 13470
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/moderationReputation.d.ts",
+    "sha256": "e73e7ecf75d44e1e53503c170c5d37f650903506a578a90dafd1d1f7e7170eda",
+    "bytes": 24257
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/notifications.d.ts",
+    "sha256": "7f288105ded26d103036e6b842752d784f49edb28ddfb35b4fa0a1fcea6ea0b8",
+    "bytes": 5528
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/oauth.d.ts",
+    "sha256": "a43105c6b79a8cb85881747ae3ac092f1aff84dc184b849518afad98a3d21184",
+    "bytes": 37303
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/oxyRecordTypes.d.ts",
+    "sha256": "66bb387841c6326db27803f6bd07299933050d1480a95ab1c6cb691b3489ada7",
+    "bytes": 3503
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/products/access.d.ts",
+    "sha256": "af038b33fbe9e3d6fd2a97cd3fcdee97a2293c300518e262f72ff352c9b83196",
+    "bytes": 14282
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/products/billing.d.ts",
+    "sha256": "d8c8f72e16ac5c1c25e81f04100c3a1f54cf1ca20c5fe0ef82d732c3d37e0b06",
+    "bytes": 16467
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/protocol.d.ts",
+    "sha256": "8c3f7ebc5b370bfb28317949b848f0be9d3c63c8206e31fa244f7b5d940d96f1",
+    "bytes": 4065
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/recommendations.d.ts",
+    "sha256": "b1da5918c538a347d8f5c94f9b0b93d296453f222a89741afc31df9c1b262dd4",
+    "bytes": 21937
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/reputation.d.ts",
+    "sha256": "c4dd8dceb8320c83d857292b3f0ea8d6fb8040b6c018f456233e96c304745fb6",
+    "bytes": 17973
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/sessionStatus.d.ts",
+    "sha256": "20cb7f91eba97ad30904255ee29f83f47b9e53f0e123c35d2b4099848e10f4c5",
+    "bytes": 10383
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/signIn.d.ts",
+    "sha256": "4fe08373fbd0f4640b758a354a97906d2fb4e6b889a2ae969f71d0268836a2d7",
+    "bytes": 25809
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/stickers.d.ts",
+    "sha256": "4f452c2f8fa582f0a756e1a6d7427adb658a6cf71bed4df99ea83d3b0eb0d66f",
+    "bytes": 28956
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/transparency.d.ts",
+    "sha256": "60efa77641365a1fd801ca8248047299a7b221b6ef58a7ea9e9ee9357775c01f",
+    "bytes": 12380
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/updates.d.ts",
+    "sha256": "56dc97373e1f7d90098a6d01626733a3bd67fac35284de13aaa4027f6dd1fb00",
+    "bytes": 20204
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/userInvalidation.d.ts",
+    "sha256": "68de97c1e4f8f752e110d7b7778e2f2694c448a641fb62157bf6bdb404231450",
+    "bytes": 5018
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/userResponse.d.ts",
+    "sha256": "b667164c3195aee1304ce4da9a31fd089d47d31afe8fb2f0bc4b85398cdbf82f",
+    "bytes": 139669
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "path": "dist/types/username.d.ts",
+    "sha256": "1a6188d64e065752673bbc01571ad4fa99b10a9f7b55a02efaa64367b3297b31",
+    "bytes": 16082
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "package.json",
+    "sha256": "4a1099d6307d0f80a951aed3de75366ce3026fe2433dd85fb6205b75359b4549",
+    "bytes": 6551
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "LICENSE",
+    "sha256": "784cc4644ea378acacd07c494b1ceae8f2bc860340f9441da39501147738a042",
+    "bytes": 31483
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "NOTICE",
+    "sha256": "25b5cc1856119f1ebd3feb2bfe21baeb5943bdb7d2ff9ca02d29ca9f68b5df6b",
+    "bytes": 943
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "README.md",
+    "sha256": "bebd47a1c56bea9c55d55b560ea896d9112d7fee5672a28481e736904af5daac",
+    "bytes": 10906
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/HttpService.js",
+    "sha256": "12140090539d49918faed27193e0e02ed13c6732ff4a529e11f7719c69b968ef",
+    "bytes": 73266
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/OxyServices.errors.js",
+    "sha256": "68880d140567fa3b0958d2b0b7fab2ee0ddcd8bd7bd93fbb52146d51dd8532bb",
+    "bytes": 8196
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/OxyServices.js",
+    "sha256": "491375a654110376f45f78b2245816b12ea2ff1df731ec6873ee67ec6946beec",
+    "bytes": 10418
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/accounts.js",
+    "sha256": "0717e98a3d1d76f24a773f0131a9b85455d4cb62eed322a6f4357dc667c05dd9",
+    "bytes": 13737
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/agency.js",
+    "sha256": "c6c058a67fab41dcc3128097bfe59a9c1c1f7f2fe5c056ffdac4e46f8c5de90a",
+    "bytes": 4883
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/appData.js",
+    "sha256": "87c3d0a6141308e66575bd0301ec0efa89e1f3ae74e1e80f93217263d85ba837",
+    "bytes": 1981
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/apps.js",
+    "sha256": "7520dc11e025689cd2df02025e19804a79708b25e254bc1004619b5da05b1be3",
+    "bytes": 8455
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/assets.js",
+    "sha256": "a37b717e80931e33b100d88340da611e82b6df46419cad1ed31829d7acaff76a",
+    "bytes": 15771
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/auth.js",
+    "sha256": "5afe5d6710fff27e3de106f1e96503ebb9d59c4a28777aeef657d7053acc4006",
+    "bytes": 48400
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/billing.js",
+    "sha256": "63e3dd759f08b1b7d423eced7cf23a7858fd7996c9db59714b0923225cd0f64c",
+    "bytes": 4373
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/civic.js",
+    "sha256": "9f71a7f0aa60ae76cf4290cbcba8e94186e8a0fc37f339e320187510156aef5c",
+    "bytes": 13372
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/contacts.js",
+    "sha256": "b1616f18e798c5eff8aba6cd97bca65ec6e6242a277e32d075a022dbeb90bd65",
+    "bytes": 553
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/devices.js",
+    "sha256": "4ce79eaff395e76ea00d4dc0858beccc00c52d67768d27678f98667d29cc6df3",
+    "bytes": 16815
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/follows.js",
+    "sha256": "2ee89f62c8e95503a8bbbe53f31209543e620f2e4096e6bcc6c68880dbc05324",
+    "bytes": 11413
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/identity.js",
+    "sha256": "f87900abae1986e18c39f26f8ab21980f714c0781ca4c2bfc09357c60bb9c79c",
+    "bytes": 28368
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/linkedAccounts.js",
+    "sha256": "ac9f843a86256dc31c6648c5677f530e28e63d85413b28ea10efb72474fc807c",
+    "bytes": 2031
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/nodes.js",
+    "sha256": "715a5518929e9a1803a0e67e8e9f0fa9725f808f842af3da3a6cbcd1fdb0cf74",
+    "bytes": 3221
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/notifications.js",
+    "sha256": "34983ddd66c579b2af52b00f65c5834e0947efe871a4bd0d7bd38e8c2dc26f03",
+    "bytes": 3750
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/privacy.js",
+    "sha256": "20c6d928c220113534813caf9016d7128115a20f4bf362c5e90060a0b03357d0",
+    "bytes": 4589
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/reputation.js",
+    "sha256": "1ec6fa6e860cb57b63b3b7b17fdb1a729129f7b067c1669a2f30e88fce8c8f44",
+    "bytes": 3274
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/session.js",
+    "sha256": "f86b001b91f69131457da0514c1c3ae04b6f2aad0d2748bd6340caabff8dc60f",
+    "bytes": 7181
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/store.js",
+    "sha256": "ac1420117d2044244f06b1e281b3dbdaa8497ddbeb95bdf66a166f40a356ddc5",
+    "bytes": 7837
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/topics.js",
+    "sha256": "c1280aa516fd90c40d13f55ca0d8b058f0c8ffd2a1aef54b3f65ad9dd861cbeb",
+    "bytes": 2484
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/api/users.js",
+    "sha256": "0bf1e40fb7b00d6007f7ddbec74b666af5ca0718c70ed2e2fd4b00cc0f10bc4e",
+    "bytes": 15331
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/boot/sessionColdBoot.js",
+    "sha256": "5fde196dd7903fa32486ba1c0665fa23925687d2630a836b4d30cd2545e7d720",
+    "bytes": 22530
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/civic/index.js",
+    "sha256": "5def639d8f0f805cdb2a8f49920ae6fd70e4e34ec227d7b58649edbe953913e4",
+    "bytes": 1057
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/civic/payloads.js",
+    "sha256": "45b6129b3b6ff38fdfb76f6a0fe46e9e49749f5b3962dfe012a3af6b559980de",
+    "bytes": 6402
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/client/context.js",
+    "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230",
+    "bytes": 77
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/constants/version.js",
+    "sha256": "607f574f7f91efb6ab2b4eb24f092c89bca9e51c61f2107205241d8a66675be5",
+    "bytes": 762
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/aead.js",
+    "sha256": "055252ee06914b85ee99dd05869164ff823e20873944e99b93c4dbe884bf3600",
+    "bytes": 3532
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/deviceBackup.js",
+    "sha256": "e2771951209eaec0a760010829a4814837d286961a696594c98c8348fefa46d1",
+    "bytes": 2975
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/ecdh.js",
+    "sha256": "41c44252f97207d9fe5c576c82a84e910e3102d1274d4d7cd346d5c1679e3ca7",
+    "bytes": 1600
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/identityDerivations.js",
+    "sha256": "00ad280567bf5de5eca79e6e88217ca08bde8c8196398c7f3b1514aaa10a26fe",
+    "bytes": 5124
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/identityLink.js",
+    "sha256": "2bbccb03514d901acefe1e9a655846f4e8c5f10a7e39ba4486053394fb6ed61f",
+    "bytes": 974
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/identityMarker.js",
+    "sha256": "257912b257ccc42956632fcd3de41b3cbe41641556d3fbabc2c918ec38f65048",
+    "bytes": 9804
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/identityProof.js",
+    "sha256": "8ce6326402e742b934fdc9827f43448b001c9f66b93e958170bc37f7e1c2a4db",
+    "bytes": 1432
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/identitySigner.js",
+    "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230",
+    "bytes": 77
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/index.js",
+    "sha256": "4927d2323f70817b616a8df2d0b17b4309c493317db1b9989768e49f9fcadc8e",
+    "bytes": 5604
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/internal.js",
+    "sha256": "00a8fa473b87eae352cf2cbfca2324ea3552c415ee4db0426a6a041399619fd9",
+    "bytes": 3609
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/kdf.js",
+    "sha256": "4dc6d139595369852d0bf45f611ebe005d59044c3be981e1b8df08e83e45b23b",
+    "bytes": 1868
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/keyManager.js",
+    "sha256": "24fb2e6d5939ef56ac37909d365716c74e92942ebe41d0f3b651347e8126d865",
+    "bytes": 130177
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/polyfill.js",
+    "sha256": "12e1b6cfe58ce8a5c4417455c1d07472d0c191b5a2963f50d29e6d6806511e2f",
+    "bytes": 3421
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/recoveryPhrase.js",
+    "sha256": "634a0d04e5b59cf37f533291869295963e93e576160b85b11cc66db4a6af9a0d",
+    "bytes": 11281
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/registrationPow.js",
+    "sha256": "bfe6347d88b53ca0f792224fbc25bb6daaf21f8f9f35b24bca291902797c2c60",
+    "bytes": 2625
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/crypto/signatureService.js",
+    "sha256": "6f3463d2fa36cbb60e9bcce97b63495746563010fd349117b4fd5baf0dc3a6dc",
+    "bytes": 11385
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/accountCategoryLabels.js",
+    "sha256": "7002819fea1b20c88135f8fcb70a695f8c5801d9a95c42fd4e1cbe56f4d77c38",
+    "bytes": 2385
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/accountRoleLabels.js",
+    "sha256": "c111a10736b04afaf3278200b8a8afbba2d2f8e55489dd0b5b9a06c44e9bf7b5",
+    "bytes": 1157
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/index.js",
+    "sha256": "a8f1dece6265ccec5576370466653720b91e8fec6f5a92f3acf6be20025f543d",
+    "bytes": 6796
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/ar-SA.js",
+    "sha256": "9370b078c4c6fe4087686f688f7cf6298fd500c83fee79d7979d96d6c2ae5a56",
+    "bytes": 21414
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/ca-ES.js",
+    "sha256": "cfc9053557d94cd9fecec805e07f7850f86bc95b78eb246d8045006d7dbd436b",
+    "bytes": 18244
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/de-DE.js",
+    "sha256": "4287f0d6aed0fc2ec2a19c6815dd2edc517c667fad4707e262a286adae06db2f",
+    "bytes": 18717
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/en-US.js",
+    "sha256": "24265001ed5eb439d3a243e245523fea3baa9fd0303f55cd80c4605e573cf97f",
+    "bytes": 88570
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/es-ES.js",
+    "sha256": "14156bfae8d1c2c7b4f412dd8aad26670bd09814ec7195b79f5276f4687fb814",
+    "bytes": 95657
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/fr-FR.js",
+    "sha256": "b61d02da7de9cac1198d6ff67e9853bffda86f1da393ec524e6ead48c55f3a53",
+    "bytes": 19045
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/it-IT.js",
+    "sha256": "506ab5e0e1edfac9a43d44bca71ca02cd0108e7c3ad3067125a0d2e4ab6ca7d0",
+    "bytes": 17935
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/ja-JP.js",
+    "sha256": "08e0eb0ba76ae7d50d6f74eb41dbb13421a28812c3a25978230bdc58f8bdb350",
+    "bytes": 21242
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/ko-KR.js",
+    "sha256": "394067d9f9c973c82b6786631840bbef7996effcb5a28ba8f7ac805163d26b5a",
+    "bytes": 19148
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/pt-PT.js",
+    "sha256": "f837ebe94fe75c0ccc4de792dfd157711de2ede4f892bd08df290f166e7f2158",
+    "bytes": 18355
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/locales/zh-CN.js",
+    "sha256": "61988fa09e69cc19bccf3b24665a2112f03279e6bec1daae63f1eed68af5d2a3",
+    "bytes": 17182
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/reputationCategoryLabels.js",
+    "sha256": "b9f71e96e582ab89eac0563afb0e7ad7e9dfc3dc1158ac66e91df29037c57103",
+    "bytes": 938
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/i18n/trustTierLabels.js",
+    "sha256": "415c89def69084c30ab47d87eee76959df134e1c301d0443ef62c7c3d48dcf6c",
+    "bytes": 794
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/index.js",
+    "sha256": "2886a4c73c54b73ab722195e93c8ca363e84a5dd73d72b00bf5cfa7901af12be",
+    "bytes": 36318
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/inference/OxyInferenceClient.js",
+    "sha256": "e25a47784488fb9c1e89d90c90afba2c3e03b8e3c6b0579d043da6c2ba912f9e",
+    "bytes": 31975
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/inference/index.js",
+    "sha256": "25979659340882d88996e78ecdf2ca2ef6b8a298ff8aeb3c62c7b175743b87fc",
+    "bytes": 1353
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/logger/index.js",
+    "sha256": "53ab95ce49065ee9a28c759db69e76edd77c0b1c4d9d4efc4add543ccd5a4efe",
+    "bytes": 5337
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/models/Topic.js",
+    "sha256": "1f439aef10a5bb3579bf8d4c62555dcca7d6ef0448a54dc9c74e984831ad4acb",
+    "bytes": 575
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/models/interfaces.js",
+    "sha256": "a8f6d29473fea64484b665722adb1d59a2a5e50a61b5aefc12c03f3193457574",
+    "bytes": 636
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/models/session.js",
+    "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230",
+    "bytes": 77
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/package.json",
+    "sha256": "cff8c3ee51bba7cae8c4cbec6feb5868b0f0dbdacbb30183464b7cf7b1be61a8",
+    "bytes": 297
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/OxyServer.js",
+    "sha256": "51b5c9be1717772d401035680f101dcf2a321e14e1930b001719149cd994568f",
+    "bytes": 28107
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/agentAccount.js",
+    "sha256": "77bb2d1206d8d17cabb1df815e644f71357cc3ad09c6fe130dd6e9ec6bff5173",
+    "bytes": 1259
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/auth.js",
+    "sha256": "fb63546c80ad47b9ceac8620971b75a70885f8e6f88ebd1cd3c719c835048ead",
+    "bytes": 8180
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/capabilityTicket.js",
+    "sha256": "86215802b2c727b08ff1d9e1699d78861eb4fda495bdce5caeb41f45b8ae78ad",
+    "bytes": 7090
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/cors.js",
+    "sha256": "ba60ad137439511257df0e79dfc1f26f892e8100755db673a9d817bdc6244523",
+    "bytes": 10138
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/index.js",
+    "sha256": "2224a4174d43a109f382e01eedca496e3a3bb62270a145a6097cde79aa110d75",
+    "bytes": 18299
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/liveCapabilityTicket.js",
+    "sha256": "83a3c790975a08ad3ea268b32577cd28ce92c4586f553405fab99ef8aadab5fc",
+    "bytes": 2753
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/middleware.js",
+    "sha256": "c9a40b354256e2971906eb11a55dd96a786c537f6f51b390bd838b237edf2c33",
+    "bytes": 58285
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/namespaces.js",
+    "sha256": "5bd67f89bca7d7785bdc0a72ea3e38fa3746e9cd5b435a1fd839568e97e4f5ac",
+    "bytes": 14534
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/rateLimit.js",
+    "sha256": "7078288a6fa4b5de781f2bc918e290c1e7648e46a1cd0501ef01db3d1125ff24",
+    "bytes": 8988
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/requesterAssertion.js",
+    "sha256": "c12ecd1822e971a2d817129bff3b81476f70a6154a7b3f8ecba020ba658a2539",
+    "bytes": 16004
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/safeFetch.js",
+    "sha256": "2779eb87912da6d74aa76ae476d01dacce5baa1d76ddce9c4f44cbaedf727f2a",
+    "bytes": 19827
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/securityHeaders.js",
+    "sha256": "dc6e19bb9551deec8ecb38a08e456ad9d348cfadfeffbdb2d046e86bb53a0bc4",
+    "bytes": 19118
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/serviceTokenLifetime.js",
+    "sha256": "30b28080dd5793cde017c23f12fc549928d5ef96e811b1f46e82191a1d935f9b",
+    "bytes": 820
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/traffic.js",
+    "sha256": "d1ffe80858d2f129125dd0050574a4e8f141cf40ef03691c5a7b1e50405bec5c",
+    "bytes": 7825
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/trafficNodeHttp.js",
+    "sha256": "2893a1c62ac643250e29a77a0a3e973d2d089200abda7e9b337d49cbc89de028",
+    "bytes": 4411
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/userInvalidation.js",
+    "sha256": "bf85a1cc67d3474cd3a904785623420223b981578d3442af866f9ac434a306ec",
+    "bytes": 6997
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/verifySecret.js",
+    "sha256": "5eac1bfb8826c64c115060eca9e6dee869df20eee7d3d0b76b897c5f63d4925b",
+    "bytes": 2289
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/workloadIdentity.client.js",
+    "sha256": "eadabd165291120bc5aed2ffa9c521dc7d8b237bbdab3d4813cd0767ddc372cb",
+    "bytes": 477
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/server/workloadIdentity.js",
+    "sha256": "a198f470842716dd7136d6bab6332e5105c9c6c6070609c3f21917d5e34f6cf7",
+    "bytes": 8053
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/SessionClient.js",
+    "sha256": "2ff90e9725d35ad883b19a18dbab06ca03e606db73726df03c4d27ff8f33a65a",
+    "bytes": 42828
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/accountDelegationAccess.js",
+    "sha256": "d247d00b4fa2c28a0db0d6fa36366ab804f0ff62c39aa923039f8cba603a1df2",
+    "bytes": 2350
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/accountDialogController.js",
+    "sha256": "05be55182d56af1bccbf5176bfbfb6aab74b5e106a8a44d2bd8a05f05b0ba39c",
+    "bytes": 62352
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/accountSwitchTargets.js",
+    "sha256": "0362c7800f14543348607348ce699915c03723dbf2112ce8c31bb9b9e7407839",
+    "bytes": 4132
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/authStateStore.js",
+    "sha256": "6c9bf8e2a82c6f8a0e1924ae686fdbb72ef637cf5574255647de3292167c58f6",
+    "bytes": 17392
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/createSessionClient.js",
+    "sha256": "fa050beb5f0b35b09e454029702007f4c8173c0be3d607e657cf96feeb5fabfa",
+    "bytes": 1671
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/deviceDirectory.js",
+    "sha256": "8e5d3018eb0ad68e6c05562fd8db91a36632b1a4a91d7eb632854a0973a6c685",
+    "bytes": 5909
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/deviceSwitcherRows.js",
+    "sha256": "a75590b2a2a040666eeefff15d7cd1ca691b594004a77e6b14415333863f8a49",
+    "bytes": 4098
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/identityPin.js",
+    "sha256": "7b32717040fd01e3f91c63b00d529bb23d1c53992266a6a1e258628a886c087a",
+    "bytes": 10467
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/identitySession.js",
+    "sha256": "63377acc9a3242d4bd63eef7357b0f174168f8d3d9de5c804fa87c09ee28d886",
+    "bytes": 6873
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/index.js",
+    "sha256": "dbe8e570add4b7ceb913c9a4c0d8a3393f8d39461f43ac9feb75f5c5497d725a",
+    "bytes": 13952
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/projectSessionState.js",
+    "sha256": "200aaff332b23a611b9efbe2b4034765913503f91427f1dadcdd19be90dc2b49",
+    "bytes": 5139
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/refresh.js",
+    "sha256": "843c69acb193979e7e4de5c15b498bb3475b299122a72b1c7c3c8f66648a4b5a",
+    "bytes": 23714
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/sessionClientHost.js",
+    "sha256": "bc0ec62807b05a9aa9d6858ff42230ee3e3d49e4a06dbe6647f805406019461c",
+    "bytes": 1527
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/sharedDeviceCredential.js",
+    "sha256": "31a59c00756a1c221bfb454e61fa365db47c5d5f1d6229105a0c5959a7191586",
+    "bytes": 12423
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/session/socketLoader.js",
+    "sha256": "eb3391822fcbffd982bfc169de3e9bb0e745438bb010b76bbde93a2506bb38a8",
+    "bytes": 2119
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/shared/utils/colorUtils.js",
+    "sha256": "ea3693c038bfc66d26194bf17f67cff1a3546d619db5a93fb5ecbf02d32a0d26",
+    "bytes": 5020
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/shared/utils/errorUtils.js",
+    "sha256": "3480fe7bf142d3e37e25fea0f46283b8afa568b7edcd724792851a94210ea5fa",
+    "bytes": 6297
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/shared/utils/index.js",
+    "sha256": "a98b6b4070bb4638cd5262efe39f55b0785d2e7ae9858ba5b8a3459174075085",
+    "bytes": 5435
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/shared/utils/networkUtils.js",
+    "sha256": "bb9814ea2a459155c58f22e0c5e663c90735039fc2c50ac9f2370d111120d69b",
+    "bytes": 5487
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/shared/utils/themeUtils.js",
+    "sha256": "ec1eb0f2a9a01b4ebe978234900ce8b39bb036fc7c67183e7bd357923a91079d",
+    "bytes": 3370
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/accountCacheSweep.js",
+    "sha256": "d01814199208c8af7180f94372a8fccaaed9dedcf5f48c3de3e6617ce7c69956",
+    "bytes": 4111
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/accountUtils.js",
+    "sha256": "080423ab694a28a88e03c687259692b80fea56ba1add7db6df2e5abf3dc369c3",
+    "bytes": 5824
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/activityId.js",
+    "sha256": "04d600313d05397e60f61746e1b591605618c1e62d230b3be894e602466e11a3",
+    "bytes": 399
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/apiUtils.js",
+    "sha256": "6e5c3b411aeab4acdada7d63a0365398ee8ae3f806c7ced2fc5e3c3a813d2ec7",
+    "bytes": 3149
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/asyncUtils.js",
+    "sha256": "ee1d1b6388a1a412a466c133b4ec5be1626aa9047c1ed0e425d9f7ba700a696e",
+    "bytes": 5569
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/authHelpers.js",
+    "sha256": "c038bfef9cf0a558944e3205eec58b82cd00485f39aa5747d0b770d7bdcac19e",
+    "bytes": 4147
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/authWebUrl.js",
+    "sha256": "ddaffa40bcda8ceb41517ebce7bbf6daef1ba600c7ae127fcbec956ca9deffe6",
+    "bytes": 1179
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/avatarUtils.js",
+    "sha256": "d4379e0718296f7545395d14d66bcdbb88e601310d68900eac1d22b5c252e051",
+    "bytes": 1105
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/cache.js",
+    "sha256": "ae6b17c5935648056184334cdabda14335009c6d66dcb7096f80379b9ce3b446",
+    "bytes": 8086
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/cacheKey.js",
+    "sha256": "072de75915966a0e2a75997f7f98f13aa077eb6ec97d427b727113a7371a3f65",
+    "bytes": 3744
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/coldBoot.js",
+    "sha256": "a7ceec7218f43d6c85e1cd1fdf5b085378f89bfb5eb8c84228e6773ce7b7bc2a",
+    "bytes": 5562
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/commonsApproval.js",
+    "sha256": "14a8761811311b0b0721cf49380b86cfc2bfb5f5c4513bf2c3a621443aaaaaad",
+    "bytes": 1270
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/commonsDelivery.js",
+    "sha256": "a3d8b97e9bad3a78a0a6608346767da11c71f1157883354179e6e3ace900adfc",
+    "bytes": 2330
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/deviceManager.js",
+    "sha256": "330b8088e54453a52fedf8a50240d1ff1ada278d80513df0b48591438c8d4736",
+    "bytes": 6587
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/displayNamePolicyRanges.generated.js",
+    "sha256": "b7ca8f17c93031f8e1164c76fd9b9363a9ab45fd4980ad2237a86ea2ab2666f8",
+    "bytes": 24636
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/edgeRegion.js",
+    "sha256": "606ad9d91face55a36983228fe13f7c29db215f2beca5250786251492cefaadc",
+    "bytes": 330
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/errorUtils.js",
+    "sha256": "3c12e9cbf0588104d9ee00754e9f5b80cac0cefac24c81ff0e289da4318a65ec",
+    "bytes": 12068
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/identityCacheSweep.js",
+    "sha256": "94f269ccf38c61b059716f6e5c3f40af232b5d6fc4306e2575127663bb98d3ec",
+    "bytes": 4552
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/languageUtils.js",
+    "sha256": "5a039bc36c363eacb1eb5978b0b8cc38978bb5f06e7603e0c711b8c802674fa2",
+    "bytes": 14049
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/oauthPkce.js",
+    "sha256": "583fff65ec14817c30e12f4e01fe3dae3a5ff8985e1f6d3e2f7e9a52f3350ad0",
+    "bytes": 13749
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/officialOrigins.js",
+    "sha256": "4da931c1973b43cfe0fb1231d79a8b58f6b01c823e520c0f8096843a5bc1c696",
+    "bytes": 1916
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/oxyServiceEnvironment.js",
+    "sha256": "012db6bc762a33a760c47da581c57bb80bfabdf906b3b6bc4ae1a096dfa57225",
+    "bytes": 748
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/platform.js",
+    "sha256": "1d5826b8c41ef89fdf39532a6bbfbd4a0002eef282f2ff32c953b6bb7b08b354",
+    "bytes": 3787
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/profileLinks.js",
+    "sha256": "d72a42e7297edb5605ac7f43d450f0ee5cbd31235d8b78bed8ca273829d772f1",
+    "bytes": 2605
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/redactUrl.js",
+    "sha256": "2e1effc58543372f1b4cac0f78d4159ee741077b8b6773e966e8abf53d8e1b5a",
+    "bytes": 1228
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/registrableApex.js",
+    "sha256": "961698379483aec11b319d8427ce0ef116c8eb314f7465a4da79d96ff1be52e6",
+    "bytes": 1994
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/requestUtils.js",
+    "sha256": "964724e5b5c0e6009738ef967f99381dcb0aa13fcd186476817bfbb9f530884d",
+    "bytes": 10369
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/sessionUtils.js",
+    "sha256": "a6c17ea532cb8aaff48b401aaa05c80f3122f6f49d59f35cbc3c536aa54c0104",
+    "bytes": 6992
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/slashes.js",
+    "sha256": "55fdcff820ead443c00c3367bd0687f4b4f008d637cee31124da44dd7004e595",
+    "bytes": 769
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/textNormalization.js",
+    "sha256": "9a9b96de0720c2c464bd0afca435b1b837c7a2804b9aca0781d0ff742d74d60f",
+    "bytes": 7938
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/tokenClaims.js",
+    "sha256": "270ffd9565da8022f0967fa740032743d32e06acf0933406ba07a0ac19ffa77d",
+    "bytes": 1169
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/userHandle.js",
+    "sha256": "70c31ac1a6bcba55efce83142213b3595436b0065e512b9c85f76c13a5fa4600",
+    "bytes": 1426
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/userIdentity.js",
+    "sha256": "29aa24e965a2431683a0c3376f86708a1eba5046b9ddd99f5d8ddf314eba018e",
+    "bytes": 1786
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/cjs/utils/validationUtils.js",
+    "sha256": "55e9c5ba6e35a3afa5e2b271a9228942fa1a984451fc16566904918b8a434246",
+    "bytes": 18575
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/HttpService.js",
+    "sha256": "b9a3930775b152e9caab9cc82faef718e8830607d9ec55bc8174a346ab5375aa",
+    "bytes": 72923
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/OxyServices.errors.js",
+    "sha256": "0d36aceba715e47954ebc2c40bc329879ddf7253b0715be02dae92bf6334a5ae",
+    "bytes": 7547
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/OxyServices.js",
+    "sha256": "852d59b0ef37ab21f399ebbebb75568d0661278d9282c16cfda57d640760e17b",
+    "bytes": 10031
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/accounts.js",
+    "sha256": "0d0de0293cb59cb90e6dd8ca4dd3dbb58d257c91930b54cb9685b2e8c2abe4a5",
+    "bytes": 12146
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/agency.js",
+    "sha256": "59f1a038a590d0bd5b33d55024c1d4528f288cae4e384acc4e08e4142956217e",
+    "bytes": 4505
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/appData.js",
+    "sha256": "be32cc53745791d732d93fed9c00ed6f5b706f516c67bc7db603ba4f0b1b819e",
+    "bytes": 1757
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/apps.js",
+    "sha256": "067fe654be383f629be48f9053ee2e7de5fa26b49eafa20c66a22b5449046e94",
+    "bytes": 8199
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/assets.js",
+    "sha256": "fa0094668d1c0921f9990f1d73b57b442056da60443d4ae7806d4e592af320c0",
+    "bytes": 15544
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/auth.js",
+    "sha256": "ad247497054442a37c2502f830b6366db3f723070d5c7dd358e612366584a108",
+    "bytes": 46367
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/billing.js",
+    "sha256": "c94ab1b2e12e329d20ebebbeab6f7c8db46ca876878a30b0505ebe0c665b3f16",
+    "bytes": 4346
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/civic.js",
+    "sha256": "f73197e73e3b176669b8f81e2be6a43971c9d010df99aa468d3323df4b5181d0",
+    "bytes": 11605
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/contacts.js",
+    "sha256": "3b8f2b8794d295e3a1a93eac9685a1d530bd1b01103a5f3c1b2fe5e8fb7b6c19",
+    "bytes": 418
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/devices.js",
+    "sha256": "dcacbe50fff1789a28ce4663831f695f7729d2fa546928e4033dc9a18f7c5b8c",
+    "bytes": 16629
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/follows.js",
+    "sha256": "cf4a709043516fa0fdd51a777dbd3fe04eaec5bff04d3e8793fe1583a62767a3",
+    "bytes": 11243
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/identity.js",
+    "sha256": "81c881d0a84dc63d2bcffbd9cc325d2d8c8233184b08821f158c7a51fcf05943",
+    "bytes": 26380
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/linkedAccounts.js",
+    "sha256": "403b654d968f33d300c4d5d1c8c79767c08bd15fc48a9d095744e6ca0ce9f006",
+    "bytes": 1878
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/nodes.js",
+    "sha256": "cb4f9be495bcda880789ae116d6771c77f617296651324f7d22927acf0d6e1b8",
+    "bytes": 3089
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/notifications.js",
+    "sha256": "e6c038d36fabb38a2c26acfbb948e5e9405f857a12c72d6b6c1dafffcf9dfe24",
+    "bytes": 3592
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/privacy.js",
+    "sha256": "535f6a4ed401efc68c3066fcf70e971f28df85107e0c54ea22b913da0c173e9b",
+    "bytes": 4434
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/reputation.js",
+    "sha256": "620c7e1d31504a23dc98f833d0c1e9be76d9de6d06632615ff8750122031241b",
+    "bytes": 3039
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/session.js",
+    "sha256": "bc2bb6ddb5554aff7be48046afc330dc51bd7edb4cca03c419becaf7bfff16fb",
+    "bytes": 7016
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/store.js",
+    "sha256": "d61896f7458b58ddd6591a6cdc11c6933db8c0cffd941d6c62ccc5d1e55fc006",
+    "bytes": 7507
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/topics.js",
+    "sha256": "8535701efda888e6887cf47c60e5419a5b42b135faed6cd8a5cb63d985278da3",
+    "bytes": 2355
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/api/users.js",
+    "sha256": "7446caa6c2085cb00d0db8c583e0bc3305ea89a8a6056e1cb24968f59328758f",
+    "bytes": 13487
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/boot/sessionColdBoot.js",
+    "sha256": "61b0c73c5fa3820093c48c96684092ad38d67fd04f79af9034152e2297a5ab48",
+    "bytes": 22301
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/civic/index.js",
+    "sha256": "78099a4f10d227a8bff259d2081b6d042bd9631e307052d3312c183cf4c2820b",
+    "bytes": 520
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/civic/payloads.js",
+    "sha256": "d1086aff6b7d0217f61bee2d01abbdbd263f9026aa0f0c8ab2c2846de80b41cc",
+    "bytes": 4788
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/client/context.js",
+    "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "bytes": 11
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/constants/version.js",
+    "sha256": "60ab9793c23934169a3402c274dfc52581bb4876540e6cebde29c74e0e12be88",
+    "bytes": 521
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/aead.js",
+    "sha256": "b2416e6bd117775daa80264dc7a4056d4d2be7a27b8bb1e88a0296e54265cd2a",
+    "bytes": 3288
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/deviceBackup.js",
+    "sha256": "6bd64647c60a236a0f6bca706e0aae99452d1d6e4e765939616eaf2b82099f41",
+    "bytes": 2751
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/ecdh.js",
+    "sha256": "ea4ec9e29caa52dea2204f6209c9cfbd38af1f3182de3bbe144a658a8ebbaa51",
+    "bytes": 1479
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/identityDerivations.js",
+    "sha256": "85f27857796197399286da0eac5aabeacabd5ebfd289d4264d97d292b139dd2d",
+    "bytes": 4659
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/identityLink.js",
+    "sha256": "c43f07c0a87abb3097466bc59abc5f398d83d5036d308facd83ea00b121379a3",
+    "bytes": 820
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/identityMarker.js",
+    "sha256": "db287c4d46372488f585352400cbf16b3a90e425a30712031cd264f99c58ee17",
+    "bytes": 9457
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/identityProof.js",
+    "sha256": "a4af0e12ffa763517578e46639f80afac308e1fbb12fe3e02bb2236ac43fb84d",
+    "bytes": 1231
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/identitySigner.js",
+    "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "bytes": 11
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/index.js",
+    "sha256": "0707cacdd92530849fa6613b6cb57dfb3c5c1ea70cce21676bd00e7b1e37a149",
+    "bytes": 1783
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/internal.js",
+    "sha256": "fee6a1697d9ff5946440b83626cd124a2149bc1ed3199de0146a8d9165a38d6f",
+    "bytes": 1119
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/kdf.js",
+    "sha256": "caf765dee2ea8e12abc87715c26bcb8a37fafee30e46d1855d629657c5bf03a4",
+    "bytes": 1738
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/keyManager.js",
+    "sha256": "561e225c99d48a4fa9ceab43bdc972d9769ef254af9027c4fe4e344e6702a362",
+    "bytes": 126868
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/polyfill.js",
+    "sha256": "aba986556e671ca1e00b44fbb9cb3ece707a81662b44eac26913d69f1cca23a2",
+    "bytes": 3242
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/recoveryPhrase.js",
+    "sha256": "39383baff44f1819c2896f636ecd0f847495b5a394ca6d7d705d5520c27876cc",
+    "bytes": 10619
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/registrationPow.js",
+    "sha256": "66cdf1f0d45739732b81b8af23877a1b01d9bb89f8c4668bdb375f1fe7d2d10e",
+    "bytes": 2510
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/crypto/signatureService.js",
+    "sha256": "5e2931a9b002c8789a243de2b40d00249ff205e3054e57efa1b39faa150b858e",
+    "bytes": 11033
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/accountCategoryLabels.js",
+    "sha256": "9dd1bc8e225cefef86ef039376172debb44fe72fbcbd7bab5f722081362db0e7",
+    "bytes": 2041
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/accountRoleLabels.js",
+    "sha256": "6a63c1258390b54edf6189aa6926602bb94f9920833396b2dbfe1197e39cedd5",
+    "bytes": 770
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/index.js",
+    "sha256": "b00abdf09a887f16ff7ffa992f2a4002e004718b490c1e585fc3a3ea0729860c",
+    "bytes": 4569
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/ar-SA.js",
+    "sha256": "4cb4adf3b41834ae5ab7d79f0e07c8accde397ca83237e0f05cef29decb8c94a",
+    "bytes": 21334
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/ca-ES.js",
+    "sha256": "e8365d4b3ab9b8bee2f64f96e990cffb5e77de1b0a3a8260b85f453b9f0606fe",
+    "bytes": 18164
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/de-DE.js",
+    "sha256": "bcc4f17196fb0fa1b220eb46c6bd40e3d20e846518ed157c914f3d84c12c7086",
+    "bytes": 18637
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/en-US.js",
+    "sha256": "3cfd42302200b98c9b802122105d47446637818d8f51aa48b11a7ceaea895122",
+    "bytes": 88490
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/es-ES.js",
+    "sha256": "f0c36e1f1210257eb84f3b9855bfb6ddd8d99d1cbd27635f406a7241a61ee3bf",
+    "bytes": 95577
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/fr-FR.js",
+    "sha256": "0876e8977f99539cc7cbdcb27e3444609f37621d82cb6b00e5f68511687cedb9",
+    "bytes": 18965
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/it-IT.js",
+    "sha256": "0ccdcb5394172fa8be415996dc4f26e4daadef51945d9b53b91295e0ab715ba6",
+    "bytes": 17855
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/ja-JP.js",
+    "sha256": "e8688ef01eaf37b7dacd2e92672acd12daecaa55ef0dd78a41aa9d72a78624ff",
+    "bytes": 21162
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/ko-KR.js",
+    "sha256": "ffbb0cc56d993646d31f2275685601f4bb5e5b324d9cd4210c784121baf06ff2",
+    "bytes": 19068
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/pt-PT.js",
+    "sha256": "658b20790ead391580a636884674bcf951861d1ad4ea778cabe20cb43cd227e5",
+    "bytes": 18275
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/locales/zh-CN.js",
+    "sha256": "61195541635a2f5c9a96095d2e3eac69bbbc36d6bc599b400e2b19db3d2ed487",
+    "bytes": 17102
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/reputationCategoryLabels.js",
+    "sha256": "36f03af3575f4a9e94d8319a6b6a11b367f64edf6c87911da9ba1368547e2ca6",
+    "bytes": 585
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/i18n/trustTierLabels.js",
+    "sha256": "f19662843839a2dff40af7a00acd02d51e062ade8a72fa4dbb23a5dfbad7e210",
+    "bytes": 468
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/index.js",
+    "sha256": "00d34eedaeb10c7ea88ea1aa6aa7ca47a62849ebe1cea84b9baf919a5f1a5c22",
+    "bytes": 10224
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/inference/OxyInferenceClient.js",
+    "sha256": "af45939c4bdfcd8c2ddb3c584fc8984aaf612144d8befbb695e527731e0efc44",
+    "bytes": 31687
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/inference/index.js",
+    "sha256": "5856b15aff6ac3ccfaad57548384dddd9283ae950325cb087ea5f03314883b8e",
+    "bytes": 542
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/logger/index.js",
+    "sha256": "fd4dcdb899ade38c6b3f7d411310ebcbc0f0da0c99270a79170230ecd3f286b5",
+    "bytes": 5016
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/models/Topic.js",
+    "sha256": "9763f581a7873d38cb0838639c89ff98ce46265c04080180d756b8e9a1bae201",
+    "bytes": 420
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/models/interfaces.js",
+    "sha256": "a36997f64fa134e8481357992e273e05b52873266c75d7c150c187fa462be769",
+    "bytes": 518
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/models/session.js",
+    "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "bytes": 11
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/package.json",
+    "sha256": "178560022e317e90bcb63e6c6ef5721053f3e117d63f297830b05719f166036a",
+    "bytes": 295
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/OxyServer.js",
+    "sha256": "47cc76c3545122f2f7c0164dd25f5442720b3594186f9684076d6eea6bf6ef8e",
+    "bytes": 27497
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/agentAccount.js",
+    "sha256": "b3f5ad9830a4358be11b7cb5bd1240c958fdb4a42c41d66d01d9a7d6ba448a25",
+    "bytes": 1114
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/auth.js",
+    "sha256": "072f815fddd1345c2c79e31e7435b4cc00cc57fc811373953cf55dc51076df74",
+    "bytes": 7398
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/capabilityTicket.js",
+    "sha256": "0725dcc40746996febd9555a40d5cf59ea77d6f9b54b3c0cf02b9590f2a2c074",
+    "bytes": 6500
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/cors.js",
+    "sha256": "5e16986ad1563e6a37f16bebc7a1d3d656ad3db65661609060c1f7e394325fc7",
+    "bytes": 9917
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/index.js",
+    "sha256": "6adbc8d094a126a637be70a1aebeffc95b8b9b28b409b9c1263093a7c4ac94a6",
+    "bytes": 5243
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/liveCapabilityTicket.js",
+    "sha256": "f9b9a172a0f37850af29c5dd2325f6eb9f06300338be3fa5c807e3db078e71af",
+    "bytes": 2555
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/middleware.js",
+    "sha256": "ad0b75acff582a557465998aee47eed47d8201d7eff57d8a94ba0b3256887421",
+    "bytes": 57636
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/namespaces.js",
+    "sha256": "6595a6a181820d1a86fa386e2e9bf1e07a562482797561f7cb9ff4c558e24a4e",
+    "bytes": 14000
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/rateLimit.js",
+    "sha256": "b33506da63aff7a3b1a547be28de263d7040244f3fdd7868b5a19dc630a123f0",
+    "bytes": 8626
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/requesterAssertion.js",
+    "sha256": "20afac7fd076dee65dec060bb049dba4eba7a2baed827157ca34ab2a493324da",
+    "bytes": 15214
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/safeFetch.js",
+    "sha256": "dcc8315609569d1cea02ebd63ec5baccfe96a78a4160ac2ee67aac2221e38051",
+    "bytes": 19005
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/securityHeaders.js",
+    "sha256": "6817871d14f01188a127834ff35ac8478124fd4d87c4bce314b517573a14425b",
+    "bytes": 18482
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/serviceTokenLifetime.js",
+    "sha256": "6a092807e0ea40f131d43925956414e6875bad2b5092df65180614efcd56cb23",
+    "bytes": 617
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/traffic.js",
+    "sha256": "f0c4723a912e3d9ff0ba589f6e42ae4763ba0ddeb96fb118d05256a598b09eb9",
+    "bytes": 7650
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/trafficNodeHttp.js",
+    "sha256": "ccae10ab496e56243b51d40d4d9b31b67cbae06890bd5e27cbc66e455cc700c5",
+    "bytes": 3957
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/userInvalidation.js",
+    "sha256": "2c288769935d9a0a36cbb80fc8720ea15b766b48118a8361b10bec3ed99f4b05",
+    "bytes": 6811
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/verifySecret.js",
+    "sha256": "34a065e057927e55cfe36e8b7b3f023b8a578eeb77f0edf9b889fb231a58ef9d",
+    "bytes": 2128
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/workloadIdentity.client.js",
+    "sha256": "5ce632a451b8a68de6654ea47002701c839d0b0fed0b71623f9eae03789c6ed6",
+    "bytes": 284
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/server/workloadIdentity.js",
+    "sha256": "c44244aec7c2bc79a40d1df450eb26b61ad732c052a15c46f99e44b6d7a4adfd",
+    "bytes": 7808
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/SessionClient.js",
+    "sha256": "b15bdd16bf70a36caf5ebc501e1acfa19eea29bce73b73823af18c06fc9c33ae",
+    "bytes": 42433
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/accountDelegationAccess.js",
+    "sha256": "c3051f614c42595b2ca127e05d9a2c8348f515d3d8f19d1ea689af650279d3a9",
+    "bytes": 2206
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/accountDialogController.js",
+    "sha256": "b878793f858f642ed7a452ac534a49fc6ee7d234b03e80701e8975e182662852",
+    "bytes": 61885
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/accountSwitchTargets.js",
+    "sha256": "5912671877701c8ef559639b8af1346bb9d9661f9c146b98b5c3eb871d96db96",
+    "bytes": 3958
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/authStateStore.js",
+    "sha256": "6a3002f4dec95623b696e53a41ae50d7acb8781ba574b654b6da1a1a7e78632e",
+    "bytes": 16919
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/createSessionClient.js",
+    "sha256": "0f4968a45c5f77480a8a926f61145f49ec471149be60a5fa3806e3daaf9aed10",
+    "bytes": 1515
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/deviceDirectory.js",
+    "sha256": "26d59c4e4f5c757af8694d781b8c466e5cb7f4e419ff75483b8b3b172d9a7cf9",
+    "bytes": 5530
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/deviceSwitcherRows.js",
+    "sha256": "80a9a03cb5d013c8ec85f784a91ef8e7948dd91dbb6b4796a5468b40bd971708",
+    "bytes": 3861
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/identityPin.js",
+    "sha256": "13204b380e0c7cf38033a0a8dc54541293f89cb2e276931e14bf5650204e5ed3",
+    "bytes": 10000
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/identitySession.js",
+    "sha256": "348bfdf8b6d0ee43dacc0adc5435a1cf03d4634f98c5cbea4e40d31d4ee64dca",
+    "bytes": 6635
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/index.js",
+    "sha256": "adcfa276ef153a60341e8745d905a61e9972fb0157756c87a4a56aa994664744",
+    "bytes": 6222
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/projectSessionState.js",
+    "sha256": "ea0982a79cdd07406a1aaa639f98cab9951fff4ea477a570c3deaae3d8512303",
+    "bytes": 4864
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/refresh.js",
+    "sha256": "ff3d4c11eb9a1bff336060adc3292b450a13ec79fbbf8c90199c834fcb9c838e",
+    "bytes": 23180
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/sessionClientHost.js",
+    "sha256": "43ce10ee4536b948ed120f134de1c36165bddaf8c645306f041eba9ee647e0e6",
+    "bytes": 1398
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/sharedDeviceCredential.js",
+    "sha256": "8c1a98d82563ac7969fe6201a29a0a30c36d0bcdd40a9c904921c4a61fb9304f",
+    "bytes": 11962
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/session/socketLoader.js",
+    "sha256": "ea9c28d18213a4446aa7959c2011a5658e33f1c6308e551a0ad010e786f1320e",
+    "bytes": 607
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/shared/utils/colorUtils.js",
+    "sha256": "b915bd555678a9b1e0dfab7aa77e319ace3de121e7017d12bfbbcdbf2234ef9f",
+    "bytes": 4531
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/shared/utils/errorUtils.js",
+    "sha256": "57a5d7e845b48a794699cc690495289d9c63335bba5e126d5ce360c27f41d1d4",
+    "bytes": 5370
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/shared/utils/index.js",
+    "sha256": "06c0888f85202f29350eaee7912c57d7b142b979f7f54201ec12b0f353d59090",
+    "bytes": 891
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/shared/utils/networkUtils.js",
+    "sha256": "c490e696e961b4ed8f9658182b07166da5a24599177081928d7dbcfd2f498bec",
+    "bytes": 4884
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/shared/utils/themeUtils.js",
+    "sha256": "f4b1ab9891ca66a457b1cd385cf6b6306587824ff4b81dbeb1158fc054057bf2",
+    "bytes": 2914
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/accountCacheSweep.js",
+    "sha256": "911684526b4d55236e8b68b9743cd56e535532ab8d4dc95b22db9c44897bcfee",
+    "bytes": 3775
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/accountUtils.js",
+    "sha256": "bdc5b6ed67dcc19a6b69771ba14f1ead0f8120b5481326bf9cdc80fa3504010b",
+    "bytes": 5217
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/activityId.js",
+    "sha256": "9250cfbd980ce57bb76f3f58501cdb95df02c012392edaa5d645401d31e1eaf8",
+    "bytes": 144
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/apiUtils.js",
+    "sha256": "f1b7d083a431a1f85fffa5fc8464ae3b46f25306bcc9abb876d1fadc095adcd0",
+    "bytes": 2892
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/asyncUtils.js",
+    "sha256": "86f5e5de7f65e85c1daaf4cdd1310f4b35d046fa8cfc809cc5a3c04394633bf3",
+    "bytes": 5435
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/authHelpers.js",
+    "sha256": "5133d5a5b557de16a410b02db428826216f085a0fe7c752657bb296eabe853c4",
+    "bytes": 3701
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/authWebUrl.js",
+    "sha256": "28afe3f98df30c603b61eb17f9c00efc5b9d756c9326413a91330e86ff96cf80",
+    "bytes": 1043
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/avatarUtils.js",
+    "sha256": "83735f040154306bda57809ee23e1de724df2e1066e04795fdc2d0d48e120f0f",
+    "bytes": 975
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/cache.js",
+    "sha256": "7cbda2f5f72a55ce170b136971634c1675464303d917d51d1680f67390d3f00f",
+    "bytes": 7770
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/cacheKey.js",
+    "sha256": "571ca9cc6df125f20d9690ad563c9e003b57365811299ab5e27d4eaf1a8bd9c6",
+    "bytes": 3557
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/coldBoot.js",
+    "sha256": "db35c1a5fa9f05a923ce90c5d6cfe782751744fee25ba3a34eb6104647fecbf4",
+    "bytes": 5457
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/commonsApproval.js",
+    "sha256": "8f3fcfdfaa0d61e1c08d678ec602a4be3167a3e0c973c3c2023f525d217dd781",
+    "bytes": 1059
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/commonsDelivery.js",
+    "sha256": "13bc45402aec67170d53e308e2ff77a41eb7b9fbf4144460c1e3dd73308dccc7",
+    "bytes": 2090
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/deviceManager.js",
+    "sha256": "a239bfcedf23dc3807d91a80f672683794f692abb307f07ff4878aaf7f93505c",
+    "bytes": 6433
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/displayNamePolicyRanges.generated.js",
+    "sha256": "5e2817f9d034bbf50971ce5b4c914b3c849fa77f94008f4a4a05072b071490c4",
+    "bytes": 24306
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/edgeRegion.js",
+    "sha256": "b108cc9a6ad15f222e8d95b750fd2621db41fd9c026ba17a98cf4b11638c1b33",
+    "bytes": 73
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/errorUtils.js",
+    "sha256": "11421950b905befd0cd1b3a5d4851c7971c973dfe2c69f22797fc92bd5e59f3b",
+    "bytes": 11393
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/identityCacheSweep.js",
+    "sha256": "070aeb0f25412c1843261090f93e798a505b58be1fc856cd4f691b50c76f0871",
+    "bytes": 4334
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/languageUtils.js",
+    "sha256": "01bbe24eb2a5042a19f638aa14e5975ca55bfc9e2dca194c942dd7c9131c0b45",
+    "bytes": 13494
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/oauthPkce.js",
+    "sha256": "61372440f396899fa5736d939df4280f2b2986430d892eff1fd6e900a79ad9f8",
+    "bytes": 12758
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/officialOrigins.js",
+    "sha256": "c86d593cb4809968ce5c84e6cedb13f474a3953fe4f056b5f248eebefd412ff6",
+    "bytes": 1546
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/oxyServiceEnvironment.js",
+    "sha256": "a3904706493b82dd0af0d39e40199e497514fe5b62923388138bee4e14eae3de",
+    "bytes": 633
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/platform.js",
+    "sha256": "c5495327bda0fbe197df7f2fd80338eea3f877a8fcdb09caacf116b652eb1f09",
+    "bytes": 3538
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/profileLinks.js",
+    "sha256": "d34ec36a63c1ddefb8ebc2950805c2f499679f2d254373db683afd65267f0007",
+    "bytes": 2480
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/redactUrl.js",
+    "sha256": "6839be22b76a3078061021ed1209453bfab01f8fd99c7b3d856a7a12650187e2",
+    "bytes": 1117
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/registrableApex.js",
+    "sha256": "71f56220ef081b2398a5eed329aa085513b37b8fd4282a5a0ca13a596a9be24c",
+    "bytes": 1869
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/requestUtils.js",
+    "sha256": "2787b12e377d0739d1be78589a2247f92c27f08426570dbeb1d968079fac9482",
+    "bytes": 10096
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/sessionUtils.js",
+    "sha256": "a8a5a09648e33ad841d106edc9ff306bfd4761ec1a316f01c8cdc44fe886abbb",
+    "bytes": 6581
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/slashes.js",
+    "sha256": "957b0b7366d75bf3026792d58d65d9e0a30573d06b1b778d134a8824799781a3",
+    "bytes": 606
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/textNormalization.js",
+    "sha256": "04fc292084349a76388e8abb23b8c9b68ebe87e3d281e2255e3a4a40810f0074",
+    "bytes": 7767
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/tokenClaims.js",
+    "sha256": "c66149c894b614767e80ea69030f04b4bbf24594f0a32cad9adfe29aad6eb028",
+    "bytes": 1030
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/userHandle.js",
+    "sha256": "ae61afc291459c2cd437278ff6d15f87da6d8e27839d39de86bc9e8c3e4ee981",
+    "bytes": 1247
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/userIdentity.js",
+    "sha256": "97f01ce30808f9b6e156c81c00bc75d693d9d111cc3fe04496373c19ee21b709",
+    "bytes": 1557
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/esm/utils/validationUtils.js",
+    "sha256": "8bfe229ec5fa4d40d2712235afe7e446096a045ee51ebc404622b91c70f17f55",
+    "bytes": 17288
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/HttpService.d.ts",
+    "sha256": "0bdbdcccb241148585abb8b2baa5684bd9bc38fb241886bf218355e67c20ba0b",
+    "bytes": 26595
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/OxyServices.d.ts",
+    "sha256": "34261d97a4f0a235c30280c900ee3774ea89490e86b21ef03161c1e88589f395",
+    "bytes": 6883
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/OxyServices.errors.d.ts",
+    "sha256": "3bb704fa1ff42e0eeba2e747db6fb63a92a627495bbf100a50c10400b957f08e",
+    "bytes": 6845
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/accounts.d.ts",
+    "sha256": "1348556d8a099c25f9ab6c35925b8622c0bc827480446984db159b0ae389fc39",
+    "bytes": 21176
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/agency.d.ts",
+    "sha256": "ea545ccc0b3b8827d7d3efd2e49c6c3b3632e0075ad698b4c1da0367f165e76d",
+    "bytes": 5464
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/appData.d.ts",
+    "sha256": "b7050e9218428ef00a9e6f70f968be64597926c0813d26da68e0fecd357aa83a",
+    "bytes": 1334
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/apps.d.ts",
+    "sha256": "b9f8532679c8098ac66fcd0769d062b93b618ed8c21cef8a26998d0f69805b16",
+    "bytes": 18771
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/assets.d.ts",
+    "sha256": "b1383a3634aefb10215ab25a812843ee4c22d09c3c4d96ad9ade8bed38df31f9",
+    "bytes": 6791
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/auth.d.ts",
+    "sha256": "bc74540ab78ebdd32d3a9b288e76ffb31b43db0608e2e300ca486e14c8bd6599",
+    "bytes": 36735
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/billing.d.ts",
+    "sha256": "0ffb846b02b75ef4e2608cf934c7171486a2d1b83d756635b109c41ba412edae",
+    "bytes": 4929
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/civic.d.ts",
+    "sha256": "0d7e19fd9b24600de44400ca2d31f6ae31e62e903c97b992c19182dcb0801bad",
+    "bytes": 9603
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/contacts.d.ts",
+    "sha256": "5bf62855f32f11e25b0520cbf7bb1a780f78b4466f9bcaee0ecd750e18636429",
+    "bytes": 1182
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/devices.d.ts",
+    "sha256": "c6beee98c0d2bed11b63d0963e16c5c4b6527f0c2d22b0f91d59608d2199979c",
+    "bytes": 11779
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/follows.d.ts",
+    "sha256": "63a39110fe32ea26e30a7ee3625d3168abba612123c29054b5259b28e0cfe178",
+    "bytes": 9469
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/identity.d.ts",
+    "sha256": "de96117798635fca66164334fe2d27ce99f2c029c111391c68a37ac723277262",
+    "bytes": 12868
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/linkedAccounts.d.ts",
+    "sha256": "7669f3c70262a31ba5e895a1ee104d6c7d7e7450e6816ff62c76effd55f5b1ee",
+    "bytes": 2612
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/nodes.d.ts",
+    "sha256": "8f0d77b966f2f11ed18df383ffadd2b80782c928457e611aabb65e359ae196f9",
+    "bytes": 4823
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/notifications.d.ts",
+    "sha256": "c516412c52cabd7862c2abc6928933d9a6eb4293846b2f3bd09db9ebafe84332",
+    "bytes": 3375
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/privacy.d.ts",
+    "sha256": "8a0f7dfb1c823ba6b737b6f761be2dc322d51a00111c116d840e04ccff2ad56d",
+    "bytes": 1757
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/reputation.d.ts",
+    "sha256": "d06482d9222e99b3984e680fdd8ab2c4abb247e7a5425c6fb335eab17a05028a",
+    "bytes": 2465
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/session.d.ts",
+    "sha256": "b304cd1629f4b53aef9c334769e93ec55f4e0a4d12cfe4e9104db189319090c1",
+    "bytes": 3974
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/store.d.ts",
+    "sha256": "694531b3cc73739624472706ae1d71e2f1cfe5f4b241625e2935c491d66248d7",
+    "bytes": 11400
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/topics.d.ts",
+    "sha256": "e9d25271ce5f96ba86958ae5946d3de9189507202e5c9389cce3e9dcc5da576c",
+    "bytes": 1318
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/api/users.d.ts",
+    "sha256": "a8ad5ee0767e63b2a451a5015a1d3c09b3e6ce46068c481edc89e6fe52a8ab16",
+    "bytes": 5758
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/boot/sessionColdBoot.d.ts",
+    "sha256": "124c9e1cdf5c1ac4af3fd359816fcf3de15abce185a78eeb08dd059a21a2f83e",
+    "bytes": 7477
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/civic/index.d.ts",
+    "sha256": "352ab0b170f5f3caed1400d659a802b7fa004017ea019f941378ba175c63a727",
+    "bytes": 509
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/civic/payloads.d.ts",
+    "sha256": "ec89737cd7cd90354b09eba3b2b2e4cc8ade3bee6dc65df84362be173ef1cb39",
+    "bytes": 4094
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/client/context.d.ts",
+    "sha256": "f2dc397969ba45617a38411df1509421733b95b6d9d36866bccb577eed2a312f",
+    "bytes": 1538
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/constants/version.d.ts",
+    "sha256": "a01bfeca1a76a93d56a7420acc852a34520720049ddbd4ef9a4e8eee61e164ac",
+    "bytes": 714
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/aead.d.ts",
+    "sha256": "737134bc9f086a01f4aa7627846ef356a28699a605fe603c960b6138d151a7c1",
+    "bytes": 2747
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/deviceBackup.d.ts",
+    "sha256": "24369387d4c010effa23b78df8a30bce62f180d70e1e5b6f83b3539cda6e6f8d",
+    "bytes": 3070
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/ecdh.d.ts",
+    "sha256": "37ebd2240e833eeff853a1c41a928b3604ba20316d2ba12c7bf012c8cb363e00",
+    "bytes": 1364
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/identityDerivations.d.ts",
+    "sha256": "fae63dd61c038bac589f6dc361369028eab6d0852b725b5aaf56a1e11ae03cf5",
+    "bytes": 2834
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/identityLink.d.ts",
+    "sha256": "b84b15bf988982cbcd6a0c2c7f614abb24b4f844b1d7b896610899ac7f2f4069",
+    "bytes": 461
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/identityMarker.d.ts",
+    "sha256": "e82119238e9218bff42499f1247a0ab538376cb2f928d6881861cd8f36048134",
+    "bytes": 4792
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/identityProof.d.ts",
+    "sha256": "5d9c9f3e0271bc1de4d35a76e4d56b337233ebfe796071c325793f2e4af19675",
+    "bytes": 739
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/identitySigner.d.ts",
+    "sha256": "67e24245e3c47ef1f365ec732a6d1ab6170364ddeaccf0ffd8ef9a542ed20599",
+    "bytes": 1402
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/index.d.ts",
+    "sha256": "c5d0a2a6b5058c60c748b1b4cf7ecbcb62164c2a7dba4f416a830a7674956e81",
+    "bytes": 1662
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/internal.d.ts",
+    "sha256": "da8413040461db8b5b2f308d01388975583e3dc9f786c450db56e2524e8577f5",
+    "bytes": 1095
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/kdf.d.ts",
+    "sha256": "a2de449fe95a2eb73595fa725035c70467f9f51575bab9d84d6e4bbd4234fd1a",
+    "bytes": 1334
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/keyManager.d.ts",
+    "sha256": "6a6487918ca7b927ae8528b095353a158f3ef3ae70cf48785f7f581a88684c45",
+    "bytes": 36217
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/polyfill.d.ts",
+    "sha256": "113706a4be0a00fef8485bfed1c4a29a60a6db80251acff7a3edf5ba65200623",
+    "bytes": 1862
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/recoveryPhrase.d.ts",
+    "sha256": "53eb995d8065c0ff9633345d187914a80ab04b9162116f3dda6a769b298c2b4f",
+    "bytes": 7822
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/registrationPow.d.ts",
+    "sha256": "d583584b9b4e3974eb2ee0101ef7f6c98629479ca7700d5b5f8125ef16bae1ed",
+    "bytes": 1206
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/crypto/signatureService.d.ts",
+    "sha256": "51ce90a43e397f012d2880c8570f90e0e68e077ae416759a671362fa3fb970c3",
+    "bytes": 5818
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/accountCategoryLabels.d.ts",
+    "sha256": "edca48432f7fdfe9cfbba866a47235a5edd35aca319565679e50c497b4d8ea0e",
+    "bytes": 2021
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/accountRoleLabels.d.ts",
+    "sha256": "b794c01d32da6b79b65af6209404f2ee008c2370106950d1a971c261721b2351",
+    "bytes": 478
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/index.d.ts",
+    "sha256": "f890f05152c78e95da43add4abde736272dafe8f1a5a50ca6389c7a123423985",
+    "bytes": 1159
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/ar-SA.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/ca-ES.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/de-DE.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/en-US.d.ts",
+    "sha256": "2ece9ed22a32cbab331b0090a161123f910006bbd1b48eba5f3b4978b6fa6281",
+    "bytes": 54395
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/es-ES.d.ts",
+    "sha256": "364cb5a4fc6e65bb0ce86686356e7551190f3ccdab7e43b907437d2f2db782a9",
+    "bytes": 54395
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/fr-FR.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/it-IT.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/ja-JP.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/ko-KR.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/pt-PT.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/locales/zh-CN.d.ts",
+    "sha256": "75efda8398f5c1610328f9a1dfd1a35b1293dd32e29e64da261dc7d6fcd39117",
+    "bytes": 9915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/reputationCategoryLabels.d.ts",
+    "sha256": "f0c01805e55c86f15bf1570c404cdb87da240b85a81c8f87efb0c90653674902",
+    "bytes": 572
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/i18n/trustTierLabels.d.ts",
+    "sha256": "c320a4b977b919b901e642f0b8cf701cc981490b08cae22d152e72360814e7f7",
+    "bytes": 448
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/index.d.ts",
+    "sha256": "c6aee69916fa246ed9311de02a1593d8933d5e147a3b76af56be7d6d40f7bce0",
+    "bytes": 12506
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/inference/OxyInferenceClient.d.ts",
+    "sha256": "8bb8c27c2b4d3900e0fcf22b4a5ae2245c35e674dfd9c71efd04a8f75ce7d099",
+    "bytes": 18176
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/inference/index.d.ts",
+    "sha256": "9ce601d6c2dc386f889a418faac41bf153829f950cbba76983564d281848f992",
+    "bytes": 1301
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/logger/index.d.ts",
+    "sha256": "e80407caf20e2dd625558a191f910ddf1634118e784f84efc06db5d0a8ba35a1",
+    "bytes": 4579
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/models/Topic.d.ts",
+    "sha256": "1c08c040de79cf2d17eaec892a3088cb3a7475b81bd195fb3770bb3093e3b0a4",
+    "bytes": 980
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/models/interfaces.d.ts",
+    "sha256": "6430afc237bc3d27a3e2a5ea45ebc0983d6f2085544d6e1445f7c97b13522e2a",
+    "bytes": 26081
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/models/session.d.ts",
+    "sha256": "a3e8fdda654317965c92494ac821cbfbf28b3e2afa9f151b8e8bbc3eeb1b7c5d",
+    "bytes": 1777
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/OxyServer.d.ts",
+    "sha256": "8d18fb72b6f6c7844762a2be8d6a0693d94bc6418c377480f30d1fab4b42e467",
+    "bytes": 9091
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/agentAccount.d.ts",
+    "sha256": "554200b1c1074839119f3803b50c33459b08ff846ede62467b8dfca7188a0eb3",
+    "bytes": 659
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/auth.d.ts",
+    "sha256": "2f61888380026cbe83ec403367cab7beb8ecf5e11b967061623d51feecd6bd1b",
+    "bytes": 8075
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/capabilityTicket.d.ts",
+    "sha256": "b9180e6102314249c5c03e66cff723e40af9ea07efa564aea8a87f122527c57d",
+    "bytes": 2134
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/cors.d.ts",
+    "sha256": "37c83a238b4f49f6a3885c723834fc0aa0153294082206e459d827a11f568009",
+    "bytes": 4815
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/index.d.ts",
+    "sha256": "2010e2ea9b1ee23e8c7ebee735826855eb45b579672383b787ad6c2dfb1822cd",
+    "bytes": 5568
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/liveCapabilityTicket.d.ts",
+    "sha256": "eee55a1af23e9920f48fb37c4e6896a9a2c73e4e23fbd334b427ec6869c9f5de",
+    "bytes": 840
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/middleware.d.ts",
+    "sha256": "78e55928d89e4da8e4a3ecf01eee660941526f4d0c17c7cb4c01c90f36ddd644",
+    "bytes": 12915
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/namespaces.d.ts",
+    "sha256": "6bb0a777b644a43b6f832a08b0ca1e1596176b3ab0d5aa58b6dd05522048f8fe",
+    "bytes": 8513
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/rateLimit.d.ts",
+    "sha256": "8038189996808a11c7bfede03d373d83cd4504ca0ee2788ebc8c62e1291f8d75",
+    "bytes": 1802
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/requesterAssertion.d.ts",
+    "sha256": "9871522ce90df60912f87b41560228feb766e9a6cb3d56809f608ccdef65990f",
+    "bytes": 6428
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/safeFetch.d.ts",
+    "sha256": "0e23b98bf73c46c271edf99bb768ebf8e864ace295d2ae8719f33ffdc5cdcfbf",
+    "bytes": 6194
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/securityHeaders.d.ts",
+    "sha256": "393db8edbde72716128d98eb4417ee1d69b06683eed61bd78f089e25db3bbe08",
+    "bytes": 12305
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/serviceTokenLifetime.d.ts",
+    "sha256": "6248236e5d2f35c6a63259f2b8406b0e10332555ca0146307db836008bbdb459",
+    "bytes": 362
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/traffic.d.ts",
+    "sha256": "892d7e05e472eb1931f9e9988af5a45ddcd52526c77234f89437b1607ca1a58d",
+    "bytes": 1280
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/trafficNodeHttp.d.ts",
+    "sha256": "b363c18d6db7dad4194cae3659176dbe876156a7696993ccf39514b84262d12e",
+    "bytes": 456
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/userInvalidation.d.ts",
+    "sha256": "5aae07ce263d7f19f4dc9ba27f104f33fd6fc44e5e47471f1b24879519928338",
+    "bytes": 6104
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/verifySecret.d.ts",
+    "sha256": "b97dbd9da38a11f8989f644f7e4dc03493f94624c0982699908e643de75d13ab",
+    "bytes": 1397
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/workloadIdentity.client.d.ts",
+    "sha256": "98fc7352e01b3905af1a3f3e8a9ab662fa640bb8b2ac313aff1e31da04e14cd6",
+    "bytes": 357
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/server/workloadIdentity.d.ts",
+    "sha256": "24b09c320b60595d234d8099a132fbc53a21f8ab5ca2ae9c672e6a7f70789be6",
+    "bytes": 1313
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/SessionClient.d.ts",
+    "sha256": "a1d8e5b993fee4e153d990781d0c09e8fe1e64219b90999628fea5a8121f9cd4",
+    "bytes": 22493
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/accountDelegationAccess.d.ts",
+    "sha256": "c4e52c772a6c2633f83310e9040e43565a9d7bd5eaf1470a857431ae84befd3e",
+    "bytes": 2076
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/accountDialogController.d.ts",
+    "sha256": "7aeb37e9c0189bd33d4c52515b71183b40a2a12d5b5fedd14e74242d70a7468a",
+    "bytes": 42950
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/accountSwitchTargets.d.ts",
+    "sha256": "0de6b5e731784423993969f86bcb388c82dbf9757a93f1be73593830954d7232",
+    "bytes": 3804
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/authStateStore.d.ts",
+    "sha256": "1fb219023c047d748663febfc60bc9257da6171a0df7e956f811ff42685e4171",
+    "bytes": 7897
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/createSessionClient.d.ts",
+    "sha256": "fd5e59e163926ecfb6fb15a24f1e51b23c4f621eaf6aa70f73393bd540e1f79f",
+    "bytes": 1616
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/deviceDirectory.d.ts",
+    "sha256": "5c67b9e41d488985998a63dd2389d32eeec3c65d850e582a2b6a7be2ebf999f7",
+    "bytes": 8776
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/deviceSwitcherRows.d.ts",
+    "sha256": "50f4608e8290f9ffe209e3d12ba8ed527c66a347242cffb63dd31facbf0765da",
+    "bytes": 4673
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/identityPin.d.ts",
+    "sha256": "160267f313845cdf3aa4b8fd1669c0507f7a97db64bf62fd63a0c8698eacfa47",
+    "bytes": 4243
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/identitySession.d.ts",
+    "sha256": "9e65be0a81b044c94384d1860d1f58cb657342c9453dbf36d645fa44c03242f3",
+    "bytes": 5072
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/index.d.ts",
+    "sha256": "0dd8a5c4b8be052157a1d47381d65952c915070a10f1a6cc36356dc81fc7b3ec",
+    "bytes": 3928
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/projectSessionState.d.ts",
+    "sha256": "e03f5be1fb59cfaf68bc794c287c2d21a1d75a922ad813d6dbe37d4630b038c3",
+    "bytes": 3909
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/refresh.d.ts",
+    "sha256": "818533f6b8f9c8738f81bebc6d6f903cdb80b8ed8d8c87b65fcb7825660d80de",
+    "bytes": 10467
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/sessionClientHost.d.ts",
+    "sha256": "7fad961e9ca21641d5822995ad3762fc37f44e1e5345a629483415d18db953f7",
+    "bytes": 932
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/sharedDeviceCredential.d.ts",
+    "sha256": "d84c640e818bedee3d612b1bd04445520c134657877169f98d1c843f39a4003a",
+    "bytes": 10047
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/session/socketLoader.d.ts",
+    "sha256": "dda06d24ee3c03d04ead776572cf4516a13d7e803d3fb4cb9ecb1cd6435d0e6e",
+    "bytes": 546
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/shared/utils/colorUtils.d.ts",
+    "sha256": "d3da9286aae4c99e88f2c342abd4cf2f310bb6a07a9daf966251f7f2bb4fcb34",
+    "bytes": 2930
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/shared/utils/errorUtils.d.ts",
+    "sha256": "764c3a8a6c0d1f9a70d0d4d278c4537d8622cf3c7c3566cc50d430303d8b9bbc",
+    "bytes": 3108
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/shared/utils/index.d.ts",
+    "sha256": "d4f73d797f3aaf316bbfc60219378abbb78efb687528c6bff8198f888c06ea98",
+    "bytes": 931
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/shared/utils/networkUtils.d.ts",
+    "sha256": "448dc82f8d8908c0f4befedae684cee7a1145a1fea31581c106d6c008e518688",
+    "bytes": 4176
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/shared/utils/themeUtils.d.ts",
+    "sha256": "1bb48a36b619e12cf35d9a760a8ee8d4cf0d8374a5836d78e94afa67830fe674",
+    "bytes": 2671
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/accountCacheSweep.d.ts",
+    "sha256": "2f25823304f62b0f0aad4599ba62f61583ce047dc28d7945c54682758262455c",
+    "bytes": 3985
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/accountUtils.d.ts",
+    "sha256": "c2dae09742ae5638011ca498a05a61fcc089a9459f230ace9ca4b9222eb38c9b",
+    "bytes": 3965
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/activityId.d.ts",
+    "sha256": "9250cfbd980ce57bb76f3f58501cdb95df02c012392edaa5d645401d31e1eaf8",
+    "bytes": 144
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/apiUtils.d.ts",
+    "sha256": "7e297afdd9c805220e9156a4ba6de2cfa94412d51637f39258297bcc67c66093",
+    "bytes": 3249
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/asyncUtils.d.ts",
+    "sha256": "0c631b4782276c16bd3214a3ce620b61d43f24bbc92d371bc73c21d10df5f207",
+    "bytes": 2059
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/authHelpers.d.ts",
+    "sha256": "9866266efb556eba57864ac0989af554c71f64b0f25d00131c582ad3e404f406",
+    "bytes": 2219
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/authWebUrl.d.ts",
+    "sha256": "d19e019146c104c458fc4a3fedd6ce585623bbc7201997efaec11502de16c2bb",
+    "bytes": 1046
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/avatarUtils.d.ts",
+    "sha256": "14aabad18b1ea01b0187e481304f35b444a7eba2af4a557d4192e0d3c88c04b3",
+    "bytes": 676
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/cache.d.ts",
+    "sha256": "5d571febd49d5ea90ac6433986681e34bf0e933df3ef0ac250ca65c7f420c3e2",
+    "bytes": 3772
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/cacheKey.d.ts",
+    "sha256": "47980ae9ae73f19251025cfb2707f3d588da472fd9f5e2075b9bb3d3781f805a",
+    "bytes": 3128
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/coldBoot.d.ts",
+    "sha256": "66e978949e38d0dad9cb71a68e9ac2c076b69494440d4b580dc6afb63fd0528c",
+    "bytes": 5810
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/commonsApproval.d.ts",
+    "sha256": "ec281c5abeeea7b894b04a9ed40a993c7b43907e735429dce40ed5da881316ef",
+    "bytes": 672
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/commonsDelivery.d.ts",
+    "sha256": "274582ee84d2b35c692148087d0acc990e4658e17ae3912d4cc8b20cc93d4aaa",
+    "bytes": 5143
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/deviceManager.d.ts",
+    "sha256": "991925d4bb9035139a87d72cd87064d15ee300ce3889806f7cef25c0daf089bb",
+    "bytes": 1685
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/displayNamePolicyRanges.generated.d.ts",
+    "sha256": "640bfd8430b2a4a4469cf4a2b850077caea5feb561906dfdb84709d5fd015706",
+    "bytes": 24354
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/edgeRegion.d.ts",
+    "sha256": "b108cc9a6ad15f222e8d95b750fd2621db41fd9c026ba17a98cf4b11638c1b33",
+    "bytes": 73
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/errorUtils.d.ts",
+    "sha256": "95c60302afe556143b7bf6463d9a360bb84ddfe396de74db3ee678f89b88756a",
+    "bytes": 7118
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/identityCacheSweep.d.ts",
+    "sha256": "2accdcbcff3378ed8dff90d5ba1c1ec0d5371d7910c7d2214e10c8251a783bc1",
+    "bytes": 4123
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/languageUtils.d.ts",
+    "sha256": "e7ffa2eaad5f28e887f182a65f1d398b44b3b3341db5a12d34f51d3ff008e3f3",
+    "bytes": 5338
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/oauthPkce.d.ts",
+    "sha256": "962f445650477213a7514347e76d515444c7267f515e5c142e9a7cfe53fc908d",
+    "bytes": 8801
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/officialOrigins.d.ts",
+    "sha256": "96193b4cd773bd7550414d0fc17f04723d3de935c586a8f21943b27e5e74a2be",
+    "bytes": 452
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/oxyServiceEnvironment.d.ts",
+    "sha256": "b6da285c0c79b298062c717561d68036e18a20f9576c11ac6a9ea1620558708c",
+    "bytes": 728
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/platform.d.ts",
+    "sha256": "7fe17c9ab5f7c4011c2095f26a065480b601547ee3e61be5ec9570b099ee8ba8",
+    "bytes": 1728
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/profileLinks.d.ts",
+    "sha256": "fae602a2d209ae33b688687fa5466f969e5e5e742502df47c9d290168657541e",
+    "bytes": 1800
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/redactUrl.d.ts",
+    "sha256": "2ab4df5baac31540b40cc6010bbf1395197373cf96ee8d3684dbf5f3a105f9be",
+    "bytes": 908
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/registrableApex.d.ts",
+    "sha256": "47e06f2e83f861a6af3dea73b7651caca21efba4e62bb2721534b1b04bcab4d6",
+    "bytes": 1233
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/requestUtils.d.ts",
+    "sha256": "59891ac388bb81f7036f49e64a059f1e993d3e868ad15ca57c3fca8dadc38fa7",
+    "bytes": 3992
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/sessionUtils.d.ts",
+    "sha256": "6e3469302b1f9bdb0dc83e9f265bf54cfcbb62b38ef54cdc6f2e7931e77bdcc1",
+    "bytes": 2473
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/slashes.d.ts",
+    "sha256": "f4a61cd282bdcf487f9f4f52c151e989f13a35e77f3cfe3bf85a9c3bee02e38f",
+    "bytes": 383
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/textNormalization.d.ts",
+    "sha256": "3707809a09d33468651842fc36c2119e70ce1ced0a5aa0be99c14a4429568467",
+    "bytes": 5132
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/tokenClaims.d.ts",
+    "sha256": "0e6bc5a0aa08abe515d6c26bdfb6ff2e16eea21b87e105db2c5babea4e3d3ab5",
+    "bytes": 303
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/userHandle.d.ts",
+    "sha256": "0dcb809408ed8818f6dfac088fedae5d2ef25fdc7024f4d605c9b29b1efa697c",
+    "bytes": 1041
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/userIdentity.d.ts",
+    "sha256": "25e5c2d54fcd65bba40ce043b9218d51798c4156ddeb9ea456a59ce3de451d52",
+    "bytes": 771
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "dist/types/utils/validationUtils.d.ts",
+    "sha256": "9ab21a67c8aa5721363e6121be0b8662758094cdb16ae92084ca7418f40eca58",
+    "bytes": 76438
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/HttpService.ts",
+    "sha256": "638093e97a4ae27b755cfc4fddad2a1bd63fd38155ca27138d58bb03b417df6d",
+    "bytes": 74978
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/OxyServices.errors.ts",
+    "sha256": "36e7e95fdae0e85f8fb9ca323f4b9f6d5433a8856ba9c3c4673eaac763958a7c",
+    "bytes": 9651
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/OxyServices.ts",
+    "sha256": "d54ce501702bf3a9badd442ca97d08247bd65e23c06cc0fe2992dfd8d651c83a",
+    "bytes": 11154
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/accounts.ts",
+    "sha256": "b7cdc8506a5d2a65f9f0ebd35382af11e07329afc07e61c3ed937cb1bd6247b2",
+    "bytes": 25515
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/agency.ts",
+    "sha256": "4995c585315de19f4cdea39d2c3cb68889516a3f33c49eb39350cce3fa40826a",
+    "bytes": 8870
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/appData.ts",
+    "sha256": "1cfe4f351a273cb8664b3bcc1266af893934a771dc42aa378a733c6d87126823",
+    "bytes": 2522
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/apps.ts",
+    "sha256": "2887a5fbfbec1c717cc4a92d85d9debe95f12b15111d05025a283dbe0598c660",
+    "bytes": 22733
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/assets.ts",
+    "sha256": "33b35fa674e3fc71377182d86871ca1a627ea05f491f4260501229789142bf14",
+    "bytes": 18060
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/auth.ts",
+    "sha256": "c8463a9954e0402e78998db0592aa13c48cf6bd93b6be6510d4f774b6bb5a68b",
+    "bytes": 63711
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/billing.ts",
+    "sha256": "dccf3f87c329578a24e01a3ceb07785b39bd2959d0a40d3ea2e2ff6fd472ea26",
+    "bytes": 7273
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/civic.ts",
+    "sha256": "df3a43aa6614ca2c3297439f0c95d2e59013ade1b6848bbdfaa3fcf3f1effb4e",
+    "bytes": 16709
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/contacts.ts",
+    "sha256": "af1f0b85273d699470f103b92564716c875588a3e60c84a6d03f440c606bcd06",
+    "bytes": 1312
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/devices.ts",
+    "sha256": "540fb7c406af2bc6f03e0a5d9a7ba5c1ff5c520027e61d518b12de25c910eeb3",
+    "bytes": 17959
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/follows.ts",
+    "sha256": "b60177aa1d509c0aee7c2160150d60be475892194c4d0a97607c081f7622f191",
+    "bytes": 16055
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/identity.ts",
+    "sha256": "195971418b25a5fdd8bf62158748250e8bd4a9e2ff336e4986ebe31ee31d9397",
+    "bytes": 30099
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/linkedAccounts.ts",
+    "sha256": "0286a883e6929230a99f2d73e2e7e5bfe155edc0d925463e10cf4b87dc1d664b",
+    "bytes": 3307
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/nodes.ts",
+    "sha256": "e50779bbe7ee2cdd82b23db09e8bd7ccb19de2752637042f09a522b2d93d70e6",
+    "bytes": 6705
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/notifications.ts",
+    "sha256": "ad3ed17efd54ad7a85c22617362fd8f8a2547e9b80eb5e3e73598dea34ae5843",
+    "bytes": 5638
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/privacy.ts",
+    "sha256": "293a8eab65c4070dc078c72a5a7639aa3d3deaec4f2fe7f113e350e9af30ec46",
+    "bytes": 4983
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/reputation.ts",
+    "sha256": "86556c8542709a1990a805cfd592248ea2fbbd4bb25dcce34006de578153efa7",
+    "bytes": 4860
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/session.ts",
+    "sha256": "a76451102423fa8fdb18dd5f290c39ff82566e067d51b39a89b7b19935719fff",
+    "bytes": 7887
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/store.ts",
+    "sha256": "aa291d0aac231441159629d439f3910f2bbccfe0ef05c15e048fc15c015ed90b",
+    "bytes": 15413
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/topics.ts",
+    "sha256": "00783dce69c12d31176076e17d631522c9b56cceae76f927d629e2ca8b94fe69",
+    "bytes": 3001
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/api/users.ts",
+    "sha256": "bb9325b96527f4207f22caaa9459eef175140b76e06a582f9f1545992b648d67",
+    "bytes": 14781
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/boot/sessionColdBoot.ts",
+    "sha256": "9d51f11e4d26340fd2099c080e4d11ad61ad10a9f52a7c741671e66cf2774bae",
+    "bytes": 24851
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/civic/index.ts",
+    "sha256": "c9d83c94da695f0221aa73fc5ec1e522ebedfdf5fd6611fcb6e877248bafce7a",
+    "bytes": 598
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/civic/payloads.ts",
+    "sha256": "23bf14374cc52e24557d1137a785af319e7dedb9bce024ca30708ccee1e47f3f",
+    "bytes": 6697
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/client/context.ts",
+    "sha256": "8d67cccf8bb5a5d33da45864b3a4f9a3c2dc312f99bfe0d3dfc729524df33ee0",
+    "bytes": 1508
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/constants/version.ts",
+    "sha256": "fbe6e07d5b336b1506cfab9f600589796aa087102cb95bb1dbb41423a1815de5",
+    "bytes": 532
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/aead.ts",
+    "sha256": "7ddc062076ac57210d3f111a9dd7aeb24972bee85f464b3f3e9e02fe5c118215",
+    "bytes": 3732
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/deviceBackup.ts",
+    "sha256": "89890301d93a9f85037720c88c20c0d004506517b5df68f772da88abfad57aa1",
+    "bytes": 4102
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/ecdh.ts",
+    "sha256": "7d757307072283f5ca0a0a54e97ce3cb9765435c9b78ea509f10bffbdbca6d35",
+    "bytes": 1514
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/identityDerivations.ts",
+    "sha256": "691c6cbce4310a437a1a4446244db0f523711938092b3cec84cd75a284d8fa40",
+    "bytes": 4867
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/identityLink.ts",
+    "sha256": "46e09e18bc70d710b4c336c64bd977858957c7ad48fd8aa511af274d1ae4e43c",
+    "bytes": 843
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/identityMarker.ts",
+    "sha256": "86f68a9954e16d49beb045070569710128191b176aba039b5925e26b717c4769",
+    "bytes": 10601
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/identityProof.ts",
+    "sha256": "d415db3f97df15e4894d4afe57c34684fe69aebf252d5f9db14f7e1d189b4f87",
+    "bytes": 1385
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/identitySigner.ts",
+    "sha256": "661d7cf08db3ac5a40df553e98082b5b8e109dd18aed2589e10d5b59a80e04ed",
+    "bytes": 1365
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/index.ts",
+    "sha256": "646fe1fdf3f8693b04b7bc61c509a6338b354622281e72bdd37ee27bc8e92dbc",
+    "bytes": 2281
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/internal.ts",
+    "sha256": "061aac3394a8e4f4c6d50d5e8d32522b9a5f03138ade473717d7099afc36bad8",
+    "bytes": 1096
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/kdf.ts",
+    "sha256": "5607675fbb11f20113393cc4cf393267dc32d625a3bc602d7d824e22a35c3186",
+    "bytes": 1787
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/keyManager.ts",
+    "sha256": "147300419cc3c6d84e3f993358370d20ec0803b1d2eecd31e490ff2a953ac2d1",
+    "bytes": 126663
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/polyfill.ts",
+    "sha256": "39d726ef767268c3050e77b6fc2acf87d2f28eb20ff86594201d8f01e28eab91",
+    "bytes": 3473
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/recoveryPhrase.ts",
+    "sha256": "9d3452fa08dd2dc9f41f4ab7592524c7c7228f9c55c4117ad6ae68a6d4fe7893",
+    "bytes": 12350
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/registrationPow.ts",
+    "sha256": "d7d3a238d5c4f3f606180d6ba94392ba6394f309d8e3f32286e8708c76fa32c7",
+    "bytes": 2536
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/crypto/signatureService.ts",
+    "sha256": "ffa57faee4800519a10a12704225cc52c49aeb1d7655371f075ea3d2ce9daa66",
+    "bytes": 11259
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/accountCategoryLabels.ts",
+    "sha256": "5bad86ee57fe5c7a7674992e808aaecccd94434accdd6c63f05817fdee9e18ad",
+    "bytes": 2186
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/accountRoleLabels.ts",
+    "sha256": "9a397334c31861c39a6764c626fb50e3cc1e0829098a32c721f75abd3ab8104e",
+    "bytes": 881
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/index.ts",
+    "sha256": "5e139b54b9b4e007f15d35de2f8bc9a9f429cf3f78a1cf366fb540b96a871c50",
+    "bytes": 4968
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/ar-SA.ts",
+    "sha256": "e311f126ae016d05b332996b6bed1b08e3ec4a2aaadc74fccbebca73fcab233e",
+    "bytes": 19404
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/ca-ES.ts",
+    "sha256": "8c6942b283da005c3867337ff4a5cc2d28c1ec3fc7a20879ac6d8d0550398c4e",
+    "bytes": 16234
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/de-DE.ts",
+    "sha256": "9ce67f1525955cbb463162730b6b6b786c0a672568a7aa9cf1fd5c58800a5419",
+    "bytes": 16707
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/en-US.ts",
+    "sha256": "890a2f50fd1080a0a104b650d5504acadc0ea43c5513a46b7328e257a8291eda",
+    "bytes": 77004
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/es-ES.ts",
+    "sha256": "f9d57b02b5a8d64f85f52f318d6774f70dbecb2bf55d1f947fc829b667b75660",
+    "bytes": 84091
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/fr-FR.ts",
+    "sha256": "3c5a80e9cc247e4b7e227bd7e55ef24d61a5c32ea7122505fd867ddef00d2e38",
+    "bytes": 17035
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/it-IT.ts",
+    "sha256": "2bc2e0984e352bc49ae36b95e2e36e3d015a784c08e5252c41018f51f7e827c4",
+    "bytes": 15925
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/ja-JP.ts",
+    "sha256": "55c5ca6e361dbd74286fac4fe9d71ce0ad6bdecbc9b3bd90ef4e678dbe4f0427",
+    "bytes": 19232
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/ko-KR.ts",
+    "sha256": "4c7fe50d2a7f46c48fffa44b1284b104833d4a7651cc5f7f5970b909122a5db3",
+    "bytes": 17138
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/pt-PT.ts",
+    "sha256": "b058bff2d4b2a93b0e8e5c9d52b1189f2badce25d08dce5179543267abcfbcd4",
+    "bytes": 16345
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/locales/zh-CN.ts",
+    "sha256": "3e31b206a4322ad4e0a78628e915b35eae6077ad19b34f1f9c5c64ee142de566",
+    "bytes": 15172
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/reputationCategoryLabels.ts",
+    "sha256": "5cfdc57bec1372653090deb44e20df6b90df2db4eb4ef41e878c9a03090e4081",
+    "bytes": 733
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/i18n/trustTierLabels.ts",
+    "sha256": "7523a2dae8db27b80a2da54f73bd3320917a7aa4641ae355968ed575ca4ca5ee",
+    "bytes": 587
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/index.ts",
+    "sha256": "ad39aa01601c6ae6d05fefb4d4cbc5209828708f2585d9080f534e0fa76fdd9a",
+    "bytes": 18445
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/inference/OxyInferenceClient.ts",
+    "sha256": "87447559dd212ce02fe6b52a8e7a8a8739f1e6337ec5bb12230168c54b25429d",
+    "bytes": 41189
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/inference/index.ts",
+    "sha256": "74e5817b575fb051d9861d718091585bf3664a19dd25c60c57d7e15e305c5087",
+    "bytes": 1466
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/logger/index.ts",
+    "sha256": "b09382aa123aec799021ff789d63605aab051d8c22cdc4462417c3a990099469",
+    "bytes": 7461
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/models/Topic.ts",
+    "sha256": "eb8855e5ef26c96a2bb24cf392302ea742197ea9f831823cfa5e5c85b8eb6d02",
+    "bytes": 914
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/models/interfaces.ts",
+    "sha256": "d0692d006b55180309d328a23be1f87b476d7b8558c32a30aceb6698b2d4b0e9",
+    "bytes": 26479
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/models/session.ts",
+    "sha256": "a96c4380cbdbece08ca84bed3225d2db6092c47a4f0d23f9da5f814f04cf4da8",
+    "bytes": 1776
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/OxyServer.ts",
+    "sha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a",
+    "bytes": 30563
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/agentAccount.ts",
+    "sha256": "7bb2c2eb2665bc003773f33dab80b971921947a9ea808ffea6e10225627832d2",
+    "bytes": 1478
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/auth.ts",
+    "sha256": "f84655dc32b4081c2405a5559e4b8ae5da4137356b182d9c3e9fc76143969dd2",
+    "bytes": 11638
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/capabilityTicket.ts",
+    "sha256": "b257d4d5859f4d7ce4354b669376fecf2bfb7590f94a11ecf038364e46bde433",
+    "bytes": 7721
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/cors.ts",
+    "sha256": "5534e122acb9f155f555fae6497c6564e3f3ee723eb0d47d75b836ac02690c54",
+    "bytes": 11096
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/index.ts",
+    "sha256": "2dc4447c179be7b89afcbaa73aada53bbdf64b780f94aafc90fff2541e86ad61",
+    "bytes": 7445
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/liveCapabilityTicket.ts",
+    "sha256": "b3197dbfe32b53322ef96fecbfe92444582997bdf34515a3066b1ce19ef26a15",
+    "bytes": 2905
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/middleware.ts",
+    "sha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb",
+    "bytes": 62140
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/namespaces.ts",
+    "sha256": "e5f074d4b4a5c5ade7c8cf19f1f2a194282bc3e4dc155df7c85291e5946734c1",
+    "bytes": 16980
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/rateLimit.ts",
+    "sha256": "ac55e55b47dbd1594b411741458f24841a6ee174383b05337e98a6c4110c6788",
+    "bytes": 12008
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/requesterAssertion.ts",
+    "sha256": "263703c6af28bef423c5de5e5bdf6dc664486737fa06f967ecbc80c24a9d36ef",
+    "bytes": 17824
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/safeFetch.ts",
+    "sha256": "1a2881185c3026cae86f28413888034f330e420a939f7b9882c8e44c8e6d4a8a",
+    "bytes": 21056
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/securityHeaders.ts",
+    "sha256": "47aa6105213f5c4b791a8676a9ce1666d28a66cb0fe2443455ea4c0e66771432",
+    "bytes": 22250
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/serviceTokenLifetime.ts",
+    "sha256": "81e54230c0f8d464b889b85255e81d647c37586672099a2a93452c52e2ab1531",
+    "bytes": 654
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/traffic.ts",
+    "sha256": "eaa26e5f6a195b91f043b1441843b4d7481853708b7e5156b17f196bc5eb3d56",
+    "bytes": 8248
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/trafficNodeHttp.ts",
+    "sha256": "dee114ec0d332da517a24714ba5d297a67b5e5e47b957e5cab254a777a14448c",
+    "bytes": 3922
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/userInvalidation.ts",
+    "sha256": "993770feb2c1e19a9315cd25c9ccb5722b08d733391acb9f254cf481f4a1aa68",
+    "bytes": 8004
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/verifySecret.ts",
+    "sha256": "38c3c75ec1d88465bd9f5bca47aabcc5d3c22376c2f53589e8fadec06c983a01",
+    "bytes": 2122
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/workloadIdentity.client.ts",
+    "sha256": "9108ac7984302c96a7392a66f081d6b2e6c2634acb4d55c5a0a181013e0cdfe7",
+    "bytes": 449
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/server/workloadIdentity.ts",
+    "sha256": "30974258ecb6e1f488a2b9f96f10176dc6a4b17aad3e4741694f6c3c241f19a4",
+    "bytes": 8574
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/SessionClient.ts",
+    "sha256": "3b5b2a8007d48677737a48794fab4a9abf5cbdb0841d422469244909f20dd9c3",
+    "bytes": 45558
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/accountDelegationAccess.ts",
+    "sha256": "d71555daf951390a1c83ae93540aeac84ea27aafbf7881e3f6c1b9e9bb3ee526",
+    "bytes": 2699
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/accountDialogController.ts",
+    "sha256": "0bc9f3b74204fdb47520e767ecfdf782774c02aa9384334175cc2f6c99e651e6",
+    "bytes": 76170
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/accountSwitchTargets.ts",
+    "sha256": "dda969165a285b4745047da70ce54e7d98cd0949f0cd185bfba19bb7a978416f",
+    "bytes": 4244
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/authStateStore.ts",
+    "sha256": "e39922888e6600237eed40a0c594f4e5695be3d2406344ffab6f7c4278c4cfdb",
+    "bytes": 19974
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/createSessionClient.ts",
+    "sha256": "f23275264e5a26911a40feb793e983d7f33af85847ede43cee2487d1f4a2af03",
+    "bytes": 1769
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/deviceDirectory.ts",
+    "sha256": "52b0097c83bdc44e723827b70bf77b429a2db7a91dacfdb1cf6bd58e56e7d9e9",
+    "bytes": 10641
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/deviceSwitcherRows.ts",
+    "sha256": "2315582a7eabcf18cee012d2bd754617d5057132e8b32d2b1373220317bdb938",
+    "bytes": 6043
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/identityPin.ts",
+    "sha256": "ed1e49009c52034a65b6a0a8c433597a0b6e357ed0cb94e9aa942538c6df835b",
+    "bytes": 11172
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/identitySession.ts",
+    "sha256": "f5b75b159dc7cca580a3aaeaec07c6606641cb46032011ce7c6329275da55a69",
+    "bytes": 8411
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/index.ts",
+    "sha256": "7180553f6349567bfd87fafc9a49d2575ea5f38a297aaf5599c787f734c2ddb8",
+    "bytes": 8424
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/projectSessionState.ts",
+    "sha256": "50158d3d4de038ec529b7033606fa65989a2f5e92b1c0a15426d1a14b77373e3",
+    "bytes": 5263
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/refresh.ts",
+    "sha256": "2827ff5cd0b16113f0cfdc1aca352635412ff1183ad9377f4f93a738d8eab457",
+    "bytes": 26949
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/sessionClientHost.ts",
+    "sha256": "84ab17a8166cd24e206bdf1115cb04f601f20791930598a5b8b1ac46663f8ad9",
+    "bytes": 1659
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/sharedDeviceCredential.ts",
+    "sha256": "202e01d54eb3248eaa4d7b9ce8a89bc7cb35a3ad2d55ef7dcefa35c72673d6c4",
+    "bytes": 15288
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/session/socketLoader.ts",
+    "sha256": "baa024f2652ca0ada6b1e6d27771d21cd1b4efc0f89588b79817966349775205",
+    "bytes": 1122
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/shared/utils/colorUtils.ts",
+    "sha256": "44b2b877c47edb6cfadc434c3547e9a4bb964d2ec2256874d0ee9c8144f23e4a",
+    "bytes": 4624
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/shared/utils/errorUtils.ts",
+    "sha256": "548df480eb5e8f692670bedda5806c37ca5d30b727389cde23b14870b7d5d021",
+    "bytes": 5437
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/shared/utils/index.ts",
+    "sha256": "4b63870484fb513603f5ba6ab813eed56856ea00d7ba3f127e4d85bd08b937c8",
+    "bytes": 1079
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/shared/utils/networkUtils.ts",
+    "sha256": "d5456fb0dda3f052aa18461a551dfdf4945b6550266860a510c074c41711e673",
+    "bytes": 6272
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/shared/utils/themeUtils.ts",
+    "sha256": "0bebadf9fe2e7a72f619afcce714ab9c17c7e0afcc7f87e8b7bb216441111429",
+    "bytes": 3109
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/types/buffer.d.ts",
+    "sha256": "17f87b46248a4068d4a96586a36ae753c1fef506fe782cd5ea27483607d9bdbc",
+    "bytes": 5081
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/types/expo-crypto.d.ts",
+    "sha256": "ef6054cf43f5d55df87be2709dc74a66663b96c50968d76f659728c1394df9c4",
+    "bytes": 409
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/types/expo-secure-store.d.ts",
+    "sha256": "26c263ff4bca3b82fc4dead7d976146a7346682a61e73f2b4fc4779a8357ab3c",
+    "bytes": 712
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/accountCacheSweep.ts",
+    "sha256": "e817ceff8d213f952a061bbe442e01753309db6b397bb69280e9f3b986a80d40",
+    "bytes": 4228
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/accountUtils.ts",
+    "sha256": "e0395094081becc4185003ca122665993f209f4581b121a4c50ac2151aa94a8d",
+    "bytes": 6957
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/activityId.ts",
+    "sha256": "9250cfbd980ce57bb76f3f58501cdb95df02c012392edaa5d645401d31e1eaf8",
+    "bytes": 144
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/apiUtils.ts",
+    "sha256": "ae6bfdafa2e9619883e2df53144ab2effb75ab2faba7a0cba8c9e3db9117c780",
+    "bytes": 4010
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/asyncUtils.ts",
+    "sha256": "5392587d10fafeaf638d03668b291bfe8e41c4a8cfdbdb60a56cd250c2337eaa",
+    "bytes": 6727
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/authHelpers.ts",
+    "sha256": "b80630507be8fc98052f50ad54c3666b3ec7e0e9597ee83345cc27f210627155",
+    "bytes": 4080
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/authWebUrl.ts",
+    "sha256": "9f7dbe09af4f753438d9137fa17d8a0122789539c76edabe2429d8dbc248bfa1",
+    "bytes": 1045
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/avatarUtils.ts",
+    "sha256": "4cf89ed52bd873b5569e5d15d2622bb6c69abd5e045ca1d5dac84fdea8ef4dbf",
+    "bytes": 1259
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/cache.ts",
+    "sha256": "4ffd9ef3b60bcac2168ee93503f48585b36fce879d954c1235c98cfaea9f0149",
+    "bytes": 7734
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/cacheKey.ts",
+    "sha256": "c0c6c9cb24efa3934930d7c7b3ca45c32993ad2367b26450a179c4eef768958a",
+    "bytes": 3878
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/coldBoot.ts",
+    "sha256": "9a13552770c3b3a2f5384390b8798beac0efc9c3c838ce781d95e46fd0a88597",
+    "bytes": 8743
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/commonsApproval.ts",
+    "sha256": "1e5828b38cf0f85a06d9f4d59d14cfca0c02aacaeaa3470abe2847a9552f28e4",
+    "bytes": 1322
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/commonsDelivery.ts",
+    "sha256": "a30b8d6fbf26311cb94d1b9be9dab111bcee3ba7007465016b5ebddddd048c52",
+    "bytes": 5565
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/deviceManager.ts",
+    "sha256": "1585bd83738f6a8e06304ddf372df801c2747e9fd3d4dead927ff322a882b9ea",
+    "bytes": 6511
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/displayNamePolicyRanges.generated.ts",
+    "sha256": "b6860863df56f0b12b4805d62562ac012c0ae0579247fba086642513d1cf53d4",
+    "bytes": 24324
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/edgeRegion.ts",
+    "sha256": "b108cc9a6ad15f222e8d95b750fd2621db41fd9c026ba17a98cf4b11638c1b33",
+    "bytes": 73
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/errorUtils.ts",
+    "sha256": "36fb66aa0a48791fa75467c6f40842dcc394dcc8e659fa1efcaa52656fd83997",
+    "bytes": 14231
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/identityCacheSweep.ts",
+    "sha256": "ac1f3e56e746aacf6c2a1f773247f74a6789ccbeba37c585dfeabed512738f1d",
+    "bytes": 4662
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/languageUtils.ts",
+    "sha256": "8cf34be2bbc019bcbf4b3d6c03e13e14e7610826cdc6081922c8f79f0e9ea7a6",
+    "bytes": 14420
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/oauthPkce.ts",
+    "sha256": "225034a3f4dd6c72960725bba601aa4b932ce75b27e5e014c59c193690065d67",
+    "bytes": 15901
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/officialOrigins.ts",
+    "sha256": "5f59673fe472a1fa74d6b5a4ada06cae3c83bacd241cfd31dbf86614a5c90aa6",
+    "bytes": 1475
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/oxyServiceEnvironment.ts",
+    "sha256": "101a743818cbdae994b78fb1851f5ef92f0f2e3fb1ad58eb38702bef539affc3",
+    "bytes": 721
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/platform.ts",
+    "sha256": "836d8f41a7d604dd7638ad0413b76d58096db0f3dbcac50b129adc41068bca42",
+    "bytes": 4086
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/profileLinks.ts",
+    "sha256": "279869c020201ecbe5a4366d4098d462dcf93bb98b2aa6a3273a521afe7070d6",
+    "bytes": 3104
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/redactUrl.ts",
+    "sha256": "a5612a7ffedbe12b17fbeac44fb5ae54030e209b21ff5a86f3e23c3252d4e212",
+    "bytes": 1115
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/registrableApex.ts",
+    "sha256": "bd76133d1bb9d1ad007ce2f06700fe474706726b5f5b2e9fe7d3e1237c563d06",
+    "bytes": 1850
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/requestUtils.ts",
+    "sha256": "cd397e221689417fc3ac7c083228417b2ed7a7595b8b88c7404d3e92424d2359",
+    "bytes": 9997
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/sessionUtils.ts",
+    "sha256": "ebdd652eaa45243de990ace1eac19a425af07ace690ac6e63a032c6cd1f4a7bf",
+    "bytes": 6739
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/slashes.ts",
+    "sha256": "3cb978c3a239d733649bed499a0de8e3f7a0587fb72a321a37bb349dc2000329",
+    "bytes": 612
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/textNormalization.ts",
+    "sha256": "1cbffa284268908099887fdfdd059c754b65a62bd4a6fcfa360492fc393ce7f6",
+    "bytes": 7775
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/tokenClaims.ts",
+    "sha256": "c65b3f5af74a69d74c3188ff2ad025610bec791f81ef7382949743df9aea2c49",
+    "bytes": 1227
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/userHandle.ts",
+    "sha256": "1fdca5072039a03bc595d2c767bd7ede66373ea805bcdb632515affa438e912d",
+    "bytes": 1642
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/userIdentity.ts",
+    "sha256": "f803515ad8719c6b47fde80d74fb724f1a5a9ded2b520be2d7b5b7243d9d81db",
+    "bytes": 1749
+  },
+  {
+    "package": "@oxy.so/core",
+    "path": "src/utils/validationUtils.ts",
+    "sha256": "fbee94b8aa5b17c516bfb4203c6c3c9186838802f00937031e6babdee7ba0501",
+    "bytes": 17516
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "package.json",
+    "sha256": "809ff11fffd0b50c52a3edaa8c33acb5dac82a0ea410d287abb23d053f6830cd",
+    "bytes": 1574
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "LICENSE",
+    "sha256": "539f022f2d903e1fe4435a65f04e8d3ad29484a910debfb575a687269378460c",
+    "bytes": 31481
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/.tsbuildinfo",
+    "sha256": "961bc7fec99a73c5416ab3d0bd17d85f0ad7864cf6e1edf2108b9ba3422129a2",
+    "bytes": 129307
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/catalogAdapter.js",
+    "sha256": "26e457b14b97a5c310effc79916c68d7ac96e839b255b5fc859859cc1921461a",
+    "bytes": 4206
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/connections.js",
+    "sha256": "fc0fc22fc3cec379488a6cee65b63408413e94f02d1d66f23a728e595966f6c9",
+    "bytes": 2126
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/http.js",
+    "sha256": "2b2a3ae90f96612ac8f1a0b3ddf92def41a7350d495bad2168ed721d1475e62b",
+    "bytes": 640
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/httpTransport.js",
+    "sha256": "efb34555ba35cc90ecd240aafd4683a984a60bca9cbb7ee85c3f50a546a22347",
+    "bytes": 13488
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/index.js",
+    "sha256": "b98d3e06074ccf40a06f23f6a0259a8bd965ab84a5ca00b3cbe6fd060af15323",
+    "bytes": 5357
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/internalClient.js",
+    "sha256": "bfdcaa552654fd2431e0bb6ac918edc7d109337f95d53383fdfb6ef7ff43a81f",
+    "bytes": 3294
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/internalTransport.js",
+    "sha256": "b35ded73f6b3a4fe01e0aa52bb480329e86dd225088b66fc23fa2e256bf557dd",
+    "bytes": 7749
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/introspection.js",
+    "sha256": "09714df1fdb6aa3fb3ca1f14234e782a7dcda9bc78f51744446048b31f67e076",
+    "bytes": 2569
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/invocationAdapter.js",
+    "sha256": "136860fa710ba0a35be146b94a2dad9bcb8fcf80566fb0417f77e6b972554fee",
+    "bytes": 1891
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/jsonSchema.js",
+    "sha256": "e4c92a6d6eee343e77717caffcfdb78c74eb7ddac6a2206004341bce97422de8",
+    "bytes": 718
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/oauth.js",
+    "sha256": "8df00573f196d869b24fe55e02a96198fff62d2b0eb847a6b4ee93cc237612de",
+    "bytes": 11273
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/cjs/serviceRequest.js",
+    "sha256": "ddd98e030e8df7760691fbdc10da598caf406de26d423894377ac2239270a16e",
+    "bytes": 3448
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/.tsbuildinfo",
+    "sha256": "839ff38d4ff2191b1059b267678660fb0b32b4fce70420acb0a52c16140e33b0",
+    "bytes": 129692
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/catalogAdapter.js",
+    "sha256": "672b8011c9dcf7593a9618a5f54b831ba57ab8c3fed7c981e7965212c98a64b1",
+    "bytes": 3917
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/connections.js",
+    "sha256": "60173753ca6d8ad6f1b06c368f8cb6385aa9308889066e84aa9dd985533ed3f4",
+    "bytes": 1869
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/http.js",
+    "sha256": "8c86d9612eb2dbf73c5a3f6e0c6c48da20d137200a8d71cb73ecfc3a0a798714",
+    "bytes": 521
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/httpTransport.js",
+    "sha256": "00ac0fdeda7224e01f5431fbd7a15f077d1ff1ed40849627c90826dd64c3fb09",
+    "bytes": 13032
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/index.js",
+    "sha256": "03144e8a070b3723f423188b4d82a07a3650c46168a180ae75c75f86d5720e92",
+    "bytes": 1087
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/internalClient.js",
+    "sha256": "072c82bcd2ad715da610e2b04c64416050df94e7e91f3a5331ef7ea3884a6559",
+    "bytes": 3121
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/internalTransport.js",
+    "sha256": "905efc99de4d74c01896ca8ffef5012ba3ed99d2d81e8def0f794939d2010ea2",
+    "bytes": 7420
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/introspection.js",
+    "sha256": "7e5e6ec2ef1561c9d8eefd4c8d6aa1105f92f23822c44dc9dfb0fd0e811bea05",
+    "bytes": 2412
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/invocationAdapter.js",
+    "sha256": "e8f633ef3fdd1e7777d72d57f9a7fc1fc9e2d4ce3e41d5f083a75e8a429b73cb",
+    "bytes": 1556
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/jsonSchema.js",
+    "sha256": "ff19ad1ddc8417fd338822b10e0c03456b0813ffd8d2bd63e6e62176eb53258c",
+    "bytes": 546
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/oauth.js",
+    "sha256": "0d63e77eb6f999162a0f8b4fa37dc30d439830eaa6b6f33d373fc878d075410a",
+    "bytes": 10479
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/esm/serviceRequest.js",
+    "sha256": "f2e8d947ead5e1e72eed3756c982d25fc51be836cc3221627eb59511f7b5e59f",
+    "bytes": 3183
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/.tsbuildinfo",
+    "sha256": "c0ed199ab4e408af0d73089875ba87375b03fdd11847a4dfc305d30b38288897",
+    "bytes": 130810
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/catalogAdapter.d.ts",
+    "sha256": "2350d3a3a9705d8499475595869af30490d8c591450548b3fdbeda02d6c7efe1",
+    "bytes": 2457
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/connections.d.ts",
+    "sha256": "1704a33ed86296bb66b7006b112d19fcff432c826333e4549918ba469ac68031",
+    "bytes": 1522
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/http.d.ts",
+    "sha256": "23e1c2e8d65691ad69bff023adc64c1c22f26ddd2be82772d7dbc5b2148e96bc",
+    "bytes": 267
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/httpTransport.d.ts",
+    "sha256": "fb6d53f36d541d98e65612a31ace3396c53fad035967731c00f9647a6825d218",
+    "bytes": 3013
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/index.d.ts",
+    "sha256": "6787c529528e1e4b0e6c9c8d0fa88f5e76a67fd3f977240e809d8d2a242d2c84",
+    "bytes": 2184
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/internalClient.d.ts",
+    "sha256": "c1be72a2d5afe47edad2e77d748a59300812fa92e39f0c6ffbe92949335af80d",
+    "bytes": 5573
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/internalTransport.d.ts",
+    "sha256": "d0f7dd2f9de59e0baeb4a058d50f0fb58b0959f22877a347bdcf6760de1d90ae",
+    "bytes": 1646
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/introspection.d.ts",
+    "sha256": "4579e2664993dc838a1b11a26921b5cc9254eb87cd9bdf4216105132a87b49d3",
+    "bytes": 1096
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/invocationAdapter.d.ts",
+    "sha256": "0fb8b50b297d39412f2df2dcc4a757244c79ee52ccfd353c0e3d53185d94dcce",
+    "bytes": 1833
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/jsonSchema.d.ts",
+    "sha256": "3a55b0eb770372279b42ae9081b985eebe982a6eae6f797a3433fc3ddd461561",
+    "bytes": 454
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/oauth.d.ts",
+    "sha256": "ebc391d2f3794966a2c2a3866c5638ed6d2a19ca0f4e648b393f6c1e2cdf54db",
+    "bytes": 4782
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "path": "dist/types/serviceRequest.d.ts",
+    "sha256": "6daaf866690dde9d9e2c135742a5b42f7054e32c934c4e5ad7dcc71c28480536",
+    "bytes": 1355
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "package.json",
+    "sha256": "c85a2e547e8ed18d97566deec713cae48f1fc6e640d4b8e30c619e55c1833076",
+    "bytes": 4897
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "LICENSE",
+    "sha256": "c25a974ce7bb6087bfd42521a689a9a0fe4ad8a437b7d978b73a7d14105b0c2a",
+    "bytes": 31491
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "NOTICE",
+    "sha256": "84857a08c2f9ffee6fe64a2d7fa1c84245b28204119cea21a4ffc4f2650cf28d",
+    "bytes": 947
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/.tsbuildinfo",
+    "sha256": "11270856123c4c6b1253b91627bf35e2ae45c5c81c52e89d8fcd20768e761a81",
+    "bytes": 144857
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/auth/registrationPow.js",
+    "sha256": "45a1749f6a00afc4d329dece2c6ac2f547e3b749448b1615c5ec3a14e29d4875",
+    "bytes": 7036
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/chain/continuity.js",
+    "sha256": "d6bf946f7ec986c166196c83388d974441aa044114c0989dd3700fd064833991",
+    "bytes": 2095
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/chain/engine.js",
+    "sha256": "2794dbb820445815f208099b089e28e7f32bf49cbeb2151cc85b573ddc339347",
+    "bytes": 1564
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/chain/recordStore.js",
+    "sha256": "cc8f313e68687efb23f71b15609f4fc154c7ad205a606dccaf24e2ce63926aa9",
+    "bytes": 1279
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/chain/types.js",
+    "sha256": "6205e2aa037ca4689b3b9e6e970e378e9b9ef54ab849fb17f0a0f8b8a69196c8",
+    "bytes": 1220
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/chain/verify.js",
+    "sha256": "611b4d0d17d269d63ce6d13758552e1aaf230086cd6628db049f8c9c746f80a9",
+    "bytes": 4439
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/envelope/canonicalJson.js",
+    "sha256": "965dbebd0d0f1c5a5ba0bbd090a33582b9356b81a88f332d96b44cb30f7c6b2e",
+    "bytes": 4703
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/envelope/recordId.js",
+    "sha256": "768f872db3aa5a7bf442928602fb3a2ede1273775ed42b4fa22b1a70a84862a2",
+    "bytes": 2773
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/envelope/sign.js",
+    "sha256": "a9177700ee834db2e4d9420ebaefdde0e1704d830481aa8f39432584a6259df1",
+    "bytes": 3340
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/envelope/signingInput.js",
+    "sha256": "713274f6783b2339e8d4f6a61d505ce3a5f07c9418b0b2a7f6e1a71b23151552",
+    "bytes": 1594
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/identity/resolver.js",
+    "sha256": "a02ab0014133f5b6c9473f12e96d44da633362738b057aff5fb9698691c4b429",
+    "bytes": 2582
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/index.js",
+    "sha256": "1a1d5cf5838cf98a1348dc9a4a3f54d0d241411ff55a4652a973960ad20f816e",
+    "bytes": 8354
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/constants.js",
+    "sha256": "3e0d4b543a3474e5b881d667d9ae28df8c13530ec649e34a61ac8dda85ee2c9c",
+    "bytes": 5190
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/didWebResolver.js",
+    "sha256": "7afb8df5b5ce738eb749f2b1dcfd4008e7ef0a959955b2e212fa6c876142ed2e",
+    "bytes": 5182
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/httpFetch.js",
+    "sha256": "7a7b80852ba33ac5452dd6dd6fac8afe4f9fb715c28d96c409adfff0e0c7b97e",
+    "bytes": 2450
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/index.js",
+    "sha256": "02b3a1737cbfbbb8881c21cc404db1fe0bf70f98a41c3f8b141620cbb444d9a1",
+    "bytes": 9029
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/nodeApp.js",
+    "sha256": "15ed62377b94e9c64698b5e33a1d86e899399c4912d04a287ccd5c1fdaaddee9",
+    "bytes": 16215
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/nodeClient.js",
+    "sha256": "767081226fc26116c7995963d8f8a011909ec2279c251544a8e145deff5c2868",
+    "bytes": 10250
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/rateLimit.js",
+    "sha256": "66cf5e15b42bc4415c5e489aaf07342912e23a5ebb276c1fe28a90738f21bcff",
+    "bytes": 9742
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/node/verifyRecord.js",
+    "sha256": "f33deff08ee3bde958fe14f8e11d89b056da6dbd114cc6b848d5bec6fcb920fb",
+    "bytes": 2305
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/crypto.js",
+    "sha256": "96623ad50496cca6a58e36799131603f315e9b659be2f344b34205ac23711aee",
+    "bytes": 10863
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/crypto.native.js",
+    "sha256": "bdd2a1a14be41fb575c077804f4272e76e3de01881a0b6bbe79942f3c41ea50c",
+    "bytes": 9490
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/expoTypes.js",
+    "sha256": "40236a40608e8b4f56f37deb594995aa3dbbf55e1fe0d67f94241f4b8f0c528a",
+    "bytes": 1216
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/optionalPeer.js",
+    "sha256": "e7f308117e24f43a0003dedabccac93d4fbfaf18003391b4831af48cb1766d22",
+    "bytes": 1039
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/platform.js",
+    "sha256": "3469b619d31b4ad9c965f72c130026d9ed041621466dfb3778f5fbe4fec1df3f",
+    "bytes": 1221
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/random.js",
+    "sha256": "09eb82648ed7954e7ef30df51cd97ca7865a24549a5f6a60e1be195197b40797",
+    "bytes": 1071
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/platform/random.native.js",
+    "sha256": "773d4d9eb5fb4878983f365257766195c9b38fc8fd3482e7f2e09f90a7b4b156",
+    "bytes": 2122
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/random.js",
+    "sha256": "e4865353945a0e8478013a85336e72b5ce5b02e7fb516dce297998b03bf75b88",
+    "bytes": 1556
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/secp256k1.js",
+    "sha256": "c39c31f9f9b7792284d5819bf5433fe9ec599e8c0acd146c54a7f94dd55e5faa",
+    "bytes": 7639
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/transparency/checkpoint.js",
+    "sha256": "0508f63337f5e3eacd1ebce1cffa621685003a87bc81f6aad9c5bca5564f0770",
+    "bytes": 3607
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/cjs/transparency/tree.js",
+    "sha256": "b2d96922c089472b9d8fc8ca19737fedadd6a4567cccf9ffd42cbeefa232414d",
+    "bytes": 8751
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/.tsbuildinfo",
+    "sha256": "8728ef52eaded2e1b97438be5778781d6458b85fc82fdd9fe7c3eb327cb3e1f2",
+    "bytes": 145282
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/auth/registrationPow.js",
+    "sha256": "4ca42e658facc733fba1dc4708583df0aa5a54905da1fe25b8be9070b38e2318",
+    "bytes": 6751
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/chain/continuity.js",
+    "sha256": "280c76e2bb2f9ea0a5e0c06ef561163a21e7127c2c0a3427983fd97ed2de18bf",
+    "bytes": 1982
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/chain/engine.js",
+    "sha256": "5501a05424f297128d99a8d0c58640a8f45c357fb104b5f2232f9ab4d11d136b",
+    "bytes": 1436
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/chain/recordStore.js",
+    "sha256": "36eff2121f007e971f5efcd5a3abe857ac4a0b7573e393cf5909658971a48de9",
+    "bytes": 1213
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/chain/types.js",
+    "sha256": "5aeb289e02f97518e5fb91e11696c63204df95d7cb130014143d803e65938415",
+    "bytes": 1116
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/chain/verify.js",
+    "sha256": "368f486776943ce67e97f4818ef9f24eec1a2ccd2c2fe6f1c96912a02e08c664",
+    "bytes": 4272
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/envelope/canonicalJson.js",
+    "sha256": "6b9fe34da2eeb9e9039a41bb4546d6ac0c3d5942cefdd81edec71903fee64ff7",
+    "bytes": 4596
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/envelope/recordId.js",
+    "sha256": "9e6de6e3fd06985cc9a6306022e599fa804702582feec4c10f18ddc212d7cdf5",
+    "bytes": 2613
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/envelope/sign.js",
+    "sha256": "570edc22e39691704ab03957acc1c6c506ff45c372c73e7bbdeeb164231de469",
+    "bytes": 3064
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/envelope/signingInput.js",
+    "sha256": "546d7192dce6814e5e399bf8c3875e2ec5cd68127ccb3aaf5a1cfc72997b6f5e",
+    "bytes": 1420
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/identity/resolver.js",
+    "sha256": "ea7d777bd02443368695bd2733db48915a1144600d410d8c150462558109edda",
+    "bytes": 2469
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/index.js",
+    "sha256": "77eaa996d3e7a27a30ddde1364669289017f7c79840d83492550a5718e9cf762",
+    "bytes": 2971
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/constants.js",
+    "sha256": "4f0d5d47221dfc6a0775b9ba9ffeb0135b05b27161548e69d682e3ad09be1953",
+    "bytes": 4465
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/didWebResolver.js",
+    "sha256": "d1bc6a67b0fc444d47aeddfdb060afebf560655aa29372ba2f39d88b0d9d4ed1",
+    "bytes": 5052
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/httpFetch.js",
+    "sha256": "3fe6f20fcc080efc8e0cb1d6262dd19a2c3250cc41151d67104b4862fdb5efb9",
+    "bytes": 2211
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/index.js",
+    "sha256": "fee570c82e8a82635b5af04f37d0b207c24fb53314ba8ea869c8daa9223e4250",
+    "bytes": 2984
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/nodeApp.js",
+    "sha256": "434f5e656456da7fb7bf569c32bcae8f24aa147f83514c01125d4b3c95bda086",
+    "bytes": 15761
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/nodeClient.js",
+    "sha256": "680c72b7df8ef15c163a383a6d92a19903c84b5c25d4bbd0bcb6b2477bed608d",
+    "bytes": 9907
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/rateLimit.js",
+    "sha256": "fdeb038be11e548d7ad47972a22f8850617402adf091da8e193464f44ab6e0ed",
+    "bytes": 9472
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/node/verifyRecord.js",
+    "sha256": "21632d076bc93cc82ffd40cbd43e7bcf5d98451cfdffc41303b74d18ff939ed2",
+    "bytes": 2174
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/crypto.js",
+    "sha256": "be1781e11e3024dd760af59fbbf2affaa8c311b0c023d128f51cfe29e1b3f21c",
+    "bytes": 9020
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/crypto.native.js",
+    "sha256": "a3ac0c81b51699bc18787d323b8d6a0343bf164e2656c373774dfdcecca7ca74",
+    "bytes": 8985
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/expoTypes.js",
+    "sha256": "f79a581801c0c94f722024ed5f719d54b9075ecac2ac60450704c2adf4481d07",
+    "bytes": 1150
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/optionalPeer.js",
+    "sha256": "ad49f2e2830c465cd882bc312a86cf9fb91ef3fd66859549cf5dae9a592cffff",
+    "bytes": 908
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/platform.js",
+    "sha256": "4770fc46f200dd43004292f67b0dd3882c3653e50ed98aa22a30f99297684475",
+    "bytes": 1090
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/random.js",
+    "sha256": "2a5f6cadb6c4b66b56dd9c01c70010f24a2c788db3ebbda8e4795716531b1024",
+    "bytes": 956
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/platform/random.native.js",
+    "sha256": "eeff38734c192c2dfc95f0d3bb9922a8dea137c5a839bfdebf2852f9adccd0f7",
+    "bytes": 1959
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/random.js",
+    "sha256": "f51c22facf627c07e82f19b98ed36dee528263dab511af45bdcabff02f294196",
+    "bytes": 1058
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/secp256k1.js",
+    "sha256": "47f919307ef376128488b5eef1598f9315191ba0a49cd33dad4bdc0c73c1b56c",
+    "bytes": 6835
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/transparency/checkpoint.js",
+    "sha256": "6b517d67e1b61c5d648144caf7a157ebf6f07b31d7cdd159374d7ef5c699b3eb",
+    "bytes": 3314
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/esm/transparency/tree.js",
+    "sha256": "8c00870003a09f537c72f6942fd561ef75d8bcd12bd51f79ee2d1759922b31be",
+    "bytes": 8333
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/.tsbuildinfo",
+    "sha256": "3259a919a0c55c24470e94c1fa0b8687b5083b609e5f83d90b354e45d6fb4abf",
+    "bytes": 148129
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/auth/registrationPow.d.ts",
+    "sha256": "531bf7be4fea9282659a1b3da7930a2d582063cb1b7c7c3ba25efe13604181c0",
+    "bytes": 5847
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/chain/continuity.d.ts",
+    "sha256": "3e8f47bbaabfc8fa822f3f2c7a5ee59e067e2b197d4a908cddbf26b18b9f75a5",
+    "bytes": 1396
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/chain/engine.d.ts",
+    "sha256": "4163edabd9156accccea13cda751e95cbb15e6b5d085d2055a5d7c51efbadce7",
+    "bytes": 1466
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/chain/recordStore.d.ts",
+    "sha256": "b1dab3f3fbbd237ee98440af7e0b2ccc9eee8f20d2f34be31ee1747a3e030a11",
+    "bytes": 4439
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/chain/types.d.ts",
+    "sha256": "50eb9bf69d1078b6a62ca4f042e9d225705c6891fe24cc7719994f48516b7d08",
+    "bytes": 3912
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/chain/verify.d.ts",
+    "sha256": "afac94d7062fb33b91c34f1c7122db38b60f763faeedb006ecbbf7288d5c0cb1",
+    "bytes": 2594
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/envelope/canonicalJson.d.ts",
+    "sha256": "2cbc54c662796ef7735d78943e79529de0a10586a3f3a08986d5111a9a77123e",
+    "bytes": 2392
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/envelope/recordId.d.ts",
+    "sha256": "44dcc3cf42c22bdd3bbdbc38f40e493428d654e884ef24b967cb5252e1ce312e",
+    "bytes": 1563
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/envelope/sign.d.ts",
+    "sha256": "34c939deda11c7e0968035e1117bcab127c64455349e19700f77c4ecf30100bc",
+    "bytes": 2368
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/envelope/signingInput.d.ts",
+    "sha256": "9c8a4fbdf8ff8de7ce592c456011a3eb6c2ebc18380a9db9799bfcf9ea39fcf8",
+    "bytes": 1802
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/identity/resolver.d.ts",
+    "sha256": "dd165b447654f3d0c877063128aa24ca5347e1bad765c143078abcfb010c3087",
+    "bytes": 3425
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/index.d.ts",
+    "sha256": "1712d57b3849ffaa7fc0529a6f640f2a48eb1be938a40d44146b6226ac6acb0a",
+    "bytes": 2603
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/constants.d.ts",
+    "sha256": "a70a140d4a0348c7fc98050cadc271ad8ecaea652d90b9423eb1f8e181fec217",
+    "bytes": 4446
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/didWebResolver.d.ts",
+    "sha256": "464aa7cfd5d4918c1122f5c6d1c574736b7eea03cdb0e095db591b8c5803eb6a",
+    "bytes": 2475
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/httpFetch.d.ts",
+    "sha256": "91ce86b521d190b9a32e1dc4d41973dc62d27cd4e77103c317f8408684db7d8e",
+    "bytes": 2876
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/index.d.ts",
+    "sha256": "826737b440a23e6c21ae900b8e90ee0dcd68dfccdce4991e6f58972049eb23ba",
+    "bytes": 2330
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/nodeApp.d.ts",
+    "sha256": "a9082394c75355e8f4cacb51181033a65366f509e8125034ef598150ede4d64e",
+    "bytes": 5933
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/nodeClient.d.ts",
+    "sha256": "68859b77a0814a892bb12cec15446b4764d9ae8a77f103e01c61b4b59de0e80f",
+    "bytes": 5681
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/rateLimit.d.ts",
+    "sha256": "ec93d8b84228f1f7bc61f8df872d05dde074eb84cd158373a49a7194cf7d0056",
+    "bytes": 5113
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/node/verifyRecord.d.ts",
+    "sha256": "b227b0addb3ef5feef416620cc69d30811bc9025bf63c59d96572c95a473ca98",
+    "bytes": 1891
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/crypto.d.ts",
+    "sha256": "bfb813ce0959b51ce095ca123e64f89b680d2608b761dbe7ae5a3b3f174210d8",
+    "bytes": 6487
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/crypto.native.d.ts",
+    "sha256": "5957ea1cd4268164e7775f865e9ee78249af1ac3a870099bcc4dc4cad317856c",
+    "bytes": 3845
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/expoTypes.d.ts",
+    "sha256": "17e6a973747f5db2887a81ad79e8dbd03f9f4bdcb80ecd9c1924ebbfcadc45b3",
+    "bytes": 6248
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/optionalPeer.d.ts",
+    "sha256": "43b75305a82cef898fdcd610d8bcf8ddfddaf56e2109145a131402739aa79583",
+    "bytes": 487
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/platform.d.ts",
+    "sha256": "efe59f21c91891598d6cf44f73ad096d6bebdb3ace6c3e21c664fccdd1663f26",
+    "bytes": 930
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/random.d.ts",
+    "sha256": "c0f20d8058b60df307b6e51f9871c99c73f3cbf307fc12e2ede5ce95e85087f3",
+    "bytes": 661
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/platform/random.native.d.ts",
+    "sha256": "06612b5cbf1ddd179b2d14ef2500a59cefa2ab0bbc1314ef01bcd2582c2174e7",
+    "bytes": 1594
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/random.d.ts",
+    "sha256": "3cc28ef4b4ae962cd90b55d96f516fd8e555bac6e2d517432afca16ae20e0fad",
+    "bytes": 1052
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/secp256k1.d.ts",
+    "sha256": "5aef899f47fc916996d4febd1798f26150589f3f2ba9026f8e29e0dbe6c8e69b",
+    "bytes": 3084
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/transparency/checkpoint.d.ts",
+    "sha256": "8d0048d4ffbe83d9fd3ced9efbf0a83b4e77027440eac9952c667f245f2bfb8f",
+    "bytes": 3510
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "dist/types/transparency/tree.d.ts",
+    "sha256": "489d0420b15249c9803c1c5997911e4fba0b1888d37c5f6eac3d3c91309cdb1e",
+    "bytes": 6473
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/canonicalJson.test.ts",
+    "sha256": "2223335296978bf669d7c590a317d025a5d0f25b535d700bcbe3fdd2613ffeaf",
+    "bytes": 4061
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/chain.test.ts",
+    "sha256": "45d3ceb8593c686b44efb3836463e43a603ddfa5d76b89b079bb8b7784e3d191",
+    "bytes": 11682
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/commonsIdentityBridge.test.ts",
+    "sha256": "641471c0c4f73c2d44a96aaa1b7e1ba91b19fb4d3e0695821aeb21d8b4e54369",
+    "bytes": 4470
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/didWebResolver.test.ts",
+    "sha256": "726b8fec33fad0e8f6499ff84caac4b3178bccb1dd252bfa19729e5bb8aa329d",
+    "bytes": 5216
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/envelope.test.ts",
+    "sha256": "be2da6e064cc399a3d220e9c51b6d01f0f2fe0778f15b8712193139f5e162bbb",
+    "bytes": 10846
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/nodeApp.test.ts",
+    "sha256": "900d4490a465564e4f58d6ce57a87ebf504216b9a639a44ab0e41b7603ad55e7",
+    "bytes": 17058
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/nodeClient.test.ts",
+    "sha256": "1e0f1702cebfa6fd4f4ab7721308e4087725899b1301bc43705794b7fd13c351",
+    "bytes": 7136
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/nodeHarness.ts",
+    "sha256": "72c3710bee90f784073e1e1b4f66658dbfa6fa311f50700122b29ac900d9c0fa",
+    "bytes": 5776
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/optionalNativePeers.test.ts",
+    "sha256": "9e94cef6a6471fd82df049c4992b8e7223be725a9ceacc51d277ae73cd4ddbad",
+    "bytes": 8804
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/randomEntry.test.ts",
+    "sha256": "09960f16946b3422b520db2e0e2542d2ccf8b3c2f349331505b6ec0b1cda44d7",
+    "bytes": 4120
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/rateLimit.test.ts",
+    "sha256": "ca8022384449786e3d3379ad036b9ce6869874e196a91226c7a83f833359136b",
+    "bytes": 11492
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/registrationPow.test.ts",
+    "sha256": "e96a4db2dfb0c429fd6f729208cf69ab0f7d571b9aef03c0df5941ec8e91b207",
+    "bytes": 2414
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/runnerGuard.test.ts",
+    "sha256": "d2047ab0d6db54b712706eb97384c3f68c88d703d72d346d043a391d91f285e8",
+    "bytes": 3842
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/secp256k1.test.ts",
+    "sha256": "30d7047bc2784320427f2652802312555af80a455a4194d0ddcf39e1a3bd11dc",
+    "bytes": 4302
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/__tests__/transparency.test.ts",
+    "sha256": "c45a29b2748b9cabe8039296e06c7fdcfaece7b7c273b1f1face2aaf660d5d25",
+    "bytes": 14076
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/auth/registrationPow.ts",
+    "sha256": "f73f8e7a192c8d49154638d51ff244a3c04a36008f6adfc3e2b287ea9e394dd5",
+    "bytes": 6779
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/chain/continuity.ts",
+    "sha256": "209946464cd9ab65704d839d1cabda561f55d21c0c4f135178be82b433b088ae",
+    "bytes": 2175
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/chain/engine.ts",
+    "sha256": "3574b5aad32a7ec974a5af844381c1fe88ef25d465bf76bf41426f1d39dfca71",
+    "bytes": 1783
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/chain/recordStore.ts",
+    "sha256": "383ff1006ae9ba5d1c193aad873eed5bb094811db0132188a3766cff1f820e6a",
+    "bytes": 4371
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/chain/types.ts",
+    "sha256": "39b1ee602c6d69ea7be12384905744c0f72b674712c6112a0b0812dbb84af2fa",
+    "bytes": 3897
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/chain/verify.ts",
+    "sha256": "2697aba00980bf0f961c4d21f51dbcbff862fce7567166fd5442bed2f46f34ab",
+    "bytes": 4726
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/envelope/canonicalJson.ts",
+    "sha256": "d082136e708448b1b107f38c25d92fef3454c8ad7cdb98f685ff8da6c2187ec9",
+    "bytes": 4656
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/envelope/recordId.ts",
+    "sha256": "3cef75b955d252a58c34c64b6bfa6d3951bdf402d1ac6543d837fe3bdf930f65",
+    "bytes": 2653
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/envelope/sign.ts",
+    "sha256": "46bf6b468913d3ac11e0b2cc1c5274b6790492080dbfc257a0a2a57f16fee0dc",
+    "bytes": 3328
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/envelope/signingInput.ts",
+    "sha256": "61de50ab7b9f3a921d7bf48bdfbdd404b6f812fdc628fc83eeff1932be157631",
+    "bytes": 2191
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/identity/resolver.ts",
+    "sha256": "838ecc4f53b27b7bf6376a7a13d8edb33074659845d4a7baf1eb86de6f362ba7",
+    "bytes": 4019
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/index.ts",
+    "sha256": "a45b1d79c12ef9bc21c003f256da5d8f8c72d74c22d4ba877fe08bc9eb2d5a50",
+    "bytes": 4563
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/constants.ts",
+    "sha256": "d5654013a08ebd4170010a22a5fac397cf6510091966ae5ee517191d510074fc",
+    "bytes": 4570
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/didWebResolver.ts",
+    "sha256": "ca0733781ccbe7cac1daff37c2e8aa59c4bb496fb5bf3c3e27494ff9e9d63a6f",
+    "bytes": 5858
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/httpFetch.ts",
+    "sha256": "720cf968f447308eeba0f697f8bebfcbbb7edba0be8906370ed37e6308925713",
+    "bytes": 3422
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/index.ts",
+    "sha256": "16a77d946b2fd1b3a79086af44a8d500449db0310abc95b17a5c9a6cedfed615",
+    "bytes": 3637
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/nodeApp.ts",
+    "sha256": "7e5748a706cd5e211df63e112c43af9ecbb49b6af4b397bb8104aa5e3d2c6a04",
+    "bytes": 18741
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/nodeClient.ts",
+    "sha256": "f35cbb5ad37f8022bbb8cb5f079da5310fbd56f4d7395c143b22336f54930301",
+    "bytes": 12680
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/rateLimit.ts",
+    "sha256": "5cbe2dfa78881acd67217156c5ad0d5da9454fcc630c8846c9684124d2337b9b",
+    "bytes": 10871
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/node/verifyRecord.ts",
+    "sha256": "a7406abda8724ad3bff3515cea1ec3926d39fbb8e299dccd9d84a44488d205c3",
+    "bytes": 2525
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/crypto.native.ts",
+    "sha256": "a9a1359a992d836ac92ba6af56bfec5d2fc05ad30aad8caa3b45234b1d736b53",
+    "bytes": 12094
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/crypto.ts",
+    "sha256": "7e0c36efc5c3193483b5d3faf21cf3018ea809d67989c94f9842a67b1512d88f",
+    "bytes": 9831
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/expoTypes.ts",
+    "sha256": "67f6d575c674a2dbd0824649942016b7b6207be002718196607e9e713fb437d3",
+    "bytes": 6142
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/optionalPeer.ts",
+    "sha256": "8e709a3dc30b41d1fc23af3d895fdae1559a9b04fc4123b3db620c9d02ae0773",
+    "bytes": 923
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/platform.ts",
+    "sha256": "a7a06b3fec9a8f05373f1e508a4809dae4846a9e7677fffdf9340ae2cd91d2ca",
+    "bytes": 1106
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/random.native.ts",
+    "sha256": "3cf64e95e8b28606b9b5e25fe70c703537829d32bc0fff9a51db26213e48f4cf",
+    "bytes": 2155
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/platform/random.ts",
+    "sha256": "4e57aa94a9fc95c455c6c83634feed4340197534a7651b045348ab378b7dfe95",
+    "bytes": 984
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/random.ts",
+    "sha256": "617fcb4bb52bdbecbac31811141f099029864bd8cb5e444b6a574bf214a5852f",
+    "bytes": 1053
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/secp256k1.ts",
+    "sha256": "4d169bb7b238dadff85c6f65641916c662952c4ec028e79239ab102d5ba235c1",
+    "bytes": 7471
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/transparency/checkpoint.ts",
+    "sha256": "12d07440265be4a9efa2f4d7873d1e84c6d479cc70100dff964aa57709496499",
+    "bytes": 4365
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "path": "src/transparency/tree.ts",
+    "sha256": "f0d980865b23a556e8305282f83434f448ad607a7a2165cc1657426b8b32a772",
+    "bytes": 9944
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "package.json",
+    "sha256": "3382e31cc240d0dedb60eae4c983974e18a87ed7c9eaf2fc97e99e2b28028ec0",
+    "bytes": 3691
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "LICENSE",
+    "sha256": "5b80266d547f51475e3da90520a3eb0bcee019228a03bdf7ae1d778918e8760c",
+    "bytes": 31493
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "README.md",
+    "sha256": "15e7260e2cf7d5e234ce44df0097394e002625bd6d9a1c5c83b27c39d0e5db49",
+    "bytes": 7114
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/browser.js",
+    "sha256": "c9ddb3929c4d94527286b09f9b46a5bf74ba6ea24fca0f6b49f26efca7d3720f",
+    "bytes": 5681
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/collector.js",
+    "sha256": "712d4ea4733c42df535a0ab96ebe01d755f5750cf140a49ddb9b03d71d272264",
+    "bytes": 9792
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/edge.js",
+    "sha256": "12d66c2ed16068142ba934a561a02c0ec3854396c0e2cba214de9a8dccdd699c",
+    "bytes": 6350
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/index.js",
+    "sha256": "f0475d94e1a684966ec5e0baa3557b460f30101758cc196046575a89ac31545a",
+    "bytes": 259
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/package.json",
+    "sha256": "dbf8353f77358bc12169b7bb7301e1978d5b503e002ee927229a8993672818fc",
+    "bytes": 20
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/server.js",
+    "sha256": "a800d9afc33ba12ea50bcc5212ef61ed3e9de02acd0d82e600308f28fd8679f3",
+    "bytes": 2439
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/cjs/socket.js",
+    "sha256": "8450cbf795e39082c79d4b50634f517726e73a719fd4538dd9909060143f226d",
+    "bytes": 4787
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/browser.js",
+    "sha256": "4fe1d102eaa1e08f10e33781130746153096d205137809b5bb0341ea3f840e0a",
+    "bytes": 5000
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/collector.js",
+    "sha256": "65eeeee041621b44949a94cc920e7ad1d6f65e0e215fce87caeef0390a67e9e0",
+    "bytes": 9367
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/edge.js",
+    "sha256": "1da3ad87546f0ead528691150b5335afd8ae00b224a65ab9feec2dafafcce14e",
+    "bytes": 6194
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/index.js",
+    "sha256": "1e87e10e4e77d2268f3f7a2f1e418e18641d0ad858d53cf30f7889910a5ac581",
+    "bytes": 118
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/server.js",
+    "sha256": "ad036ce416aea43ce1845d024e6e49a37575be48fb189ddd6673f1233ba872ab",
+    "bytes": 2013
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/esm/socket.js",
+    "sha256": "2dfe81b7dac17072a554759aab35f50cd5efa84b0155ed73826d27aa31a376c2",
+    "bytes": 4519
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/browser.d.ts",
+    "sha256": "08a57ec8a2d32d1cb867dc4085125c37b134d3597ebfeb0da70f3d2cd398f096",
+    "bytes": 1825
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/collector.d.ts",
+    "sha256": "38a2e998f6e719c773bce4ea0bd936f83fc4dee9aa25e48d9072dd4d4afecbf3",
+    "bytes": 2056
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/edge.d.ts",
+    "sha256": "77ca17ef41d8cd9aaa636dba0bf279d9fe07016a58782c7247d6c1cb9feb9499",
+    "bytes": 1141
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/index.d.ts",
+    "sha256": "fdf2282cc6747f5bc5141b0490057d2afab6eed94200df45ce374f6466a4ced3",
+    "bytes": 468
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/server.d.ts",
+    "sha256": "140bf3ddfd9921345c2036fb85f6823ebd86b111df6f33b25d6cd548d37644c7",
+    "bytes": 1341
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "dist/types/socket.d.ts",
+    "sha256": "b3cda27952a010eb465fbfddc4177c5ecc6e2538678c32a14d540b8c4a54918b",
+    "bytes": 2075
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/__tests__/browser.test.ts",
+    "sha256": "291ff6161793bb6d53b1a16679adddcfce12c4b35ee09dfb709024ff3e68ebcd",
+    "bytes": 3970
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/__tests__/collector.test.ts",
+    "sha256": "347f82bd5252573b09b95f186f5c6a18b1eda0aad1fb5ec88266217ad2194597",
+    "bytes": 6163
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/__tests__/edge.test.ts",
+    "sha256": "ea95c14d1f1550109309f25fb0f68a7bacbd4a51e953dfd5d0c9dc682796f48e",
+    "bytes": 6862
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/__tests__/server.test.ts",
+    "sha256": "1225ecb08e1fcecd2182c500e38279173c69cfc397801af4af84240cd4c5a6c5",
+    "bytes": 1570
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/__tests__/socket.test.ts",
+    "sha256": "d2ab8914fa2487bf3f0a59cabee698c662c6e836726153b129a55b874d0a257d",
+    "bytes": 6394
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/browser.ts",
+    "sha256": "84ce7d760e2b11c51b50ba0255a159cbccee42aac62f6a1b49fe7ed7482fb9ba",
+    "bytes": 5970
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/collector.ts",
+    "sha256": "296a4751abe69b2b5b21d1e3d4bedbc8ef94cc6a7af78d0980c70db43bac253f",
+    "bytes": 10274
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/edge.ts",
+    "sha256": "06cb029977e22cca240ee9af9cf03124e93e7e7136498e9cf627628b93999e97",
+    "bytes": 6738
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/index.ts",
+    "sha256": "e2ffc2f1b18d49e98f8f7de84ed681b6cdf012f33ef3e5896941920b772a3d1c",
+    "bytes": 434
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/server.ts",
+    "sha256": "c3a677c4a2fe6e4e2822b2ea0b2416f48bfad4f3fcad9fca34b524829d53e117",
+    "bytes": 2795
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "path": "src/socket.ts",
+    "sha256": "b7f69931efe3db1bbd0ee4e00775d748d06476c4b5689ee3eda95c2966796723",
+    "bytes": 5710
+  }
+]
