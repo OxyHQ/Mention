@@ -1,0 +1,34 @@
+{
+  "sourceHead": "936187723ec2df7127f0f2dd88da0020bdb7c21c",
+  "sourceSha256": {
+    "packages/backend/src/services/OxyRankingClient.ts": "83e8b385a94b2b0c896496ca1a5193d8173a7080aefd3022383e14c73acf27d7",
+    "packages/backend/src/__tests__/services/oxyRankingClient.test.ts": "f592e4da54cfe11e92cc4747398ad44d8cc8fa0661465f01440e043d181f7153"
+  },
+  "records": {
+    "owned-run.txt": {
+      "sha256": "6a026ff5b2c6bd591541d7b3e1ea9f895da2a14c11e26623efaf2729bc507406",
+      "bytes": 1727
+    },
+    "strict-ts.txt": {
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    "tests-66.txt": {
+      "sha256": "8cd061fae6b43698646ce4582ab68666cc8c57385d9f580491c9948c5a3e39ad",
+      "bytes": 1171
+    }
+  },
+  "validation": {
+    "suites": 4,
+    "tests": 66,
+    "strictTS": true,
+    "ownedPgPid": 3747676,
+    "ownedPgStopped": true
+  },
+  "limits": [
+    "Existing optional-name defect; not a new foreground regression.",
+    "Uses canonical getNormalizedUserHandle fallback for local and federated profiles; no first/last-name or opaque ID fallback.",
+    "Installed candidates and synthetic remote authority fixture; no registry publication or production adoption.",
+    "New test covers absent name, absent displayName, federated handle and malformed handle alongside existing ranking/privacy fixtures."
+  ]
+}

@@ -1,0 +1,31 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/integration-i05-mention-consumer-20261003/pg1519-v3i_ruyi/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/integration-i05-mention-consumer-20261003/pg1519-v3i_ruyi/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"newLocalServerPid": 3747676, "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-i05-mention-consumer-20261003/pg1519-v3i_ruyi/data", "database": "oxy_rehearsal_1519_981bd4d05052d0d9", "command": ["bun", "--no-env-file", "run", "test", "--maxWorkers=1", "src/__tests__/services/oxyRankingForeground.http.test.ts", "src/__tests__/services/oxyRankingClient.test.ts", "src/__tests__/services/recommendationService.test.ts", "src/__tests__/utils/oxyHelpers.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-i05-mention-consumer-20261003/pg1519-v3i_ruyi/foreground-consumer.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+
