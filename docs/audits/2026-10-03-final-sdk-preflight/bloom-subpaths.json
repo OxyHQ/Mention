@@ -1,0 +1,3145 @@
+{
+  "bloom": "6.2.1",
+  "installedRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/@oxy.so/bloom",
+  "packageSha256": "de7928d116bee53aae6d6e1b79d71c3ce2527e9173efe2f895be1e410d4f81b1",
+  "kind": "read-only source import/export-subpath census; not symbol/prop/runtime compatibility proof",
+  "rows": [
+    {
+      "specifier": "@oxy.so/bloom",
+      "files": [
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/RowIcon.tsx"
+      ],
+      "exportKey": ".",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/activity-heatmap",
+      "files": [
+        "packages/frontend/components/ProfileHoverCard/index.web.tsx",
+        "packages/frontend/hooks/usePostActivity.ts"
+      ],
+      "exportKey": "./activity-heatmap",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/admonition",
+      "files": [
+        "packages/frontend/components/LabelBadge.tsx",
+        "packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx",
+        "packages/frontend/components/settings/pages/external-media.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/muted-lanes.tsx"
+      ],
+      "exportKey": "./admonition",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/app-shell",
+      "files": [
+        "packages/frontend/app/(app)/_layout.tsx",
+        "packages/frontend/components/navigation/MentionHomeHeader.tsx"
+      ],
+      "exportKey": "./app-shell",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/aspect-ratio",
+      "files": [
+        "packages/frontend/components/Post/Attachments/PostAttachmentExternalEmbed.tsx"
+      ],
+      "exportKey": "./aspect-ratio",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/avatar",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/BottomBar.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/PublishAsDialog.tsx",
+        "packages/frontend/components/Compose/QuoteCard.tsx",
+        "packages/frontend/components/Compose/VariantEditor.tsx",
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/FeedCard.tsx",
+        "packages/frontend/components/ListCard.tsx",
+        "packages/frontend/components/Post/PostActions.tsx",
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/ProfileCard.tsx",
+        "packages/frontend/components/SuggestedProfileCard.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/navigation/useMentionSidebar.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/ui/LiveAvatar.tsx",
+        "packages/frontend/lib/liveConfig.tsx"
+      ],
+      "exportKey": "./avatar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/avatar-group",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/components/FeedCard.tsx",
+        "packages/frontend/components/Post/KnownLikersRow.tsx",
+        "packages/frontend/components/Post/PostHeader.tsx",
+        "packages/frontend/components/Profile/FollowedByRow.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/trending/TrendItemRow.tsx"
+      ],
+      "exportKey": "./avatar-group",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/badge",
+      "files": [
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/applications.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/components/Compose/JobPickerSheet.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Jobs/OrganizationJobRow.tsx",
+        "packages/frontend/components/LabelBadge.tsx",
+        "packages/frontend/components/Post/JobCard.tsx",
+        "packages/frontend/components/notifications/UnreadBadge.tsx"
+      ],
+      "exportKey": "./badge",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/bottom-bar",
+      "files": [
+        "packages/frontend/components/BottomBar.tsx"
+      ],
+      "exportKey": "./bottom-bar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/bottom-sheet",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/context/BottomSheetContext.tsx"
+      ],
+      "exportKey": "./bottom-sheet",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/button",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/ai/index.tsx",
+        "packages/frontend/app/(app)/explore/_layout.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/lists.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/app/(app)/p/[id]/corrections.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/index.tsx",
+        "packages/frontend/app/(app)/subscribe.tsx",
+        "packages/frontend/app/(auth)/index.tsx",
+        "packages/frontend/components/Camera/CameraCapture.tsx",
+        "packages/frontend/components/Camera/CaptureReview.tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Channels/ChannelInfoDialog.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSheetHeader.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSubmittedSheet.tsx",
+        "packages/frontend/components/CommunityNotes/RateNoteSheet.tsx",
+        "packages/frontend/components/CommunityNotes/WriteNoteSheet.tsx",
+        "packages/frontend/components/CommunityNotes/WritingTipsSheet.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/CollabAcceptSheet.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/DraftPreview.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/EmojiPickerSheet.tsx",
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanePickerSheet.tsx",
+        "packages/frontend/components/Compose/LanguagePickerSheet.tsx",
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Compose/ScheduleSheet.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Compose/UnpublishedSheet.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Error.tsx",
+        "packages/frontend/components/Fediverse/FediverseInfoDialog.tsx",
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/Feed/PostErrorBoundary.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx",
+        "packages/frontend/components/NotificationPermissionSheet.tsx",
+        "packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx",
+        "packages/frontend/components/Post/CollaboratorsList.tsx",
+        "packages/frontend/components/Post/EngagementList.tsx",
+        "packages/frontend/components/Post/PostArticleModal.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/Post/PostSourcesSheet.tsx",
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/Profile/ProfileHeader.tsx",
+        "packages/frontend/components/Profile/ProfileTabs.tsx",
+        "packages/frontend/components/Profile/ProfileWriters.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx",
+        "packages/frontend/components/SignInBanner.tsx",
+        "packages/frontend/components/WelcomeModal.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/settings/pages/about.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/fediverse/index.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx",
+        "packages/frontend/components/settings/pages/feed.tsx",
+        "packages/frontend/components/settings/pages/interests.tsx",
+        "packages/frontend/components/settings/pages/language.tsx",
+        "packages/frontend/components/settings/pages/notifications.tsx",
+        "packages/frontend/components/settings/pages/notifications/subscriptions.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/muted-lanes.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx",
+        "packages/frontend/components/widgets/TrendsWidget.tsx",
+        "packages/frontend/components/widgets/WhoToFollowWidget.tsx",
+        "packages/frontend/styles/__tests__/dynamicThemeSurfaces.test.ts"
+      ],
+      "exportKey": "./button",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/button-group",
+      "files": [
+        "packages/frontend/components/navigation/MentionHomeHeader.tsx"
+      ],
+      "exportKey": "./button-group",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/card",
+      "files": [
+        "packages/frontend/app/(app)/jobs/[id]/applications.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/LocationDisplay.tsx",
+        "packages/frontend/components/Compose/PollAttachmentCard.tsx",
+        "packages/frontend/components/Compose/PollCreator.tsx",
+        "packages/frontend/components/Compose/QuoteCard.tsx",
+        "packages/frontend/components/Compose/ScheduleSheet.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Jobs/OrganizationJobRow.tsx",
+        "packages/frontend/components/Podcast/PodcastCard.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentEvent.tsx",
+        "packages/frontend/components/Post/PollCard.tsx",
+        "packages/frontend/components/Post/PostArticlePreview.tsx",
+        "packages/frontend/components/RoomCard.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/widgets/BaseWidget.tsx"
+      ],
+      "exportKey": "./card",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/carousel",
+      "files": [
+        "packages/frontend/components/Feed/interstitials/InterstitialShell.tsx"
+      ],
+      "exportKey": "./carousel",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chart-cards/sparkline",
+      "files": [
+        "packages/frontend/components/trending/TrendItemRow.tsx"
+      ],
+      "exportKey": "./chart-cards/sparkline",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chat-composer",
+      "files": [
+        "packages/frontend/components/MentionPicker.tsx"
+      ],
+      "exportKey": "./chat-composer",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chat-people/contact-row",
+      "files": [
+        "packages/frontend/components/ProfileCard.tsx",
+        "packages/frontend/components/__tests__/profileCardIdentity.test.tsx"
+      ],
+      "exportKey": "./chat-people/contact-row",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/checkbox",
+      "files": [
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/CommunityNotes/RateNoteSheet.tsx",
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Compose/__tests__/ReplySettingsSheet.test.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/report/ReportModal.tsx"
+      ],
+      "exportKey": "./checkbox",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/chip",
+      "files": [
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/applications.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx"
+      ],
+      "exportKey": "./chip",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/connection-status",
+      "files": [
+        "packages/frontend/app/(app)/_layout.tsx"
+      ],
+      "exportKey": "./connection-status",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/content-panel",
+      "files": [
+        "packages/frontend/components/RightBar.tsx"
+      ],
+      "exportKey": "./content-panel",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/cover-header",
+      "files": [
+        "packages/frontend/components/Profile/ProfileShell.tsx",
+        "packages/frontend/components/Profile/ProfileSkeleton.tsx"
+      ],
+      "exportKey": "./cover-header",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/date-picker",
+      "files": [
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/ScheduleSheet.tsx"
+      ],
+      "exportKey": "./date-picker",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/dialog",
+      "files": [
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/Channels/ChannelInfoDialog.tsx",
+        "packages/frontend/components/Compose/ArticleEditor.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/PublishAsDialog.tsx",
+        "packages/frontend/components/Fediverse/FediverseInfoDialog.tsx",
+        "packages/frontend/components/Jobs/CodePickerDialog.tsx",
+        "packages/frontend/components/Jobs/JobLocationField.tsx",
+        "packages/frontend/components/KeyboardShortcutsModal.tsx",
+        "packages/frontend/components/Post/Attachments/EmbedConsentDialog.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentExternalEmbed.tsx",
+        "packages/frontend/components/WelcomeModal.tsx",
+        "packages/frontend/components/common/ContentDialog.tsx",
+        "packages/frontend/components/settings/MentionSettingsModal.tsx",
+        "packages/frontend/components/settings/MentionSettingsProvider.tsx"
+      ],
+      "exportKey": "./dialog",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/divider",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/WelcomeModal.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx",
+        "packages/frontend/components/insights/StatRow.tsx",
+        "packages/frontend/components/report/ReportModal.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx",
+        "packages/frontend/components/widgets/BaseWidget.tsx"
+      ],
+      "exportKey": "./divider",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/empty-state",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./empty-state",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/error-boundary",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/components/Feed/useFeedCore.tsx"
+      ],
+      "exportKey": "./error-boundary",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/fab",
+      "files": [
+        "packages/frontend/__tests__/homeFabContract.test.ts",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/components/BottomBar.tsx"
+      ],
+      "exportKey": "./fab",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/field",
+      "files": [
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/ScheduleSheet.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/report/ReportModal.tsx"
+      ],
+      "exportKey": "./field",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/frosted-icon-button",
+      "files": [
+        "packages/frontend/components/Profile/ProfileHeader.tsx"
+      ],
+      "exportKey": "./frosted-icon-button",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/hooks",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/components/BottomBar.tsx",
+        "packages/frontend/components/Compose/ComposeScheduleIndicator.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Feed/PostItem.tsx",
+        "packages/frontend/components/Post/PostActions.tsx",
+        "packages/frontend/components/Post/VotePill.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/hooks/useAttachmentOrder.ts",
+        "packages/frontend/hooks/useMediaManager.ts"
+      ],
+      "exportKey": "./hooks",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/hover-card",
+      "files": [
+        "packages/frontend/components/ProfileHoverCard/index.web.tsx"
+      ],
+      "exportKey": "./hover-card",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icon-circle",
+      "files": [
+        "packages/frontend/components/RoomCard.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx"
+      ],
+      "exportKey": "./icon-circle",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons",
+      "files": [
+        "packages/frontend/components/Compose/__tests__/ComposeLanguageSheet.test.tsx",
+        "packages/frontend/components/common/__tests__/VideoPosterCell.test.tsx",
+        "packages/frontend/eslint.config.js"
+      ],
+      "exportKey": "./icons",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAccessibilityLine",
+      "files": [
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAddCircleLine",
+      "files": [
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAddLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx",
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAlertFill",
+      "files": [
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/InteractionSettingsPills.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAlertLine",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/InteractionSettingsPills.tsx",
+        "packages/frontend/components/Post/ContentWarning.tsx",
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAppleFill",
+      "files": [
+        "packages/frontend/components/Podcast/PodcastCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowDownLine",
+      "files": [
+        "packages/frontend/components/trending/TrendItemRow.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowDownSLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowLeftLine",
+      "files": [
+        "packages/frontend/app/(app)/ai/index.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Error.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowLeftRightLine",
+      "files": [
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowRightLine",
+      "files": [
+        "packages/frontend/components/Feed/interstitials/InterstitialShell.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowRightSLine",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Feed/FeedFooter.tsx",
+        "packages/frontend/components/RoomCard.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowUpLine",
+      "files": [
+        "packages/frontend/components/trending/TrendItemRow.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiArrowUpSLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiAtLine",
+      "files": [
+        "packages/frontend/components/AccountInfoScreen.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBarChartHorizontalLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBookmarkFill",
+      "files": [
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBookmarkLine",
+      "files": [
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBox3Line",
+      "files": [
+        "packages/frontend/components/settings/pages/fediverse/node.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiBroadcastLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/RoomCard.tsx",
+        "packages/frontend/components/navigation/useMentionSidebar.tsx",
+        "packages/frontend/components/settings/pages/live-presence.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCalendarLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/RoomCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCameraLine",
+      "files": [
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/Profile/EditProfile/BannerSection.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiChat3Fill",
+      "files": [
+        "packages/frontend/components/Post/PostHeader.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiChat3Line",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/Compose/ComposeAltButton.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckboxCircleFill",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Post/PostLanguageSheet.tsx",
+        "packages/frontend/components/Profile/ProfileContent.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCheckboxCircleLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloseCircleLine",
+      "files": [
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloseLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSheetHeader.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/EmojiPickerSheet.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanePickerSheet.tsx",
+        "packages/frontend/components/Compose/LanguagePickerSheet.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Compose/UnpublishedSheet.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/Post/CollaboratorsList.tsx",
+        "packages/frontend/components/Post/EngagementList.tsx",
+        "packages/frontend/components/Post/PostArticleModal.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/Post/PostSourcesSheet.tsx",
+        "packages/frontend/components/suggestions/SuggestedUserCard.tsx",
+        "packages/frontend/components/videos/VideoReplies.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCloudLine",
+      "files": [
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCornerDownRightLine",
+      "files": [
+        "packages/frontend/components/Feed/PostItem.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiCustomerServiceLine",
+      "files": [
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDatabase2Line",
+      "files": [
+        "packages/frontend/components/AccountInfoScreen.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDeleteBinLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx",
+        "packages/frontend/components/Profile/EditProfile/BannerSection.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDoubleQuotesL",
+      "files": [
+        "packages/frontend/components/Post/PostInsightsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiDownloadLine",
+      "files": [
+        "packages/frontend/components/Profile/hooks/useMessageInAllo.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEarthLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/InteractionSettingsPills.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/pages/privacy/profile-visibility.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEditBoxLine",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/components/Post/PostCorrectionNotice.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEditLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/WritingTipsSheet.tsx",
+        "packages/frontend/components/Compose/DraftPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx",
+        "packages/frontend/components/Podcast/PodcastCard.tsx",
+        "packages/frontend/components/Profile/ProfileSong.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEqualizerLine",
+      "files": [
+        "packages/frontend/app/(app)/p/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiErrorWarningFill",
+      "files": [
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiErrorWarningLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiExpandDiagonalSLine",
+      "files": [
+        "packages/frontend/components/common/VideoPlayer.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiExternalLinkLine",
+      "files": [
+        "packages/frontend/components/Podcast/PodcastCard.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEyeLine",
+      "files": [
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiEyeOffLine",
+      "files": [
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/components/CommunityNotes/AboutNoteSheet.tsx",
+        "packages/frontend/components/CommunityNotes/WritingTipsSheet.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFileCopyLine",
+      "files": [
+        "packages/frontend/components/Compose/DraftsList.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFileTextLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/WritingTipsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFilmLine",
+      "files": [
+        "packages/frontend/components/common/VideoPosterCell.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFireLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiFlagLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGalleryLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGitMergeLine",
+      "files": [
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/components/Profile/ProfileTabBarRow.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGlobalLine",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Post/PostDetailStats.tsx",
+        "packages/frontend/components/Profile/hooks/useMessageInAllo.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGroupFill",
+      "files": [
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiGroupLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/InteractionSettingsPills.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/pages/privacy/profile-visibility.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHand",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/components/Profile/ProfileHeader.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHashtag",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHeartFill",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHeartLine",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHistoryLine",
+      "files": [
+        "packages/frontend/components/Post/PostImportedFromRow.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiHome5Line",
+      "files": [
+        "packages/frontend/components/BottomBar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiImageLine",
+      "files": [
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/Profile/EditProfile/BannerSection.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiIndeterminateCircleFill",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiInformationFill",
+      "files": [
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiInformationLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLineChartLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/components/Profile/ProfileHeader.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLink",
+      "files": [
+        "packages/frontend/components/Profile/LinkSummary.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLinkM",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx",
+        "packages/frontend/components/CommunityNotes/WritingTipsSheet.tsx",
+        "packages/frontend/components/Feed/PostItem.tsx",
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiListCheck3",
+      "files": [
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiListUnordered",
+      "files": [
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/ReplyPreferencesSheet.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLoader4Line",
+      "files": [
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLockLine",
+      "files": [
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/components/Feed/FeedFooter.tsx",
+        "packages/frontend/components/Post/PostDetailStats.tsx",
+        "packages/frontend/components/Profile/PrivateBadge.tsx",
+        "packages/frontend/components/Profile/ProfileTabs.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/pages/privacy/profile-visibility.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiLogoutBoxRLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMailLine",
+      "files": [
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMapPinLine",
+      "files": [
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/Post/PostLocation.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMic2Line",
+      "files": [
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Podcast/PodcastCard.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/settings/pages/live-presence.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMoreFill",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Post/PostHeader.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx",
+        "packages/frontend/components/trending/TrendItemRow.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiMusic2Line",
+      "files": [
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/Profile/ProfileSong.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNodeTree",
+      "files": [
+        "packages/frontend/app/(app)/explore/trending.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/components/ReplyPreferencesSheet.tsx",
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNotification3Fill",
+      "files": [
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx",
+        "packages/frontend/components/settings/pages/notifications/subscriptions.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiNotification3Line",
+      "files": [
+        "packages/frontend/components/BottomBar.tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx",
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/navigation/MentionHomeHeader.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPaletteLine",
+      "files": [
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPauseFill",
+      "files": [
+        "packages/frontend/components/Profile/SongPreviewButton.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPlayFill",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/components/Post/Attachments/ExternalEmbedPoster.tsx",
+        "packages/frontend/components/Profile/SongPreviewButton.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPlayLine",
+      "files": [
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPushpinFill",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiPushpinLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiQuestionLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiQuillPenLine",
+      "files": [
+        "packages/frontend/components/BottomBar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRefreshLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRepeat2Line",
+      "files": [
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiRepeatLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSearchLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/navigation/MentionHomeHeader.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSendPlaneLine",
+      "files": [
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSettings3Line",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSubmittedSheet.tsx",
+        "packages/frontend/components/Profile/ProfileHeader.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShapesLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShare2Line",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShareForwardLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiShieldCheckLine",
+      "files": [
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/subscribe.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSparklingFill",
+      "files": [
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiSparklingLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/subscribe.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiStarFill",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiStopFill",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTeamLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/AboutNoteSheet.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSubmittedSheet.tsx",
+        "packages/frontend/components/Feed/PostInteractionsBinder.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiThumbDownLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiThumbUpLine",
+      "files": [
+        "packages/frontend/components/CommunityNotes/AboutNoteSheet.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx",
+        "packages/frontend/components/CommunityNotes/NoteSubmittedSheet.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiTimeLine",
+      "files": [
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/search/index.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUpload2Line",
+      "files": [
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Profile/hooks/usePersonProfileView.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserAddFill",
+      "files": [
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserAddLine",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserCommunityLine",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiUserLine",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVideoLine",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/components/BottomBar.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVipCrownLine",
+      "files": [
+        "packages/frontend/app/(app)/subscribe.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVolumeMuteLine",
+      "files": [
+        "packages/frontend/components/common/EmptyState.tsx",
+        "packages/frontend/components/common/VideoPlayer.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/icons/RiVolumeUpLine",
+      "files": [
+        "packages/frontend/components/common/VideoPlayer.tsx"
+      ],
+      "exportKey": "./icons/Ri*",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/image-aspect-ratio-cache",
+      "files": [
+        "packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx"
+      ],
+      "exportKey": "./image-aspect-ratio-cache",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/image-resolver",
+      "files": [
+        "packages/frontend/components/ZoomableAvatar.tsx"
+      ],
+      "exportKey": "./image-resolver",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/input-group",
+      "files": [
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/components/Compose/PollCreator.tsx"
+      ],
+      "exportKey": "./input-group",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/item",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/JobPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanePickerSheet.tsx",
+        "packages/frontend/components/Compose/LanguagePickerSheet.tsx",
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/Compose/PublishAsDialog.tsx",
+        "packages/frontend/components/Jobs/CodePickerDialog.tsx",
+        "packages/frontend/components/Jobs/JobCurrencyField.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Jobs/JobLocationField.tsx",
+        "packages/frontend/components/Profile/LinkSummary.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/insights/StatRow.tsx"
+      ],
+      "exportKey": "./item",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/kbd",
+      "files": [
+        "packages/frontend/components/KeyboardShortcutsModal.tsx"
+      ],
+      "exportKey": "./kbd",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/layout",
+      "files": [
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/components/Feed/Feed.native.tsx",
+        "packages/frontend/components/Profile/ProfileGridList.tsx",
+        "packages/frontend/components/Profile/ProfileShell.tsx",
+        "packages/frontend/components/shell/PageAction.tsx"
+      ],
+      "exportKey": "./layout",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/link-preview",
+      "files": [
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentLink.tsx"
+      ],
+      "exportKey": "./link-preview",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/list",
+      "files": [
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/components/StarterPacksTab.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx"
+      ],
+      "exportKey": "./list",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/loading",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/(tabs)/you.tsx",
+        "packages/frontend/app/(app)/(tabs)/you.web.tsx",
+        "packages/frontend/app/(app)/c/[username]/insights.tsx",
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/explore/trending.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/[id]/edit.tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/feeds/view.tsx",
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/applications.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/app/(app)/p/[id]/corrections.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/transparency.tsx",
+        "packages/frontend/app/(app)/trend-graph.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/AppSplashScreen.tsx",
+        "packages/frontend/components/Camera/CaptureReview.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/JobPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanePickerSheet.tsx",
+        "packages/frontend/components/Compose/LazyComposeScreen.tsx",
+        "packages/frontend/components/Compose/LocationDisplay.tsx",
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/Compose/PublishAsDialog.tsx",
+        "packages/frontend/components/Compose/QuoteCard.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/VariantEditor.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Feed/FeedEmptyState.tsx",
+        "packages/frontend/components/Feed/FeedFooter.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx",
+        "packages/frontend/components/Jobs/JobLocationField.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/NotificationsList.native.tsx",
+        "packages/frontend/components/NotificationsList.web.tsx",
+        "packages/frontend/components/Post/Attachments/ExternalEmbedPoster.tsx",
+        "packages/frontend/components/Post/EngagementList.tsx",
+        "packages/frontend/components/Post/PollCard.tsx",
+        "packages/frontend/components/Post/PostActions.tsx",
+        "packages/frontend/components/Post/PostArticleModal.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/Profile/MediaGrid.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/Profile/ProfileTabs.tsx",
+        "packages/frontend/components/Profile/SongPreviewButton.tsx",
+        "packages/frontend/components/Profile/VideosGrid.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx",
+        "packages/frontend/components/common/SignInRequired.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/settings/pages/appearance.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/external-media.tsx",
+        "packages/frontend/components/settings/pages/fediverse/index.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx",
+        "packages/frontend/components/settings/pages/feed.tsx",
+        "packages/frontend/components/settings/pages/for-you.tsx",
+        "packages/frontend/components/settings/pages/interests.tsx",
+        "packages/frontend/components/settings/pages/live-presence.tsx",
+        "packages/frontend/components/settings/pages/notifications.tsx",
+        "packages/frontend/components/settings/pages/notifications/subscriptions.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/hide-counts.tsx",
+        "packages/frontend/components/settings/pages/privacy/muted-lanes.tsx",
+        "packages/frontend/components/settings/pages/privacy/online-status.tsx",
+        "packages/frontend/components/settings/pages/privacy/profile-visibility.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx",
+        "packages/frontend/components/settings/pages/privacy/tags-mentions.tsx",
+        "packages/frontend/components/videos/LazyVideoReplies.tsx"
+      ],
+      "exportKey": "./loading",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/media-controls",
+      "files": [
+        "packages/frontend/components/common/VideoPlayer.tsx"
+      ],
+      "exportKey": "./media-controls",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/media-flight",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/_layout.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx",
+        "packages/frontend/components/Post/PostAttachmentsRow.tsx",
+        "packages/frontend/components/common/VideoPlayer.tsx"
+      ],
+      "exportKey": "./media-flight",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/media-header",
+      "files": [
+        "packages/frontend/components/EntityFollowButton.tsx",
+        "packages/frontend/components/FeedSubscribeButton.tsx",
+        "packages/frontend/components/search/ExternalActorFollowButton.tsx"
+      ],
+      "exportKey": "./media-header",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/media-inset-border",
+      "files": [
+        "packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx"
+      ],
+      "exportKey": "./media-inset-border",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/motion",
+      "files": [
+        "packages/frontend/components/Post/PostArticleModal.tsx"
+      ],
+      "exportKey": "./motion",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/overlay",
+      "files": [
+        "packages/frontend/components/Post/PostArticleModal.tsx"
+      ],
+      "exportKey": "./overlay",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/page-header",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/app/(app)/c/[username]/insights.tsx",
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/chat.tsx",
+        "packages/frontend/app/(app)/edit-profile.tsx",
+        "packages/frontend/app/(app)/explore/_layout.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id]/edit.tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/feeds/view.tsx",
+        "packages/frontend/app/(app)/hashtag/[tag].tsx",
+        "packages/frontend/app/(app)/insights.tsx",
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/applications.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/lists.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/app/(app)/p/[id]/corrections.tsx",
+        "packages/frontend/app/(app)/p/[id]/quotes.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/app/(app)/starter-packs/index.tsx",
+        "packages/frontend/app/(app)/subscribe.tsx",
+        "packages/frontend/app/(app)/t/[name].tsx",
+        "packages/frontend/app/(app)/transparency.tsx",
+        "packages/frontend/app/(app)/trend-graph.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNotesScreen.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/EmojiPickerSheet.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanePickerSheet.tsx",
+        "packages/frontend/components/Compose/LanguagePickerSheet.tsx",
+        "packages/frontend/components/Compose/PostPreviewSurface.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Compose/UnpublishedSheet.tsx",
+        "packages/frontend/components/Post/CollaboratorsList.tsx",
+        "packages/frontend/components/Post/EngagementList.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/Profile/ProfilePageHeader.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/navigation/MentionHomeHeader.tsx",
+        "packages/frontend/components/shell/PanelChrome.tsx"
+      ],
+      "exportKey": "./page-header",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/portal",
+      "files": [
+        "packages/frontend/__tests__/modalInertBoundary.test.ts",
+        "packages/frontend/app/_layout.tsx",
+        "packages/frontend/components/Post/PostArticleModal.tsx"
+      ],
+      "exportKey": "./portal",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/preset-vars",
+      "files": [
+        "packages/frontend/components/AppSplashScreen.tsx"
+      ],
+      "exportKey": "./preset-vars",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/pressable-scale",
+      "files": [
+        "packages/frontend/components/Compose/ComposeScheduleIndicator.tsx",
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/Feed/interstitials/InterstitialShell.tsx",
+        "packages/frontend/components/FeedCard.tsx",
+        "packages/frontend/components/ListCard.tsx",
+        "packages/frontend/components/Post/PostActions.tsx",
+        "packages/frontend/components/Post/PostDetailStats.tsx",
+        "packages/frontend/components/Post/VotePill.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/SuggestedProfileCard.tsx"
+      ],
+      "exportKey": "./pressable-scale",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/provider",
+      "files": [
+        "packages/frontend/app/_layout.tsx",
+        "packages/frontend/components/Feed/__perf__/rowCost.perf.tsx"
+      ],
+      "exportKey": "./provider",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/radio",
+      "files": [
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Compose/__tests__/ReplySettingsSheet.test.tsx"
+      ],
+      "exportKey": "./radio",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/radio-indicator",
+      "files": [
+        "packages/frontend/components/ReplyPreferencesSheet.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx"
+      ],
+      "exportKey": "./radio-indicator",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/rating",
+      "files": [
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx"
+      ],
+      "exportKey": "./rating",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/scroll",
+      "files": [
+        "packages/frontend/components/Feed/Feed.native.tsx",
+        "packages/frontend/components/Feed/Feed.web.tsx",
+        "packages/frontend/components/NotificationsList.web.tsx",
+        "packages/frontend/components/saved/SavedPostsList.web.tsx"
+      ],
+      "exportKey": "./scroll",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/search",
+      "files": [
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/LanguagePickerSheet.tsx",
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/Jobs/CodePickerDialog.tsx",
+        "packages/frontend/components/Jobs/JobLocationField.tsx",
+        "packages/frontend/components/SearchBar.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/settings/pages/interests.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx"
+      ],
+      "exportKey": "./search",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/segmented-control",
+      "files": [
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/components/Jobs/JobLocationField.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx"
+      ],
+      "exportKey": "./segmented-control",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/select",
+      "files": [
+        "packages/frontend/components/settings/SettingsSelect.tsx"
+      ],
+      "exportKey": "./select",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/settings-list",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/subscribe.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/ReplyPreferencesSheet.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx"
+      ],
+      "exportKey": "./settings-list",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/settings-modal",
+      "files": [
+        "packages/frontend/components/settings/MentionSettingsModal.tsx",
+        "packages/frontend/components/settings/__tests__/AppearanceSettingsContent.test.tsx",
+        "packages/frontend/components/settings/pages/about.tsx",
+        "packages/frontend/components/settings/pages/accessibility.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/settings/pages/appearance.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/external-media.tsx",
+        "packages/frontend/components/settings/pages/fediverse/index.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx",
+        "packages/frontend/components/settings/pages/feed.tsx",
+        "packages/frontend/components/settings/pages/for-you.tsx",
+        "packages/frontend/components/settings/pages/interests.tsx",
+        "packages/frontend/components/settings/pages/language.tsx",
+        "packages/frontend/components/settings/pages/live-presence.tsx",
+        "packages/frontend/components/settings/pages/notifications.tsx",
+        "packages/frontend/components/settings/pages/notifications/subscriptions.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/hide-counts.tsx",
+        "packages/frontend/components/settings/pages/privacy/muted-lanes.tsx",
+        "packages/frontend/components/settings/pages/privacy/online-status.tsx",
+        "packages/frontend/components/settings/pages/privacy/profile-visibility.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx",
+        "packages/frontend/components/settings/pages/privacy/tags-mentions.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx",
+        "packages/frontend/components/settings/settingsPages.tsx"
+      ],
+      "exportKey": "./settings-modal",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/settings-modal/rows",
+      "files": [
+        "packages/frontend/components/settings/ThreadSortGroup.tsx"
+      ],
+      "exportKey": "./settings-modal/rows",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/sidebar",
+      "files": [
+        "packages/frontend/components/navigation/__tests__/useMentionSidebar.test.tsx",
+        "packages/frontend/components/navigation/useMentionSidebar.tsx"
+      ],
+      "exportKey": "./sidebar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/skeleton",
+      "files": [
+        "packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx",
+        "packages/frontend/components/FeedCard.tsx",
+        "packages/frontend/components/Profile/ProfileSkeleton.tsx",
+        "packages/frontend/components/ProfileCard.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/SuggestedProfileCard.tsx",
+        "packages/frontend/components/notifications/NotificationSkeleton.tsx",
+        "packages/frontend/components/rooms/RoomsListSkeleton.tsx",
+        "packages/frontend/components/trending/TrendItemRow.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx",
+        "packages/frontend/components/widgets/TrendsWidget.tsx",
+        "packages/frontend/components/widgets/WhoToFollowWidget.tsx"
+      ],
+      "exportKey": "./skeleton",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/slider",
+      "files": [
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/settings/pages/feed.tsx",
+        "packages/frontend/components/settings/pages/for-you.tsx"
+      ],
+      "exportKey": "./slider",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/stat-bar",
+      "files": [
+        "packages/frontend/components/Post/PollCard.tsx"
+      ],
+      "exportKey": "./stat-bar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/stat-cards",
+      "files": [
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx"
+      ],
+      "exportKey": "./stat-cards",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/sticker",
+      "files": [
+        "packages/frontend/components/common/EmptyStateSticker.tsx"
+      ],
+      "exportKey": "./sticker",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/styles",
+      "files": [
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/Profile/ChannelHeader.tsx",
+        "packages/frontend/components/Profile/ProfileHeader.tsx",
+        "packages/frontend/components/Profile/ProfileShell.tsx",
+        "packages/frontend/components/Profile/ProfileSkeleton.tsx",
+        "packages/frontend/components/Profile/ProfileTabBarRow.tsx",
+        "packages/frontend/components/SearchBar.tsx",
+        "packages/frontend/components/navigation/StackScene.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/shell/PanelChrome.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx"
+      ],
+      "exportKey": "./styles",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/subtle-hover",
+      "files": [
+        "packages/frontend/components/Feed/PostItem.tsx",
+        "packages/frontend/components/Feed/feedRows.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx"
+      ],
+      "exportKey": "./subtle-hover",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/surfaces",
+      "files": [
+        "packages/frontend/components/common/ActionMenu.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx",
+        "packages/frontend/utils/alerts.ts"
+      ],
+      "exportKey": "./surfaces",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/switch",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/PublishAsDialog.tsx",
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Compose/__tests__/ReplySettingsSheet.test.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/settings/pages/accessibility.tsx",
+        "packages/frontend/components/settings/pages/appearance.tsx",
+        "packages/frontend/components/settings/pages/external-media.tsx",
+        "packages/frontend/components/settings/pages/fediverse/index.tsx",
+        "packages/frontend/components/settings/pages/feed.tsx",
+        "packages/frontend/components/settings/pages/for-you.tsx",
+        "packages/frontend/components/settings/pages/notifications.tsx",
+        "packages/frontend/components/settings/pages/privacy.tsx",
+        "packages/frontend/components/settings/pages/privacy/hide-counts.tsx",
+        "packages/frontend/components/settings/pages/privacy/online-status.tsx",
+        "packages/frontend/components/settings/pages/privacy/tags-mentions.tsx",
+        "packages/frontend/components/settings/pages/thread-preferences.tsx"
+      ],
+      "exportKey": "./switch",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/tab-bar",
+      "files": [
+        "packages/frontend/context/BottomBarVisibilityContext.tsx"
+      ],
+      "exportKey": "./tab-bar",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/tabs",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/index.tsx",
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/app/(app)/explore/_layout.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNotesScreen.tsx",
+        "packages/frontend/components/ProfileScreen.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx"
+      ],
+      "exportKey": "./tabs",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/tabs/expo-router",
+      "files": [
+        "packages/frontend/components/Profile/ProfileChromeFrame.web.tsx"
+      ],
+      "exportKey": "./tabs/expo-router",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/tag-field",
+      "files": [
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx"
+      ],
+      "exportKey": "./tag-field",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/text-field",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/CommunityNotes/WriteNoteSheet.tsx",
+        "packages/frontend/components/Compose/ArticleEditor.tsx",
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/PollCreator.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx"
+      ],
+      "exportKey": "./text-field",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/textarea",
+      "files": [
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/CommunityNotes/WriteNoteSheet.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/ArticleEditor.tsx",
+        "packages/frontend/components/Compose/EventEditor.tsx",
+        "packages/frontend/components/Compose/PollCreator.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/report/ReportModal.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx"
+      ],
+      "exportKey": "./textarea",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/theme",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/index.tsx",
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/app/(app)/_layout.tsx",
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/chat.tsx",
+        "packages/frontend/app/(app)/explore/_layout.tsx",
+        "packages/frontend/app/(app)/explore/trending.tsx",
+        "packages/frontend/app/(app)/feeds.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/insights.tsx",
+        "packages/frontend/app/(app)/insights/weekly_recap.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/lists/[id].tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/authorize.tsx",
+        "packages/frontend/app/(app)/oauth/mcp/link.tsx",
+        "packages/frontend/app/(app)/p/[id].tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/search/index.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/subscribe.tsx",
+        "packages/frontend/assets/illustrations/NoUpdates.tsx",
+        "packages/frontend/components/AccountInfoScreen.tsx",
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/AppSplashScreen.tsx",
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/ChannelScreen.tsx",
+        "packages/frontend/components/CommunityNotes/CommunityNoteCard.tsx",
+        "packages/frontend/components/CommunityNotes/NoteTipList.tsx",
+        "packages/frontend/components/Compose/AltTextSheet.tsx",
+        "packages/frontend/components/Compose/ArticleEditor.tsx",
+        "packages/frontend/components/Compose/CollaboratorPicker.tsx",
+        "packages/frontend/components/Compose/ComposeLanguageSheet.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/ComposeThreadItem.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/InteractionSettingsPills.tsx",
+        "packages/frontend/components/Compose/LocationDisplay.tsx",
+        "packages/frontend/components/Compose/MediaPreview.tsx",
+        "packages/frontend/components/Compose/PodcastPickerSheet.tsx",
+        "packages/frontend/components/Compose/PollAttachmentCard.tsx",
+        "packages/frontend/components/Compose/PollCreator.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/ServerDraftPreview.tsx",
+        "packages/frontend/components/Compose/SourcesSheet.tsx",
+        "packages/frontend/components/Compose/UnpublishedSheet.tsx",
+        "packages/frontend/components/Compose/VariantEditor.tsx",
+        "packages/frontend/components/ComposeToolbar.tsx",
+        "packages/frontend/components/Feed/FeedFooter.tsx",
+        "packages/frontend/components/Feed/PostInteractionsBinder.tsx",
+        "packages/frontend/components/Feed/PostItem.tsx",
+        "packages/frontend/components/Feed/interstitials/InterstitialShell.tsx",
+        "packages/frontend/components/Feed/postMenuActions.tsx",
+        "packages/frontend/components/Feed/useFeedCore.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/LabelBadge.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/MentionTextInput.tsx",
+        "packages/frontend/components/MiniChart.tsx",
+        "packages/frontend/components/NotificationsList.native.tsx",
+        "packages/frontend/components/Podcast/PodcastCard.tsx",
+        "packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx",
+        "packages/frontend/components/Post/ContentWarning.tsx",
+        "packages/frontend/components/Post/PostActions.tsx",
+        "packages/frontend/components/Post/PostCorrectionNotice.tsx",
+        "packages/frontend/components/Post/PostDetailStats.tsx",
+        "packages/frontend/components/Post/PostHeader.tsx",
+        "packages/frontend/components/Post/PostInsightsSheet.tsx",
+        "packages/frontend/components/Post/PostLanguageSheet.tsx",
+        "packages/frontend/components/Post/PostLocation.tsx",
+        "packages/frontend/components/Post/VotePill.tsx",
+        "packages/frontend/components/PresenceIndicator.tsx",
+        "packages/frontend/components/Profile/EditProfile/BannerSection.tsx",
+        "packages/frontend/components/Profile/EditProfile/EditProfileForm.tsx",
+        "packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx",
+        "packages/frontend/components/Profile/LinkSummary.tsx",
+        "packages/frontend/components/Profile/MediaGrid.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/Profile/PrivateBadge.tsx",
+        "packages/frontend/components/Profile/ProfileChromeFrame.web.tsx",
+        "packages/frontend/components/Profile/ProfileShell.tsx",
+        "packages/frontend/components/Profile/ProfileSong.tsx",
+        "packages/frontend/components/Profile/ProfileTabBarRow.tsx",
+        "packages/frontend/components/Profile/ProfileTabs.tsx",
+        "packages/frontend/components/Profile/SongPreviewButton.tsx",
+        "packages/frontend/components/Profile/VideosGrid.tsx",
+        "packages/frontend/components/Profile/hooks/useMessageInAllo.tsx",
+        "packages/frontend/components/Profile/hooks/useProfileAccount.ts",
+        "packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx",
+        "packages/frontend/components/ProfileHoverCard/index.web.tsx",
+        "packages/frontend/components/RightBar.tsx",
+        "packages/frontend/components/RoomCard.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/UserName.tsx",
+        "packages/frontend/components/WelcomeModal.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/insights/InsightsView.tsx",
+        "packages/frontend/components/insights/StatRow.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/notifications/notificationDescriptors.ts",
+        "packages/frontend/components/providers/AccountSwitchReset.tsx",
+        "packages/frontend/components/providers/__tests__/AccountSwitchReset.test.tsx",
+        "packages/frontend/components/report/ReportModal.tsx",
+        "packages/frontend/components/settings/ColorSwatchPicker.tsx",
+        "packages/frontend/components/settings/RowIcon.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/settings/pages/appearance.tsx",
+        "packages/frontend/components/settings/pages/fediverse/node.tsx",
+        "packages/frontend/components/settings/pages/privacy/blocked.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/restricted.tsx",
+        "packages/frontend/components/suggestions/SuggestedUserCard.tsx",
+        "packages/frontend/components/trending/TrendItemRow.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx",
+        "packages/frontend/components/videos/VideoReplies.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx",
+        "packages/frontend/components/widgets/TrendsWidget.tsx",
+        "packages/frontend/context/ScreenColorContext.tsx",
+        "packages/frontend/hooks/useAccountTheme.ts",
+        "packages/frontend/hooks/useAppColorSave.ts",
+        "packages/frontend/hooks/useInfiniteCatalogSearch.tsx",
+        "packages/frontend/hooks/useProfileData.ts",
+        "packages/frontend/hooks/useProfileScreenColor.ts",
+        "packages/frontend/hooks/useWidgetItemMenu.tsx",
+        "packages/frontend/lib/animations/AnimatedLikeIcon.tsx",
+        "packages/frontend/lib/animations/CountWheel.tsx",
+        "packages/frontend/lib/colorEntitlement.ts",
+        "packages/frontend/lib/liveConfig.tsx",
+        "packages/frontend/lib/themePersistence.ts",
+        "packages/frontend/stores/appearanceStore.ts",
+        "packages/frontend/stores/themeSourceStore.ts",
+        "packages/frontend/styles/shared.ts",
+        "packages/frontend/utils/userPlaceholderColor.ts"
+      ],
+      "exportKey": "./theme",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/toast",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/(tabs)/videos.tsx",
+        "packages/frontend/app/(app)/c/[username]/settings.tsx",
+        "packages/frontend/app/(app)/channels.tsx",
+        "packages/frontend/app/(app)/feeds/[id].tsx",
+        "packages/frontend/app/(app)/feeds/marketplace.tsx",
+        "packages/frontend/app/(app)/jobs/[id].tsx",
+        "packages/frontend/app/(app)/jobs/[id]/apply.tsx",
+        "packages/frontend/app/(app)/jobs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/jobs/create.tsx",
+        "packages/frontend/app/(app)/jobs/index.tsx",
+        "packages/frontend/app/(app)/jobs/mine.tsx",
+        "packages/frontend/app/(app)/lanes.tsx",
+        "packages/frontend/app/(app)/lists/[id]/edit.tsx",
+        "packages/frontend/app/(app)/lists/create.tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/moderation/labelers.tsx",
+        "packages/frontend/app/(app)/moderation/labelers/[id].tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/app/(app)/saved.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id]/edit.tsx",
+        "packages/frontend/app/(app)/starter-packs/create.tsx",
+        "packages/frontend/components/AddToStarterPackSheet.tsx",
+        "packages/frontend/components/BoostScreen.tsx",
+        "packages/frontend/components/Compose/ComposeScreen.tsx",
+        "packages/frontend/components/Compose/DraftsList.tsx",
+        "packages/frontend/components/Compose/GifPickerSheet.tsx",
+        "packages/frontend/components/Compose/ScheduleSheet.tsx",
+        "packages/frontend/components/Compose/ScheduledPostPreview.tsx",
+        "packages/frontend/components/Compose/ScheduledPostsList.tsx",
+        "packages/frontend/components/Compose/serverDraftActions.ts",
+        "packages/frontend/components/Feed/interstitials/SuggestedFeedsInterstitial.tsx",
+        "packages/frontend/components/Feed/postMenuActions.tsx",
+        "packages/frontend/components/Jobs/JobApplicationDetailSheet.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Lists/AddToListSheet.tsx",
+        "packages/frontend/components/Post/PollCard.tsx",
+        "packages/frontend/components/Post/PostHeader.tsx",
+        "packages/frontend/components/Profile/MediaPickerSheet.tsx",
+        "packages/frontend/components/Profile/hooks/usePoke.ts",
+        "packages/frontend/components/Profile/hooks/useProfileMoreMenu.tsx",
+        "packages/frontend/components/Profile/hooks/useSubscription.ts",
+        "packages/frontend/components/UserName.tsx",
+        "packages/frontend/components/feeds/FeedBuilder.tsx",
+        "packages/frontend/components/notifications/NotificationItem.tsx",
+        "packages/frontend/components/search/ExternalActorFollowButton.tsx",
+        "packages/frontend/components/settings/pages/about.tsx",
+        "packages/frontend/components/settings/pages/appearance.tsx",
+        "packages/frontend/components/settings/pages/connected-ai.tsx",
+        "packages/frontend/components/settings/pages/fediverse/index.tsx",
+        "packages/frontend/components/settings/pages/notifications.tsx",
+        "packages/frontend/components/settings/pages/notifications/subscriptions.tsx",
+        "packages/frontend/components/settings/pages/privacy/hidden-words.tsx",
+        "packages/frontend/components/settings/pages/privacy/muted-lanes.tsx",
+        "packages/frontend/components/videos/InlineReplyComposer.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx",
+        "packages/frontend/hooks/useFeedSettings.ts",
+        "packages/frontend/hooks/useLocationManager.ts",
+        "packages/frontend/hooks/useMediaManager.ts",
+        "packages/frontend/hooks/useMediaPicker.ts",
+        "packages/frontend/hooks/usePodcastSave.ts",
+        "packages/frontend/hooks/usePostLanguage.ts",
+        "packages/frontend/hooks/usePostShare.ts",
+        "packages/frontend/hooks/useScheduleManager.ts",
+        "packages/frontend/hooks/useSourcesManager.ts",
+        "packages/frontend/hooks/useTrendItemMenu.ts",
+        "packages/frontend/lib/liveConfig.tsx",
+        "packages/frontend/utils/__tests__/shareLink.test.ts",
+        "packages/frontend/utils/shareLink.ts"
+      ],
+      "exportKey": "./toast",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/typography",
+      "files": [
+        "packages/frontend/app/(app)/(tabs)/notifications.tsx",
+        "packages/frontend/app/(app)/[username]/connections.tsx",
+        "packages/frontend/app/(app)/hashtag/[tag].tsx",
+        "packages/frontend/app/(app)/live-rooms/[id].tsx",
+        "packages/frontend/app/(app)/live-rooms/index.tsx",
+        "packages/frontend/app/(app)/notifications/pokes.tsx",
+        "packages/frontend/app/(app)/p/[id]/corrections.tsx",
+        "packages/frontend/app/(app)/starter-packs/[id].tsx",
+        "packages/frontend/app/(app)/t/[name].tsx",
+        "packages/frontend/app/(app)/trend-graph.tsx",
+        "packages/frontend/components/Camera/CameraCapture.tsx",
+        "packages/frontend/components/Camera/CaptureReview.tsx",
+        "packages/frontend/components/Compose/ReplySettingsSheet.tsx",
+        "packages/frontend/components/Feed/FeedHeader.tsx",
+        "packages/frontend/components/Feed/PostErrorBoundary.tsx",
+        "packages/frontend/components/Feed/interstitials/InterstitialShell.tsx",
+        "packages/frontend/components/FeedCard.tsx",
+        "packages/frontend/components/Jobs/JobDiscoveryResultCard.tsx",
+        "packages/frontend/components/Jobs/OrganizationJobRow.tsx",
+        "packages/frontend/components/ListCard.tsx",
+        "packages/frontend/components/Post/PostImportedFromRow.tsx",
+        "packages/frontend/components/ProfileCard.tsx",
+        "packages/frontend/components/ProfileHoverCard/index.web.tsx",
+        "packages/frontend/components/StarterPackCard.tsx",
+        "packages/frontend/components/SuggestedProfileCard.tsx",
+        "packages/frontend/components/WelcomeModal.tsx",
+        "packages/frontend/components/WhoToFollowTab.tsx",
+        "packages/frontend/components/insights/StatRow.tsx",
+        "packages/frontend/components/settings/pages/account.tsx",
+        "packages/frontend/components/suggestions/SuggestedUsers.tsx",
+        "packages/frontend/components/widgets/BaseWidget.tsx",
+        "packages/frontend/components/widgets/LiveRoomsWidget.tsx",
+        "packages/frontend/components/widgets/TrendsWidget.tsx"
+      ],
+      "exportKey": "./typography",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/user-hover-card",
+      "files": [
+        "packages/frontend/components/ProfileHoverCard/index.web.tsx"
+      ],
+      "exportKey": "./user-hover-card",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    },
+    {
+      "specifier": "@oxy.so/bloom/zoomable-media-gallery",
+      "files": [
+        "packages/frontend/components/Post/PostAttachmentsRow.tsx",
+        "packages/frontend/components/ZoomableAvatar.tsx",
+        "packages/frontend/components/common/LazyZoomableGallery.tsx",
+        "packages/frontend/components/common/__tests__/LazyZoomableGallery.test.tsx"
+      ],
+      "exportKey": "./zoomable-media-gallery",
+      "exportPresent": true,
+      "targetsExist": true,
+      "missingTargets": []
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "5e7073556762347ae893789907c2dce5f909251b22c9807c4a9e78358d815a64"
+    },
+    {
+      "path": "package.json",
+      "sha256": "b89ad05efde35198223c6496e017ce7f6f7bf4c326b2836937baea200475ac87"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "15b930adeeae05ba87516d836adcdfe9eeff8c2e54fa317b25efcdda5e51ea13"
+    }
+  ],
+  "base": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+  "status": "planned patch; manifests and lock unchanged; no final registry installation",
+  "artifacts": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/README.md",
+      "sha256": "7f8c957062d09bbc1dbc3eb72b5a635569c4507b05e8ef42ffc69c192daa8904"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/manifest-plan.json",
+      "sha256": "a245504175e1ff483b5efa331a5a42cfbe54bab390747c3258d65580b501f2f5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/manifest-update.patch",
+      "sha256": "fa6ba27be32f9b80247a301645fa3039f546eecb96134d473f61b628284a0ae6"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/bloom-subpaths.json",
+      "sha256": "6f297ca57eecd84b6b4469c8662a14362c4e5634bacb7fca54fd33296f7b2f53"
+    }
+  ]
+}
