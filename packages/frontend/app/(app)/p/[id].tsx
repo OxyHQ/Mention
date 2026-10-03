@@ -519,6 +519,9 @@ const PostDetailScreen: React.FC = () => {
             <View className="flex-1">
                 <PageHeader
                     title={(post && 'metadata' in post && post.metadata?.isThread) ? 'Thread' : 'Post'}
+                    // The page's heading is the post's author (the focused
+                    // post's `<h1>`); "Post" only labels the screen.
+                    headingLevel={2}
                     onBack={handleBack}
                     backLabel={t('common.back', { defaultValue: 'Back' })}
                     actions={

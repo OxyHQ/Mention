@@ -130,6 +130,21 @@ export async function mentionProfileSeoPolicy(oxyUserId: string | undefined): Pr
   return { visible, indexable: visible && (!settings || settings.searchEngineIndexing) };
 }
 
+/**
+ * Whether any post Mention would list in its sitemap carries this hashtag —
+ * the difference between a hashtag page worth indexing and an empty one.
+ * `tag` is already normalized (`normalizeHashtag`), the form posts store.
+ */
+export async function hashtagHasListablePosts(tag: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
+    .where(and(publicSeoPost(), sql`${posts.hashtags} @> array[${tag}]::text[]`))
+    .limit(1);
+  return Boolean(row);
+}
+
 function publicSeoPost(): ReturnType<typeof and> {
   return and(
     eq(posts.visibility, 'public'),
@@ -374,7 +389,9 @@ async function buildPostSitemaps(listable: Set<string>): Promise<{ pages: Sitema
     })
     .from(posts)
     .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
-    .where(publicSeoPost())
+    // A boost's page repeats its original and is `noindex`; the original is
+    // the URL to list.
+    .where(and(publicSeoPost(), isNull(posts.boostOf)))
     .orderBy(asc(bucket), asc(posts.id))
     .toSQL();
 

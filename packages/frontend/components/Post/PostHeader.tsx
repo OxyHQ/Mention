@@ -141,6 +141,11 @@ interface PostHeaderProps {
   postHref?: Href | null;
   /** Runs when the time link is pressed, before it navigates. */
   onPressTime?: () => void;
+  /**
+   * The author's name is the page's heading — the `<h1>` of a post's own
+   * page, where the post is what the page is about.
+   */
+  nameAsHeading?: boolean;
   onPressAvatar?: () => void;
   /**
    * Collaborative BYLINES only (owner + ≥1 accepted collaborator, or a channel
@@ -216,6 +221,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   userHref,
   postHref,
   onPressTime,
+  nameAsHeading,
   onPressAvatar,
   onPressCollaborators,
   onPressMenu,
@@ -462,6 +468,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                   name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
                   verified={user.verified}
                   href={userHref}
+                  asHeading={nameAsHeading}
                   style={{ container: { flexShrink: 0 } }}
                 />
                 {hasDisplayName && user.handle ? (

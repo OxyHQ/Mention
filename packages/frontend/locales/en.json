@@ -941,11 +941,11 @@
   },
   "seo": {
     "siteName": "Mention",
-    "defaultTitle": "Mention - Social Platform",
-    "defaultDescription": "Join Mention and connect with people around the world. Share your thoughts, discover trends, and engage with a global community.",
+    "defaultTitle": "Mention: a social network connected to the Fediverse",
+    "defaultDescription": "Mention is a social network for iOS, Android and the web. Follow people, share posts and join the conversation — and connect with Mastodon and the rest of the Fediverse.",
     "home": {
-      "title": "Mention - Social Platform",
-      "description": "Join Mention and connect with people around the world. Share your thoughts, discover trends, and engage with a global community."
+      "title": "Mention: a social network connected to the Fediverse",
+      "description": "Mention is a social network for iOS, Android and the web. Follow people, share posts and join the conversation — and connect with Mastodon and the rest of the Fediverse."
     },
     "explore": {
       "title": "Explore - Mention",

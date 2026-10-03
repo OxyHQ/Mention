@@ -146,11 +146,11 @@ export const SEO: React.FC<SEOProps> = ({
   const finalSiteName = siteName || t('seo.siteName', { defaultValue: defaultSEO.siteName });
   
   // Default title if not provided (translated)
-  const pageTitle = title || t('seo.defaultTitle', { defaultValue: `${finalSiteName} - Social Platform` });
+  const pageTitle = title || t('seo.defaultTitle', { defaultValue: `${finalSiteName}: a social network connected to the Fediverse` });
   
   // Default description if not provided (translated)
   const pageDescription = description || t('seo.defaultDescription', { 
-    defaultValue: `Join ${finalSiteName} and connect with people around the world.`,
+    defaultValue: `${finalSiteName} is a social network for iOS, Android and the web.`,
     siteName: finalSiteName
   });
 

@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 // Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)
 const WelcomeModal = lazy(() => import('./WelcomeModal'));
@@ -17,12 +18,16 @@ interface WelcomeModalGateProps {
  * WelcomeModalGate Component
  * Manages when to show the welcome modal
  * - Only on web platform
+ * - Only wider than a phone: on a phone it would cover the whole page the
+ *   reader came for, which is the intrusive interstitial search engines rank
+ *   down (Google indexes the phone layout). The sign-in banner covers phones.
  * - Only when app is ready
  * - Only if user is not authenticated
  * - Only if user hasn't seen it before (first time only)
  */
 const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) => {
   const { isAuthenticated } = useAuth();
+  const notPhone = useIsScreenNotMobile();
   const [showModal, setShowModal] = useState(false);
   // Once shown, the modal stays mounted so Bloom's Dialog can play its exit
   // animation when `visible` flips to false (it unmounts its own surface).
@@ -34,8 +39,8 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
       try {
         const seen = await AsyncStorage.getItem(WELCOME_MODAL_SEEN_KEY);
 
-        // Only show modal if: web + app ready + not authenticated + hasn't seen before
-        if (Platform.OS === 'web' && appIsReady && !isAuthenticated && !seen) {
+        // Only show modal if: web + not a phone + app ready + not authenticated + hasn't seen before
+        if (Platform.OS === 'web' && notPhone && appIsReady && !isAuthenticated && !seen) {
           // Small delay to ensure smooth transition from splash screen
           setTimeout(() => {
             setShowModal(true);
@@ -50,7 +55,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
     if (appIsReady) {
       checkIfSeen();
     }
-  }, [appIsReady, isAuthenticated]);
+  }, [appIsReady, isAuthenticated, notPhone]);
 
   const handleClose = async () => {
     setShowModal(false);

@@ -496,6 +496,49 @@ describe('webShell routes (integration)', () => {
     }
   });
 
+  describe('hashtag pages', () => {
+    const apex = new URL(config.web.origin).hostname;
+
+    it('gives every spelling of a hashtag one canonical page, indexed while posts carry it', async () => {
+      stubFetch({ ok: true });
+      const tag = `seotag${Date.now()}`;
+      await seedOgPost({ hashtags: [tag] });
+
+      const res = await request(makeApp()).get(`/hashtag/${tag.toUpperCase()}`).set('Host', apex);
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain(`<title data-mention-seo="true">#${tag} on Mention</title>`);
+      expect(res.text).toContain(`<link data-mention-seo="true" rel="canonical" href="https://mention.earth/hashtag/${tag}">`);
+      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="index,follow">');
+      expect(res.text).toContain('"@type":"CollectionPage"');
+    });
+
+    it('does not index a hashtag no listable post carries', async () => {
+      stubFetch({ ok: true });
+      const tag = `emptytag${Date.now()}`;
+      await seedOgPost({ hashtags: [tag], visibility: 'private' });
+
+      const res = await request(makeApp()).get(`/hashtag/${tag}`).set('Host', apex);
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,follow">');
+    });
+
+    it('is a real 404 for something that is not a hashtag', async () => {
+      stubFetch({ ok: true });
+      const res = await request(makeApp()).get('/hashtag/%23%20%21').set('Host', apex);
+      expect(res.status).toBe(404);
+    });
+
+    it('leaves every other host alone', async () => {
+      stubFetch({ ok: true });
+      const app = makeApp();
+      app.use((_req, res) => res.status(418).end());
+      const res = await request(app).get('/hashtag/expo').set('Host', new URL(config.web.apiOrigin).hostname);
+      expect(res.status).toBe(418);
+    });
+  });
+
   it('302-redirects a local /@handle to the AP actor when Accept wants ActivityPub', async () => {
     stubFetch({ ok: true, body: {} });
 
@@ -578,7 +621,7 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
     expect(res.text).toContain(`<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`);
     // NOT the remote URL. A federated avatar lives on the remote instance's own
     // media host, and emitting it here made every card renderer — crawlers,
@@ -601,7 +644,7 @@ describe('webShell routes (integration)', () => {
 
     const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
 
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
   });
 
   it('serves post metadata without modifying the SPA body to a browser', async () => {
@@ -613,8 +656,8 @@ describe('webShell routes (integration)', () => {
       .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36');
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<title data-mention-seo="true">Nate on Mention</title>');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<title data-mention-seo="true">Nate on Mention: &quot;hi there&quot;</title>');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
     expect(res.text).toContain('<div id="root"></div>');
     expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();

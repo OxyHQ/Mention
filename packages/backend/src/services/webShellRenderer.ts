@@ -16,6 +16,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountKind } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
+import { siteStructuredData } from '@mention/shared-types/seo';
 import { resolveMediaRef } from '../utils/mediaResolver';
 import { config } from '../config';
 
@@ -55,11 +56,13 @@ const WEB_ORIGIN = config.web.origin;
 export function mapHomepageOg(): OgData {
   const name = config.deployment?.branding.name ?? 'Mention';
   return {
-    title: `${name} - Social Platform`,
-    description: `Join ${name} and connect with people around the world. Share your thoughts, discover trends, and engage with a global community.`,
+    // The English of the app's `seo.home.*`, which replaces these once it loads.
+    title: `${name}: a social network connected to the Fediverse`,
+    description: `${name} is a social network for iOS, Android and the web. Follow people, share posts and join the conversation — and connect with Mastodon and the rest of the Fediverse.`,
     url: `${WEB_ORIGIN}/`,
     type: 'website',
     robots: 'index,follow',
+    jsonLd: siteStructuredData({ origin: WEB_ORIGIN, name, logoUrl: config.deployment?.branding.logoUrl }),
     image: `${WEB_ORIGIN}/og-image.jpg`,
     imageWidth: 1280,
     imageHeight: 720,
@@ -380,6 +383,30 @@ export function mapProfileOg(data: OxyProfileData | null | undefined, facts: Pro
 }
 
 /**
+ * A hashtag's page. `tag` is normalized (`normalizeHashtag`), so every spelling
+ * of it — `#Gaza`, `/hashtag/GAZA` — names one canonical URL. Indexed only while
+ * some post Mention would list carries it: an empty tag page is a soft 404.
+ */
+export function mapHashtagOg(tag: string, hasListablePosts: boolean): OgData {
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  const url = `${WEB_ORIGIN}/hashtag/${encodeURIComponent(tag)}`;
+  return {
+    title: `#${tag} on ${brand}`,
+    description: `The latest posts about #${tag} on ${brand}.`,
+    url,
+    type: 'website',
+    robots: hasListablePosts ? 'index,follow' : 'noindex,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: `#${tag}`,
+      url,
+      isPartOf: { '@id': `${WEB_ORIGIN}/#website` },
+    },
+  };
+}
+
+/**
  * The safety verdict a post's OG card is rendered under. Required rather than
  * optional so no future caller can render a card without having decided: an
  * unfurler has no viewer, so there is no per-user setting to consult and no way for
@@ -419,64 +446,131 @@ const GATED_POST_DESCRIPTION = 'This post is marked sensitive. Open it on Mentio
  * author's own content warning when there is one (the fediverse convention — it is
  * written precisely to be read INSTEAD of the body), else a neutral notice.
  */
-export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety): OgData {
+export function mapPostOg(
+  post: HydratedPost,
+  id: string,
+  safety: PostOgSafety,
+  shape: { isBoost: boolean } = { isBoost: false },
+): OgData {
   const user = post.user;
   const handle = getNormalizedUserHandle(user);
   const author = user.name?.displayName?.trim() || (handle ? `@${handle}` : 'Someone');
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  const url = `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`;
 
   if (safety.requiresWarning) {
     const warning = safety.contentWarning?.trim();
     return {
-      title: `${author} on Mention`,
+      title: `${author} on ${brand}`,
       description: (warning || GATED_POST_DESCRIPTION).slice(0, 200),
-      url: `${WEB_ORIGIN}/p/${id}`,
+      url,
       type: 'article',
       robots: 'noindex,nofollow',
     };
   }
 
-  const media = post.content?.media?.[0];
+  // A boost has an intentionally empty body — its renderable text and media
+  // live on the boosted original (embedded at maxDepth:1), so a boost's card
+  // describes that.
+  const original = post.originalPost?.content;
+  const bodyText = (post.content?.text?.trim() || original?.text || '').replace(/\s+/g, ' ').trim();
+  const media = (post.content?.media?.length ? post.content.media : original?.media) ?? [];
 
+  // `og:image` must be an IMAGE: a video's own file is not one, its poster is.
+  const first = media[0];
+  const mediaImage = first?.type === 'video' ? (first.posterUrl || first.thumbUrl) : (first?.url || first?.thumbUrl);
+  const documentImage = post.documents?.[0]?.imageUrl;
   const avatarImage = ogImageForAvatar(user.avatar);
+  const image = mediaImage || documentImage || avatarImage || undefined;
+  const imageIsMedia = Boolean(mediaImage) && image === mediaImage;
 
-  const image =
-    media?.url || media?.thumbUrl || media?.posterUrl || post.documents?.[0]?.imageUrl || avatarImage || undefined;
-
-  // A boost has an intentionally empty body — its renderable text lives on the
-  // boosted original (embedded at maxDepth:1). Fall back to the original's text so
-  // a boost's OG/preview description is not blank.
-  const ownText = (post.content?.text || '').trim();
-  const bodyText = ownText || (post.originalPost?.content?.text || '').trim();
-  const description = bodyText.slice(0, 200);
-  const url = `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`;
   const authorHandle = handle ? `@${handle}` : author;
   const createdAt = post.metadata?.createdAt;
   const updatedAt = post.metadata?.updatedAt;
+  const lang = post.content?.textLang || post.metadata?.language;
   const authorUrl = handle ? `${WEB_ORIGIN}/@${handlePathSegment(handle)}` : undefined;
+  const snippet = bodyText ? titleSnippet(bodyText) : '';
+
+  const images = media
+    .filter((item) => item.type !== 'video')
+    .map((item) => item.url || item.thumbUrl)
+    .filter((value): value is string => Boolean(value));
+  const videos = media
+    .filter((item) => item.type === 'video' && item.url && (item.posterUrl || item.thumbUrl))
+    .map((item) => ({
+      '@type': 'VideoObject',
+      name: snippet || `Video by ${author} on ${brand}`,
+      contentUrl: item.url,
+      thumbnailUrl: item.posterUrl || item.thumbUrl,
+      ...(createdAt ? { uploadDate: createdAt } : {}),
+      ...(typeof item.durationSec === 'number' && item.durationSec > 0
+        ? { duration: `PT${Math.round(item.durationSec)}S` }
+        : {}),
+    }));
+
+  // What the author chose to hide is `null` and stays unsaid.
+  const engagement = post.engagement;
+  const interactionStatistic = [
+    ...countOf('LikeAction', engagement?.likes),
+    ...countOf('ShareAction', engagement?.boosts),
+  ];
+  const replies = engagement?.replies;
 
   return {
-    title: `${author} on Mention`,
-    description,
+    // The author first — that is who a reader is looking for — then the
+    // opening of the post, which is what the page is about.
+    title: snippet ? `${author} on ${brand}: "${snippet}"` : `${author} on ${brand}`,
+    description: bodyText
+      ? bodyText.slice(0, 200)
+      : `A post by ${author} (${authorHandle}) on ${brand}.`,
     image,
+    ...(imageIsMedia && first?.type !== 'video' && first?.width && first?.height
+      ? { imageWidth: first.width, imageHeight: first.height }
+      : {}),
+    ...(imageIsMedia && first?.alt ? { imageAlt: first.alt } : {}),
+    // A small avatar is not a large image.
+    ...(image && !imageIsMedia && image === avatarImage ? { twitterCard: 'summary' as const } : {}),
     url,
     type: 'article',
-    lang: post.content?.textLang || post.metadata?.language,
-    robots: 'index,follow',
+    lang,
+    // A boost repeats someone else's post: the original is the page to index,
+    // and this one still passes its links on.
+    robots: shape.isBoost ? 'noindex,follow' : 'index,follow',
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'SocialMediaPosting',
       url,
-      headline: `${author} on Mention`,
-      articleBody: bodyText,
+      identifier: id,
+      ...(bodyText ? { text: bodyText } : {}),
       ...(createdAt ? { datePublished: createdAt } : {}),
       ...(updatedAt ? { dateModified: updatedAt } : {}),
-      ...(image ? { image } : {}),
+      ...(lang ? { inLanguage: lang } : {}),
+      ...(images.length ? { image: images } : {}),
+      ...(videos.length ? { video: videos } : {}),
       author: {
-        '@type': 'Person',
+        '@type': user.kind === 'channel' ? 'Organization' : 'Person',
         name: author,
         alternateName: authorHandle,
         ...(authorUrl ? { url: authorUrl } : {}),
+        ...(avatarImage ? { image: avatarImage } : {}),
       },
+      ...(interactionStatistic.length ? { interactionStatistic } : {}),
+      ...(typeof replies === 'number' && replies >= 0 ? { commentCount: replies } : {}),
     },
   };
+}
+
+/** The opening of a post, cut at a word, for a page title. */
+function titleSnippet(text: string, max = 70): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+/** A schema.org `InteractionCounter`, or nothing when the count is unknown or hidden. */
+function countOf(action: 'LikeAction' | 'ShareAction', count: number | null | undefined) {
+  return typeof count === 'number' && Number.isFinite(count) && count >= 0
+    ? [{ '@type': 'InteractionCounter', interactionType: `https://schema.org/${action}`, userInteractionCount: count }]
+    : [];
 }

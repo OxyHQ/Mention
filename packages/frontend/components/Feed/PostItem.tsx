@@ -935,6 +935,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         userHref={authorHref}
                         postHref={openPostHref}
                         onPressTime={recordOpen}
+                        nameAsHeading={isDetailMain}
                         onPressAvatar={goToAuthorProfile}
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
                         linkAuthors
