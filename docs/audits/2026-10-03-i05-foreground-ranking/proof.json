@@ -1,0 +1,68 @@
+{
+  "sourceHead": "bf88d245b5e28824704edae74c13f3533c0cdd9e",
+  "sourceSha256": {
+    "packages/backend/src/__tests__/services/oxyRankingClient.test.ts": "ba3aff8f26b22b63df787db2aa6ab3474ef46399c1fb152b9596e664de95a200",
+    "packages/backend/src/__tests__/services/oxyRankingForeground.http.test.ts": "a15d32a6bf66b241ee41150b4bd9d58cfa2f1c38f2b03b9da1258a2116654b40",
+    "packages/backend/src/__tests__/services/recommendationService.test.ts": "fb1153819a9bc386bbe9a3ccba39b3380c5ed8305f8b854f4ea6f03d91b10989",
+    "packages/backend/src/__tests__/utils/oxyHelpers.test.ts": "f32de7437c69e117bd988f38c5d50fc99b43afdc312caaa024d81c2c709efab6",
+    "packages/backend/src/routes/recommendations.ts": "05aafcbf98ddfae0d8dd85c675732b8133d4578adf6da75f864933f058a8569b",
+    "packages/backend/src/services/ForegroundOxyProfileClient.ts": "31f83233b27338599d9685b236a9fd7125733d1115fecb11935f5d646d25b5bc",
+    "packages/backend/src/services/OxyRankingClient.ts": "98f9814b9f0c46235018e624dd70989c3c29dcc30007b464e74b1f27c71273c2",
+    "packages/backend/src/services/RecommendationService.ts": "13ffa416a4e504ab33a43d07a8c9e3c16133221ce5d40dd61aaf5680592a3b21",
+    "packages/backend/src/utils/oxyHelpers.ts": "75b5d694d2c9ce43b02b0c1ef87c18286145ac7a865e9bf5d6d17c2ed03473cb"
+  },
+  "records": {
+    "candidate-bun.lock": {
+      "sha256": "a722cda270eedaa8e18495a729244ad2923ba7b799dce22972db3b01d72880a3",
+      "bytes": 683125
+    },
+    "candidate-inputs.json": {
+      "sha256": "b28a4a4ead9b52721ca143c50e90b2bd269fdb1e2a9ad0a5e7958c5caa5e6d54",
+      "bytes": 988
+    },
+    "candidate-install.txt": {
+      "sha256": "cb078771476e8e85b226772ff1bb773d6820766dd3b67190516c231d782460b5",
+      "bytes": 140
+    },
+    "candidate-package.json": {
+      "sha256": "1a825d48154ed3ea25ed6aacd49dab6ad146b14276fa9ae83ea096739a9ec3b7",
+      "bytes": 7752
+    },
+    "installed-files.json": {
+      "sha256": "186f20283893fab6d56df446990d6fedbc160176927e1ea15700f7b3124ba8b5",
+      "bytes": 185754
+    },
+    "owned-harness.py": {
+      "sha256": "5dcdc8ee63731ede652bbf58abc6c2d9e975c5f06e5d07eb670591033ba44b9f",
+      "bytes": 4554
+    },
+    "owned-run.txt": {
+      "sha256": "4aa7a79ba3af36091d44f66d356449960e572f3914b6c732db7a90e5acc4de72",
+      "bytes": 1727
+    },
+    "strict-ts.txt": {
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    "tests-65.txt": {
+      "sha256": "c5d4e759baffe4229335940cdd106ba7ed7814467f631daa0d30d02243bf87e6",
+      "bytes": 1171
+    }
+  },
+  "validation": {
+    "tests": 65,
+    "suites": 4,
+    "installedFilesIdentical": 998,
+    "packageCandidatesPublished": false,
+    "ownedPgPid": 3742209,
+    "ownedPgStopped": true,
+    "remoteAuthority": "synthetic only in eight loopback SDK fixtures; SQL authority acceptance is separate Oxy checkpoint e129",
+    "strictTS": true
+  },
+  "limits": [
+    "No live scopes/config/catalog registration or production consumer adoption",
+    "Candidate manifests/lock in evidence only; source manifests restored exactly",
+    "Anonymous ranking remains legacy; foreground signed capability requires explicit registered catalogue configuration",
+    "Graph normal HTTP remains verified requester bearer; no delegated service fallback"
+  ]
+}

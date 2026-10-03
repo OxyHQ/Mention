@@ -44,6 +44,8 @@ import {
 import { createMentionCapabilityAuthority } from "./lib/capability-authority.js";
 import { handleMentionCapabilityRequest } from "./lib/capability-http.js";
 
+import { createMentionInternalMcp } from './lib/internal-capability-mcp.js';
+
 const config = loadConfiguration();
 const PORT = config.port;
 const MAX_REQUEST_BODY_BYTES = config.maxRequestBodyBytes;
@@ -52,6 +54,7 @@ const MCP_PUBLIC_URL = config.publicUrl;
 const OAUTH_AS_URL = config.oxyApiUrl;
 const introspectCentralToken = createCentralTokenIntrospector(config);
 const capabilityAuthority = createMentionCapabilityAuthority(config);
+const internalMcp = createMentionInternalMcp(config);
 
 /** Canonical protected-resource metadata URL advertised in 401 challenges. */
 const RESOURCE_METADATA_URL = `${MCP_PUBLIC_URL}/.well-known/oauth-protected-resource`;
@@ -373,6 +376,12 @@ async function main() {
       return;
     }
 
+    if (pathname === "/_oxy/mcp") {
+      if (!internalMcp) { sendJsonRpcError(res, 503, -32000, "Internal MCP catalogue binding is not configured."); return; }
+      await internalMcp.handleMcp(req, res);
+      return;
+    }
+
     if (pathname.startsWith("/_oxy/capabilities/")) {
       let body: unknown;
       try {
@@ -546,6 +555,7 @@ function normalizedRoute(pathname: string): string {
   if (pathname === "/.well-known/oauth-protected-resource") {
     return "/.well-known/oauth-protected-resource";
   }
+  if (pathname === "/_oxy/mcp") return "/_oxy/mcp";
   if (pathname.startsWith("/_oxy/capabilities/")) return "/_oxy/capabilities/:tool";
   return "unmatched";
 }

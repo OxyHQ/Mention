@@ -1,0 +1,43 @@
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/mcp/internalCatalogMcp.db.test.ts -t "does not release a read"
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003/packages/backend[39m
+
+ [31m❯[39m src/__tests__/mcp/internalCatalogMcp.db.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m7 skipped[39m[2m)[22m[32m 292[2mms[22m[39m
+   [31m❯[39m Mention internal common MCP with signed transport and SQL effects [2m(8)[22m
+     [2m[90m↓[39m[22m executes the canonical save handler and rejects replay/conflict before another effect
+     [2m[90m↓[39m[22m shares the domain handler with direct Capability HTTP and preserves its refusal
+     [2m[90m↓[39m[22m requires a stable operation key before any domain request
+     [2m[90m↓[39m[22m does not accept ordinary Bearer, a forged signature, another catalogue or an account mismatch
+     [2m[90m↓[39m[22m cannot call a different tool with a valid signed ticket
+     [2m[90m↓[39m[22m rechecks withdrawal in the backend after transport acceptance
+[31m     [31m×[31m does not release a read after authority is withdrawn during the final audit await[39m[32m 77[2mms[22m[39m
+     [2m[90m↓[39m[22m keeps a committed write successful and replay-safe when audit delivery fails
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/mcp/internalCatalogMcp.db.test.ts[2m > [22mMention internal common MCP with signed transport and SQL effects[2m > [22mdoes not release a read after authority is withdrawn during the final audit await
+[31m[1mAssertionError[22m: expected undefined to be true // Object.is equality[39m
+
+[32m- Expected:[39m
+true
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m src/__tests__/mcp/internalCatalogMcp.db.test.ts:[2m217:42[22m[39m
+    [90m215|[39m     revokeDuringAudit = true;
+    [90m216|[39m     const result = await rpc(ticket('get-post'), 'get-post', { id: pos…
+    [90m217|[39m     expect(result.result.result.isError).toBe(true);
+    [90m   |[39m                                          [31m^[39m
+    [90m218|[39m     expect(JSON.stringify(result.result)).not.toContain('fixture SQL r…
+    [90m219|[39m     expect(auditCount).toBe(1);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[33m7 skipped[39m[90m (8)[39m
+[2m   Start at [22m 13:55:10
+[2m   Duration [22m 2.75s[2m (transform 47%, import 37%, tests 15%, setup 1%)[22m
+
+error: script "test" exited with code 1

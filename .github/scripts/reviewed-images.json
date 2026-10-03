@@ -1,0 +1,29 @@
+{
+  "repository": "OxyHQ/Mention",
+  "recipes": [
+    {
+      "name": "mention",
+      "services": [
+        "mention"
+      ],
+      "ecrRepository": "oxy/mention",
+      "dockerfile": "packages/backend/Dockerfile",
+      "dockerfileSha256": "03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "mention-backend"
+    },
+    {
+      "name": "mention-mcp",
+      "services": [
+        "mention-mcp"
+      ],
+      "ecrRepository": "oxy/mention-mcp",
+      "dockerfile": "packages/mcp/Dockerfile",
+      "dockerfileSha256": "e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "mention-mcp"
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+$ bun test
+bun test v1.4.2 (744846f84)
+
+__tests__/token-authenticator.test.ts:
+(pass) Mention MCP token authority > accepts a live central token only with exact issuer, audience and resource [0.44ms]
+(pass) Mention MCP token authority > never treats an unknown algorithm as a legacy fallback [0.04ms]
+(pass) Mention MCP token authority > refuses a retired Mention-issued HS256 token without asking Oxy [3.24ms]
+(pass) managed MCP cross-tenant replay protection > rejects a live foreign token even when its owner has an account on both instances [3.73ms]
+
+__tests__/expected-scopes.test.ts:
+(pass) post-deploy smoke expected scopes > equal the capabilities the server advertises [0.29ms]
+
+__tests__/api-client.test.ts:
+(pass) Mention API client resilience > uses a 10 second per-attempt timeout [0.43ms]
+(pass) Mention API client resilience > retries a GET once after a transient upstream response [114.63ms]
+(pass) Mention API client resilience > retries a GET once after a network error [137.54ms]
+(pass) Mention API client resilience > never retries a mutating request [0.34ms]
+(pass) Mention API client resilience > binds authenticated writes to the current MCP tool invocation [0.28ms]
+(pass) Mention API client resilience > refuses an authenticated write when no invocation key was established [0.10ms]
+(pass) Mention API client resilience > normalizes terminal network failures for tool responses [78.55ms]
+
+__tests__/config.test.ts:
+(pass) MCP configuration > applies bounded defaults and normalizes URLs [1.06ms]
+(pass) MCP configuration > rejects invalid numeric configuration instead of silently falling back [0.47ms]
+(pass) MCP configuration > rejects CORS entries that are not exact HTTP origins [0.07ms]
+(pass) MCP configuration > boots without a secret, and reads a service credential where one is given [0.04ms]
+(pass) managed MCP configuration > derives API, resource and catalog audience from one deployment [0.86ms]
+
+__tests__/register-capability-catalog.test.ts:
+(pass) describeRegistrationFailure > names the status and code the Oxy SDK rejects with [0.09ms]
+(pass) describeRegistrationFailure > reads statusCode when that is the field carried [0.03ms]
+(pass) describeRegistrationFailure > keeps an Error message as-is [0.02ms]
+(pass) describeRegistrationFailure > never answers [object Object] for an unanticipated shape [0.02ms]
+(pass) describeRegistrationFailure > bounds a large payload so it cannot flood the deploy log [0.02ms]
+(pass) describeRegistrationFailure > survives a value that cannot be serialized [2.99ms]
+(pass) describeRegistrationFailure > still describes a primitive rejection [0.03ms]
+
+__tests__/formatters.test.ts:
+(pass) post formatter > reads viewer-specific engagement only from canonical viewerState [0.19ms]
+(pass) post formatter > does not revive removed root-level viewer flags [0.02ms]
+(pass) notification formatter > names the post a mention is about, so it can be opened or answered [0.05ms]
+(pass) notification formatter > leaves the line out when there is no entity [0.01ms]
+(pass) reposts and audience > shows what a bare repost shares [0.10ms]
+(pass) reposts and audience > says when a post is not public, and says nothing for a public one [0.05ms]
+
+__tests__/lanes-and-variants.test.ts:
+(pass) language variants and lanes on create-post > sends variants inside content and laneId on the post [12.75ms]
+(pass) language variants and lanes on create-post > refuses text and variants together instead of dropping one body [1.91ms]
+(pass) language variants and lanes on create-post > create-thread carries laneId and variants per post [1.66ms]
+(pass) lane tools > list-lanes reads the active account's lanes [1.43ms]
+(pass) lane tools > create-lane posts the name and display mode [1.44ms]
+(pass) lane tools > update-lane reads the 200 envelope the route answers with [1.12ms]
+(pass) lane tools > move-post-to-lane names the lane the post moved to [1.08ms]
+(pass) lane tools > create-lane needs the lanes capability, not the publish one [0.68ms]
+(pass) lane tools > move-post-to-lane can also take a post out of its lane [1.17ms]
+
+__tests__/capability-http.test.ts:
+(pass) Mention native capability HTTP adapter > publishes from the assigned account and audits the raw idempotency key [1.47ms]
+(pass) Mention native capability HTTP adapter > reads social content through the same catalog handler [0.45ms]
+{"ticketId":"[REDACTED]","tool":"create-post","reason":"audit unavailable","timestamp":"2026-10-03T18:02:00.899Z","level":"warn","service":"mention-mcp","message":"Mention capability audit delivery failed"}
+(pass) Mention native capability HTTP adapter > does not report a completed publication as failed when audit delivery is unavailable [0.76ms]
+(pass) Mention native capability HTTP adapter > fails closed when authority was revoked before execution [0.07ms]
+(pass) Mention native capability HTTP adapter > rejects a ticket bound to a different account resource [0.05ms]
+(pass) Oxy capability authority failures > carry Oxy's own reason, so a missing service scope is not an anonymous outage [1.31ms]
+
+__tests__/http-security.test.ts:
+(pass) MCP HTTP authentication > accepts a case-insensitive Bearer scheme [0.05ms]
+(pass) MCP HTTP authentication > rejects empty, malformed and duplicate credentials [0.02ms]
+(pass) MCP HTTP authentication > binds sessions to a non-reversible token family, user and client [0.08ms]
+
+__tests__/server-http.integration.test.ts:
+(pass) MCP HTTP resource server > challenges unauthenticated clients, rejects invalid tokens and drains on SIGTERM [218.19ms]
+(pass) MCP HTTP resource server when Oxy cannot be reached > answers 503 with Retry-After, never 401, for a token it cannot check [5212.53ms]
+
+__tests__/session-registry.test.ts:
+(pass) Legacy SSE session registry > keeps transport and principal state in sync [0.19ms]
+(pass) Legacy SSE session registry > drains every registered transport during shutdown [0.19ms]
+
+__tests__/capability-catalog.test.ts:
+(pass) Mention canonical capability catalog > is valid, complete and has one policy for every tool [3.42ms]
+(pass) Mention canonical capability catalog > drives MCP names, descriptions, input schemas and policy metadata [9.65ms]
+(pass) Mention canonical capability catalog > derives stable, account-bound effect keys from the JSON-RPC invocation [0.17ms]
+(pass) Mention canonical capability catalog > enforces each tool's semantic capability before invoking its handler [1.34ms]
+
+__tests__/logger.test.ts:
+(pass) structured MCP logger > recursively redacts identity, payload and credential fields [0.07ms]
+(pass) structured MCP logger > does not invoke accessors and safely handles invalid or binary values [0.04ms]
+(pass) structured MCP logger > preserves bounded operational dimensions and prevents envelope overrides [0.13ms]
+(pass) structured MCP logger > sanitizes values in operational fields except the opaque request ID [0.03ms]
+(pass) structured MCP logger > sanitizes identifiers and tokens embedded in error messages [0.08ms]
+
+__tests__/stateless-sessions.integration.test.ts:
+(pass) Stateless Streamable HTTP across independent tasks > a session initialized on one task calls tools on another [58.13ms]
+(pass) Stateless Streamable HTTP across independent tasks > the official SDK client works while an ALB alternates every request between tasks [34.24ms]
+(pass) Stateless Streamable HTTP across independent tasks > a session id from before the deploy keeps working on any task, never 404 [15.18ms]
+(pass) Stateless Streamable HTTP across independent tasks > a retried write gets the same idempotency key on whichever task serves it [8.00ms]
+(pass) Stateless Streamable HTTP across independent tasks > request ids reused by a new connection or another client never collide [14.49ms]
+(pass) Stateless Streamable HTTP across independent tasks > still authenticates every request on every task [5.72ms]
+(pass) Stateless Streamable HTTP across independent tasks > requires a session id after initialize, and rejects a malformed one [2.56ms]
+(pass) Stateless Streamable HTTP across independent tasks > answers GET and DELETE with 405, not 404, after authenticating [5.28ms]
+
+__tests__/post-content-schema.test.ts:
+(pass) post-content-schema > accepts fileId media [0.68ms]
+(pass) post-content-schema > rejects poll with one option [0.58ms]
+(pass) post-content-schema > accepts full post content [0.66ms]
+
+__tests__/mcp-session.test.ts:
+(pass) stateless MCP session ids > issues a fresh id on initialize, even over a presented one [0.14ms]
+(pass) stateless MCP session ids > accepts any well-formed presented id without a lookup [0.12ms]
+(pass) stateless MCP session ids > requires an id after initialize [0.03ms]
+(pass) stateless MCP session ids > rejects ids outside visible ASCII or over 128 characters [0.03ms]
+
+__tests__/api-response.test.ts:
+(pass) unwrapApiResponse > unwraps MTN envelope [0.03ms]
+(pass) unwrapApiResponse > unwraps post envelope [0.01ms]
+(pass) unwrapApiResponse > passes through plain objects
+(pass) normalizeVisibility > maps followers alias
+(pass) normalizeVisibility > maps public
+
+__tests__/trending.test.ts:
+(pass) trend formatter > names a topic with its posts, people and languages, not the internal score [0.08ms]
+(pass) trend formatter > marks a hashtag as one [0.03ms]
+(pass) trend formatter > copes with legacy shapes [0.01ms]
+
+__tests__/parity-tools.test.ts:
+(pass) new write tools > unboost DELETE /feed/post-1/boost [1.82ms]
+(pass) new write tools > move-saved-post-to-folder PATCH /posts/bookmarks/by-post/post-1/folder [1.05ms]
+(pass) new write tools > move-saved-post-to-folder PATCH /posts/bookmarks/by-post/post-1/folder [0.88ms]
+(pass) new write tools > publish-post-now POST /posts/draft-1/publish [1.01ms]
+(pass) new write tools > pin-post PATCH /posts/post-1/settings [0.92ms]
+(pass) new write tools > unpin-post PATCH /posts/post-1/settings [1.41ms]
+(pass) new write tools > update-post-settings PATCH /posts/post-1/settings [1.44ms]
+(pass) new write tools > delete-lane DELETE /lanes/lane-1 [0.88ms]
+(pass) new write tools > mute-lane POST /lanes/lane-2/mute [0.80ms]
+(pass) new write tools > unmute-lane DELETE /lanes/lane-2/mute [1.12ms]
+(pass) new write tools > add-list-members POST /lists/list-1/members [1.14ms]
+(pass) new write tools > remove-list-members DELETE /lists/list-1/members [0.75ms]
+(pass) new write tools > mark-notification-read PATCH /notifications/n-1/read [0.69ms]
+(pass) new write tools > subscribe-to-user POST /subscriptions/user-2 [0.69ms]
+(pass) new write tools > unsubscribe-from-user DELETE /subscriptions/user-2 [0.76ms]
+(pass) new write tools > follow-entity POST /entity-follows [0.72ms]
+(pass) new write tools > unfollow-entity DELETE /entity-follows [0.75ms]
+(pass) new write tools > poke-user POST /pokes/user-2 [0.66ms]
+(pass) new write tools > unpoke-user DELETE /pokes/user-2 [0.84ms]
+(pass) new write tools > mute-user POST /mute [1.18ms]
+(pass) new write tools > unmute-user DELETE /mute/user-2 [1.03ms]
+(pass) new write tools > mute-word POST /mute-words [0.86ms]
+(pass) new write tools > unmute-word DELETE /mute-words/word-1 [0.93ms]
+(pass) new write tools > refuses a new tool without its capability before calling the API [0.78ms]
+(pass) new write tools > update-post-settings refuses an empty change [0.75ms]
+(pass) new write tools > an API refusal comes back as a tool error [0.75ms]
+(pass) new read tools > get-muted-users lists muted ids [0.68ms]
+(pass) new read tools > get-muted-words reads the { data } envelope [0.70ms]
+(pass) new read tools > get-muted-lanes names each lane's publisher [0.72ms]
+(pass) new read tools > get-bookmark-folders lists folder names [0.72ms]
+(pass) polls > vote-poll sends the option id the route requires [1.03ms]
+(pass) polls > vote-poll resolves a zero-based index to that option's id [0.79ms]
+(pass) polls > vote-poll refuses an index the poll does not have [0.60ms]
+(pass) polls > formatPoll reads both the poll and the results shape [0.08ms]
+(pass) formatPost > shows the author's user id and the post's lane for the tools that take them [0.04ms]
+
+ 119 pass
+ 0 fail
+ 1085 expect() calls
+Ran 119 tests across 19 files. [6.46s]

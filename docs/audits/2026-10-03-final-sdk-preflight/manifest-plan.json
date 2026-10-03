@@ -1,0 +1,98 @@
+{
+  "repository": "Mention",
+  "base": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+  "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
+  "status": "planned patch; manifests and lock unchanged; no final registry installation",
+  "targets": {
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
+    "@oxy.so/services": "11.1.0",
+    "@oxy.so/mcp": "1.1.0",
+    "@oxy.so/protocol": "1.2.2",
+    "@oxy.so/bloom": "6.2.1"
+  },
+  "changes": [
+    {
+      "path": "package.json",
+      "section": "workspaces.catalog",
+      "name": "@oxy.so/bloom",
+      "before": "^6.4.0",
+      "after": "6.2.1"
+    },
+    {
+      "path": "package.json",
+      "section": "workspaces.catalog",
+      "name": "@oxy.so/contracts",
+      "before": "4.7.0",
+      "after": "4.9.0"
+    },
+    {
+      "path": "package.json",
+      "section": "workspaces.catalog",
+      "name": "@oxy.so/core",
+      "before": "4.1.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "package.json",
+      "section": "workspaces.catalog",
+      "name": "@oxy.so/mcp",
+      "before": "^1.0.0",
+      "after": "1.1.0"
+    },
+    {
+      "path": "package.json",
+      "section": "workspaces.catalog",
+      "name": "@oxy.so/services",
+      "before": "^11.0.0",
+      "after": "11.1.0"
+    },
+    {
+      "path": "package.json",
+      "section": "overrides",
+      "name": "@oxy.so/core",
+      "before": "4.1.0",
+      "after": "4.2.0"
+    },
+    {
+      "path": "package.json",
+      "section": "overrides",
+      "name": "@oxy.so/services",
+      "before": "^11.0.0",
+      "after": "11.1.0"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "section": "dependencies",
+      "name": "@oxy.so/protocol",
+      "before": "^1.2.0",
+      "after": "1.2.2"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "5e7073556762347ae893789907c2dce5f909251b22c9807c4a9e78358d815a64"
+    },
+    {
+      "path": "package.json",
+      "sha256": "b89ad05efde35198223c6496e017ce7f6f7bf4c326b2836937baea200475ac87"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "15b930adeeae05ba87516d836adcdfe9eeff8c2e54fa317b25efcdda5e51ea13"
+    }
+  ],
+  "patchSha256": "fa6ba27be32f9b80247a301645fa3039f546eecb96134d473f61b628284a0ae6",
+  "checks": [
+    "git apply --check passed",
+    "target JSON compared to structured desired result"
+  ],
+  "pending": [
+    "Final package registry availability and integrity",
+    "Apply patch and regenerate Bun lock with --minimum-release-age=0 in same source change",
+    "Check Bloom 6.2.1 API compatibility and actual peer resolution",
+    "Package typechecks, tests and builds",
+    "Root review and coordinated rollout"
+  ]
+}

@@ -1,0 +1,24 @@
+ 8 | function validate(value) {
+ 9 |   let count = 0;
+10 |   for (const job of Object.values(value.jobs)) {
+11 |     for (const step of job.steps ?? []) {
+12 |       if (!step.uses?.startsWith('actions/checkout@')) continue;
+13 |       assert.equal(step.with.ref, '${{ github.sha }}');
+                  ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ '${{ env.DEPLOY_SHA }}'
+- '${{ github.sha }}'
+       ^
+
+ generatedMessage: true,
+     actual: "${{ env.DEPLOY_SHA }}",
+   expected: "${{ github.sha }}",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at validate (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/scripts/test-manual-frontend-checkout.mjs:13:14)
+
+Bun v1.4.2 (Linux x64)

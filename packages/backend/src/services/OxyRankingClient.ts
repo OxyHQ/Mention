@@ -7,26 +7,16 @@
  * to Mention's frontend DTO) lives in exactly one place. If the Oxy contract
  * changes, only this file changes.
  *
- * Viewer identity (DUAL-AUTH):
- * ---------------------------
- * Recommendations are personalized by the viewer's mutual-connection overlap,
- * app signals, and the content-affinity `boosts` Mention supplies. Mention's
- * backend calls Oxy with a SERVICE token (it has no end-user session token to
- * forward server-side), passing the viewer's Oxy user id via the `X-Oxy-User-Id`
- * header (`makeServiceRequest(method, url, body, userId)`).
- *
- * The Oxy `POST /profiles/recommendations` endpoint authenticates with
- * `optionalUserOrServiceAuth` and resolves the personalization viewer via
- * `resolveViewerId`: an authorized SERVICE principal can name the viewer through
- * `X-Oxy-User-Id`. So a service-token call WITH a forwarded viewer id is
- * personalized end to end — the forwarded id seeds the viewer's mutual-overlap
- * graph and the supplied content-affinity boosts join the candidate union. A
- * service credential without viewer-delegation permission, or a call with
- * no/invalid viewer id, resolves to anonymous (popular-public fallback) — never
- * an error.
+ * Foreground viewer requests use a common foreground capability with independent
+ * Mention coordinator proof and the request-scoped user bearer. Anonymous
+ * requests use the application's service identity without a delegated viewer.
+ * Oxy derives private clientId from the verified coordinator and the viewer from
+ * a live requester session. An ordinary bearer alone cannot select that profile.
  */
 
 import type { UserNameResponse } from '@oxy.so/contracts';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import type { ForegroundProfileReader } from './ForegroundOxyProfileClient';
 import { getServiceOxyClient, getMentionOxyClientId } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
@@ -75,8 +65,10 @@ export interface RecommendationBoostInput {
 export interface RankOptions {
   /** Oxy Application `_id` selecting the per-app weight profile. */
   clientId?: string;
-  /** Viewer's Oxy user id, when authenticated (forwarded as `X-Oxy-User-Id`). */
+  /** Verified foreground viewer; never sent in a delegated identity header. */
   viewerId?: string;
+  /** Fresh client carrying the verified foreground request's own bearer. */
+  foregroundClient?: ForegroundProfileReader;
   /** Page size (already validated/capped by the caller). */
   limit: number;
   /** Pagination offset. */
@@ -151,6 +143,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function extractItems(response: unknown): OxyRecommendationItem[] {
   if (Array.isArray(response)) return response as OxyRecommendationItem[];
+  if (isRecord(response) && Array.isArray(response.recommendations)) {
+    return response.recommendations as OxyRecommendationItem[];
+  }
   if (isRecord(response) && Array.isArray(response.data)) {
     return response.data as OxyRecommendationItem[];
   }
@@ -161,8 +156,8 @@ function extractItems(response: unknown): OxyRecommendationItem[] {
  * Map one raw Oxy recommendation item to Mention's frontend DTO. Passes the
  * bare `avatar` file id and `name` through untouched (Oxy owns identity;
  * `name.displayName` stays canonical, the client resolves the avatar via Bloom's
- * ImageResolver). Returns `null` for an item with no usable id or no canonical
- * display name so the caller can drop it.
+ * ImageResolver). Returns `null` for an item with no usable id or neither a display name nor valid
+ * normalized handle so the caller can drop it.
  */
 function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
   const id = typeof raw.id === 'string' && raw.id.length > 0
@@ -172,12 +167,14 @@ function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
       : '';
   if (!id) return null;
 
-  const name = raw.name;
-  if (!name || typeof name.displayName !== 'string' || name.displayName.length === 0) {
-    // Without a canonical displayName the item violates the DTO contract; drop
-    // it rather than synthesize a name client-side.
-    return null;
-  }
+  const providedName = raw.name;
+  const displayName = typeof providedName?.displayName === 'string' && providedName.displayName.trim()
+    ? providedName.displayName
+    : getNormalizedUserHandle(raw);
+  // displayName is optional. Its only display fallback is the canonical handle;
+  // a first/last name or opaque account ID cannot become a visual label.
+  if (!displayName) return null;
+  const name = { ...providedName, displayName };
 
   const rawAvatar = typeof raw.avatar === 'string' ? raw.avatar : undefined;
   const count = raw._count ?? {};
@@ -234,17 +231,15 @@ export class OxyRankingClient {
     if (options.excludeIds && options.excludeIds.length > 0) body.excludeIds = options.excludeIds;
     if (options.boosts && options.boosts.length > 0) body.boosts = options.boosts;
 
-    const client = getServiceOxyClient();
-    // `actAs` becomes the `X-Oxy-User-Id` header. Omitted (undefined) for
-    // logged-out callers so no viewer is asserted.
-    const response = await client.serviceRequest<
-      OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
-    >(
-      'POST',
-      RECOMMENDATIONS_PATH,
-      body,
-      { actAs: options.viewerId },
-    );
+    const foregroundClient = options.foregroundClient;
+    if (options.viewerId && !foregroundClient) {
+      throw new Error('Personalized ranking requires the verified foreground bearer');
+    }
+    const response = options.viewerId && foregroundClient
+      ? await foregroundClient.recommend({ ...body })
+      : await getServiceOxyClient().serviceRequest<
+          OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
+        >('POST', RECOMMENDATIONS_PATH, body);
 
     const items = extractItems(response);
     const profiles: RankedProfile[] = [];

@@ -1,0 +1,33 @@
+{
+  "base": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
+  "scope": "Immutable event-SHA checkout and stale workflow_run admission; no SDK/runtime, deployment or registry changes",
+  "sources": [
+    {
+      "path": ".github/workflows/deploy-frontends.yml",
+      "sha256": "f0ec710a6ccbd6b0827abf17a996b3739610ffce41415c63a6cd10d93bab7d54"
+    },
+    {
+      "path": "scripts/test-manual-frontend-checkout.mjs",
+      "sha256": "7d4e2e6ad300ad245120d0d1572a93655691a90497fa2b60c583bc746d84bf39"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-event-sha-checkout/green.log",
+      "sha256": "ad71e158ef29f99a59b7d4823708a686d39f31687b6219285d6dd0f1fb26275b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-event-sha-checkout/red.log",
+      "sha256": "0978ec42a66db290ce7fc97c71c29f84bc517b0d2ee70dea84920c23f77dca4d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-event-sha-checkout/workflows.log",
+      "sha256": "01d8735b2f285658720c1438cb3afa62021b968633444c3ee6676dda69def476"
+    }
+  ],
+  "results": {
+    "baseline": "Exact final fixture fails on previous env.DEPLOY_SHA checkout",
+    "fixed": "All checkout references github.sha; same final fixture passes admission cases and rejects two mutated guards",
+    "remoteCodeQL": "pending; previous c90a52f run retained four CodeQL annotations despite analysis job success"
+  }
+}
