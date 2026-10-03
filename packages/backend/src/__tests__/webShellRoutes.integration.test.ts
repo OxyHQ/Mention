@@ -51,7 +51,7 @@ import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { userSettings } from '../db/schema';
+import { federatedActors, userSettings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
@@ -65,6 +65,13 @@ const SHELL =
 
 /** An id that matches no row — the "missing post" case, and a browser fast-path probe. */
 const ABSENT_POST_ID = '019616a0-0000-7000-8000-00000000cafe';
+
+/** The profile's server-rendered `ProfilePage`. */
+function profileJsonLd(html: string): Record<string, unknown> {
+  const match = /<script data-mention-seo="true" type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+  if (!match) throw new Error('no JSON-LD in the document');
+  return JSON.parse(match[1]) as Record<string, unknown>;
+}
 
 function makeApp() {
   const app = express();
@@ -249,7 +256,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain(canonicalIdentity.name.displayName);
     expect(res.text).not.toContain(canonicalIdentity.bio);
     expect(res.text).not.toContain('ssr-canonical-private-route-avatar');
-    expect(res.text).not.toContain('ssr-canonical%40instagram.com');
+    expect(res.text).not.toContain('ssr-canonical@instagram.com');
     expect(res.text).not.toContain(canonicalIdentity.username);
   }
 
@@ -268,7 +275,7 @@ describe('webShell routes (integration)', () => {
       expect(res.text).toContain(canonicalIdentity.name.displayName);
       expect(res.text).toContain(canonicalIdentity.bio);
       expect(res.text).toContain('ssr-canonical-private-route-avatar');
-      expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@ssr-canonical%40instagram.com">');
+      expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@ssr-canonical@instagram.com">');
     },
   );
 
@@ -413,8 +420,80 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue%40x.com">');
+    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue@x.com">');
     expect(res.text).toContain('"@type":"ProfilePage"');
+  });
+
+  it('tells search engines a local profile\'s public post count', async () => {
+    await seedOgPost();
+    await seedOgPost();
+    await seedOgPost({ visibility: 'private' });
+    stubFetch({
+      ok: true,
+      body: { data: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' }, _count: { followers: 5, following: 2 } } },
+    });
+
+    const res = await request(makeApp()).get('/@nate');
+
+    expect(res.status).toBe(200);
+    const entity = profileJsonLd(res.text).mainEntity as Record<string, unknown>;
+    expect(entity.interactionStatistic).toEqual([
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 5 },
+    ]);
+    expect(entity.agentInteractionStatistic).toEqual([
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/WriteAction', userInteractionCount: 2 },
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 2 },
+    ]);
+  });
+
+  it('describes a federated profile with its origin\'s totals and join date', async () => {
+    const actorUri = `https://origin.example/users/${AUTHOR}`;
+    await getDb().insert(federatedActors).values({
+      protocol: 'activitypub',
+      uri: actorUri,
+      username: AUTHOR,
+      domain: 'origin.example',
+      acct: `${AUTHOR}@origin.example`,
+      type: 'Person',
+      oxyUserId: AUTHOR,
+      followersUrl: `${actorUri}/followers`,
+      followingUrl: `${actorUri}/following`,
+      followersCount: 382900,
+      followingCount: 743,
+      remoteCreatedAt: new Date('2016-03-16T00:00:00.000Z'),
+      lastFetchedAt: new Date(),
+    });
+    try {
+      await seedOgPost();
+      stubFetch({
+        ok: true,
+        body: {
+          data: {
+            id: AUTHOR,
+            username: `${AUTHOR}@origin.example`,
+            name: { displayName: 'Origin Person' },
+            createdAt: '2026-03-29T12:35:35.711Z',
+            _count: { followers: 0, following: 0 },
+            type: 'federated',
+            isFederated: true,
+            federation: { actorUri, domain: 'origin.example' },
+          },
+        },
+      });
+
+      const res = await request(makeApp()).get(`/@${AUTHOR}@origin.example`);
+
+      expect(res.status).toBe(200);
+      const page = profileJsonLd(res.text);
+      expect(page.dateCreated).toBe('2016-03-16T00:00:00.000Z');
+      expect(page.mainEntity).toMatchObject({
+        sameAs: [actorUri],
+        interactionStatistic: [{ userInteractionCount: 382900 }],
+        agentInteractionStatistic: [{ userInteractionCount: 1 }, { userInteractionCount: 743 }],
+      });
+    } finally {
+      await getDb().delete(federatedActors).where(eq(federatedActors.uri, actorUri));
+    }
   });
 
   it('302-redirects a local /@handle to the AP actor when Accept wants ActivityPub', async () => {

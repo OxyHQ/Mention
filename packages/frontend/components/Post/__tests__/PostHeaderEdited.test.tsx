@@ -160,9 +160,8 @@ describe('PostHeader edited marker', () => {
   });
 
   it('explains the marker on press — and does nothing else', () => {
-    const onPressUser = jest.fn();
     const onPressAvatar = jest.fn();
-    const renderer = render({ isEdited: true, onPressUser, onPressAvatar });
+    const renderer = render({ isEdited: true, onPressAvatar });
 
     act(() => {
       editedButton(renderer).props.onPress();
@@ -172,7 +171,6 @@ describe('PostHeader edited marker', () => {
     expect(mockToast).toHaveBeenCalledWith('This post was edited');
     // No navigation, no profile press, no history sheet: the marker is the
     // whole feature, so a tap that ALSO did something would be the bug.
-    expect(onPressUser).not.toHaveBeenCalled();
     expect(onPressAvatar).not.toHaveBeenCalled();
   });
 

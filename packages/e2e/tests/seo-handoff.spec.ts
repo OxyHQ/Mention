@@ -86,6 +86,28 @@ test('loaded profile adopts one head and navigation drops the old profile schema
   expect(errors).toEqual([]);
 });
 
+test('a profile is a crawlable page: its name is the heading and its posts and authors are links', async ({ context, page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await serveDocument(context, profilePath, profile);
+  await page.goto(`${APP_ORIGIN}${profilePath}`);
+
+  await expect(page.locator('h1')).toHaveCount(1);
+  // A crawler follows anchors, never press handlers: a post reachable only by
+  // tapping its row is reachable by no search engine.
+  const postLink = page.locator('a[href^="/p/"]').first();
+  await expect(postLink).toBeVisible();
+  await expect(page.locator('a[href^="/@"]').first()).toBeAttached();
+
+  // A plain click is still an in-app navigation, not a document load.
+  const href = await postLink.getAttribute('href');
+  await page.evaluate(() => { (window as unknown as { __sameDocument: boolean }).__sameDocument = true; });
+  await postLink.click();
+  await expect(page).toHaveURL(`${APP_ORIGIN}${href}`);
+  expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('post hydration cannot loosen authoritative noindex or publish a warning-gated body', async ({ context, page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));

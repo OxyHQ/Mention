@@ -140,7 +140,7 @@ function render(props: Partial<HeaderProps> = {}): TestRenderer.ReactTestRendere
     renderer = TestRenderer.create(
       <PostHeader
         user={{ displayName: 'Notas de Nate', handle: 'notas' }}
-        onPressAuthor={jest.fn()}
+        linkAuthors
         {...props}
       />,
     );

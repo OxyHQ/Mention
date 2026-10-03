@@ -24,13 +24,52 @@ When navigating client-side to a post without that server proof, use generic
 data. A direct request for an eligible public URL still receives indexable head
 metadata. Do not infer eligibility from `metadata.isSensitive` alone.
 
+## Profile structured data
+
+A public profile's JSON-LD is a `ProfilePage` whose `mainEntity` is the person
+(or, for a channel, the organization): name, `@handle`, bio, avatar, its URL,
+`sameAs` for its public links, followers as `interactionStatistic` and posts
+written and accounts followed as `agentInteractionStatistic`.
+
+A federated profile is an Oxy account Mention minted when it first resolved the
+actor, so its Oxy `createdAt` is a discovery date and its Oxy follow graph holds
+only the follows made through Mention. Its `dateCreated` and counts come from the
+origin (the cached actor row, `remoteProfileStats`), are omitted when the origin
+did not report them, and its `sameAs` names the origin actor. Never emit
+Mention's own figures for a remote account.
+
+A profile without a bio still gets a generated description; the JSON-LD
+`description` stays the person's own words only.
+
+## URLs
+
+A handle's `@` stays literal in every URL Mention writes —
+`/@user@instance`, never `/@user%40instance`. It is a legal path character,
+and it is the URL the app routes and people share; a percent-encoded canonical
+is a second URL for the same page. `canonicalProfilePath` is the one place a
+profile URL is spelled, for the canonical, the sitemap and the channel redirect.
+
+## Crawlable links
+
+A search engine follows `<a href>`, never press handlers. Every in-app
+destination a reader can click — a post's time, an author's name, a "Reposted
+by" row, a mention or hashtag in text — is an expo-router `Link`, which renders
+an anchor on web and still navigates in-app on a plain click. Use `asChild`
+with a `Text` child: a `Touchable`/`Pressable` child replaces the link's web
+click handler with its own, so the browser does a full page load. A link
+inside a pressable row stops the press from reaching the row.
+
+The profile's display name is the page's `<h1>` (`UserName asHeading`).
+
 ## Verification
 
 Use a production web export and the real backend renderer. Verify that JavaScript-
 disabled and delayed-script responses preserve the application's original body,
 that no intermediate SEO screen appears, and that `#root` is never hidden by SEO.
 Assert a single title/canonical/robots/description after readiness, no transient
-home pathname on deep-link loads, and removal of stale metadata after navigation.
+home pathname on deep-link loads, and removal of stale metadata after navigation,
+and that a profile renders one `<h1>` and anchors to its posts
+(`packages/e2e/tests/seo-handoff.spec.ts`).
 
 ## Eligibility
 
@@ -69,6 +108,7 @@ ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shar
 URLs return XML with `410 Gone`, never the HTML application shell.
 
 The production smoke test is `https://mention.earth/@aida_quilcue@x.com`: it must
-return a `200`, a self-canonical URL, and valid `ProfilePage` JSON-LD to both a
+return a `200`, a self-canonical URL (`/@aida_quilcue@x.com`), and valid
+`ProfilePage` JSON-LD to both a
 normal browser user agent and Googlebot. Visible identity text comes from the
 application after it loads.

@@ -94,6 +94,7 @@ export const ChannelHeader = memo(function ChannelHeader({
       <UserNameComponent
         name={displayName}
         handle={username}
+        asHeading
         // Inline, next to the name, rather than the corner badge this header
         // used to pin to the avatar. That badge was positioned against the
         // avatar's left edge — coherent only while the avatar sat at the right

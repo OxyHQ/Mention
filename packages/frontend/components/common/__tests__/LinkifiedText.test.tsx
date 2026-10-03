@@ -26,8 +26,6 @@ const mockOpenExternalLink = jest.fn();
  *     wrapping this file exists to forbid.
  */
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-
 jest.mock('@oxy.so/core', () => ({
     getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
 }));
@@ -86,6 +84,26 @@ describe('LinkifiedText', () => {
         expect(texts).toHaveLength(2);
         expect(texts[0].strings).toEqual(['hey ', ' look at this']);
         expect(texts[1].strings).toEqual(['#expo']);
+    });
+
+    it.each([
+        ['a mention', 'hi [@Nate](nate)', 'Nate', '/@nate'],
+        ['a federated handle', 'hi @gargron@mastodon.social', '@gargron@mastodon.social', '/@gargron@mastodon.social'],
+        ['a hashtag', 'hey #expo', '#expo', '/hashtag/expo'],
+    ])('makes %s a real link to its page', (_label, text, label, href) => {
+        // An `href` is what makes it an `<a href>` on web — the thing a crawler
+        // follows from a post to the profile it mentions. A press handler alone
+        // is invisible to one.
+        let renderer: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            renderer = TestRenderer.create(<LinkifiedText text={text} />);
+        });
+        if (!renderer) throw new Error('render produced no tree');
+        const link = renderer.root.find(
+            (node) => String(node.type) === 'Text' && node.props.children === label,
+        );
+        expect(link.props.href).toBe(href);
+        expect(link.props.role).toBe('link');
     });
 
     it.each([

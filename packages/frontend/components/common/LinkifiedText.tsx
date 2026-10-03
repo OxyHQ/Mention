@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Text, StyleProp, TextStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Text, StyleSheet, StyleProp, TextStyle } from 'react-native';
+import { Link, type Href } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import {
@@ -27,11 +27,29 @@ interface LinkifiedTextProps {
   linkTargetText?: string;
 }
 
-// Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
+/**
+ * A click on an in-app link stops at the link: this text usually sits inside a
+ * pressable post row, which would otherwise open the post as well.
+ */
+function stopAtLink(event: { stopPropagation(): void }): void {
+  event.stopPropagation();
+}
+
+// Renders text with clickable @mentions, #hashtags, $cashtags, and URLs.
+// In-app destinations are expo-router `Link`s — on web, real `<a href>`s that
+// a crawler follows and a reader can open in a new tab.
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines, linkTargetText }) => {
-  const router = useRouter();
   const nodes = useMemo(() => {
     if (!text) return null;
+
+    // Flattened: a `Link asChild` merges its own props into the link's `Text`,
+    // and that merge cannot take a style array.
+    const flatLinkStyle = StyleSheet.flatten(linkStyle);
+    const linkText = (href: Href, label: React.ReactNode, linkKey?: string) => (
+      <Link key={linkKey} href={href} push asChild onPress={stopAtLink}>
+        <Text className="text-primary" style={flatLinkStyle}>{label}</Text>
+      </Link>
+    );
 
     const elements: React.ReactNode[] = [];
     const fullUrlByStart = new Map<number, string>();
@@ -67,13 +85,9 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
         elements.push(
           <ProfileHoverCard key={`m-${key++}`} username={mentionHandle}>
-            <Text
-              className="text-primary"
-              style={linkStyle}
-              onPress={mentionHandle ? () => router.push(`/@${mentionHandle}`) : undefined}
-            >
-              {entity.label}
-            </Text>
+            {mentionHandle ? linkText(`/@${mentionHandle}`, entity.label) : (
+              <Text className="text-primary" style={linkStyle}>{entity.label}</Text>
+            )}
           </ProfileHoverCard>
         );
       } else if (entity.kind === 'federatedHandle') {
@@ -81,13 +95,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         // normalization, and nothing inferred about which instance it is on.
         elements.push(
           <ProfileHoverCard key={`f-${key++}`} username={entity.value}>
-            <Text
-              className="text-primary"
-              style={linkStyle}
-              onPress={() => router.push(`/@${entity.value}`)}
-            >
-              {entity.raw}
-            </Text>
+            {linkText(`/@${entity.value}`, entity.raw)}
           </ProfileHoverCard>
         );
       } else if (entity.kind === 'url') {
@@ -106,34 +114,15 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         // Punctuation that merely trailed the URL belongs to the sentence.
         pushText(trailing);
       } else if (entity.kind === 'hashtag') {
-        elements.push(
-          <Text
-            key={`h-${key++}`}
-            className="text-primary"
-            style={linkStyle}
-            onPress={() => router.push(`/hashtag/${encodeURIComponent(entity.value)}`)}
-          >
-            {entity.raw}
-          </Text>
-        );
+        elements.push(linkText(`/hashtag/${encodeURIComponent(entity.value)}`, entity.raw, `h-${key++}`));
       } else if (entity.kind === 'cashtag') {
-        const q = encodeURIComponent(`$${entity.value}`);
-        elements.push(
-          <Text
-            key={`c-${key++}`}
-            className="text-primary"
-            style={linkStyle}
-            onPress={() => router.push(`/search/${q}`)}
-          >
-            {entity.raw}
-          </Text>
-        );
+        elements.push(linkText(`/search/${encodeURIComponent(`$${entity.value}`)}`, entity.raw, `c-${key++}`));
       }
     }
 
     pushText(text.slice(lastIndex));
     return elements;
-  }, [text, linkStyle, linkTargetText, router]);
+  }, [text, linkStyle, linkTargetText]);
 
   if (!text) return null;
   return <Text style={style} className={className} numberOfLines={numberOfLines}>{nodes}{suffix}</Text>;

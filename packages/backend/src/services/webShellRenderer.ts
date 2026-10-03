@@ -15,6 +15,7 @@
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountKind } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
+import type { RemoteProfileStats } from '@mention/shared-types/profile';
 import { resolveMediaRef } from '../utils/mediaResolver';
 import { config } from '../config';
 
@@ -31,6 +32,14 @@ export interface OgData {
   url: string;
   /** OpenGraph object type (`profile` | `article`). */
   type: string;
+  /**
+   * The Twitter card layout. Defaults to `summary_large_image` when there is an
+   * image; a profile asks for `summary`, because its image is a small square
+   * avatar that a large card would stretch across the full width.
+   */
+  twitterCard?: 'summary' | 'summary_large_image';
+  /** `profile:username` for an `og:type=profile` document. */
+  profileUsername?: string;
   /** BCP-47 language of the public document. */
   lang?: string;
   /** Search indexing policy. Public entity pages default to index/follow. */
@@ -90,6 +99,10 @@ export interface OxyProfileData {
   updatedAt?: string;
   links?: string[];
   _count?: { followers?: number; following?: number };
+  /** Set on an account Mention minted for a remote (fediverse / atproto) actor. */
+  isFederated?: boolean;
+  type?: string;
+  federation?: { actorUri?: string; domain?: string };
   /**
    * The Oxy account classification. Only `channel` is acted on here, and only to
    * decide which canonical URL the profile lives at — see
@@ -109,8 +122,21 @@ export interface OxyProfileData {
 export function canonicalProfilePath(profile: OxyProfileData): string {
   const username = profile.username ?? '';
   return profile.kind === 'channel'
-    ? `/c/${encodeURIComponent(username)}`
-    : `/@${encodeURIComponent(username)}`;
+    ? `/c/${handlePathSegment(username)}`
+    : `/@${handlePathSegment(username)}`;
+}
+
+/**
+ * A handle as one URL path segment, with its `@` left literal.
+ *
+ * `@` is a legal path character (RFC 3986 `pchar`), and `/@user@instance` is
+ * the URL the app routes, the address bar shows and people share. Encoding it
+ * made every federated profile's canonical a SECOND spelling of the page
+ * (`/@user%40instance`), one that no link pointed at — and a search engine does
+ * not treat a percent-encoded reserved character as the same URL.
+ */
+export function handlePathSegment(handle: string): string {
+  return encodeURIComponent(handle).replace(/%40/g, '@');
 }
 
 /**
@@ -137,7 +163,7 @@ export function buildOgMetaHtml(og: OgData): string {
   const description = escapeHtml(og.description);
   const url = escapeHtml(og.url);
   const type = escapeHtml(og.type);
-  const card = og.image ? 'summary_large_image' : 'summary';
+  const card = og.image ? (og.twitterCard ?? 'summary_large_image') : 'summary';
   const robots = escapeHtml(og.robots ?? 'index,follow');
 
   let html =
@@ -146,6 +172,7 @@ export function buildOgMetaHtml(og: OgData): string {
     `<meta property="og:url" content="${url}">` +
     `<meta property="og:title" content="${title}">` +
     `<meta property="og:description" content="${description}">` +
+    (og.profileUsername ? `<meta property="profile:username" content="${escapeHtml(og.profileUsername)}">` : '') +
     `<meta name="twitter:card" content="${card}">` +
     `<meta name="twitter:title" content="${title}">` +
     `<meta name="twitter:description" content="${description}">` +
@@ -253,44 +280,100 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
 }
 
 /**
+ * What Mention itself knows about a profile, beyond the Oxy payload: the
+ * author's public post count, and — for a federated account — the origin's own
+ * totals and join date (see `remoteProfileStats`). Every field is optional and
+ * an absent one is UNKNOWN, never zero.
+ */
+export interface ProfileSeoFacts {
+  postsCount?: number;
+  remote?: RemoteProfileStats;
+}
+
+/** A schema.org `InteractionCounter` for one action type, or nothing when the count is unknown. */
+function interactionCounter(action: 'FollowAction' | 'WriteAction', count: number | undefined) {
+  return typeof count === 'number' && Number.isFinite(count) && count >= 0
+    ? [{ '@type': 'InteractionCounter', interactionType: `https://schema.org/${action}`, userInteractionCount: count }]
+    : [];
+}
+
+/**
  * Map an Oxy profile payload (`/profiles/username/<handle>`) into OG data. Works
  * for local and federated handles — both resolve through the Oxy API. Returns
  * null when the handle is unknown (no `username`).
+ *
+ * The JSON-LD is Google's `ProfilePage`: the person (or organization) as
+ * `mainEntity`, with their followers as `interactionStatistic` and what they
+ * did — posts written, accounts followed — as `agentInteractionStatistic`.
+ *
+ * A federated account is an Oxy account minted the day Mention first resolved
+ * the actor, so its Oxy `createdAt` is a discovery date and its Oxy follow
+ * graph holds only the follows made through this server. Its join date and
+ * totals therefore come from the origin ({@link ProfileSeoFacts.remote}), and
+ * are left out — not zeroed — when the origin did not report them.
  */
-export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | null {
+export function mapProfileOg(data: OxyProfileData | null | undefined, facts: ProfileSeoFacts = {}): OgData | null {
   if (!data?.username) return null;
 
   const username = data.username;
-  const displayName = data.name?.displayName;
+  const displayName = data.name?.displayName?.trim();
   const avatar = data.avatar;
-  const description = (data.bio || data.description || '').trim();
   const url = `${WEB_ORIGIN}${canonicalProfilePath(data)}`;
   const name = displayName || `@${username}`;
-  const publicLinks = (data.links ?? []).filter((link) => /^https?:\/\//i.test(link));
+  const bio = (data.bio || data.description || '').trim();
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  // A profile with no bio still gets a real description: an empty one leaves
+  // the search snippet to whatever the crawler scrapes from the app chrome.
+  const description = bio || (displayName
+    ? `${displayName} (@${username}) is on ${brand}. See their posts, replies and media.`
+    : `@${username} is on ${brand}. See their posts, replies and media.`);
+  const isFederated = Boolean(data.isFederated || data.type === 'federated');
+
+  const followers = isFederated ? facts.remote?.followersCount : data._count?.followers;
+  const following = isFederated ? facts.remote?.followingCount : data._count?.following;
+  const createdAt = isFederated ? facts.remote?.joinedAt : data.createdAt;
+
+  // The origin actor is the same person on the network they post from.
+  const actorUri = isFederated ? data.federation?.actorUri : undefined;
+  const sameAs = [...new Set([
+    ...(data.links ?? []),
+    ...(actorUri ? [actorUri] : []),
+  ].filter((link) => /^https?:\/\//i.test(link)))];
 
   const image = ogImageForAvatar(avatar);
 
+  const interactionStatistic = interactionCounter('FollowAction', followers);
+  const agentInteractionStatistic = [
+    ...interactionCounter('WriteAction', facts.postsCount),
+    ...interactionCounter('FollowAction', following),
+  ];
+
   return {
-    title: displayName ? `${displayName} (@${username}) on Mention` : `@${username} on Mention`,
+    title: displayName ? `${displayName} (@${username}) on ${brand}` : `@${username} on ${brand}`,
     description,
     image,
     url,
     type: 'profile',
+    twitterCard: 'summary',
+    profileUsername: username,
     robots: 'index,follow',
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'ProfilePage',
       url,
-      ...(data.createdAt ? { dateCreated: data.createdAt } : {}),
+      ...(createdAt ? { dateCreated: createdAt } : {}),
       ...(data.updatedAt ? { dateModified: data.updatedAt } : {}),
       mainEntity: {
         '@type': data.kind === 'channel' ? 'Organization' : 'Person',
         ...(data.id ? { identifier: data.id } : {}),
         name,
         alternateName: `@${username}`,
-        ...(description ? { description } : {}),
+        url,
+        ...(bio ? { description: bio } : {}),
         ...(image ? { image } : {}),
-        ...(publicLinks.length ? { sameAs: publicLinks } : {}),
+        ...(sameAs.length ? { sameAs } : {}),
+        ...(interactionStatistic.length ? { interactionStatistic } : {}),
+        ...(agentInteractionStatistic.length ? { agentInteractionStatistic } : {}),
       },
     },
   };
@@ -369,7 +452,7 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
   const authorHandle = handle ? `@${handle}` : author;
   const createdAt = post.metadata?.createdAt;
   const updatedAt = post.metadata?.updatedAt;
-  const authorUrl = handle ? `${WEB_ORIGIN}/@${encodeURIComponent(handle)}` : undefined;
+  const authorUrl = handle ? `${WEB_ORIGIN}/@${handlePathSegment(handle)}` : undefined;
 
   return {
     title: `${author} on Mention`,

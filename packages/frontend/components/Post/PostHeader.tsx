@@ -18,7 +18,7 @@ import { useTimeAgo } from '@/hooks/useTimeAgo';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import type { Href } from 'expo-router';
+import { Link, type Href } from 'expo-router';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -129,7 +129,18 @@ interface PostHeaderProps {
    */
   authorUserId?: string;
   placeholderColor?: string;
-  onPressUser?: () => void;
+  /**
+   * The author's profile. The identity line becomes a `Link` there — on web a
+   * real `<a href>`, which a crawler follows and a reader can open in a new tab.
+   */
+  userHref?: Href | null;
+  /**
+   * The page this post opens. The time label becomes a `Link` there: the one
+   * place on a feed row that is the POST's link rather than a person's.
+   */
+  postHref?: Href | null;
+  /** Runs when the time link is pressed, before it navigates. */
+  onPressTime?: () => void;
   onPressAvatar?: () => void;
   /**
    * Collaborative BYLINES only (owner + ≥1 accepted collaborator, or a channel
@@ -140,7 +151,11 @@ interface PostHeaderProps {
    */
   onPressCollaborators?: () => void;
   onPressMenu?: () => void;
-  onPressAuthor?: (href: Href) => void;
+  /**
+   * Each name in a collaborative byline links to that author's profile. Off
+   * where the header is not pointing at anyone else (the composer's preview).
+   */
+  linkAuthors?: boolean;
   /**
    * Suppresses the author hover preview on both the avatar and the identity
    * line. For surfaces where the header is not a feed row pointing at someone
@@ -171,6 +186,15 @@ interface HeaderAuthor {
   href: Href | null;
 }
 
+/**
+ * A link inside the header sits inside a pressable feed row, and on web the
+ * click bubbles through the DOM: without this the row would also press and
+ * navigate a second time, to the post.
+ */
+function stopAtLink(event: { stopPropagation(): void }): void {
+  event.stopPropagation();
+}
+
 const PostHeader: React.FC<PostHeaderProps> = ({
   user,
   bylineSlot,
@@ -189,11 +213,13 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   isEdited,
   authorUserId,
   placeholderColor,
-  onPressUser,
+  userHref,
+  postHref,
+  onPressTime,
   onPressAvatar,
   onPressCollaborators,
   onPressMenu,
-  onPressAuthor,
+  linkAuthors,
   disableHoverCard,
   boostedBy,
 }) => {
@@ -201,6 +227,14 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const { t } = useTranslation();
 
   const timeLabel = useTimeAgo(date);
+  const timeText = timeLabel ? (
+    <Text
+      className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
+      style={{ flexShrink: 0 }}
+    >
+      {'\u00B7'} {timeLabel}
+    </Text>
+  ) : null;
   // Collaborative posts (owner + accepted collaborators) render each author's
   // FIRST name as its own tappable link to that author's profile. Reduce the
   // canonical Oxy `User` collaborators to a first-name + normalized-handle view
@@ -399,21 +433,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                         : ', ';
                   // Each first name links to that author's own profile; falls
                   // back to plain text when the author has no resolvable handle.
-                  // Read out of the row before the closure: narrowing a
-                  // property does not survive into one.
-                  const authorHref = a.href;
-                  const goToProfile =
-                    authorHref && onPressAuthor ? () => onPressAuthor(authorHref) : undefined;
                   return (
                     <React.Fragment key={`${a.handle || 'author'}-${i}`}>
                       {separator}
-                      <Text
-                        onPress={goToProfile}
-                        accessibilityRole={goToProfile ? 'link' : undefined}
-                        accessibilityLabel={goToProfile ? a.firstName : undefined}
-                      >
-                        {a.firstName}
-                      </Text>
+                      {linkAuthors && a.href ? (
+                        <Link href={a.href} push onPress={stopAtLink} accessibilityLabel={a.firstName}>
+                          {a.firstName}
+                        </Link>
+                      ) : (
+                        <Text>{a.firstName}</Text>
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -432,7 +461,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 <UserName
                   name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
                   verified={user.verified}
-                  onPress={onPressUser}
+                  href={userHref}
                   style={{ container: { flexShrink: 0 } }}
                 />
                 {hasDisplayName && user.handle ? (
@@ -455,14 +484,19 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               </View>
             </ProfileHoverCard>
           )}
-          {timeSlot ?? (!!timeLabel && (
-            <Text
-              className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
-              style={{ flexShrink: 0 }}
+          {timeSlot ?? (timeText && (postHref ? (
+            <Link
+              href={postHref}
+              push
+              asChild
+              onPress={(event) => {
+                stopAtLink(event);
+                onPressTime?.();
+              }}
             >
-              {'\u00B7'} {timeLabel}
-            </Text>
-          ))}
+              {timeText}
+            </Link>
+          ) : timeText))}
           {isEdited ? (
             // `flexShrink: 0` because an indicator glyph has no width to give up
             // and the identity line's other children are already shrink-ranked
