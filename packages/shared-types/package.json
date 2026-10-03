@@ -38,6 +38,11 @@
       "import": "./dist/profileUrls.js",
       "require": "./dist/profileUrls.js"
     },
+    "./seo": {
+      "types": "./dist/seo.d.ts",
+      "import": "./dist/seo.js",
+      "require": "./dist/seo.js"
+    },
     "./textEntities": {
       "types": "./dist/textEntities.d.ts",
       "import": "./dist/textEntities.js",

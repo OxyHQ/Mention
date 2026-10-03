@@ -255,7 +255,7 @@ describe('mapPostOg', () => {
 
   it('builds the author title, sliced description, and post url', () => {
     const og = mapPostOg(base, 'p1', SAFE);
-    expect(og.title).toBe('Nate on Mention');
+    expect(og.title).toBe('Nate on Mention: "hello world"');
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
@@ -266,7 +266,7 @@ describe('mapPostOg', () => {
 
   it('falls back to @handle when the author has no display name', () => {
     const post = { ...base, user: { ...base.user, name: {} } } as HydratedPost;
-    expect(mapPostOg(post, 'p1', SAFE).title).toBe('@nate on Mention');
+    expect(mapPostOg(post, 'p1', SAFE).title).toBe('@nate on Mention: "hello world"');
   });
 
   it('truncates the description to 200 characters', () => {
@@ -307,6 +307,106 @@ describe('mapPostOg', () => {
   });
 });
 
+
+describe('mapPostOg for search', () => {
+  const SAFE: PostOgSafety = { requiresWarning: false };
+  const author = { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' };
+
+  function post(overrides: Record<string, unknown>): HydratedPost {
+    return {
+      id: 'p1',
+      user: author,
+      content: { text: 'hello world' },
+      metadata: { createdAt: '2026-10-01T10:00:00.000Z', updatedAt: '2026-10-01T11:00:00.000Z' },
+      engagement: { likes: 12, downvotes: 0, boosts: 3, replies: 4 },
+      ...overrides,
+    } as unknown as HydratedPost;
+  }
+
+  it('titles a long post with its opening, cut at a word', () => {
+    const text = 'Mention federates with the whole fediverse, and this sentence keeps going well past seventy characters';
+    const og = mapPostOg(post({ content: { text } }), 'p1', SAFE);
+    expect(og.title).toBe('Nate on Mention: "Mention federates with the whole fediverse, and this sentence keeps…"');
+  });
+
+  it('describes a post with no words instead of leaving it blank', () => {
+    const og = mapPostOg(post({ content: { text: '', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg' }] } }), 'p1', SAFE);
+    expect(og.title).toBe('Nate on Mention');
+    expect(og.description).toBe('A post by Nate (@nate) on Mention.');
+  });
+
+  it('marks up the post the way search engines read a social posting', () => {
+    const og = mapPostOg(post({}), 'p1', SAFE);
+    expect(og.jsonLd).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'SocialMediaPosting',
+      url: 'https://mention.earth/p/p1',
+      identifier: 'p1',
+      // `text`, not `articleBody`: the property a SocialMediaPosting is read by.
+      text: 'hello world',
+      datePublished: '2026-10-01T10:00:00.000Z',
+      dateModified: '2026-10-01T11:00:00.000Z',
+      author: {
+        '@type': 'Person',
+        name: 'Nate',
+        alternateName: '@nate',
+        url: 'https://mention.earth/@nate',
+        image: 'http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320',
+      },
+      interactionStatistic: [
+        { '@type': 'InteractionCounter', interactionType: 'https://schema.org/LikeAction', userInteractionCount: 12 },
+        { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ShareAction', userInteractionCount: 3 },
+      ],
+      commentCount: 4,
+    });
+  });
+
+  it('says nothing about counts the author hid', () => {
+    const og = mapPostOg(post({ engagement: { likes: null, downvotes: null, boosts: null, replies: null } }), 'p1', SAFE);
+    expect(og.jsonLd).not.toHaveProperty('interactionStatistic');
+    expect(og.jsonLd).not.toHaveProperty('commentCount');
+  });
+
+  it('cards a video by its poster, never by the video file', () => {
+    const og = mapPostOg(post({
+      content: {
+        text: 'clip',
+        media: [{ id: 'v', type: 'video', url: 'https://cdn/v.mp4', posterUrl: 'https://cdn/v.jpg', durationSec: 42 }],
+      },
+    }), 'p1', SAFE);
+    expect(og.image).toBe('https://cdn/v.jpg');
+    expect(og.jsonLd?.video).toEqual([{
+      '@type': 'VideoObject',
+      name: 'clip',
+      contentUrl: 'https://cdn/v.mp4',
+      thumbnailUrl: 'https://cdn/v.jpg',
+      uploadDate: '2026-10-01T10:00:00.000Z',
+      duration: 'PT42S',
+    }]);
+  });
+
+  it('sizes and describes a photo card, and keeps an avatar card small', () => {
+    const photo = mapPostOg(post({
+      content: { text: 'a', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg', width: 1200, height: 800, alt: 'A cat' }] },
+    }), 'p1', SAFE);
+    expect(photo).toMatchObject({ image: 'https://cdn/p.jpg', imageWidth: 1200, imageHeight: 800, imageAlt: 'A cat' });
+    expect(photo.twitterCard).toBeUndefined();
+    expect(photo.jsonLd?.image).toEqual(['https://cdn/p.jpg']);
+
+    expect(mapPostOg(post({}), 'p1', SAFE).twitterCard).toBe('summary');
+  });
+
+  it('leaves a boost to its original: not indexed, its links still followed', () => {
+    const boost = post({ content: { text: '' }, originalPost: { id: 'o', content: { text: 'their words' } } });
+    expect(mapPostOg(boost, 'b1', SAFE, { isBoost: true }).robots).toBe('noindex,follow');
+    expect(mapPostOg(post({}), 'p1', SAFE).robots).toBe('index,follow');
+  });
+
+  it('marks a channel\'s post as the organization\'s', () => {
+    const og = mapPostOg(post({ user: { ...author, kind: 'channel' } }), 'p1', SAFE);
+    expect((og.jsonLd?.author as Record<string, unknown>)['@type']).toBe('Organization');
+  });
+});
 
 describe('head metadata without replacement UI', () => {
   it.each([

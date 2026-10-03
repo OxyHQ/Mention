@@ -102,34 +102,31 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
         }
     }
 
-    // Flattened: a `Link asChild` merges its own props into this element, and
-    // that merge cannot take a style array.
+    // The name, and with an `href` a link inside it: on web `<a>` within the
+    // heading, never one element asked to be both (react-native-web renders
+    // the role's tag, and an `<h1 href>` is not a link). The link takes the
+    // name's style from the Text around it. The click stops at the link: a
+    // name inside a pressable row must not also press the row.
     const nameText = (
         <Text
             className="text-foreground"
-            style={StyleSheet.flatten(nameStyle)}
+            style={nameStyle}
             numberOfLines={1}
             ellipsizeMode="tail"
-            // Set only when it is one: an explicit `undefined` would overwrite
-            // the `link` role the `Link` gives this element.
-            {...(asHeading ? { role: 'heading' as const } : null)}
+            role={asHeading ? 'heading' : undefined}
         >
-            {primaryText}
+            {href ? (
+                <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
+                    <Text>{primaryText}</Text>
+                </Link>
+            ) : primaryText}
         </Text>
     );
 
     const inner = (
         <>
             <View className={nameRowClassName} style={styles.nameRow}>
-                {primaryText != null && (href ? (
-                    // A real link (an `<a href>` on web, which a crawler can
-                    // follow and a reader can open in a new tab). The click
-                    // stops here: a name inside a pressable row must not also
-                    // press the row.
-                    <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
-                        {nameText}
-                    </Link>
-                ) : nameText)}
+                {primaryText != null && nameText}
                 {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
                     the default of `VerifiedIcon`'s `color`). It used to take
                     `text-primary`, which a profile scopes to the PROFILE OWNER's

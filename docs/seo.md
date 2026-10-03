@@ -41,6 +41,42 @@ Mention's own figures for a remote account.
 A profile without a bio still gets a generated description; the JSON-LD
 `description` stays the person's own words only.
 
+## Post structured data
+
+A post page's title is the author then the opening of the post, cut at a word
+(`Nate on Mention: "Mention federates with…"`); a post with no words falls back
+to the author and gets a generated description. Its JSON-LD is a
+`SocialMediaPosting` read by `text` (not `articleBody`), with its dates,
+language, images, videos as `VideoObject` (poster as thumbnail), the author as
+a `Person` (a channel's as an `Organization`), likes and boosts as
+`interactionStatistic` and replies as `commentCount`. A count the author hid is
+`null` and omitted. `og:image` is always an image — a video's poster, never its
+file — and an avatar fallback is a `summary` card.
+
+The post page's `<h1>` is the focused post's author (with their profile link
+inside it); the screen's "Post" label is an `<h2>`.
+
+A boost's page repeats someone else's post, so it is `noindex,follow` and is
+not in the sitemap; the original is the URL to index.
+
+## Site identity and hashtags
+
+The homepage carries `Organization` (name, logo) and `WebSite` (name,
+`alternateName`) JSON-LD — what Google reads for the site name and logo beside
+every result. It is defined once, `siteStructuredData` in
+`@mention/shared-types/seo`, because the server's homepage and the app's head
+both emit it. A deployment's `branding.logoUrl` replaces the default logo.
+
+`/hashtag/<tag>` (apex only) is served with the tag normalized the way posts
+store it (`normalizeHashtag`), so every spelling has one canonical URL; it is
+indexed only while a listable post carries the tag.
+
+## Interstitials
+
+The first-visit welcome modal covers the page, so it is shown only wider than a
+phone (`useIsScreenNotMobile`): Google indexes the phone layout and ranks down
+pages an interstitial hides. Phones get the sign-in banner instead.
+
 ## URLs
 
 A handle's `@` stays literal in every URL Mention writes —

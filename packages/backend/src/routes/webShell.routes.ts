@@ -43,6 +43,7 @@ import {
   type ProfileSeoFacts,
   canonicalProfilePath,
   injectHeadHtml,
+  mapHashtagOg,
   mapHomepageOg,
   mapPostOg,
   mapProfileOg,
@@ -51,6 +52,7 @@ import {
   type ShellBootstrap,
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
+import { normalizeHashtag } from '../utils/textProcessing';
 import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -60,6 +62,7 @@ import { isApexHost } from '../middleware/apexFrontendProxy';
 import { getShell } from '../services/webShellDocument';
 import {
   SitemapNotReadyError,
+  hashtagHasListablePosts,
   mentionProfileSeoPolicy,
   type MentionProfileSeoPolicy,
   sitemapIndex,
@@ -248,7 +251,7 @@ async function fetchPostOg(post: PostRecord, safety: PostOgSafety): Promise<OgDa
       includeLinkMetadata: true,
     });
     if (!hydrated?.user) return null;
-    return mapPostOg(hydrated, String(post.id), safety);
+    return mapPostOg(hydrated, String(post.id), safety, { isBoost: Boolean(post.boostOf) });
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
     throw error;
@@ -563,6 +566,35 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   }
 });
 
+// Hashtag: `/hashtag/<tag>` on the apex. The tag is normalized the way posts
+// store it, so every spelling shares one canonical URL.
+router.get(/^\/hashtag\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response, next) => {
+  if (!isApexHost(req)) { next(); return; }
+  warmShell();
+  let raw = '';
+  try {
+    raw = decodeURIComponent(req.params[0]);
+  } catch {
+    // A malformed escape names no hashtag.
+  }
+  const tag = normalizeHashtag(raw);
+  if (!tag) {
+    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Hashtag not found', 'This hashtag is unavailable on Mention.'), 404);
+    return;
+  }
+  try {
+    const found = await getShellCached(`hashtag:v1:${tag}`, async () => ({ listable: await hashtagHasListablePosts(tag) }), { rethrow: true });
+    await serveShell(res, mapHashtagOg(tag, found?.listable ?? false));
+  } catch (error) {
+    logger.warn('[webShell] Hashtag page resolution failed', {
+      path: req.path,
+      ...describeShellFailure(error),
+    });
+    res.setHeader('Retry-After', '60');
+    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
+  }
+});
+
 // Post: `/p/<id>` (optional trailing slash). No AP case.
 router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response) => {
   warmShell();
@@ -617,7 +649,7 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     // A gated post is re-rendered from the current row on every request.
     const og = safety.requiresWarning
       ? await fetchPostOg(post, safety)
-      : await getShellCached(`post:semantic-v1:${id}`, () => fetchPostOg(post, safety), { rethrow: true });
+      : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), { rethrow: true });
     if (!og) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
       return;

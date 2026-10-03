@@ -14,9 +14,21 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
+import { siteStructuredData } from '@mention/shared-types/seo';
+import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+/**
+ * The site's own identity (site name and logo in search results). The
+ * backend's homepage carries the same; this head replaces it once it loads.
+ */
+const SITE_STRUCTURED_DATA = siteStructuredData({
+    origin: WEB_BASE_URL.replace(/\/$/, ''),
+    name: INSTANCE_NAME,
+    logoUrl: INSTANCE_LOGO_URL || undefined,
+});
 
 type HomeTab = string;
 
@@ -170,6 +182,7 @@ const HomeScreen: React.FC = () => {
             <SEO
                 title={t('seo.home.title')}
                 description={t('seo.home.description')}
+                jsonLd={SITE_STRUCTURED_DATA}
             />
             <View className="flex-1">
                 <StatusBar style={theme.isDark ? "light" : "dark"} />

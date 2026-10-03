@@ -23,7 +23,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import express from 'express';
 import request from 'supertest';
 import { createHash } from 'node:crypto';
-import { PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
 const { serviceRequest, store } = vi.hoisted(() => ({
   serviceRequest: vi.fn(),
@@ -173,6 +173,24 @@ describe('SEO sitemaps', () => {
     const absent = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-7.xml`);
     expect(absent.status).toBe(404);
     expect(serviceRequest.mock.calls.length).toBe(callsBefore);
+  });
+
+  it('lists an original, never the boosts that repeat it', async () => {
+    const original = await seedPost(scope, { oxyUserId: AUTHOR, authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }] });
+    const boost = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      type: PostType.BOOST,
+      boostOf: original.id,
+    });
+
+    await buildAllSitemaps();
+
+    const app = makeApp();
+    const originalShard = await request(app).get(`/sitemaps/posts-${bucketOf(original.id)}-0.xml`);
+    expect(originalShard.text).toContain(`https://mention.earth/p/${original.id}`);
+    const boostShard = await request(app).get(`/sitemaps/posts-${bucketOf(boost.id)}-0.xml`);
+    expect(boostShard.text).not.toContain(boost.id);
   });
 
   it('leaves out every post and the profile of an author who opted out of search engines', async () => {
