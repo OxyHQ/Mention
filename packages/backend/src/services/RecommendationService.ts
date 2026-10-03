@@ -61,6 +61,7 @@ export interface GetRecommendationsInput {
    * Oxy-owned blocks/restrictions without a shared mutable singleton.
    */
   oxyClient?: OxyClient;
+  foregroundRankingClient?: import('./ForegroundOxyProfileClient').ForegroundProfileReader;
   /** Requested page size (clamped to [1, MAX_RECOMMENDATION_LIMIT]). */
   limit?: number;
   /** Pagination offset (clamped to [0, MAX_RECOMMENDATION_OFFSET]). */
@@ -329,7 +330,8 @@ export class RecommendationService {
       viewerId
         ? this.resolveExcludeIds(viewerId, oxyClient)
         : Promise.resolve<string[] | undefined>(undefined),
-      this.readCache(cacheKey),
+      // Present authority is rechecked by Oxy for every personalized read.
+      viewerId ? Promise.resolve(null) : this.readCache(cacheKey),
     ]);
     if (cached) {
       return filterExcludedProfiles(cached, excludeIds);
@@ -343,6 +345,7 @@ export class RecommendationService {
       const { profiles, rawCount } = await this.rankingClient.rank({
         clientId: getMentionOxyClientId(),
         viewerId,
+        foregroundClient: input.foregroundRankingClient,
         limit,
         offset,
         excludeIds,
@@ -376,7 +379,7 @@ export class RecommendationService {
         nextOffset,
         hasMore,
       };
-      await this.writeCache(cacheKey, result);
+      if (!viewerId) await this.writeCache(cacheKey, result);
       return result;
     } catch (error) {
       logger.error('[RecommendationService] ranking failed; returning empty result:', error);

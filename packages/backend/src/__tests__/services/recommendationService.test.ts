@@ -178,7 +178,7 @@ describe('RecommendationService.getRecommendations', () => {
     expect(mocks.rank).not.toHaveBeenCalled();
   });
 
-  it('re-filters a cached page against the viewer current privacy exclusions', async () => {
+  it('bypasses personalized cache and filters a fresh authorized page against current privacy', async () => {
     mocks.loadPrivacyState.mockResolvedValue({
       blockedUserIds: new Set(['blocked-now']),
       mutedUserIds: new Set(['muted-now']),
@@ -199,6 +199,7 @@ describe('RecommendationService.getRecommendations', () => {
     };
     mocks.redisGet.mockResolvedValue(JSON.stringify(cachedResult));
     mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.rank.mockResolvedValue({ profiles: cachedResult.recommendations, rawCount: 10 });
 
     const service = makeService();
     const result = await service.getRecommendations({
@@ -214,7 +215,9 @@ describe('RecommendationService.getRecommendations', () => {
     expect(result.nextOffset).toBe(cachedResult.nextOffset);
     expect(result.hasMore).toBe(true);
     expect(mocks.loadPrivacyState).toHaveBeenCalledTimes(1);
-    expect(mocks.rank).not.toHaveBeenCalled();
+    expect(mocks.rank).toHaveBeenCalledTimes(1);
+    expect(mocks.redisGet).not.toHaveBeenCalled();
+    expect(mocks.redisSet).not.toHaveBeenCalled();
   });
 
   it('does not return a cached page when current privacy exclusions cannot be resolved', async () => {
@@ -377,15 +380,15 @@ describe('RecommendationService pagination', () => {
     expect(result.nextOffset).toBeNull();
   });
 
-  it('keys the cache per offset so pages never collide', async () => {
+  it('keys anonymous cache per offset so pages never collide', async () => {
     mocks.redisSet.mockResolvedValue('OK');
     mocks.redisGet.mockResolvedValue(null);
     mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
     mocks.rank.mockResolvedValue({ profiles: profiles(10), rawCount: 10 });
 
     const service = makeService();
-    await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 0 });
-    await service.getRecommendations({ viewerId: 'self_1', limit: 10, offset: 10 });
+    await service.getRecommendations({ limit: 10, offset: 0 });
+    await service.getRecommendations({ limit: 10, offset: 10 });
 
     const key0 = mocks.redisSet.mock.calls[0][0];
     const key1 = mocks.redisSet.mock.calls[1][0];

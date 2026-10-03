@@ -53,6 +53,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => importOriginal()
 import {
   createScopedOxyClient,
   createUserScopedOxyServices,
+  createForegroundOxyProfileClient,
   ensureProfileMediaPublic,
 } from '../../utils/oxyHelpers';
 
@@ -95,7 +96,7 @@ describe('request-scoped Oxy clients', () => {
     expect(mockState.instances.length).toBe(before);
   });
 
-  it('uses service delegation for the capability-assigned account without forwarding the ticket', async () => {
+  it('refuses unproved capability viewer graph without forwarding the ticket or acting as a viewer', async () => {
     const serviceClient = mockState.instances[0];
     const before = mockState.instances.length;
     const client = createScopedOxyClient({
@@ -105,14 +106,9 @@ describe('request-scoped Oxy clients', () => {
       },
     });
 
-    await expect(client?.follows.viewerGraph()).resolves.toMatchObject({ blockedIds: [] });
+    await expect(client?.follows.viewerGraph()).rejects.toMatchObject({ code: 'SERVICE_DELEGATION_NOT_AUTHORIZED' });
     expect(mockState.instances.length).toBe(before);
-    expect(serviceClient.serviceRequest).toHaveBeenCalledWith(
-      'GET',
-      '/users/me/graph',
-      undefined,
-      { actAs: 'assigned-account' },
-    );
+    expect(serviceClient.serviceRequest).not.toHaveBeenCalled();
     expect(serviceClient.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
     expect(createUserScopedOxyServices({
       headers: { authorization: 'Capability signed-ticket' },
@@ -262,5 +258,32 @@ describe('ensureProfileMediaPublic', () => {
       ensureProfileMediaPublic('owner-token', 'file-456'),
     ).resolves.toBeUndefined();
     expect(lastScopedClient().assets.setVisibility).toHaveBeenCalledWith('file-456', 'public');
+  });
+});
+
+
+describe('verified foreground profile client selection', () => {
+  const previous = process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING;
+  afterEach(() => {
+    if (previous === undefined) Reflect.deleteProperty(process.env, 'MENTION_OXY_FOREGROUND_CATALOG_BINDING');
+    else process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING = previous;
+  });
+  it('requires explicit exact catalogue pin and verified accessToken', () => {
+    process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING = JSON.stringify({ registrationId: 'registered', version: '1.0.0', digest: 'a'.repeat(64) });
+    expect(createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' })).toBeDefined();
+    expect(() => createForegroundOxyProfileClient({ user: { id: 'subject' }, headers: { authorization: 'Bearer free-header' } })).toThrow('FOREGROUND_RANKING_NOT_CONFIGURED');
+  });
+  it('never treats attribution or MCP tokens as the foreground requester', () => {
+    expect(createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester', mcp: { activeUserId: 'subject' } })).toBeUndefined();
+    expect(createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester', capability: { claims: { resource: { effectiveAccountId: 'subject' } } } })).toBeUndefined();
+    expect(createForegroundOxyProfileClient({ accessToken: 'unverified' })).toBeUndefined();
+  });
+  it('fails closed for missing rollout configuration', () => {
+    Reflect.deleteProperty(process.env, 'MENTION_OXY_FOREGROUND_CATALOG_BINDING');
+    expect(() => createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' })).toThrow('FOREGROUND_RANKING_NOT_CONFIGURED');
+  });
+  it('rejects extra free authority fields in configuration', () => {
+    process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING = JSON.stringify({ registrationId: 'registered', version: '1.0.0', digest: 'a'.repeat(64), accountId: 'free-selector' });
+    expect(() => createForegroundOxyProfileClient({ user: { id: 'subject' }, accessToken: 'requester' })).toThrow();
   });
 });

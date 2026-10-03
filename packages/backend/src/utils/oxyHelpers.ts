@@ -1,5 +1,6 @@
 import { OxyServices } from '@oxy.so/core';
 import { OxyServer } from '@oxy.so/core/server';
+import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
 import {
@@ -11,10 +12,10 @@ import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { instrumentOxyEgress, measureOxyFetch } from './oxyMetrics';
 
 const OXY_BASE_URL = config.oxyApiUrl;
-const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
 const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer-graph';
 
 interface ScopedOxyRequest {
+  user?: { id: string } | null;
   accessToken?: string;
   headers?: { authorization?: string | readonly string[] };
   mcp?: { activeUserId?: string; authMode?: 'central' | 'legacy' };
@@ -76,6 +77,17 @@ export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices 
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   client.session.setAccessToken(token);
   return client;
+}
+
+/** Already verified HTTP request only; an MCP or attribution proof is not a session. */
+export function createForegroundOxyProfileClient(req: ScopedOxyRequest): ForegroundOxyProfileClient | undefined {
+  if (!req.user || req.mcp || req.capability) return undefined;
+  const token = req.accessToken;
+  const configuration = process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING;
+  if (!token || !configuration) throw new Error('FOREGROUND_RANKING_NOT_CONFIGURED');
+  let binding: unknown;
+  try { binding = JSON.parse(configuration); } catch { throw new Error('FOREGROUND_CATALOG_INVALID'); }
+  return new ForegroundOxyProfileClient(getServiceOxyClient(), token, req.user.id, binding);
 }
 
 /**
@@ -209,13 +221,12 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
     return connectionGraph;
   };
 
-  let headerGraph: Promise<unknown> | undefined;
   const viewerGraph = (): Promise<unknown> => {
     if (connectionToken) return readConnectionGraph(connectionToken);
-    headerGraph ??= client
-      .serviceRequest<unknown>('GET', OXY_VIEWER_GRAPH_PATH, undefined, { actAs: viewerId })
-      .then(unwrapDataEnvelope);
-    return headerGraph;
+    return Promise.reject(Object.assign(
+      new Error('Viewer graph requires the existing central OAuth connection proof'),
+      { code: 'SERVICE_DELEGATION_NOT_AUTHORIZED' },
+    ));
   };
 
   const privacyList = async (

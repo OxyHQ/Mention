@@ -38,13 +38,12 @@ beforeEach(() => {
 });
 
 describe('OxyRankingClient.rank', () => {
-  it('sends clientId + X-Oxy-User-Id (viewerId) + limit + excludeIds + excludeTypes', async () => {
+  it('sends application-scoped anonymous clientId, limit and filters without delegation', async () => {
     mocks.serviceRequest.mockResolvedValue({ data: [makeItem()] });
     const client = new OxyRankingClient();
 
     await client.rank({
       clientId: CLIENT_ID,
-      viewerId: 'viewer_99',
       limit: 25,
       excludeIds: ['x1', 'x2'],
       excludeTypes: ['federated'],
@@ -60,8 +59,7 @@ describe('OxyRankingClient.rank', () => {
       excludeIds: ['x1', 'x2'],
       excludeTypes: ['federated'],
     });
-    // `actAs` becomes the X-Oxy-User-Id header inside serviceRequest.
-    expect(options).toEqual({ actAs: 'viewer_99' });
+    expect(options).toBeUndefined();
   });
 
   it('forwards a positive pagination offset in the request body', async () => {
@@ -134,7 +132,7 @@ describe('OxyRankingClient.rank', () => {
     mocks.serviceRequest.mockResolvedValue({ data: [makeItem()] });
     const client = new OxyRankingClient();
 
-    const result = await client.rank({ limit: 10, viewerId: 'v1' });
+    const result = await client.rank({ limit: 10 });
 
     expect(result.profiles).toHaveLength(1);
     expect(result.profiles[0]).toMatchObject({
