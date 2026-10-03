@@ -85,10 +85,10 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('returns the raw upstream count alongside the mapped profiles', async () => {
-    // Three raw items, one of which is malformed (no displayName) → dropped from
+    // Three raw items, one of which has neither displayName nor handle → dropped from
     // `profiles` but still counted in `rawCount` so the caller can page correctly.
     mocks.serviceRequest.mockResolvedValue({
-      data: [makeItem({ id: 'a' }), makeItem({ id: 'b' }), makeItem({ id: 'c', name: { first: 'X' } })],
+      data: [makeItem({ id: 'a' }), makeItem({ id: 'b' }), makeItem({ id: 'c', username: undefined, name: { first: 'X' } })],
     });
     const client = new OxyRankingClient();
 
@@ -168,18 +168,31 @@ describe('OxyRankingClient.rank', () => {
     expect(result.profiles.map((r) => r.id)).toEqual(['u2']);
   });
 
-  it('drops items missing an id or a canonical displayName', async () => {
+  it('drops items missing an id or both display label and valid handle', async () => {
     mocks.serviceRequest.mockResolvedValue({
       data: [
         makeItem({ id: 'good' }),
         makeItem({ id: '', _id: '' }), // no id
-        makeItem({ id: 'noname', name: { first: 'X' } }), // no displayName
+        makeItem({ id: 'noname', username: undefined, name: { first: 'X' } }), // no displayName
       ],
     });
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
     expect(result.profiles.map((r) => r.id)).toEqual(['good']);
+  });
+
+  it('uses the one normalized handle fallback when displayName is absent', async () => {
+    mocks.serviceRequest.mockResolvedValue({ data: [
+      makeItem({ id: 'local', username: 'alice', name: { first: 'Never synthesize' } }),
+      makeItem({ id: 'federated', username: 'remote', instance: 'example.test', isFederated: true, name: {} }),
+      makeItem({ id: 'nameless', username: 'handle_only', name: undefined }),
+      makeItem({ id: 'invalid_handle', username: '/profile/path', name: { first: 'Do not use' } }),
+    ] });
+    const result = await new OxyRankingClient().rank({ limit: 10 });
+    expect(result.profiles.map((profile) => profile.id)).toEqual(['local', 'federated', 'nameless']);
+    expect(result.profiles.map((profile) => profile.name.displayName)).toEqual(['alice', 'remote@example.test', 'handle_only']);
+    expect(result.rawCount).toBe(4);
   });
 
   it('propagates a transport error (soft-fail policy lives in the service)', async () => {

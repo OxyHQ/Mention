@@ -15,6 +15,7 @@
  */
 
 import type { UserNameResponse } from '@oxy.so/contracts';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { ForegroundProfileReader } from './ForegroundOxyProfileClient';
 import { getServiceOxyClient, getMentionOxyClientId } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
@@ -155,8 +156,8 @@ function extractItems(response: unknown): OxyRecommendationItem[] {
  * Map one raw Oxy recommendation item to Mention's frontend DTO. Passes the
  * bare `avatar` file id and `name` through untouched (Oxy owns identity;
  * `name.displayName` stays canonical, the client resolves the avatar via Bloom's
- * ImageResolver). Returns `null` for an item with no usable id or no canonical
- * display name so the caller can drop it.
+ * ImageResolver). Returns `null` for an item with no usable id or neither a display name nor valid
+ * normalized handle so the caller can drop it.
  */
 function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
   const id = typeof raw.id === 'string' && raw.id.length > 0
@@ -166,12 +167,14 @@ function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
       : '';
   if (!id) return null;
 
-  const name = raw.name;
-  if (!name || typeof name.displayName !== 'string' || name.displayName.length === 0) {
-    // Without a canonical displayName the item violates the DTO contract; drop
-    // it rather than synthesize a name client-side.
-    return null;
-  }
+  const providedName = raw.name;
+  const displayName = typeof providedName?.displayName === 'string' && providedName.displayName.trim()
+    ? providedName.displayName
+    : getNormalizedUserHandle(raw);
+  // displayName is optional. Its only display fallback is the canonical handle;
+  // a first/last name or opaque account ID cannot become a visual label.
+  if (!displayName) return null;
+  const name = { ...providedName, displayName };
 
   const rawAvatar = typeof raw.avatar === 'string' ? raw.avatar : undefined;
   const count = raw._count ?? {};
