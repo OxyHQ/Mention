@@ -1,0 +1,79 @@
+{
+  "sourceHead": "5d74add80a075b4851b3b945c59c404eb0e1fe03",
+  "sourceSha256": {
+    "packages/backend/src/__tests__/mcp/internalCatalogMcp.db.test.ts": "62bb581f8c68b0054cc5c9c2baf2093d45a536340d69a58a90e676189d555fe7",
+    "packages/mcp/__tests__/server-http.integration.test.ts": "33b02270bd0e6d771211092c6c68aa767ae19af489c593c55f8bf5f4c877fbef",
+    "packages/mcp/lib/config.ts": "ddd323efdbe2ba3657e1e23dc26945b2a93d08d4de0f12c5f1ba6fabd090fb7b",
+    "packages/mcp/lib/internal-capability-mcp.ts": "d620a9949c359550e2acea952831e099961d59f509733d02e75496e495f46e30",
+    "packages/mcp/server-http.ts": "ed928eca010ed2fcd9c5e940feb4c38f416ed6570c8853f62686d9fc45615f86"
+  },
+  "records": {
+    "owned-harness.py": {
+      "sha256": "0e218a67251fd2a90c1b8c6deff6ff68c3da8012ff100e169bf5a886b4b0ce7b",
+      "bytes": 4322
+    },
+    "mutant-owned-harness.py": {
+      "sha256": "c5ad25f2e486e351da390e163363d29461bfc1bf9ded27780dd325d497467c11",
+      "bytes": 4355
+    },
+    "owned-run.txt": {
+      "sha256": "8124c0e4a3068e2ce17c3c70ec4e6a3ff642abbec559b0fcdaf9377fc00f25f5",
+      "bytes": 1571
+    },
+    "tests-8.txt": {
+      "sha256": "64f5ce3a3771926cc254e12f0312ac099e260aa833850df3989cf073d36a5b49",
+      "bytes": 1052
+    },
+    "mutant-run.txt": {
+      "sha256": "1130c35269a105086c557233a355fdd492feba57e089d8ffdae807835eba186b",
+      "bytes": 2377
+    },
+    "mutant-test.txt": {
+      "sha256": "3bb44167c3caddccfee0e9b508fa7edd0b8d1bb7f2654f92e436b2ca6f4d44ef",
+      "bytes": 2844
+    },
+    "mcp-tests-121.txt": {
+      "sha256": "90f3f4b508871800edc4e3906b88a64177c5f71570377e83a98a51939910864a",
+      "bytes": 12350
+    },
+    "mount-tests-2.txt": {
+      "sha256": "7a9d9d54ec3eb517c5476855954ad8e23c9654635ece615037b7c2bbd0c2cbf6",
+      "bytes": 464
+    },
+    "mcp-ts.txt": {
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    "backend-ts.txt": {
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    }
+  },
+  "validation": {
+    "signedHttpSqlTests": 8,
+    "mcpPackageTests": 121,
+    "mcpMountTests": 2,
+    "mcpTypeScriptExit": 0,
+    "backendTypeScriptExit": 0,
+    "mutantRemovingFinalReadRecheck": {
+      "failed": 1,
+      "otherTestsNotSelected": 7,
+      "sameFixture": true,
+      "sourceRestored": true
+    },
+    "ownedPgPids": [
+      3763586,
+      3764810
+    ],
+    "ownedPgStopped": true,
+    "installedCandidates": "Same five archives and 998 installed files recorded at foreground-ranking checkpoint 0a28e3ab3; no package re-resolution or source manifest changes."
+  },
+  "limits": [
+    "Oxy remote live authority is an explicit loopback synthetic response; Ed25519 signatures and JWKS validation execute normally. This does not prove a production consent/grant.",
+    "Writes exercise the canonical Mention savePost controller and real SQL bookmarks/effect receipts; save is semantically idempotent even for a new operation key. A new key creates a new receipt, not a second bookmark.",
+    "Read fixture uses the canonical MCP get-post handler and a real SQL projection route, not the complete feed controller/hydration product graph.",
+    "Transport factory and installed common SDK are tested via Node HTTP; the actual Bun server mount is separately tested with missing configuration before body parsing. Positive deployed mount/configuration and registry publication remain pending.",
+    "121-test MCP suite preceded the additional mount assertions, which were then verified with the existing two-test mount suite; runtime bytes are identical.",
+    "First fixture run failed on a mistaken bookmarks column; this is not a product RED/GREEN. The targeted final-await mutant is the only claimed mutation proof."
+  ]
+}

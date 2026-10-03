@@ -1,0 +1,11 @@
+$ bun test __tests__/server-http.integration.test.ts
+bun test v1.4.2 (744846f84)
+
+__tests__/server-http.integration.test.ts:
+(pass) MCP HTTP resource server > challenges unauthenticated clients, rejects invalid tokens and drains on SIGTERM [263.50ms]
+(pass) MCP HTTP resource server when Oxy cannot be reached > answers 503 with Retry-After, never 401, for a token it cannot check [5228.41ms]
+
+ 2 pass
+ 0 fail
+ 20 expect() calls
+Ran 2 tests across 1 file. [5.50s]
