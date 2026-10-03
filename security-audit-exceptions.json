@@ -23,6 +23,30 @@
       "reason": "Same package, same closed bump path as the entry above, filed separately because it is a separate advisory over separate parsers (JXL and HEIF rather than ICNS) and should expire on its own evidence. `<= 2.0.2` with no first_patched_version, and 2.0.2 is the newest release; metro@0.84.4's `image-size ^1.0.2` holds the tree at 1.2.1.",
       "compensation": "Identical and build-time only: metro parses the repository's own committed assets while bundling, nothing first-party imports image-size, and no runtime request path reaches these parsers. Both loops need attacker-controlled image bytes at BUILD time, so the prerequisite is commit access. DoS-only, CVSS 7.5, A:H. The expiry is a re-check date, not a deadline anyone upstream has committed to — if image-size still has no patched release then, the entry should be renewed on fresh evidence rather than extended by habit.",
       "expires": "2026-10-08"
+    },
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "scope": "Metro and Jest file matching, build and test time only",
+      "reason": "No patched release exists: the advisory covers `<= 3.0.3` and 3.0.3, published 2024-05-21, is the newest version. The lockfile reaches braces only through micromatch, which only metro-file-map, @expo/metro-file-map, jest-haste-map, jest-config, @jest/core, @jest/transform and jest-message-util depend on.",
+      "compensation": "Those tools expand the repository's own committed glob patterns on developer and CI machines. No backend, MCP or shipped app code imports micromatch or braces, so no request reaches the parser, and supplying a malicious pattern requires commit access. DoS-only, CVSS 7.5.",
+      "expires": "2026-10-31"
+    },
+    {
+      "advisory": "GHSA-ch52-4w7c-c8xp",
+      "package": "http-cache-semantics",
+      "scope": "@expo/ngrok tunnel for local development only",
+      "reason": "No patched release exists: the advisory covers `<= 4.2.0` and 4.2.0 is the newest version. The lockfile reaches it only through cacheable-request <- got <- @expo/ngrok, a devDependency of the frontend used to tunnel `expo start --tunnel`.",
+      "compensation": "The tunnel client caches its own requests to the ngrok service on a developer machine. It is not in the backend, the MCP server or any shipped bundle, and it serves no other user, so there is no cross-user cache to disclose.",
+      "expires": "2026-10-31"
+    },
+    {
+      "advisory": "GHSA-86w9-cpqp-85rv",
+      "package": "node-forge",
+      "scope": "Expo CLI tooling only",
+      "reason": "No patched release exists: the advisory covers `<= 1.4.0` and 1.4.0 is the newest version. The lockfile reaches node-forge only through @expo/cli and @expo/code-signing-certificates, which @expo/cli depends on.",
+      "compensation": "@expo/cli runs on developer and CI machines to bundle and serve the app; nothing in the backend, the MCP server or the shipped app imports node-forge, and Mention ships no expo-updates code signing that verifies with it. The flaw is signature-verification permissiveness in PKCS#1 v1.5, which no runtime path of Mention performs with this library.",
+      "expires": "2026-10-31"
     }
   ]
 }

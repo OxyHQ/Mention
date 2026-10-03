@@ -27,6 +27,7 @@ import {
 } from '../../mcp/middleware/mcpAuth';
 import { resolveBundleContext } from '../../mcp/services/mcpBundleService';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
+import { onLegacyMcpClock } from './legacyMcpClock';
 
 const mockResolveBundleContext = vi.mocked(resolveBundleContext);
 const bundleContext = {
@@ -83,6 +84,7 @@ function buildPublicRouterApp(options: { mountOptionalMcpAuth: boolean }) {
 }
 
 describe('MCP JWT on public API router', () => {
+  onLegacyMcpClock();
   const token = signAccessToken({
     oxyUserId: 'mcp-user-1',
     clientId: 'claude-web',
