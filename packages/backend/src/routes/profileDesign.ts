@@ -1,14 +1,13 @@
 import { Router, Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { countAuthorPublicPosts } from '../db/posts/authorPostCounts';
 import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
-import { loadRemoteProfileStats } from '../services/federation/remoteProfileStats';
+import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 
 const router = Router();
@@ -77,9 +76,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
 
-    // Runs beside the counts rather than after them; a local account has no
-    // actor row and gets no `remote` block.
-    const [counts, remote] = await Promise.all([countAuthorPublicPosts(userId), loadRemoteProfileStats(userId)]);
+    const { counts, remote } = await loadPublicProfileFacts(userId);
 
     response.postsCount = counts.postsCount;
     response.boostsCount = counts.boostsCount;

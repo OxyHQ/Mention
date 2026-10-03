@@ -338,8 +338,6 @@ const LAYER_BASELINE = [
   { file: "src/routes/pokes.ts", area: "src/db/postgres.ts", reason: REASONS.NO_REPOSITORY },
   { file: "src/routes/pokes.ts", area: "src/db/schema/", reason: REASONS.NO_REPOSITORY },
   { file: "src/routes/posts.ts", area: "src/db/gates/", reason: REASONS.REPOSITORY },
-  { file: "src/routes/profileDesign.ts", area: "src/db/postgres.ts", reason: REASONS.BYPASSES_REPOSITORY },
-  { file: "src/routes/profileDesign.ts", area: "src/db/schema/", reason: REASONS.BYPASSES_REPOSITORY },
   { file: "src/routes/profileDesign.ts", area: "src/db/userProfile/", reason: REASONS.REPOSITORY },
   { file: "src/routes/profileSettings.ts", area: "src/db/postgres.ts", reason: REASONS.BYPASSES_REPOSITORY },
   { file: "src/routes/profileSettings.ts", area: "src/db/posts/", reason: REASONS.REPOSITORY },

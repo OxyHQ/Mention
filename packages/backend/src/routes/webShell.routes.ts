@@ -51,8 +51,7 @@ import {
   type ShellBootstrap,
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
-import { countAuthorPublicPosts } from '../db/posts/authorPostCounts';
-import { loadRemoteProfileStats } from '../services/federation/remoteProfileStats';
+import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
@@ -165,10 +164,7 @@ async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
 async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSeoFacts> {
   if (!oxyUserId) return {};
   const facts = await getShellCached<ProfileSeoFacts>(`profile-facts:v1:${oxyUserId}`, async () => {
-    const [counts, remote] = await Promise.all([
-      countAuthorPublicPosts(oxyUserId),
-      loadRemoteProfileStats(oxyUserId),
-    ]);
+    const { counts, remote } = await loadPublicProfileFacts(oxyUserId);
     return { postsCount: counts.postsCount, ...(remote ? { remote } : {}) };
   });
   return facts ?? {};
