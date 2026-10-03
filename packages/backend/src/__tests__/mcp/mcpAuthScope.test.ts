@@ -40,6 +40,7 @@ vi.mock('../../mcp/services/mcpBundleService', () => ({
 
 import { createOptionalMcpAuth, createRequireMcpOrOxyAuth } from '../../mcp/middleware/mcpAuth';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
+import { onLegacyMcpClock } from './legacyMcpClock';
 
 function token(scopes: string[]): string {
   return signAccessToken({
@@ -128,6 +129,8 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
     vi.clearAllMocks();
     centralTokens.clear();
   });
+  // `token()` mints a legacy Mention-issued token.
+  onLegacyMcpClock();
 
   it('allows read-scoped MCP tokens on safe read requests', async () => {
     const res = await request(app).get('/resource').set('Authorization', `Bearer ${token(['mcp:read'])}`);
@@ -266,5 +269,18 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ userId: 'account-1' });
+  });
+});
+
+describe('legacy Mention-issued MCP tokens after the cutoff', () => {
+  const app = buildApp();
+
+  it('refuses one that would otherwise be in scope', async () => {
+    // The real clock: past MENTION_LEGACY_MCP_AUTH_CUTOFF, a legacy token is
+    // revoked whatever it carries, and only an Oxy-issued token gets through.
+    const res = await request(app).get('/resource').set('Authorization', `Bearer ${token(['mcp:read', 'mcp:write'])}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('invalid_token');
   });
 });

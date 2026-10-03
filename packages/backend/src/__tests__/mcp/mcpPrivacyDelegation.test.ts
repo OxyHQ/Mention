@@ -65,6 +65,7 @@ import {
 import jwt from 'jsonwebtoken';
 import { config } from '../../config';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
+import { onLegacyMcpClock } from './legacyMcpClock';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import {
   getBlockedUserIds,
@@ -111,6 +112,8 @@ function buildApp() {
 }
 
 describe('MCP feed privacy delegation', () => {
+  // The legacy token minted above.
+  onLegacyMcpClock();
   beforeEach(() => {
     vi.clearAllMocks();
     // What Oxy ACTUALLY answers a service credential here: the empty graph, 200.

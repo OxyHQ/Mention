@@ -3,12 +3,13 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createMcpOAuthRoutes } from '../../mcp/routes/mcpOAuth.routes';
+import { BEFORE_LEGACY_MCP_CUTOFF_MS } from './legacyMcpClock';
 
-function buildApp() {
+function buildApp(options: { now?: () => number } = {}) {
   const app = express();
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-  app.use(createMcpOAuthRoutes({} as OxyServices));
+  app.use(createMcpOAuthRoutes({} as OxyServices, options));
   return app;
 }
 
@@ -33,8 +34,15 @@ describe('retired Mention OAuth authorization surface', () => {
     });
   });
 
-  it('does not issue a new legacy authorization-code grant', async () => {
-    const response = await request(app).post('/mcp/oauth/token').send({
+  it('retires the token endpoint once the legacy cutoff has passed', async () => {
+    const response = await request(app).post('/mcp/oauth/token').send({ grant_type: 'refresh_token' });
+    expect(response.status).toBe(410);
+    expect(response.body.error).toBe('legacy_mcp_oauth_retired');
+  });
+
+  it('did not issue a new legacy authorization-code grant even before the cutoff', async () => {
+    const beforeCutoff = buildApp({ now: () => BEFORE_LEGACY_MCP_CUTOFF_MS });
+    const response = await request(beforeCutoff).post('/mcp/oauth/token').send({
       grant_type: 'authorization_code',
       code: 'old-code',
     });
