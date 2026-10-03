@@ -424,7 +424,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       Array.isArray(collaboratorIds) ? collaboratorIds : undefined,
       Array.isArray(collaboratorHandles) ? collaboratorHandles : undefined,
     );
-    const autoAcceptCollaboratorIds = await resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
+    const autoAcceptCollaboratorIds = resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
 
     const post = await postCreationService.create({
       oxyUserId: userId,

@@ -4,7 +4,6 @@ import { z } from "zod/v4";
 const DEFAULT_API_URL = "https://api.mention.earth";
 const DEFAULT_MCP_PUBLIC_URL = "https://mcp.mention.earth";
 const DEFAULT_OXY_API_URL = "https://api.oxy.so";
-const DEFAULT_LEGACY_OAUTH_ISSUER = "https://api.mention.earth";
 
 const apiClientEnvSchema = z.object({
   MENTION_API_URL: z.string().url().default(DEFAULT_API_URL),
@@ -35,8 +34,6 @@ const httpEnvSchema = z.object({
    */
   OXY_SERVICE_API_KEY: z.string().trim().min(1).optional(),
   OXY_SERVICE_API_SECRET: z.string().trim().min(1).optional(),
-  MENTION_LEGACY_OAUTH_ISSUER: z.string().url().default(DEFAULT_LEGACY_OAUTH_ISSUER),
-  MENTION_MCP_JWT_SECRET: z.string().trim().min(1).optional(),
 });
 
 const DEFAULT_CORS_ORIGINS = [
@@ -60,8 +57,6 @@ export interface McpHttpConfig {
   oxyServiceApiKey?: string;
   /** Absent on a deployment: the task role attests instead. See the schema. */
   oxyServiceApiSecret?: string;
-  legacyOauthIssuer: string;
-  jwtSecret: string;
   allowedOrigins: ReadonlySet<string>;
   deploymentIdentity?: McpDeploymentIdentity;
 }
@@ -81,9 +76,6 @@ export function loadMcpHttpConfig(
 ): McpHttpConfig {
   const parsed = parseEnvironment(httpEnvSchema, withManagedDeploymentEnvironment(env), "MCP HTTP server");
   const deploymentIdentity = mcpDeploymentIdentity(env);
-  if (deploymentIdentity.allowLegacyTokens && !parsed.MENTION_MCP_JWT_SECRET) {
-    throw new Error('Invalid MCP HTTP server configuration: MENTION_MCP_JWT_SECRET is required for legacy tokens');
-  }
   const configuredOrigins = (parsed.MCP_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
@@ -103,8 +95,6 @@ export function loadMcpHttpConfig(
     ...(parsed.OXY_SERVICE_API_SECRET === undefined
       ? {}
       : { oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET }),
-    legacyOauthIssuer: stripTrailingSlashes(parsed.MENTION_LEGACY_OAUTH_ISSUER),
-    jwtSecret: parsed.MENTION_MCP_JWT_SECRET ?? "",
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
 }

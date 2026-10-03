@@ -57,7 +57,6 @@ import {
   isApexWebPlaneRequest,
 } from './middleware/apexFrontendProxy';
 import { createMcpOAuthRoutes } from './mcp/routes/mcpOAuth.routes';
-import mcpConnectionsRoutes from './mcp/routes/mcpConnections.routes';
 import mcpBundlesRoutes from './mcp/routes/mcpBundles.routes';
 import {
   createOptionalMcpAuth,
@@ -203,7 +202,6 @@ export function createAppRoutes({
   authenticatedApi.use('/community-notes', communityNotesRoutes);
   authenticatedApi.use('/pokes', pokesRoutes);
   authenticatedApi.use('/entity-follows', entityFollowRoutes);
-  authenticatedApi.use('/mcp/connections', mcpConnectionsRoutes);
   authenticatedApi.use('/mcp/bundles', mcpBundlesRoutes);
   // Oxy Move's server-to-server content import. Behind `requireAuth` like every
   // route here, and then narrowed much further inside: only Move's service token
@@ -225,7 +223,7 @@ export function createAppRoutes({
     media: mediaRoutes,
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     oxyAccountEvents: createOxyAccountEventsRoutes(),
-    mcpOAuth: createMcpOAuthRoutes(oxy),
+    mcpOAuth: createMcpOAuthRoutes(),
     webShell: webShellRoutes,
     apexProxy: apexFrontendProxy,
     publicApi,

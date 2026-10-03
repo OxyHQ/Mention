@@ -3,16 +3,6 @@ import type { CatalogTool } from "@oxy.so/contracts";
 export const MENTION_MCP_RESOURCE = "https://mcp.mention.earth";
 export const MENTION_CAPABILITY_AUDIENCE = "mention-api";
 
-/**
- * Existing Mention-issued HS256 connector tokens stop working at this instant.
- * This is intentionally a source-controlled deadline, not an environment flag
- * that can silently turn a short migration into permanent parallel auth.
- */
-export const MENTION_LEGACY_MCP_AUTH_CUTOFF = "2026-10-02T00:00:00.000Z";
-export const MENTION_LEGACY_MCP_AUTH_CUTOFF_MS = Date.parse(
-  MENTION_LEGACY_MCP_AUTH_CUTOFF,
-);
-
 export type MentionToolPolicy = Pick<
   CatalogTool,
   | "capabilityPackage"

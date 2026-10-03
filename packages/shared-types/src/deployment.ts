@@ -98,7 +98,6 @@ export function withManagedDeploymentEnvironment(environment: DeploymentEnvironm
     MENTION_API_ORIGIN: deployment.apiBaseUrl,
     MENTION_API_URL: deployment.apiBaseUrl,
     MENTION_MCP_PUBLIC_URL: deployment.mcpBaseUrl,
-    MENTION_LEGACY_OAUTH_ISSUER: deployment.apiBaseUrl,
     WEB_SHELL_ORIGIN: deployment.shellBaseUrl,
     FEDERATION_DOMAIN: new URL(deployment.publicBaseUrl).hostname,
     ACTOR_DOMAIN: new URL(deployment.publicBaseUrl).hostname,
@@ -151,7 +150,6 @@ export interface McpDeploymentIdentity {
   appId: string;
   audience: string;
   resource: string;
-  allowLegacyTokens: boolean;
 }
 
 /** Each managed tenant must register this application/resource with central Oxy. */
@@ -163,7 +161,6 @@ export function mcpDeploymentIdentity(environment: DeploymentEnvironment): McpDe
       appId: 'mention',
       audience: MENTION_CAPABILITY_AUDIENCE,
       resource: (resolved.MENTION_MCP_PUBLIC_URL ?? MENTION_MCP_RESOURCE).replace(/\/+$/, ''),
-      allowLegacyTokens: true,
     };
   }
   const appId = `mention-${deployment.tenantId}`;
@@ -171,7 +168,6 @@ export function mcpDeploymentIdentity(environment: DeploymentEnvironment): McpDe
     appId,
     audience: `${appId}-api`,
     resource: deployment.mcpBaseUrl,
-    allowLegacyTokens: false,
   };
 }
 
@@ -181,6 +177,7 @@ export function frontendDeploymentEnvironment(deployment: ManagedMentionDeployme
     EXPO_PUBLIC_API_URL: deployment.apiBaseUrl,
     EXPO_PUBLIC_API_URL_SOCKET: deployment.apiBaseUrl.replace(/^https:/, 'wss:'),
     EXPO_PUBLIC_WEB_BASE_URL: deployment.publicBaseUrl,
+    EXPO_PUBLIC_MCP_URL: deployment.mcpBaseUrl,
     EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI: deployment.publicBaseUrl,
     EXPO_PUBLIC_INSTANCE_NAME: deployment.branding.name,
     EXPO_PUBLIC_INSTANCE_LOGO_URL: deployment.branding.logoUrl ?? '',

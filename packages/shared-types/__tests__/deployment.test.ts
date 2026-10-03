@@ -20,7 +20,7 @@ describe('dedicated deployment configuration', () => {
     expect(readManagedDeployment(source)).toBeUndefined();
     expect(withManagedDeploymentEnvironment(source)).toBe(source);
     expect(mcpDeploymentIdentity({})).toEqual({
-      appId: 'mention', audience: 'mention-api', resource: 'https://mcp.mention.earth', allowLegacyTokens: true,
+      appId: 'mention', audience: 'mention-api', resource: 'https://mcp.mention.earth',
     });
   });
 
@@ -113,6 +113,7 @@ describe('deployment admission and exposure', () => {
     const frontend = frontendDeploymentEnvironment(alpha);
     expect(Object.keys(frontend).every((key) => key.startsWith('EXPO_PUBLIC_'))).toBe(true);
     expect(frontend.EXPO_PUBLIC_API_URL).toBe(alpha.apiBaseUrl);
+    expect(frontend.EXPO_PUBLIC_MCP_URL).toBe(alpha.mcpBaseUrl);
     expect(frontend.EXPO_PUBLIC_API_URL_SOCKET).toBe('wss://api.alpha.example');
     expect(frontend.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI).toBe(alpha.publicBaseUrl);
     expect(frontend.EXPO_PUBLIC_INSTANCE_NAME).toBe(alpha.branding.name);
@@ -120,7 +121,7 @@ describe('deployment admission and exposure', () => {
     expect(JSON.stringify(frontend)).not.toContain('member-alpha');
   });
 
-  it('assigns distinct MCP application, resource and audience and refuses legacy auth for both tenants', () => {
+  it('assigns distinct MCP application, resource and audience for both tenants', () => {
     const first = mcpDeploymentIdentity(environment(alpha));
     const second = mcpDeploymentIdentity(environment(beta));
     expect(first.appId).not.toBe(second.appId);
@@ -129,7 +130,5 @@ describe('deployment admission and exposure', () => {
     expect(first.audience).not.toBe('mention-api');
     expect(first.resource).toBe(alpha.mcpBaseUrl);
     expect(second.resource).toBe(beta.mcpBaseUrl);
-    expect(first.allowLegacyTokens).toBe(false);
-    expect(second.allowLegacyTokens).toBe(false);
   });
 });

@@ -95,11 +95,12 @@ import { OWN_DOMAINS } from '../../connectors/activitypub/ownDomain';
 
 const TARGET_ID = '01a0d834-b80a-7cbd-b416-5502d33318c9';
 
-function buildApp(mcp?: { authMode: 'central' | 'legacy' }) {
+/** `asMcpConnection` puts an Oxy MCP connection on the request, as `mcpAuth` would. */
+function buildApp(asMcpConnection = false) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    if (mcp) Object.assign(req, { mcp: { ...mcp, activeUserId: 'local-user-1' } });
+    if (asMcpConnection) Object.assign(req, { mcp: { activeUserId: 'local-user-1' } });
     next();
   });
   app.use('/federation', connectorsRoutes);
@@ -135,7 +136,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
     ['an acct on our own domain', ownAcct],
     ['an Oxy user id', TARGET_ID],
   ])('follows %s through Oxy with the connection token as consent', async (_label, actorUri) => {
-    const res = await request(buildApp({ authMode: 'central' }))
+    const res = await request(buildApp(true))
       .post('/federation/follow')
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri })
@@ -156,7 +157,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
   });
 
   it('unfollows with the unfollow tool', async () => {
-    await request(buildApp({ authMode: 'central' }))
+    await request(buildApp(true))
       .post('/federation/unfollow')
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri: '@qatest0925' })
@@ -173,7 +174,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
   it('refuses when Oxy moved a different account’s edge', async () => {
     mocks.serviceRequest.mockResolvedValue({ account_id: 'someone-else', changed: true });
 
-    await request(buildApp({ authMode: 'central' }))
+    await request(buildApp(true))
       .post('/federation/follow')
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri: 'qatest0925' })
@@ -183,7 +184,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
   it('404s an unknown local account without asking Oxy to follow anything', async () => {
     mocks.getUserById.mockRejectedValue(Object.assign(new Error('nope'), { status: 404 }));
 
-    await request(buildApp({ authMode: 'central' }))
+    await request(buildApp(true))
       .post('/federation/follow')
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri: 'nobody-here' })
@@ -191,14 +192,12 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
     expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
-  it('refuses a local follow with no consent Oxy accepts (legacy token, session)', async () => {
-    for (const app of [buildApp({ authMode: 'legacy' }), buildApp()]) {
-      await request(app)
-        .post('/federation/follow')
-        .set('Authorization', 'Bearer some-token')
-        .send({ actorUri: 'qatest0925' })
-        .expect(400);
-    }
+  it('refuses a local follow with no consent Oxy accepts (an ordinary session)', async () => {
+    await request(buildApp())
+      .post('/federation/follow')
+      .set('Authorization', 'Bearer some-token')
+      .send({ actorUri: 'qatest0925' })
+      .expect(400);
     expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
@@ -206,7 +205,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
     // Connector resolution reads Postgres, which this file does not start (the
     // sharing-gate suite covers delivery). What matters here is the path taken:
     // the fediverse-sharing gate, never Oxy's local follow.
-    await request(buildApp({ authMode: 'central' }))
+    await request(buildApp(true))
       .post('/federation/follow')
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri: 'alice@remote.example' });

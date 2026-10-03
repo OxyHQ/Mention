@@ -19,12 +19,10 @@ export async function spawnMcpServer(
     env: {
       ...process.env,
       MCP_PORT: "0",
-      MENTION_MCP_JWT_SECRET: "integration-test-secret",
       MENTION_MCP_PUBLIC_URL: "http://127.0.0.1",
       OXY_API_URL: "https://api.oxy.test",
       OXY_SERVICE_API_KEY: "service-key",
       OXY_SERVICE_API_SECRET: "service-secret",
-      MENTION_LEGACY_OAUTH_ISSUER: "https://api.mention.test",
       ...env,
     },
     stdin: "ignore",

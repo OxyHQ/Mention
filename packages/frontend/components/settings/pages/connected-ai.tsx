@@ -1,7 +1,7 @@
 import { EmptyState } from "@/components/common/EmptyState";
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 import { confirmDialog } from "@/utils/alerts";
-import { api } from "@/utils/api";
+import { MCP_RESOURCE_URL } from "@/config";
 import { getErrorMessage } from "@/utils/apiError";
 import { formatRelativeTimeLocalized } from "@/utils/dateUtils";
 import { Button } from "@oxy.so/bloom/button";
@@ -15,6 +15,7 @@ import {
 } from "@oxy.so/bloom/settings-modal";
 import { toast } from "@oxy.so/bloom/toast";
 import { createLogger } from "@oxy.so/core/logger";
+import type { ConnectedMcpClient } from "@oxy.so/core";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -22,26 +23,6 @@ import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 
 const logger = createLogger("ConnectedAiSettings");
-
-interface McpConnection {
-  id: string;
-  clientId: string;
-  clientLabel?: string;
-  clientName?: string;
-  scopes?: string[];
-  bundleId?: string | null;
-  isBundlePrimary?: boolean;
-  handle?: string;
-  displayName?: string;
-  bundleHandles?: string[];
-  createdAt?: string;
-  lastUsedAt?: string;
-}
-
-interface McpConnectionsResponse {
-  connections: McpConnection[];
-  count?: number;
-}
 
 const KNOWN_MCP_CLIENTS: Record<string, string> = {
   claude: "Claude",
@@ -51,34 +32,17 @@ const KNOWN_MCP_CLIENTS: Record<string, string> = {
   cursor: "Cursor",
 };
 
-function connectionLabel(connection: McpConnection): string {
-  if (connection.clientLabel) return connection.clientLabel;
+function connectionLabel(connection: ConnectedMcpClient): string {
   if (connection.clientName) return connection.clientName;
   return (
     KNOWN_MCP_CLIENTS[connection.clientId?.toLowerCase()] ?? connection.clientId
   );
 }
 
-function connectionTitle(connection: McpConnection): string {
-  const label = connectionLabel(connection);
-  const handle = connection.handle
-    ? `@${connection.handle.replace(/^@+/, "")}`
-    : undefined;
-  if (handle) {
-    return `${label} — ${handle}`;
-  }
-  return label;
-}
-
-function bundleSummary(handles: string[] | undefined): string | undefined {
-  if (!handles || handles.length <= 1) return undefined;
-  return handles.map((h) => `@${h.replace(/^@+/, "")}`).join(", ");
-}
-
 export default function ConnectedAiScreen() {
   const { t } = useTranslation();
 
-  const { user, isAuthResolved, canUsePrivateApi, isPrivateApiPending } =
+  const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } =
     useAuth();
   const queryClient = useQueryClient();
 
@@ -87,20 +51,22 @@ export default function ConnectedAiScreen() {
     isLoading,
     isError,
     refetch,
-  } = useQuery<McpConnection[]>({
+  } = useQuery<ConnectedMcpClient[]>({
     queryKey: viewerQueryKeys.connectedAi(user?.id),
+    // Oxy authorizes every MCP connector, for every app; the ones bound to
+    // this deployment's MCP server are the ones that can act on Mention.
     queryFn: async () => {
-      const response =
-        await api.get<McpConnectionsResponse>("/mcp/connections");
-      const rows = response.data?.connections;
-      return Array.isArray(rows) ? rows : [];
+      const clients = await oxyServices.apps.connected.mcpClients();
+      return clients.filter(
+        (client) => client.resource.replace(/\/+$/, "") === MCP_RESOURCE_URL,
+      );
     },
     enabled: canUsePrivateApi,
   });
 
   const revokeMutation = useMutation<void, unknown, string>({
     mutationFn: async (connectionId: string) => {
-      await api.delete(`/mcp/connections/${connectionId}`);
+      await oxyServices.apps.connected.revokeMcpClient(connectionId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -125,7 +91,7 @@ export default function ConnectedAiScreen() {
   });
 
   const handleRevoke = useCallback(
-    async (connection: McpConnection) => {
+    async (connection: ConnectedMcpClient) => {
       const confirmed = await confirmDialog({
         title: t("mcp.connections.revokeConfirm.title", {
           defaultValue: "Revoke access?",
@@ -219,7 +185,6 @@ export default function ConnectedAiScreen() {
                 const revoking =
                   revokeMutation.isPending &&
                   revokeMutation.variables === connection.id;
-                const bundleLine = bundleSummary(connection.bundleHandles);
                 const timeLine = connection.lastUsedAt
                   ? t("mcp.connections.lastUsed", {
                       defaultValue: "Last used {{time}}",
@@ -237,13 +202,10 @@ export default function ConnectedAiScreen() {
                         ),
                       })
                     : undefined;
-                const description =
-                  [bundleLine, timeLine].filter(Boolean).join(" · ") ||
-                  undefined;
                 return (
                   <SettingsRow
-                    label={connectionTitle(connection)}
-                    description={description}
+                    label={connectionLabel(connection)}
+                    description={timeLine}
                     key={connection.id}
                   >
                     {revoking ? (

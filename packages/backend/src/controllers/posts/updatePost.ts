@@ -594,7 +594,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     const isPublished = edited.status === 'published';
     if (isPublished && collaboratorIds && collaboratorIds.length > 0) {
-      const autoAcceptIds = await resolveMcpAutoAcceptIds(req, collaboratorIds);
+      const autoAcceptIds = resolveMcpAutoAcceptIds(req, collaboratorIds);
       if (autoAcceptIds && autoAcceptIds.length > 0) {
         edited = await postCollaborationService.autoAcceptInvites(edited, new Set(autoAcceptIds));
       }

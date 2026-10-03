@@ -257,12 +257,13 @@ the SSE stream lives in the task that opened it — and still works only while a
 client's requests reach one task. It is the only thing `MCP_MAX_SESSIONS`
 counts. See [`docs/COMPATIBILITY_RETIREMENT.md`](../../docs/COMPATIBILITY_RETIREMENT.md).
 
-## OAuth authority and transition
+## OAuth authority
 
-New connections use Oxy's central endpoints under `/auth/mcp/oauth/*`. Mention's
-old authorization server and multi-account bundles remain accepted only for
-already-issued tokens until **2026-10-02T00:00:00Z**. They are not advertised by
-the protected-resource metadata and must be removed after that deadline.
+Every connection uses Oxy's central endpoints under `/auth/mcp/oauth/*`.
+Mention's own authorization server, its HS256 tokens and its multi-account
+bundles were retired on **2026-10-02** and removed: its endpoints answer
+`410 Gone` naming Oxy, and a Mention-issued token is refused with a `401` that
+tells its client to reconnect.
 
 ### Central OAuth
 
@@ -285,19 +286,16 @@ the protected-resource metadata and must be removed after that deadline.
 
 ### Key backend files
 
-- `src/mcp/routes/mcpOAuth.routes.ts` — legacy transition only
-- `src/mcp/routes/mcpBundles.routes.ts` — the connection's account views, plus legacy bundle transition
+- `src/mcp/routes/mcpOAuth.routes.ts` — `410 Gone` for the retired Mention OAuth authority, naming Oxy
+- `src/mcp/routes/mcpBundles.routes.ts` — the connection's account views and act-as switch
 - `src/mcp/services/mcpConnectionDirectory.ts` — the Oxy connection calls (link URL, act-as) and the introspected account set
-- `src/mcp/routes/mcpConnections.routes.ts` — list/revoke
-- `src/mcp/middleware/mcpAuth.ts` — central introspection, exact capability gate, legacy transition
-- `src/mcp/services/mcpBundleService.ts` — legacy bundle lookup during the fixed transition
-- `db/schema/mcp.ts` + `db/mcp/mcpConnectionRepository.ts` — legacy connection records retained until retirement
+- `src/mcp/middleware/mcpAuth.ts` — central introspection and the exact capability gate; a retired Mention-issued token gets a 401 telling it to reconnect
+- `db/schema/mcp.ts` — the retired connection tables, still covered by account erasure until they are dropped
 
 ### Frontend UI
 
-- `auth.oxy.so` — central account selection and consent for all new connections
-- `packages/frontend/app/(app)/oauth/mcp/*` — legacy Mention-owned consent screens pending deletion after cutoff
-- `packages/frontend/app/(app)/settings/connected-ai.tsx` — legacy connection visibility and revocation during transition
+- `auth.oxy.so` — central account selection and consent for all connections
+- `packages/frontend/components/settings/pages/connected-ai.tsx` — the account's connectors for this MCP resource, read from and revoked through Oxy
 
 ## Environment variables
 
@@ -311,9 +309,7 @@ the protected-resource metadata and must be removed after that deadline.
 | `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
 | `OXY_SERVICE_API_KEY` | (optional) | Mention service credential id. A deployed task attests its ECS role instead and carries neither ([oxy ADR 0026][adr-0026]); set both where nothing can attest, such as a laptop. |
 | `OXY_SERVICE_API_SECRET` | (optional) | The secret half. Both or neither — half a pair builds a client whose every call fails at the token. |
-| `MENTION_LEGACY_OAUTH_ISSUER` | `https://api.mention.earth` | Legacy verification only, until the fixed cutoff |
 | `MCP_PORT` | `3100` | HTTP listen port |
-| `MENTION_MCP_JWT_SECRET` | (required during transition) | Legacy HS256 verification only |
 | `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
 | `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
 | `MCP_MAX_SESSIONS` | `1000` | Per-task cap for open legacy `/sse` sessions (Streamable HTTP keeps none) |
@@ -324,9 +320,7 @@ the protected-resource metadata and must be removed after that deadline.
 |----------|---------|
 | `OXY_API_URL` | Central introspection API |
 | `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy, where the process cannot attest its task role |
-| `MENTION_MCP_JWT_SECRET` | Legacy verification only, until the fixed cutoff |
-| `MCP_LINK_TOKEN_TTL_SECONDS` | Legacy link token lifetime (default 900; no new link tokens issued) |
-| `MCP_MAX_BUNDLE_MEMBERS` | Legacy bundle limit retained until cutoff |
+| `MENTION_MCP_JWT_SECRET` | No longer signs anything; only the last fallback salt for `IP_HASH_SALT` |
 
 Secrets: GitHub Actions → SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 
@@ -376,8 +370,8 @@ From repo root: `bun run dev:mcp:http`
   authority apply without waiting for a cache.
 - The semantic capability comes from the same catalog at the MCP tool
   boundary and at the corresponding Mention route.
-- Legacy bundles and HS256 verification are disabled at the source-controlled
-  cutoff; the protected metadata never advertises that authorization server.
+- Only Oxy-issued tokens authenticate; the protected metadata names Oxy as the
+  only authorization server.
 
 ## Dedicated Managed Mention deployments
 
@@ -386,7 +380,6 @@ JSON document. See [the application contract](../../docs/managed-mention.md).
 The configured tenant UUID determines a separate central Oxy application ID and
 capability audience; the manifest supplies the public MCP resource and API target.
 Register that application, resource and OAuth redirects with Oxy before use.
-Managed tenants cannot use the transitional Mention-issued HS256 tokens and do
-not require a legacy JWT secret. Oxy service credentials remain mandatory.
+Oxy service credentials remain mandatory.
 
 [adr-0026]: https://github.com/OxyHQ/oxy/blob/main/docs/adr/0026-first-party-services-authenticate-as-workloads.md

@@ -12,7 +12,6 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/mcp": "catalog:",
-    "jsonwebtoken": "catalog:",
     "zod": "catalog:"
   },
   "scripts": {
@@ -31,6 +30,7 @@
     "@types/bun": "catalog:",
     "@types/jsonwebtoken": "catalog:",
     "@types/node": "catalog:",
+    "jsonwebtoken": "catalog:",
     "typescript": "catalog:"
   }
 }

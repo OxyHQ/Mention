@@ -1,7 +1,4 @@
-import {
-  MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
-  mentionCapabilityRequirementsForRequest,
-} from '@mention/shared-types/mcpCapabilities';
+import { mentionCapabilityRequirementsForRequest } from '@mention/shared-types/mcpCapabilities';
 import type { OxyAuthRequest, OxyServer } from '@oxy.so/core/server';
 import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxy.so/mcp';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
@@ -9,21 +6,15 @@ import jwt from 'jsonwebtoken';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { MCP_TOKEN_AUDIENCE } from '../config/constants';
-import { resolveBundleContext, type McpBundleContext } from '../services/mcpBundleService';
 import {
   connectionStateFromClaims,
   type McpConnectionState,
 } from '../services/mcpConnectionDirectory';
-import { isRevoked } from '../services/mcpRevocationService';
-import { verifyAccessToken } from '../services/mcpTokenService';
 
 export interface McpRequestContext {
-  authMode: 'central' | 'legacy';
   jti: string;
   scope: string;
   clientId: string;
-  bundleId?: string;
   primaryUserId: string;
   activeUserId: string;
   /**
@@ -39,7 +30,8 @@ export type OxyAuthRequestWithMcp = OxyAuthRequest & { mcp?: McpRequestContext }
 type McpAuthOutcome =
   | { status: 'ok'; context: McpRequestContext }
   | { status: 'invalid' }
-  | { status: 'revoked' };
+  | { status: 'revoked' }
+  | { status: 'retired' };
 
 /** Classify the MCP family before auth routing, including foreign-tenant tokens. */
 export function bearerLooksLikeMcpToken(req: Request): boolean {
@@ -47,6 +39,11 @@ export function bearerLooksLikeMcpToken(req: Request): boolean {
   return token ? tokenKind(token) !== null : false;
 }
 
+/**
+ * Which MCP token family a bearer belongs to. `legacy` is a Mention-issued
+ * HS256 token, retired on 2026-10-02: it is still RECOGNISED, so its holder is
+ * told to reconnect instead of having it tried as an ordinary Oxy session.
+ */
 function tokenKind(token: string): 'central' | 'legacy' | null {
   try {
     const decoded = jwt.decode(token, { json: true });
@@ -59,7 +56,8 @@ function tokenKind(token: string): 'central' | 'legacy' | null {
       || audiences.some((audience) => typeof audience === 'string'
         && /^mention(?:-[a-f0-9-]{36})?-api$/.test(audience))
       || (typeof decoded.resource === 'string' && typeof decoded.account_id === 'string')) return 'central';
-    if (audiences.includes(MCP_TOKEN_AUDIENCE)) return 'legacy';
+    // Mention-issued tokens were minted for the MCP resource itself.
+    if (audiences.includes(config.mcp.resourceUrl)) return 'legacy';
     return null;
   } catch {
     return null;
@@ -98,7 +96,6 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
     return {
       status: 'ok',
       context: {
-        authMode: 'central',
         jti: claims.jti,
         scope: normalizeScope(claims.scope),
         clientId: claims.client_id,
@@ -115,52 +112,10 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
   }
 }
 
-async function resolveLegacyMcpUser(token: string): Promise<McpAuthOutcome> {
-  if (!config.deploymentMcp.allowLegacyTokens || Date.now() >= MENTION_LEGACY_MCP_AUTH_CUTOFF_MS) {
-    return { status: 'revoked' };
-  }
-
-  let claims: ReturnType<typeof verifyAccessToken>;
-  try {
-    claims = verifyAccessToken(token);
-  } catch (error) {
-    logger.debug('[McpAuth] Legacy access token verification failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    return { status: 'invalid' };
-  }
-
-  if (await isRevoked(claims.jti)) return { status: 'revoked' };
-
-  let bundle: McpBundleContext | null;
-  try {
-    bundle = await resolveBundleContext(claims.jti, claims.sub);
-  } catch (error) {
-    logger.warn('[McpAuth] Durable legacy connection lookup failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    return { status: 'invalid' };
-  }
-  if (!bundle) return { status: 'revoked' };
-
-  return {
-    status: 'ok',
-    context: {
-      authMode: 'legacy',
-      jti: bundle.jti,
-      scope: claims.scope ?? '',
-      clientId: bundle.clientId,
-      bundleId: bundle.bundleId,
-      primaryUserId: bundle.primaryUserId,
-      activeUserId: bundle.activeUserId,
-    },
-  };
-}
-
 async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
   return tokenKind(token) === 'central'
     ? resolveCentralMcpUser(token)
-    : resolveLegacyMcpUser(token);
+    : { status: 'retired' };
 }
 
 function scopeSet(scope: string): Set<string> {
@@ -169,12 +124,6 @@ function scopeSet(scope: string): Set<string> {
 
 function requestHasMcpScope(req: Request, context: McpRequestContext): boolean {
   const scopes = scopeSet(context.scope);
-  if (context.authMode === 'legacy') {
-    const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())
-      ? 'mcp:read'
-      : 'mcp:write';
-    return scopes.has(required);
-  }
   return mentionCapabilityRequirementsForRequest(req.method, req.path).some(
     (requirement) =>
       requirement.requiredCapabilities.every((capability) => scopes.has(capability)),
@@ -187,18 +136,6 @@ function enforceMcpRequestScope(
   context: McpRequestContext,
 ): boolean {
   if (requestHasMcpScope(req, context)) return true;
-
-  if (context.authMode === 'legacy') {
-    const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())
-      ? 'mcp:read'
-      : 'mcp:write';
-    res.status(403).json({
-      error: 'insufficient_scope',
-      message: `MCP token requires ${required} scope for this request`,
-      required_scope: required,
-    });
-    return false;
-  }
 
   const requirements = mentionCapabilityRequirementsForRequest(req.method, req.path);
   const required = [...new Set(
@@ -260,9 +197,11 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
       }
       res.status(401).json({
         error: 'invalid_token',
-        message: outcome.status === 'revoked'
-          ? 'MCP token has been revoked'
-          : 'Invalid MCP token',
+        message: outcome.status === 'retired'
+          ? 'Mention-issued MCP tokens were retired on 2026-10-02. Reconnect through Oxy.'
+          : outcome.status === 'revoked'
+            ? 'MCP token has been revoked'
+            : 'Invalid MCP token',
       });
       return;
     }

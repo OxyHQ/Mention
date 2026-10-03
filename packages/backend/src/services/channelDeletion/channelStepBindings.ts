@@ -552,7 +552,8 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
   },
   // Somebody else's connector whose ACTIVE account is the channel. Deleting their
   // row would revoke a person's connector over an account they merely switched to,
-  // so the pointer is cleared and `mcpBundleService` falls back to the owner.
+  // so the pointer is cleared instead (a retired legacy row, kept until the
+  // table is dropped).
   'mcp_connections.activeOxyUserId|channel-account': {
     phase: 'account',
     table: mcpConnections,

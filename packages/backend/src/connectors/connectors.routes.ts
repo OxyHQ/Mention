@@ -370,7 +370,7 @@ async function handleLocalFollow(
   }
 
   const mcp = (req as OxyAuthRequestWithMcp).mcp;
-  const connectionToken = mcp?.authMode === 'central' ? extractBearerToken(req.headers) : undefined;
+  const connectionToken = mcp ? extractBearerToken(req.headers) : undefined;
   if (!connectionToken) {
     res.status(400).json({ error: 'Local accounts are followed through Oxy with your own session' });
     return true;

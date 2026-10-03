@@ -1,23 +1,24 @@
+import crypto from 'crypto';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 process.env.MENTION_MCP_PUBLIC_URL = 'https://mcp.mention.earth';
 
-vi.mock('../../mcp/services/mcpRevocationService', () => ({
-  isRevoked: vi.fn().mockResolvedValue(false),
-  revokeJti: vi.fn().mockResolvedValue(undefined),
+/** What Oxy's introspection answers for each token this suite presents. */
+const centralTokens = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+
+vi.mock('@oxy.so/mcp', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/mcp')>()),
+  introspectOxyMcpAccessToken: vi.fn(async (value: string) => centralTokens.get(value) ?? null),
 }));
 
-vi.mock('../../mcp/services/mcpBundleService', () => ({
-  resolveBundleContext: vi.fn().mockResolvedValue({
-    bundleId: 'bundle-test',
-    primaryUserId: 'mcp-user-1',
-    activeUserId: 'mcp-user-1',
-    clientId: 'claude-web',
-    jti: 'jti-public-router',
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
+    serviceToken: async () => 'service-token',
+    invalidateServiceToken: () => undefined,
   }),
 }));
 
@@ -25,18 +26,25 @@ import {
   bearerLooksLikeMcpToken,
   createOptionalMcpAuth,
 } from '../../mcp/middleware/mcpAuth';
-import { resolveBundleContext } from '../../mcp/services/mcpBundleService';
-import { signAccessToken } from '../../mcp/services/mcpTokenService';
-import { onLegacyMcpClock } from './legacyMcpClock';
+import { config } from '../../config';
 
-const mockResolveBundleContext = vi.mocked(resolveBundleContext);
-const bundleContext = {
-  bundleId: 'bundle-test',
-  primaryUserId: 'mcp-user-1',
-  activeUserId: 'mcp-user-1',
-  clientId: 'claude-web',
-  jti: 'jti-public-router',
-};
+/** A central (Oxy-issued) MCP token for `mcp-user-1`, live until `centralTokens` forgets it. */
+function centralToken(scopes: string[]): string {
+  const value = jwt.sign({ aud: config.deploymentMcp.audience }, 'routing-only-test-secret', { algorithm: 'HS256' });
+  centralTokens.set(value, {
+    iss: config.oxyApiUrl.replace(/\/+$/, ''),
+    sub: 'mcp-user-1',
+    aud: config.deploymentMcp.audience,
+    resource: config.mcp.resourceUrl,
+    client_id: 'claude-web',
+    scope: scopes.join(' '),
+    jti: crypto.randomUUID(),
+    iat: 1,
+    exp: 4_102_444_800,
+    account_id: 'mcp-user-1',
+  });
+  return value;
+}
 
 /** Mirrors production optionalAuth after the MCP pass (oxy stub always fails). */
 function productionOptionalAuthWithoutOxy(
@@ -83,17 +91,12 @@ function buildPublicRouterApp(options: { mountOptionalMcpAuth: boolean }) {
   return app;
 }
 
-describe('MCP JWT on public API router', () => {
-  onLegacyMcpClock();
-  const token = signAccessToken({
-    oxyUserId: 'mcp-user-1',
-    clientId: 'claude-web',
-    scopes: ['mcp:read', 'mcp:write'],
-    jti: 'jti-public-router',
-  });
+describe('MCP token on public API router', () => {
+  let token: string;
 
   beforeEach(() => {
-    mockResolveBundleContext.mockResolvedValue(bundleContext);
+    centralTokens.clear();
+    token = centralToken(['social.read', 'social.interact']);
   });
 
   it('rejects boost on public router when optional MCP auth is not mounted', async () => {
@@ -126,8 +129,8 @@ describe('MCP JWT on public API router', () => {
     expect(res.body.userId).toBe('mcp-user-1');
   });
 
-  it('fails closed when the durable MCP connection is missing or revoked', async () => {
-    mockResolveBundleContext.mockResolvedValueOnce(null);
+  it('fails closed when Oxy no longer vouches for the token', async () => {
+    centralTokens.clear();
     const app = buildPublicRouterApp({ mountOptionalMcpAuth: true });
 
     const res = await request(app)

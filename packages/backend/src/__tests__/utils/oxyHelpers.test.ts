@@ -127,12 +127,13 @@ describe('request-scoped Oxy clients', () => {
    * on purpose — blocks and restrictions are private relationship data it will
    * not disclose to one. Reading the privacy lists off that 200 said "this
    * viewer blocks nobody", which is the fail-OPEN the privacy path exists to
-   * prevent. A delegated caller must be told it cannot resolve them.
+   * prevent. A delegated caller with no proof Oxy accepts — a capability
+   * request — must be told it cannot resolve them.
    */
   it('refuses to answer a delegated privacy read rather than reporting no blocks', async () => {
     const client = createScopedOxyClient({
-      headers: { authorization: 'Bearer mcp-access-token' },
-      mcp: { activeUserId: 'assigned-account' },
+      headers: { authorization: 'Capability signed-ticket' },
+      capability: { claims: { resource: { effectiveAccountId: 'assigned-account' } } },
     });
 
     await expect(client?.privacy.blocked()).rejects.toMatchObject({
@@ -157,7 +158,7 @@ describe('central MCP privacy reads', () => {
   function centralClient() {
     return createScopedOxyClient({
       headers: { authorization: 'Bearer mcp-access-token' },
-      mcp: { activeUserId: 'served-account', authMode: 'central' },
+      mcp: { activeUserId: 'served-account' },
     });
   }
 
@@ -206,18 +207,6 @@ describe('central MCP privacy reads', () => {
     const client = centralClient();
 
     await expect(client?.privacy.blocked()).rejects.toThrow(/missing blockedIds/);
-  });
-
-  it('keeps a legacy MCP token fail-closed: it is not proof Oxy accepts', async () => {
-    const client = createScopedOxyClient({
-      headers: { authorization: 'Bearer legacy-token' },
-      mcp: { activeUserId: 'served-account', authMode: 'legacy' },
-    });
-
-    await expect(client?.privacy.blocked()).rejects.toMatchObject({
-      name: 'OxyPrivacyUnavailableError',
-      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
-    });
   });
 });
 

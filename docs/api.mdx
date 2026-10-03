@@ -72,8 +72,7 @@ as metric labels.
 | `/community-notes` | Authenticated | Reader-written context, forwarded to CrowdSource |
 | `/pokes` | Authenticated | Pokes |
 | `/entity-follows` | Authenticated | Non-user entity follows |
-| `/mcp/connections` | Authenticated | MCP connection management |
-| `/mcp/bundles` | Authenticated | Bound-account views; legacy bundle transition |
+| `/mcp/bundles` | Authenticated | The accounts an MCP connection may act as (Oxy's), and switching between them |
 
 Some `/posts` read paths such as drafts, scheduled posts, and saved posts sit
 on the public-read router but enforce the current viewer themselves.
