@@ -414,6 +414,13 @@
       "when": 1790849824922,
       "tag": "0058_jev_shadow_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790990359352,
+      "tag": "0059_search_engine_indexing_opt_out",
+      "breakpoints": true
     }
   ]
 }

@@ -60,7 +60,8 @@ import { isApexHost } from '../middleware/apexFrontendProxy';
 import { getShell } from '../services/webShellDocument';
 import {
   SitemapNotReadyError,
-  isMentionProfilePublic,
+  mentionProfileSeoPolicy,
+  type MentionProfileSeoPolicy,
   sitemapIndex,
   sitemapShard,
 } from '../services/seoSitemap';
@@ -177,17 +178,26 @@ async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
 }
 
 /**
- * Whether a post's author may be shown to anyone: public on Mention AND on Oxy,
- * both read fresh for this request. The two reads are independent, so they run
- * together rather than one round-trip after the other.
+ * Whether a post's author may be shown to anyone — public on Mention AND on Oxy
+ * — and whether search engines may index them, all read fresh for this request.
+ * The two reads are independent, so they run together rather than one
+ * round-trip after the other.
  */
-async function isAuthorPublic(oxyUserId: string): Promise<boolean> {
-  if (!oxyUserId) return false;
+async function authorSeoPolicy(oxyUserId: string): Promise<MentionProfileSeoPolicy> {
+  if (!oxyUserId) return { visible: false, indexable: false };
   const [onMention, onOxy] = await Promise.all([
-    isMentionProfilePublic(oxyUserId),
+    mentionProfileSeoPolicy(oxyUserId),
     isOxyAuthorPublic(oxyUserId),
   ]);
-  return onMention && onOxy;
+  return { visible: onMention.visible && onOxy, indexable: onMention.indexable && onOxy };
+}
+
+/**
+ * The page stays public, but an author who opted out of search engines is not
+ * indexed. Never LOOSENS a policy: a gated post's `noindex,nofollow` stands.
+ */
+function withoutIndexing(og: OgData): OgData {
+  return og.robots === 'index,follow' ? { ...og, robots: 'noindex,follow' } : og;
 }
 
 /**
@@ -474,8 +484,12 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     return;
   }
 
+  let policy: MentionProfileSeoPolicy = { visible: true, indexable: true };
   try {
-    if (profile && !(await isMentionProfilePublic(profile.id))) profile = null;
+    if (profile) {
+      policy = await mentionProfileSeoPolicy(profile.id);
+      if (!policy.visible) profile = null;
+    }
   } catch (error) {
     logger.warn('[webShell] Profile visibility read failed', {
       path: req.path,
@@ -504,8 +518,9 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     return;
   }
 
-  const og = mapProfileOg(profile, await profileSeoFacts(profile.id));
-  if (og && !isProfileRoot) og.robots = 'noindex,follow';
+  const mapped = mapProfileOg(profile, await profileSeoFacts(profile.id));
+  // A sub-tab repeats the profile, so only the root is indexed.
+  const og = mapped && (!isProfileRoot || !policy.indexable) ? withoutIndexing(mapped) : mapped;
   // The page's first request is this very lookup; hand the app the public
   // answer so its feed and design reads start with the route, not ~one
   // round-trip later. Only reached for a profile Mention publishes.
@@ -527,7 +542,8 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   // ONE definition of that (`canonicalProfilePath`).
   try {
     const profile = await cachedProfile(handle);
-    if (!profile || !(await isMentionProfilePublic(profile.id))) {
+    const policy = profile ? await mentionProfileSeoPolicy(profile.id) : undefined;
+    if (!profile || !policy?.visible) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Channel not found', 'This channel is unavailable on Mention.'), 404);
       return;
     }
@@ -535,7 +551,8 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
       res.redirect(301, canonicalProfilePath(profile));
       return;
     }
-    await serveShell(res, mapProfileOg(profile, await profileSeoFacts(profile.id)));
+    const og = mapProfileOg(profile, await profileSeoFacts(profile.id));
+    await serveShell(res, og && !policy.indexable ? withoutIndexing(og) : og);
   } catch (error) {
     logger.warn('[webShell] Channel page resolution failed', {
       path: req.path,
@@ -565,13 +582,13 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     // Every read below is this request's own and current; nothing is taken from
     // a cache before the visibility decisions. Independent reads run together,
     // and each row is read once and handed on rather than read again.
-    const [authorIsPublic, original] = isPublic
+    const [author, original] = isPublic
       ? await Promise.all([
-          isAuthorPublic(authorId),
+          authorSeoPolicy(authorId),
           post.boostOf ? loadPostRecord(String(post.boostOf)) : Promise.resolve(null),
         ])
-      : [false, null];
-    if (!isPublic || !authorIsPublic) {
+      : [undefined, null];
+    if (!isPublic || !author?.visible) {
       await serveShell(
         res,
         noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'Sign in to Mention if you have access to this post.'),
@@ -581,13 +598,18 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
 
     // A boost's rendered body comes from its original. Check current visibility
     // for both rows before reading any cached representation.
+    let indexable = author.indexable;
     if (post.boostOf) {
       const originalAuthor = original?.oxyUserId ? String(original.oxyUserId) : '';
-      if (!original || original.visibility !== 'public' || original.status !== 'published'
-        || !(await isAuthorPublic(originalAuthor))) {
+      const originalPolicy = original && original.visibility === 'public' && original.status === 'published'
+        ? await authorSeoPolicy(originalAuthor)
+        : undefined;
+      if (!originalPolicy?.visible) {
         await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'This post is unavailable on Mention.'));
         return;
       }
+      // Its words are the original author's, so their choice governs too.
+      indexable = indexable && originalPolicy.indexable;
     }
 
     const safety = resolvePostOgSafety(post, original);
@@ -600,7 +622,7 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
       return;
     }
-    await serveShell(res, og);
+    await serveShell(res, indexable ? og : withoutIndexing(og));
   } catch (error) {
     logger.warn('[webShell] Post page resolution failed', {
       path: req.path,

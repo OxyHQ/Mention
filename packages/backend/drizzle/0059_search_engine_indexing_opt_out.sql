@@ -1,0 +1,11 @@
+-- An account can opt its profile and posts out of search engines.
+--
+-- WHY: Mention publishes every public profile and post to search engines (a
+-- `ProfilePage`/`SocialMediaPosting`, `index,follow`, listed in the sitemap).
+-- `false` keeps the pages public but serves them `noindex` and leaves them out
+-- of the sitemap — the Mastodon "opt out of search engine indexing" setting.
+--
+-- Adding a NOT NULL column with a constant default is safe during a rolling
+-- deploy: the previous release neither reads nor writes it, and every existing
+-- account keeps today's behaviour (indexed).
+ALTER TABLE "user_settings" ADD COLUMN "privacy_search_engine_indexing" boolean DEFAULT true NOT NULL;

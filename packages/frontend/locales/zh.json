@@ -374,6 +374,8 @@
   "settings.privacy.content": "内容",
   "settings.privacy.showSensitiveContent": "显示敏感内容",
   "settings.privacy.showSensitiveContentDesc": "敏感内容和成人内容帖子不会出现在你的信息流中，但仍会显示在作者的个人主页上。",
+  "settings.privacy.searchEngines": "在搜索引擎中显示",
+  "settings.privacy.searchEnginesDesc": "允许 Google 等搜索引擎在搜索结果中显示你的个人主页和帖子。关闭后，它们在 Mention 上仍然公开。",
   "settings.privacy.allowTags": "允许标记",
   "settings.privacy.allowTagsDesc": "允许他人在帖子中标记你",
   "settings.privacy.allowMentions": "允许提及",

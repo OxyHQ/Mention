@@ -79,6 +79,13 @@ export interface PrivacySettings {
    * so clients can blur / show a content warning).
    */
   showSensitiveContent?: boolean;
+  /**
+   * Whether search engines may index the profile and its posts. Default
+   * `true`. `false` is an opt-out from search results, not from visibility:
+   * the pages still render for everyone, marked `noindex`, and leave the
+   * sitemap.
+   */
+  searchEngineIndexing?: boolean;
   hiddenWords?: string[];
   restrictedUsers?: string[];
   labelPreferences?: LabelPreferences;

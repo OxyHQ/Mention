@@ -791,6 +791,56 @@ describe('webShell post OG sensitivity gate', () => {
     },
   );
 
+  describe('an author who opted out of search engines', () => {
+    const OPTED_OUT = scope.user('search-opt-out');
+
+    beforeEach(async () => {
+      await getDb().insert(userSettings).values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
+    });
+    afterEach(async () => {
+      await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, OPTED_OUT));
+    });
+
+    it('keeps their profile public, but noindex', async () => {
+      stubFetch({ ok: true, body: { data: { id: OPTED_OUT, username: 'quiet', name: { displayName: 'Quiet' }, bio: 'still public' } } });
+
+      const res = await request(makeApp()).get('/@quiet');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,follow">');
+      // An opt-out from search results, not from people: the card still unfurls.
+      expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="still public">');
+    });
+
+    it('keeps their posts public, but noindex', async () => {
+      const postId = await seedOgPost({ oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+      mockHydrated(postId);
+
+      const res = await crawl(postId);
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('content="noindex,follow"');
+      expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="hi there">');
+    });
+
+    it('carries their choice to a boost of their post', async () => {
+      const originalId = await seedOgPost({ oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+      const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
+      mockHydrated(boostId, { originalPost: { content: { text: 'their words' } } } as unknown as Partial<HydratedPost>);
+
+      const res = await crawl(boostId);
+
+      expect(res.text).toContain('content="noindex,follow"');
+    });
+
+    it('leaves everyone else indexed', async () => {
+      const postId = await seedOgPost();
+      mockHydrated(postId);
+
+      expect((await crawl(postId)).text).toContain('content="index,follow"');
+    });
+  });
+
   it('withholds a boost whose original author is no longer publicly resolvable', async () => {
     const originalId = await seedOgPost({ oxyUserId: scope.user('hidden-original') });
     const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });

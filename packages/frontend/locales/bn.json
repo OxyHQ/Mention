@@ -374,6 +374,8 @@
   "settings.privacy.content": "কনটেন্ট",
   "settings.privacy.showSensitiveContent": "সংবেদনশীল কনটেন্ট দেখান",
   "settings.privacy.showSensitiveContentDesc": "সংবেদনশীল ও NSFW পোস্ট কখনোই আপনার ফিডে দেখা যায় না। লেখকের প্রোফাইলে সেগুলো দৃশ্যমান থাকে।",
+  "settings.privacy.searchEngines": "সার্চ ইঞ্জিনে দেখান",
+  "settings.privacy.searchEnginesDesc": "Google-এর মতো সার্চ ইঞ্জিনকে আপনার প্রোফাইল ও পোস্ট তাদের ফলাফলে দেখাতে দিন। এটি বন্ধ থাকলেও সেগুলো Mention-এ সবার জন্য দৃশ্যমান থাকে।",
   "settings.privacy.allowTags": "ট্যাগ করার অনুমতি দিন",
   "settings.privacy.allowTagsDesc": "অন্যদের পোস্টে আপনাকে ট্যাগ করতে দিন",
   "settings.privacy.allowMentions": "উল্লেখ করার অনুমতি দিন",

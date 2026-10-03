@@ -132,7 +132,7 @@ export default function PrivacySettingsScreen() {
   };
 
   const updatePrivacyToggle = async (
-    field: "showSensitiveContent",
+    field: "showSensitiveContent" | "searchEngineIndexing",
     value: boolean,
   ) => {
     const cacheLease = createPrivacySettingsCacheLease(viewerId);
@@ -146,7 +146,7 @@ export default function PrivacySettingsScreen() {
       // so a cache filled under the previous answer is now showing (or
       // withholding) exactly what the viewer just decided about. One
       // authority tells both read caches: `stores/safetyInvalidation`.
-      invalidateSafetyFilters();
+      if (field === "showSensitiveContent") invalidateSafetyFilters();
     } catch (error) {
       logger.error("Error updating privacy setting", error, { field });
       setPrivacySettings(previous);
@@ -219,6 +219,18 @@ export default function PrivacySettingsScreen() {
               >
                 {getProfileVisibilityText()}
               </Button>
+            </SettingsRow>
+            <SettingsRow
+              label={t("settings.privacy.searchEngines")}
+              description={t("settings.privacy.searchEnginesDesc")}
+            >
+              <Switch
+                checked={privacySettings.searchEngineIndexing ?? true}
+                onCheckedChange={(value) =>
+                  updatePrivacyToggle("searchEngineIndexing", value)
+                }
+                accessibilityLabel={t("settings.privacy.searchEngines")}
+              />
             </SettingsRow>
             <SettingsRow
               label={t("settings.privacy.tagsAndMentions")}
