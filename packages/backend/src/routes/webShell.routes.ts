@@ -40,6 +40,7 @@ import {
   OgData,
   OxyProfileData,
   PostOgSafety,
+  type ProfileSeoFacts,
   canonicalProfilePath,
   injectHeadHtml,
   mapHomepageOg,
@@ -50,6 +51,7 @@ import {
   type ShellBootstrap,
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
+import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
@@ -149,6 +151,23 @@ async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
   const aliases = externalIdentityReferenceSchema.array().safeParse(profile.externalIdentities);
   return aliases.success && aliases.data.some(alias => normalize(alias.canonicalAcct) === normalize(handle))
     ? profile : null;
+}
+
+/**
+ * What Mention knows about a public profile beyond its Oxy payload — post count,
+ * and a federated account's origin totals — for its structured data.
+ *
+ * Cached beside the profile itself, and FAIL-OPEN: these are descriptive facts,
+ * so a failed read renders the page without them rather than turning an
+ * indexable profile into a 503.
+ */
+async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSeoFacts> {
+  if (!oxyUserId) return {};
+  const facts = await getShellCached<ProfileSeoFacts>(`profile-facts:v1:${oxyUserId}`, async () => {
+    const { counts, remote } = await loadPublicProfileFacts(oxyUserId);
+    return { postsCount: counts.postsCount, ...(remote ? { remote } : {}) };
+  });
+  return facts ?? {};
 }
 
 async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
@@ -485,7 +504,7 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     return;
   }
 
-  const og = mapProfileOg(profile);
+  const og = mapProfileOg(profile, await profileSeoFacts(profile.id));
   if (og && !isProfileRoot) og.robots = 'noindex,follow';
   // The page's first request is this very lookup; hand the app the public
   // answer so its feed and design reads start with the route, not ~one
@@ -516,7 +535,7 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
       res.redirect(301, canonicalProfilePath(profile));
       return;
     }
-    await serveShell(res, mapProfileOg(profile));
+    await serveShell(res, mapProfileOg(profile, await profileSeoFacts(profile.id)));
   } catch (error) {
     logger.warn('[webShell] Channel page resolution failed', {
       path: req.path,

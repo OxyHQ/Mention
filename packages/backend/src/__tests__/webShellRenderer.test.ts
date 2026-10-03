@@ -144,6 +144,101 @@ describe('mapProfileOg', () => {
     expect(mapProfileOg({ username: 'a', bio: '  b  ', description: 'd' })?.description).toBe('b');
     expect(mapProfileOg({ username: 'a', description: '  d  ' })?.description).toBe('d');
   });
+
+  it('never leaves a profile without a description', () => {
+    const og = mapProfileOg({ username: 'nate', name: { displayName: 'Nate' } });
+    expect(og?.description).toBe('Nate (@nate) is on Mention. See their posts, replies and media.');
+    // The fallback is a snippet, not something the person wrote about themselves.
+    expect((og?.jsonLd?.mainEntity as Record<string, unknown>).description).toBeUndefined();
+    expect(mapProfileOg({ username: 'nate' })?.description).toBe('@nate is on Mention. See their posts, replies and media.');
+  });
+
+  it('keeps a federated handle\'s @ literal in every URL it names', () => {
+    const og = mapProfileOg({ username: 'gargron@mastodon.social' });
+    expect(og?.url).toBe('https://mention.earth/@gargron@mastodon.social');
+    expect(og?.jsonLd).toMatchObject({
+      url: 'https://mention.earth/@gargron@mastodon.social',
+      mainEntity: { url: 'https://mention.earth/@gargron@mastodon.social' },
+    });
+    expect(mapProfileOg({ username: 'news@example.org', kind: 'channel' })?.url)
+      .toBe('https://mention.earth/c/news@example.org');
+    // Everything else a path segment cannot carry is still encoded.
+    expect(mapProfileOg({ username: 'a/b?c#d' })?.url).toBe('https://mention.earth/@a%2Fb%3Fc%23d');
+  });
+
+  it('declares a summary card with the profile username', () => {
+    const html = buildOgMetaHtml(mapProfileOg({ username: 'nate', avatar: 'file123' }) as OgData);
+    expect(html).toContain('name="twitter:card" content="summary"');
+    expect(html).toContain('property="profile:username" content="nate"');
+  });
+
+  it('describes a local account with its Oxy graph and Mention post count', () => {
+    const og = mapProfileOg(
+      {
+        id: 'u1',
+        username: 'nate',
+        name: { displayName: 'Nate' },
+        createdAt: '2024-01-02T00:00:00.000Z',
+        links: ['https://nate.example', 'javascript:alert(1)'],
+        _count: { followers: 12, following: 3 },
+      },
+      { postsCount: 40 },
+    );
+    expect(og?.jsonLd).toMatchObject({
+      '@type': 'ProfilePage',
+      dateCreated: '2024-01-02T00:00:00.000Z',
+      mainEntity: {
+        '@type': 'Person',
+        name: 'Nate',
+        sameAs: ['https://nate.example'],
+        interactionStatistic: [
+          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 12 },
+        ],
+        agentInteractionStatistic: [
+          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/WriteAction', userInteractionCount: 40 },
+          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 3 },
+        ],
+      },
+    });
+  });
+
+  it('describes a federated account by its origin, never by the account Mention minted for it', () => {
+    const profile = {
+      id: 'u2',
+      username: 'gargron@mastodon.social',
+      name: { displayName: 'Eugen Rochko' },
+      // Mention's discovery date and its own follow graph: true of the minted
+      // Oxy account, false of the person.
+      createdAt: '2026-03-29T12:35:35.711Z',
+      _count: { followers: 0, following: 0 },
+      type: 'federated',
+      isFederated: true,
+      federation: { actorUri: 'https://mastodon.social/users/Gargron', domain: 'mastodon.social' },
+    };
+
+    const known = mapProfileOg(profile, {
+      postsCount: 470,
+      remote: { followersCount: 382900, followingCount: 743, joinedAt: '2016-03-16T00:00:00.000Z' },
+    });
+    expect(known?.jsonLd).toMatchObject({
+      dateCreated: '2016-03-16T00:00:00.000Z',
+      mainEntity: {
+        sameAs: ['https://mastodon.social/users/Gargron'],
+        interactionStatistic: [{ interactionType: 'https://schema.org/FollowAction', userInteractionCount: 382900 }],
+        agentInteractionStatistic: [
+          { interactionType: 'https://schema.org/WriteAction', userInteractionCount: 470 },
+          { interactionType: 'https://schema.org/FollowAction', userInteractionCount: 743 },
+        ],
+      },
+    });
+
+    // The origin reported nothing: no date and no counts, rather than Mention's.
+    const unknown = mapProfileOg(profile, {});
+    expect(unknown?.jsonLd).not.toHaveProperty('dateCreated');
+    const entity = unknown?.jsonLd?.mainEntity as Record<string, unknown>;
+    expect(entity).not.toHaveProperty('interactionStatistic');
+    expect(entity).not.toHaveProperty('agentInteractionStatistic');
+  });
 });
 
 describe('mapPostOg', () => {

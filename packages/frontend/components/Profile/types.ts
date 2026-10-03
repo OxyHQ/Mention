@@ -352,7 +352,17 @@ export interface UserNameProps {
     handle?: StyleProp<TextStyle>;
     container?: StyleProp<ViewStyle>;
   };
-  onPress?: () => void;
+  /**
+   * Makes the name a link to this destination — an expo-router `Link`, so a
+   * real `<a href>` on web.
+   */
+  href?: Href | null;
+  /**
+   * The name is the page's title: a heading to assistive technology, and the
+   * document's `<h1>` on web. Only the profile's own header sets it — a feed
+   * row naming its author is not a heading.
+   */
+  asHeading?: boolean;
   /**
    * Opt IN to making the federated marker open the fediverse explainer. Absent
    * (the default) leaves it a plain icon — see {@link AccountBadge}. Only the

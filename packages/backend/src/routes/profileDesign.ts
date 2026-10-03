@@ -1,18 +1,13 @@
-import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { Router, Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { and, eq, sql } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
-import { posts } from '../db/schema/posts';
 import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
-import { loadRemoteProfileStats } from '../services/federation/remoteProfileStats';
+import { loadPublicProfileFacts } from '../services/publicProfileFacts';
 import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 
 const router = Router();
@@ -81,41 +76,11 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
 
-    // Calculate post-related counts in parallel. All three are scoped to the
-    // user's published public content and leverage existing indexes (oxyUserId,
-    // type, parentPostId, boostOf), so there is no N+1.
-    // - postsCount: top-level posts (not replies) — matches the author feed's
-    //   `posts` filter (`author|<oxyUserId>`).
-    //   `parentPostId: null` matches null OR a missing field in MongoDB.
-    // - boostsCount: documents authored as boosts (type=boost, boostOf set).
-    // - repliesCount: the inverse of postsCount — posts that ARE replies.
-    // ONE grouped pass over the author's public published posts, `filter`-ed per
-    // bucket, rather than three COUNTs over the same index range.
-    const authored = and(
-      eq(posts.oxyUserId, userId),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
-      notCollapsedCrosspostSql(),
-    );
-    const countsQuery = getDb()
-      .select({
-        // The STORED discriminator, not `parent_post_id IS NULL`: an orphaned
-        // reply (parent deleted, `ON DELETE SET NULL` fired) is still a reply and
-        // must not be counted as a top-level post here while the author feed's
-        // `posts` tab — which reads the same column — leaves it out.
-        postsCount: sql<number>`count(*) filter (where ${posts.isReply} = false)::int`,
-        boostsCount: sql<number>`count(*) filter (where ${posts.type} = ${PostType.BOOST})::int`,
-        repliesCount: sql<number>`count(*) filter (where ${posts.isReply})::int`,
-      })
-      .from(posts)
-      .where(authored);
-    // Runs beside the counts rather than after them; a local account has no
-    // actor row and gets no `remote` block.
-    const [[counts], remote] = await Promise.all([countsQuery, loadRemoteProfileStats(userId)]);
+    const { counts, remote } = await loadPublicProfileFacts(userId);
 
-    response.postsCount = counts?.postsCount ?? 0;
-    response.boostsCount = counts?.boostsCount ?? 0;
-    response.repliesCount = counts?.repliesCount ?? 0;
+    response.postsCount = counts.postsCount;
+    response.boostsCount = counts.boostsCount;
+    response.repliesCount = counts.repliesCount;
     if (remote) response.remote = remote;
 
     // Report the same resolved policy used by the access check, including the

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
+import { Link } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -9,7 +10,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, onPress, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, href, asHeading, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -101,14 +102,34 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
         }
     }
 
+    // Flattened: a `Link asChild` merges its own props into this element, and
+    // that merge cannot take a style array.
+    const nameText = (
+        <Text
+            className="text-foreground"
+            style={StyleSheet.flatten(nameStyle)}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            // Set only when it is one: an explicit `undefined` would overwrite
+            // the `link` role the `Link` gives this element.
+            {...(asHeading ? { role: 'heading' as const } : null)}
+        >
+            {primaryText}
+        </Text>
+    );
+
     const inner = (
         <>
             <View className={nameRowClassName} style={styles.nameRow}>
-                {primaryText != null && (
-                    <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
-                        {primaryText}
-                    </Text>
-                )}
+                {primaryText != null && (href ? (
+                    // A real link (an `<a href>` on web, which a crawler can
+                    // follow and a reader can open in a new tab). The click
+                    // stops here: a name inside a pressable row must not also
+                    // press the row.
+                    <Link href={href} push asChild onPress={(event) => event.stopPropagation()}>
+                        {nameText}
+                    </Link>
+                ) : nameText)}
                 {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
                     the default of `VerifiedIcon`'s `color`). It used to take
                     `text-primary`, which a profile scopes to the PROFILE OWNER's
@@ -144,20 +165,6 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
             {handleLineNode}
         </>
     );
-
-    if (onPress) {
-        // The Touchable is the actual flex child in the caller's row, so the
-        // caller's `container` style (e.g. PostHeader's `{ flexShrink: 0,
-        // maxWidth: '70%' }`) lands on the Touchable — that is where the width
-        // constraint must sit so truncation reaches the inner name Text. The
-        // inner column carries ONLY `styles.container`, so a percentage
-        // `maxWidth` is never applied twice (nested) and collapsed.
-        return (
-            <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={style?.container}>
-                <View className={isCentered ? 'items-center' : undefined} style={styles.container}>{inner}</View>
-            </TouchableOpacity>
-        );
-    }
 
     return <View className={isCentered ? 'items-center' : undefined} style={[styles.container, style?.container]}>{inner}</View>;
 };

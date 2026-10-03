@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import type {
     HydratedPost,
     PostUser,
@@ -366,6 +366,27 @@ const PostItem: React.FC<PostItemProps> = ({
         (s) => isThreadUnit && s.hoveredSliceKey === sliceKey,
     );
 
+    // Where opening this row goes: thread posts open the whole thread at its
+    // root; standalone posts open their own detail. The tap and the time label's
+    // link both read it, so the link a crawler follows is the page a tap opens.
+    // `null` when the row opens nothing (the detail view's own main post).
+    const openPostHref = useMemo<Href | null>(() => {
+        if (!isTappable || !viewPostId) return null;
+        return `/p/${isThreadUnit && threadRootId ? threadRootId : viewPostId}`;
+    }, [isTappable, viewPostId, isThreadUnit, threadRootId]);
+
+    // What opening the post means besides navigating — shared by the row's tap
+    // and the time label's link, which navigates by itself.
+    const recordOpen = useCallback(() => {
+        // Best-effort feed-ranking signal: opening a post from a feed is a
+        // strong positive interaction. No-op when not rendered in a feed
+        // (feedDescriptor undefined) or for federated previews without an id.
+        if (feedDescriptor && viewPostId) {
+            reportFeedInteraction(feedDescriptor, viewPostId, 'click');
+        }
+        onOpen?.();
+    }, [feedDescriptor, viewPostId, onOpen]);
+
     const goToPost = useCallback((event?: GestureResponderEvent) => {
         // A nested item is its OWN tap target: opening it must NOT also trigger the
         // outer post's press. On React Native Web the press bubbles through the DOM,
@@ -374,20 +395,11 @@ const PostItem: React.FC<PostItemProps> = ({
         if (isNested) {
             event?.stopPropagation?.();
         }
-        if (isTappable && viewPostId) {
-            // Best-effort feed-ranking signal: opening a post from a feed is a
-            // strong positive interaction. No-op when not rendered in a feed
-            // (feedDescriptor undefined) or for federated previews without an id.
-            if (feedDescriptor) {
-                reportFeedInteraction(feedDescriptor, viewPostId, 'click');
-            }
-            onOpen?.();
-            // Thread posts open the whole thread at its root; standalone posts
-            // open their own detail.
-            const targetPostId = isThreadUnit && threadRootId ? threadRootId : viewPostId;
-            router.push(`/p/${targetPostId}`);
+        if (openPostHref) {
+            recordOpen();
+            router.push(openPostHref);
         }
-    }, [router, viewPostId, isTappable, feedDescriptor, isNested, isThreadUnit, threadRootId, onOpen]);
+    }, [router, openPostHref, isNested, recordOpen]);
 
     // Canonical profile handle for the author. Built from the full actor so a
     // federated actor resolves to `username@domain` (via isFederated + instance)
@@ -399,37 +411,23 @@ const PostItem: React.FC<PostItemProps> = ({
         [author],
     );
 
-    // The avatar and the identity line both open the author's own profile.
+    // The avatar and the identity line both open the author's own profile; the
+    // identity line is a `Link` there, the avatar a tap.
+    const authorHref = useMemo(() => profileHrefForUser(author), [author]);
     const goToAuthorProfile = useCallback(() => {
-        const href = profileHrefForUser(author);
-        if (href) {
-            router.push(href);
+        if (authorHref) {
+            router.push(authorHref);
         }
-    }, [router, author]);
+    }, [router, authorHref]);
 
-    // Per-author profile link for the collaborative byline (owner + each
-    // collaborator). The header hands over the destination it already resolved
-    // for that author, so both bylines route by the same rule.
-    const goToAuthor = useCallback((href: Href) => {
-        router.push(href);
-    }, [router]);
-
-    // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
-    // also trigger the outer container press (which opens the ORIGINAL post detail).
+    // "Reposted by X" row → the BOOSTER's profile.
     // Canonical handle of the BOOSTER, on the same terms as `authorHandle`: it
     // drives the "Reposted by" row's link and its hover preview from one value.
     const reposterHandle = useMemo(
         () => getNormalizedUserHandle(reposter) ?? undefined,
         [reposter],
     );
-
-    const goToReposter = useCallback((event?: GestureResponderEvent) => {
-        event?.stopPropagation?.();
-        const href = profileHrefForUser(reposter);
-        if (href) {
-            router.push(href);
-        }
-    }, [router, reposter]);
+    const reposterHref = useMemo(() => profileHrefForUser(reposter), [reposter]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on
@@ -736,22 +734,26 @@ const PostItem: React.FC<PostItemProps> = ({
     // gutter; repost is the outermost reason, then pinned, then reply.
     const contextRows: React.ReactNode[] = [];
     if (reposter) {
+        const repostedBy = (
+            <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
+            </Text>
+        );
         contextRows.push(
             <ProfileHoverCard key="reposted" username={reposterHandle}>
-                <TouchableOpacity
-                    className="flex-row items-center"
-                    style={{ height: POST_CONTEXT_ROW_HEIGHT }}
-                    activeOpacity={0.7}
-                    onPress={goToReposter}
-                    accessibilityRole="link"
-                >
+                <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
                     <View className="-ml-4 mr-[3px]">
                         <BoostIcon size={13} color={theme.colors.textSecondary} />
                     </View>
-                    <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
-                    </Text>
-                </TouchableOpacity>
+                    {reposterHref ? (
+                        // A link to the BOOSTER's profile. The click stops here:
+                        // the row beneath it opens the ORIGINAL post, and must
+                        // not navigate a second time.
+                        <Link href={reposterHref} push asChild onPress={(event) => event.stopPropagation()}>
+                            {repostedBy}
+                        </Link>
+                    ) : repostedBy}
+                </View>
             </ProfileHoverCard>,
         );
     }
@@ -930,10 +932,12 @@ const PostItem: React.FC<PostItemProps> = ({
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
                         authorUserId={author.id || undefined}
-                        onPressUser={goToAuthorProfile}
+                        userHref={authorHref}
+                        postHref={openPostHref}
+                        onPressTime={recordOpen}
                         onPressAvatar={goToAuthorProfile}
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
-                        onPressAuthor={goToAuthor}
+                        linkAuthors
                         onPressMenu={openMenu}
                         paddingHorizontal={HPAD}
                     >

@@ -31,6 +31,7 @@ import { AccountCategoryLine } from '../AccountCategoryLine';
 import { PrivateBadge } from '../PrivateBadge';
 import { ProfileContent } from '../ProfileContent';
 import { ProfileHeader } from '../ProfileHeader';
+import { profileBasePath } from '../profileRoute';
 import {
   buildProfileTabDescriptors,
   profileTabIndex,
@@ -436,6 +437,7 @@ export function usePersonProfileView({
             // a link to somewhere else.
             onExplainNetwork={showFediverseInfo}
             copyableHandle
+            asHeading
             variant="default"
             style={userNameStyle}
             trailingBadge={fediverseBadge}
@@ -576,6 +578,11 @@ export function usePersonProfileView({
   );
 
   const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility);
+  // The address this profile is canonically known by — the same `/@user@instance`
+  // spelling the server's canonical uses, whatever case or alias the reader typed.
+  const profileUrl = profileData?.username
+    ? `${WEB_BASE_URL.replace(/\/$/, '')}${profileBasePath('person', profileData.username)}`
+    : undefined;
   const seo = profileData ? (
     <SEO
       title={seoPolicy.server?.title || t('seo.profile.title', {
@@ -598,7 +605,7 @@ export function usePersonProfileView({
       )}
       image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? avatarUri || bannerUri : undefined)}
       type="profile"
-      url={seoPolicy.server?.url}
+      url={seoPolicy.server?.url || profileUrl}
       ready={!loading && canonicalHref === null}
       robots={seoPolicy.robots === 'index,follow' && activeKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
       jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
@@ -609,7 +616,7 @@ export function usePersonProfileView({
           name: profileData.design.displayName,
           alternateName: `@${handle}`,
           description: profileData.bio || undefined,
-          url: `${WEB_BASE_URL}/@${encodeURIComponent(handle)}`,
+          url: profileUrl,
           image: avatarUri || undefined,
         },
       } : undefined)}
