@@ -1,9 +1,11 @@
 #!/usr/bin/env bun
 
 import { readdir, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
+import { isReviewedImagePublisher } from "./reviewed-image-publisher.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDirectory = resolve(repositoryRoot, ".github/workflows");
@@ -84,7 +86,13 @@ for (const workflowName of workflowNames) {
         }
       }
     }
-    if (source.includes("configure-aws-credentials")) {
+    const imagePublication = isReviewedImagePublisher(
+      workflowName, workflow, (file) => readFileSync(resolve(repositoryRoot, file)),
+    );
+    if (workflowName === "publish-reviewed-images.yml" && !imagePublication) {
+      failures.push(`${workflowName}: ECR-only publisher differs from its reviewed source/recipe/main/ARM contract`);
+    }
+    if (source.includes("configure-aws-credentials") && !imagePublication) {
       for (const [jobName, job] of Object.entries(workflow?.jobs || {})) {
         if (job?.environment != null) {
           failures.push(
@@ -607,3 +615,6 @@ if (failures.length > 0) {
 }
 
 console.log(`Validated ${workflowNames.length} GitHub Actions workflow file(s).`);
+
+// Keep the closed publisher classification mutation controls in the CI gate.
+await import("./test-reviewed-image-publisher.mjs");
