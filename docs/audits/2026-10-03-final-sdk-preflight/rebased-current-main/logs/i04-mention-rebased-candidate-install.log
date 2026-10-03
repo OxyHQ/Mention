@@ -1,0 +1,12 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [126]
+Saved lockfile
+
++ @oxy.so/doctor@1.1.0
++ @types/node@26.6.2 (v26.6.4 available)
++ semver@7.8.5
++ typescript@6.0.3 (v7.0.2 available)
++ yaml@2.9.1
+
+1626 packages installed [3.11s]

@@ -1,0 +1,5 @@
+$ bun run build:shared-types && bun run --cwd packages/backend build && bun run --cwd packages/mcp build
+$ bun run --cwd packages/shared-types build
+$ tsc
+$ tsc
+$ tsc
