@@ -13,18 +13,15 @@ describe("MCP configuration", () => {
     });
 
     const config = loadMcpHttpConfig({
-      MENTION_MCP_JWT_SECRET: "test-secret",
       MENTION_MCP_PUBLIC_URL: "https://mcp.mention.test/",
       OXY_API_URL: "https://api.oxy.test/",
       OXY_SERVICE_API_KEY: "service-key",
       OXY_SERVICE_API_SECRET: "service-secret",
-      MENTION_LEGACY_OAUTH_ISSUER: "https://api.mention.test/",
     });
 
     expect(config.port).toBe(3_100);
     expect(config.publicUrl).toBe("https://mcp.mention.test");
     expect(config.oxyApiUrl).toBe("https://api.oxy.test");
-    expect(config.legacyOauthIssuer).toBe("https://api.mention.test");
     expect(config.allowedOrigins.has("https://claude.ai")).toBe(true);
   });
 
@@ -32,8 +29,7 @@ describe("MCP configuration", () => {
     expect(() =>
       loadMcpHttpConfig({
         MCP_MAX_SESSIONS: "unbounded",
-        MENTION_MCP_JWT_SECRET: "test-secret",
-        OXY_SERVICE_API_KEY: "service-key",
+          OXY_SERVICE_API_KEY: "service-key",
         OXY_SERVICE_API_SECRET: "service-secret",
       }),
     ).toThrow("MCP_MAX_SESSIONS");
@@ -43,14 +39,13 @@ describe("MCP configuration", () => {
     expect(() =>
       loadMcpHttpConfig({
         MCP_ALLOWED_ORIGINS: "https://example.com/path",
-        MENTION_MCP_JWT_SECRET: "test-secret",
-        OXY_SERVICE_API_KEY: "service-key",
+          OXY_SERVICE_API_KEY: "service-key",
         OXY_SERVICE_API_SECRET: "service-secret",
       }),
     ).toThrow("expected an HTTP(S) origin without a path");
   });
 
-  test("requires the transitional legacy secret, and no longer a service credential", () => {
+  test("boots without a secret, and reads a service credential where one is given", () => {
     /**
      * The pair used to be required. A deployed task proves what it is by
      * attesting its ECS task role and gets the same service token with no
@@ -58,15 +53,13 @@ describe("MCP configuration", () => {
      * authenticates perfectly well refuse to boot — which is the whole point of
      * removing the two variables from the task definition.
      */
-    expect(() => loadMcpHttpConfig({})).toThrow("MENTION_MCP_JWT_SECRET");
-    const withoutCredential = loadMcpHttpConfig({ MENTION_MCP_JWT_SECRET: "test-secret" });
+    const withoutCredential = loadMcpHttpConfig({});
     expect(withoutCredential.oxyServiceApiKey).toBeUndefined();
     expect(withoutCredential.oxyServiceApiSecret).toBeUndefined();
 
     // And where a pair IS given — a laptop, which can attest nothing — it is
     // still read and still used.
     const withCredential = loadMcpHttpConfig({
-      MENTION_MCP_JWT_SECRET: "test-secret",
       OXY_SERVICE_API_KEY: "service-key",
       OXY_SERVICE_API_SECRET: "service-secret",
     });
@@ -75,7 +68,7 @@ describe("MCP configuration", () => {
 });
 
 describe('managed MCP configuration', () => {
-  test('derives API, resource and catalog audience from one deployment without a legacy secret', async () => {
+  test('derives API, resource and catalog audience from one deployment', async () => {
     const { default: example } = await import('../../shared-types/__tests__/fixtures/managed-deployment.json');
     const environment = {
       MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
@@ -85,7 +78,6 @@ describe('managed MCP configuration', () => {
     expect(loadApiClientConfig(environment).baseUrl).toBe(example.apiBaseUrl);
     expect(http.publicUrl).toBe(example.mcpBaseUrl);
     expect(http.deploymentIdentity?.audience).toBe(`mention-${example.tenantId}-api`);
-    expect(http.deploymentIdentity?.allowLegacyTokens).toBe(false);
     expect(() => loadMcpHttpConfig({ ...environment, MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.earth' }))
       .toThrow('MENTION_MCP_PUBLIC_URL conflicts');
   });

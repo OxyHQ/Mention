@@ -114,19 +114,6 @@ const commaSeparatedDomains = (fallback: readonly string[] = []) =>
     z.array(domain),
   );
 
-const separatedUrls = (fallback: readonly string[]) =>
-  z.preprocess(
-    (value) => {
-      if (value === undefined || value === null || value === '') return [...fallback];
-      if (Array.isArray(value)) return value;
-      return String(value)
-        .split(/[\s,]+/)
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-    },
-    z.array(httpUrl).min(1),
-  );
-
 const exactIpList = z.preprocess(
   (value) => {
     if (value === undefined || value === null || value === '') return [];
@@ -218,16 +205,6 @@ export const discoveryGateModuleIds = [
   'authorHasAvatar',
 ] as const;
 
-
-const claudeRedirects = [
-  'https://claude.ai/api/mcp/auth_callback',
-  'https://claude.com/api/mcp/auth_callback',
-] as const;
-
-const chatGptRedirects = [
-  'https://chatgpt.com/connector_platform_oauth_redirect',
-  'https://chat.openai.com/connector_platform_oauth_redirect',
-] as const;
 
 /**
  * The only schema allowed to read backend runtime environment variables.
@@ -389,12 +366,12 @@ const environmentSchema = z
       emptyAsUndefined,
       httpOrigin.default('https://mcp.mention.earth'),
     ),
-    MCP_LINK_TOKEN_TTL_SECONDS: integerFromEnv(900, { minimum: 30, maximum: 86_400 }),
-    MCP_MAX_BUNDLE_MEMBERS: integerFromEnv(8, { minimum: 1, maximum: 100 }),
-    MCP_ACCESS_TOKEN_TTL_SECONDS: integerFromEnv(3_600, { minimum: 60, maximum: 86_400 }),
-    MCP_AUTH_CODE_TTL_SECONDS: integerFromEnv(300, { minimum: 30, maximum: 3_600 }),
-    MCP_OAUTH_REDIRECT_URIS_CLAUDE: separatedUrls(claudeRedirects),
-    MCP_OAUTH_REDIRECT_URIS_CHATGPT: separatedUrls(chatGptRedirects),
+    /**
+     * The former MCP token-signing secret. Nothing signs with it since the
+     * Mention-issued MCP tokens were retired (2026-10-02); it stays only as the
+     * last fallback salt in `getIpHashSalt`, which deployments without an
+     * `IP_HASH_SALT` still rely on to boot.
+     */
     MENTION_MCP_JWT_SECRET: optionalString(32),
 
     /**
@@ -707,13 +684,6 @@ export function isDiscoveryLanguageFilterEnabled(): boolean | undefined {
   return parseDynamicFeedFlags().FOR_YOU_DISCOVERY_LANGUAGE;
 }
 
-/** Resolve the MCP JWT key at call time so rotation/tests do not use a stale key. */
-export function getMcpJwtSecret(): string {
-  const value = optionalString(32).parse(process.env.MENTION_MCP_JWT_SECRET);
-  if (!value) throw new Error('MENTION_MCP_JWT_SECRET is not configured');
-  return value;
-}
-
 export interface OxyServiceCredentials {
   apiKey?: string;
   apiSecret?: string;
@@ -753,8 +723,8 @@ export function getIpHashSalt(
     })
     .parse(source);
   // Prefer a dedicated salt. Existing deployments can safely fall back to the
-  // already-required MCP signing secret: hashedIpKey domain-separates its input
-  // with `rl|`, so no raw IP or cross-purpose token material is exposed.
+  // former MCP signing secret, which nothing signs with any more: hashedIpKey
+  // domain-separates its input with `rl|`, so no raw IP is exposed.
   return (
     parsed.IP_HASH_SALT ??
     parsed.DEVICE_ID_SALT ??
@@ -887,16 +857,6 @@ export const config = {
   },
   mcp: {
     resourceUrl: environment.MENTION_MCP_PUBLIC_URL,
-    issuer: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:4110',
-    frontendOrigin: environment.MENTION_FRONTEND_ORIGIN,
-    linkTokenTtlSeconds: environment.MCP_LINK_TOKEN_TTL_SECONDS,
-    maxBundleMembers: environment.MCP_MAX_BUNDLE_MEMBERS,
-    accessTokenTtlSeconds: environment.MCP_ACCESS_TOKEN_TTL_SECONDS,
-    authCodeTtlSeconds: environment.MCP_AUTH_CODE_TTL_SECONDS,
-    oauthRedirectUris: {
-      claude: environment.MCP_OAUTH_REDIRECT_URIS_CLAUDE,
-      chatGpt: environment.MCP_OAUTH_REDIRECT_URIS_CHATGPT,
-    },
   },
   web: {
     origin: environment.MENTION_WEB_ORIGIN,
@@ -1070,9 +1030,6 @@ export function validateEnvironment(): void {
   }
   if (config.runtime.isProduction && !getIpHashSalt()) {
     missing.push('IP_HASH_SALT');
-  }
-  if (config.runtime.isProduction && !environment.MENTION_MCP_JWT_SECRET) {
-    missing.push('MENTION_MCP_JWT_SECRET');
   }
   // Without it the shell Worker answers 403 to this backend and EVERY apex web
   // request falls back to the bootable-but-empty shell in `apexFrontendProxy`.

@@ -601,8 +601,8 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'unset-field',
     phase: 'account',
     why:
-      "Someone else's bundled connector whose ACTIVE account is this one. Their connection stays; " +
-      '`mcpBundleService` falls back to the owner when the pointer is NULL.',
+      "Someone else's bundled connector whose ACTIVE account is this one. Their connection stays, " +
+      'with no pointer to this account. (A retired legacy row: kept and erased until the table is dropped.)',
   },
   {
     table: 'mcp_auth_codes',

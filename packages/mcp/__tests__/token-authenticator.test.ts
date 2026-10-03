@@ -7,8 +7,6 @@ import {
 } from "../lib/token-authenticator.js";
 
 const config = {
-  jwtSecret: "legacy-secret-with-sufficient-entropy",
-  legacyOauthIssuer: "https://api.mention.test",
   oxyApiUrl: "https://api.oxy.test",
   publicUrl: "https://mcp.mention.earth",
 };
@@ -71,31 +69,19 @@ describe("Mention MCP token authority", () => {
     )).resolves.toBeNull();
   });
 
-  test("keeps existing HS256 tokens only inside the fixed migration window", async () => {
+  test("refuses a retired Mention-issued HS256 token without asking Oxy", async () => {
     const token = jwt.sign(
-      { client_id: "legacy-client", scope: "mcp:read" },
-      config.jwtSecret,
-      {
-        algorithm: "HS256",
-        subject: "legacy-user",
-        jwtid: "legacy-jti",
-        issuer: config.legacyOauthIssuer,
-        audience: config.publicUrl,
-        expiresIn: "5m",
-      },
+      { client_id: "legacy-client", scope: "mcp:read mcp:write" },
+      "any-secret-with-sufficient-entropy",
+      { algorithm: "HS256", subject: "legacy-user", jwtid: "legacy-jti", audience: config.publicUrl, expiresIn: "5m" },
     );
     const neverIntrospect: CentralTokenIntrospector = async () => {
       throw new Error("central introspection must not run for a legacy JWT");
     };
-    const principal = await authenticateMcpAccessToken(token, {
+    await expect(authenticateMcpAccessToken(token, {
       config,
       introspectCentral: neverIntrospect,
-      nowMs: Date.parse("2026-09-02T00:00:00.000Z"),
-    });
-    expect(principal).toMatchObject({
-      authMode: "legacy",
-      accountId: "legacy-user",
-    });
+    })).resolves.toBeNull();
   });
 });
 
@@ -122,14 +108,6 @@ describe('managed MCP cross-tenant replay protection', () => {
     }
     await expect(authenticateMcpAccessToken(token, {
       config: tenantConfig, introspectCentral: async () => null,
-    })).resolves.toBeNull();
-    const legacy = jwt.sign({ client_id: 'legacy-client', scope: 'mcp:read' }, config.jwtSecret, {
-      algorithm: 'HS256', subject: 'owner-1', jwtid: 'legacy-id',
-      issuer: config.legacyOauthIssuer, audience: identity.resource, expiresIn: '5m',
-    });
-    await expect(authenticateMcpAccessToken(legacy, {
-      config: tenantConfig, introspectCentral: async () => tenantClaims,
-      nowMs: Date.parse('2026-09-02T00:00:00.000Z'),
     })).resolves.toBeNull();
   });
 });

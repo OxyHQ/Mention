@@ -1,40 +1,24 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   MENTION_INFERENCE_ROUTING_PROFILE_ID,
   getIpHashSalt,
-  getMcpJwtSecret,
   getMentionSigningConfig,
   isRedisRuntimeConfigured,
   parseRuntimeEnvironment,
 } from '../config';
 
-const originalMcpSecret = process.env.MENTION_MCP_JWT_SECRET;
-
-afterEach(() => {
-  if (originalMcpSecret === undefined) {
-    delete process.env.MENTION_MCP_JWT_SECRET;
-  } else {
-    process.env.MENTION_MCP_JWT_SECRET = originalMcpSecret;
-  }
-});
 
 describe('runtime configuration', () => {
   it('normalizes origins and validates structured lists', () => {
     const parsed = parseRuntimeEnvironment({
       MENTION_PUBLIC_API_URL: 'https://api.example.test///',
       FEDERATION_BLOCKED_DOMAINS: 'spam.example, abuse.example',
-      MCP_OAUTH_REDIRECT_URIS_CLAUDE:
-        'https://client.example/callback,https://client2.example/callback',
     });
 
     expect(parsed.MENTION_PUBLIC_API_URL).toBe('https://api.example.test');
     expect(parsed.FEDERATION_BLOCKED_DOMAINS).toEqual([
       'spam.example',
       'abuse.example',
-    ]);
-    expect(parsed.MCP_OAUTH_REDIRECT_URIS_CLAUDE).toEqual([
-      'https://client.example/callback',
-      'https://client2.example/callback',
     ]);
   });
 
@@ -112,18 +96,7 @@ describe('runtime configuration', () => {
     expect(isRedisRuntimeConfigured({ REDIS_HOST: 'cache.internal' })).toBe(true);
   });
 
-  it('resolves the MCP secret at call time and rejects weak/unset values', () => {
-    delete process.env.MENTION_MCP_JWT_SECRET;
-    expect(() => getMcpJwtSecret()).toThrow('not configured');
-
-    process.env.MENTION_MCP_JWT_SECRET = 'short';
-    expect(() => getMcpJwtSecret()).toThrow();
-
-    process.env.MENTION_MCP_JWT_SECRET = 'x'.repeat(32);
-    expect(getMcpJwtSecret()).toBe('x'.repeat(32));
-  });
-
-  it('prefers a dedicated IP salt and safely falls back to the required MCP key', () => {
+  it('prefers a dedicated IP salt and safely falls back to the former MCP key', () => {
     expect(
       getIpHashSalt({
         IP_HASH_SALT: 'dedicated-ip-salt',

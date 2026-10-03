@@ -1164,8 +1164,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why:
       'A BUNDLE\'s active account, stored on somebody else\'s primary connection row. Deleting their ' +
       'connection because its active pointer names the channel would revoke a person\'s connector over an ' +
-      'account they merely switched to, so the pointer is cleared instead — `mcpBundleService` already ' +
-      'falls back to the connection\'s own owner when it is null. The one place this cascade NULLs a ' +
+      'account they merely switched to, so the pointer is cleared instead (a retired legacy row, kept ' +
+      'until the table is dropped). The one place this cascade NULLs a ' +
       'column itself rather than letting a constraint do it, because there is no constraint: an Oxy ' +
       'account id cannot carry one.',
   },

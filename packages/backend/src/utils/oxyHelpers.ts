@@ -17,7 +17,7 @@ const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer
 interface ScopedOxyRequest {
   accessToken?: string;
   headers?: { authorization?: string | readonly string[] };
-  mcp?: { activeUserId?: string; authMode?: 'central' | 'legacy' };
+  mcp?: { activeUserId?: string };
   capability?: { claims?: { resource?: { effectiveAccountId?: string } } };
 }
 
@@ -26,10 +26,11 @@ interface ScopedOxyRequest {
  *
  * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
  * MUST NOT plant the resource-bound MCP bearer into OxyServices; instead they
- * use Mention's service credential delegated to the already-verified active
- * bundle account via `X-Oxy-User-Id`. A central MCP request also hands its
- * token to the delegated client, which presents it to Oxy — as proof, never as
- * a session — for the served account's privacy lists.
+ * use Mention's service credential delegated to the already-verified served
+ * account via `X-Oxy-User-Id`. An MCP request also hands its token to the
+ * delegated client, which presents it to Oxy — as proof, never as a session —
+ * for the served account's privacy lists. A capability request has no such
+ * proof, so its privacy reads fail closed.
  */
 export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
   const delegatedUserId = (
@@ -40,9 +41,7 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
     if (!delegatedUserId) {
       throw new Error('Verified delegated request is missing its effective Oxy account');
     }
-    const connectionToken = req.mcp?.authMode === 'central'
-      ? extractBearerToken(req.headers ?? {})
-      : undefined;
+    const connectionToken = req.mcp ? extractBearerToken(req.headers ?? {}) : undefined;
     return createServiceDelegatedOxyClient(delegatedUserId, connectionToken ?? undefined);
   }
 

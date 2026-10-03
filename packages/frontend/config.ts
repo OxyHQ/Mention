@@ -86,3 +86,10 @@ export const INSTANCE_ABOUT = process.env.EXPO_PUBLIC_INSTANCE_ABOUT || '';
 export const INSTANCE_ACCENT_COLOR = process.env.EXPO_PUBLIC_INSTANCE_ACCENT_COLOR || '';
 export const INSTANCE_SOURCE_URL = process.env.EXPO_PUBLIC_INSTANCE_SOURCE_URL || '';
 export const INSTANCE_REVISION = process.env.EXPO_PUBLIC_INSTANCE_REVISION || '';
+
+/**
+ * This deployment's MCP server — the resource an AI connector is authorized
+ * for. Oxy lists every connector an account authorized; the ones for this
+ * resource are the ones Mention's settings show.
+ */
+export const MCP_RESOURCE_URL = (process.env.EXPO_PUBLIC_MCP_URL || 'https://mcp.mention.earth').replace(/\/+$/, '');

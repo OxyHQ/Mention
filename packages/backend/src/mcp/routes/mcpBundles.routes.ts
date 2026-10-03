@@ -1,11 +1,6 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { extractBearerToken } from '@oxy.so/mcp';
-import { findLiveBundleMember } from '../../db/mcp/mcpConnectionRepository';
-import {
-  listBundleMembers,
-  setActiveAccount,
-} from '../services/mcpBundleService';
 import {
   requestAccountLink,
   selectConnectionAccount,
@@ -30,18 +25,14 @@ async function hydrateUserSummary(oxyUserId: string): Promise<McpUserSummary> {
   }
 }
 
-type LegacyBundleContext = McpRequestContext & {
-  authMode: 'legacy';
-  bundleId: string;
-};
-
-function requireMcpBundle(req: AuthRequest, res: Response): LegacyBundleContext | null {
+/** The request's MCP connection, or a 403 for a caller that is not one. */
+function requireMcpConnection(req: AuthRequest, res: Response): McpRequestContext | null {
   const mcp = (req as OxyAuthRequestWithMcp).mcp;
-  if (mcp?.authMode !== 'legacy' || !mcp.bundleId) {
-    res.status(403).json({ message: 'MCP bundle context required' });
+  if (!mcp) {
+    res.status(403).json({ message: 'MCP connection required' });
     return null;
   }
-  return mcp as LegacyBundleContext;
+  return mcp;
 }
 
 /**
@@ -85,48 +76,27 @@ function oxyFailure(error: unknown): { status: number; message: string; code?: s
   };
 }
 
-/** GET /mcp/bundles/accounts — list linked accounts for the caller's MCP bundle. */
+/** GET /mcp/bundles/accounts — the accounts the caller's MCP connection may act as. */
 router.get('/accounts', async (req: AuthRequest, res: Response) => {
   try {
-    const context = (req as OxyAuthRequestWithMcp).mcp;
-    if (context?.authMode === 'central') {
-      // Oxy owns the account set; Mention only adds the Mention-side identity.
-      const members = context.connection?.accounts
-        ?? [{ accountId: context.activeUserId, isOrigin: true, linkedAt: '' }];
-      const summaries = await Promise.all(
-        members.map((member) => hydrateUserSummary(member.accountId)),
-      );
-      return res.json({
-        accounts: members.map((member, index) => ({
-          oxyUserId: member.accountId,
-          handle: summaries[index]?.handle ?? '',
-          displayName: summaries[index]?.displayName ?? 'Unknown user',
-          isPrimary: member.isOrigin,
-          isActive: member.accountId === context.activeUserId,
-        })),
-        activeUserId: context.activeUserId,
-        connectionId: context.connection?.connectionId ?? null,
-        bundleId: null,
-      });
-    }
-    const mcp = requireMcpBundle(req, res);
-    if (!mcp) return;
-
-    const members = await listBundleMembers(mcp.bundleId);
-    const summaries = await Promise.all(members.map((m) => hydrateUserSummary(m.oxyUserId)));
-
-    const accounts = members.map((member, index) => ({
-      oxyUserId: member.oxyUserId,
-      handle: summaries[index]?.handle ?? '',
-      displayName: summaries[index]?.displayName ?? 'Unknown user',
-      isPrimary: member.isBundlePrimary === true,
-      isActive: member.oxyUserId === mcp.activeUserId,
-    }));
-
+    const context = requireMcpConnection(req, res);
+    if (!context) return;
+    // Oxy owns the account set; Mention only adds the Mention-side identity.
+    const members = context.connection?.accounts
+      ?? [{ accountId: context.activeUserId, isOrigin: true, linkedAt: '' }];
+    const summaries = await Promise.all(
+      members.map((member) => hydrateUserSummary(member.accountId)),
+    );
     return res.json({
-      accounts,
-      activeUserId: mcp.activeUserId,
-      bundleId: mcp.bundleId,
+      accounts: members.map((member, index) => ({
+        oxyUserId: member.accountId,
+        handle: summaries[index]?.handle ?? '',
+        displayName: summaries[index]?.displayName ?? 'Unknown user',
+        isPrimary: member.isOrigin,
+        isActive: member.accountId === context.activeUserId,
+      })),
+      activeUserId: context.activeUserId,
+      connectionId: context.connection?.connectionId ?? null,
     });
   } catch (error) {
     logger.error('[McpBundles] list accounts failed', {
@@ -147,13 +117,10 @@ router.get('/me', async (req: AuthRequest, res: Response) => {
     const summary = await hydrateUserSummary(userId);
     // "Primary" is the account the connector was authorized for. On a
     // connection that has since been widened, a linked account is NOT it.
-    const isPrimary = mcp?.authMode === 'central'
-      ? (mcp.connection ? mcp.connection.originAccountId === userId : true)
-      : mcp?.primaryUserId === userId;
+    const isPrimary = mcp?.connection ? mcp.connection.originAccountId === userId : true;
     return res.json({
       ...summary,
       isPrimary,
-      bundleId: mcp?.bundleId ?? null,
     });
   } catch (error) {
     logger.error('[McpBundles] me failed', {
@@ -171,12 +138,7 @@ router.get('/me', async (req: AuthRequest, res: Response) => {
  * accounts a connector may act as belongs in a Mention table.
  */
 router.post('/link-token', async (req: AuthRequest, res: Response) => {
-  if ((req as OxyAuthRequestWithMcp).mcp?.authMode !== 'central') {
-    return res.status(410).json({
-      code: 'legacy_account_linking_retired',
-      message: 'Legacy bundle linking is retired. Reconnect each account through Oxy.',
-    });
-  }
+  if (!requireMcpConnection(req, res)) return;
   const token = centralAccessToken(req, res);
   if (!token) return;
   try {
@@ -195,12 +157,6 @@ router.post('/link-token', async (req: AuthRequest, res: Response) => {
     return res.status(failure.status).json({ message: failure.message });
   }
 });
-
-router.post('/link/complete', (_req: AuthRequest, res: Response) =>
-  res.status(410).json({
-    code: 'legacy_account_linking_retired',
-    message: 'Legacy bundle linking is retired. Reconnect each account through Oxy.',
-  }));
 
 /**
  * Resolve the account a switch request names, by handle or by Oxy id.
@@ -232,55 +188,30 @@ async function resolveSwitchTarget(req: AuthRequest, res: Response): Promise<str
 /** POST /mcp/bundles/active — act as another account on this connection. */
 router.post('/active', async (req: AuthRequest, res: Response) => {
   try {
-    const context = (req as OxyAuthRequestWithMcp).mcp;
-    if (context?.authMode === 'central') {
-      const token = centralAccessToken(req, res);
-      if (!token) return;
-      const targetUserId = await resolveSwitchTarget(req, res);
-      if (!targetUserId) return;
-      try {
-        // Oxy is the authority on membership: it refuses an account that never
-        // approved this connection, or whose approval no longer holds.
-        const connection = await selectConnectionAccount(token, targetUserId);
-        const summary = await hydrateUserSummary(connection.activeAccountId);
-        return res.json({
-          message: 'Active account updated',
-          activeUserId: connection.activeAccountId,
-          handle: summary.handle,
-          displayName: summary.displayName,
-        });
-      } catch (error) {
-        const failure = oxyFailure(error);
-        logger.warn('[McpBundles] account switch failed', {
-          status: failure.status,
-          code: failure.code,
-        });
-        return res.status(failure.status).json({ message: failure.message });
-      }
-    }
-
-    const mcp = requireMcpBundle(req, res);
-    if (!mcp) return;
-
+    if (!requireMcpConnection(req, res)) return;
+    const token = centralAccessToken(req, res);
+    if (!token) return;
     const targetUserId = await resolveSwitchTarget(req, res);
     if (!targetUserId) return;
-
-    const member = await findLiveBundleMember(mcp.bundleId, targetUserId);
-    if (!member) {
-      return res.status(404).json({ message: 'Account is not linked to this connector' });
+    try {
+      // Oxy is the authority on membership: it refuses an account that never
+      // approved this connection, or whose approval no longer holds.
+      const connection = await selectConnectionAccount(token, targetUserId);
+      const summary = await hydrateUserSummary(connection.activeAccountId);
+      return res.json({
+        message: 'Active account updated',
+        activeUserId: connection.activeAccountId,
+        handle: summary.handle,
+        displayName: summary.displayName,
+      });
+    } catch (error) {
+      const failure = oxyFailure(error);
+      logger.warn('[McpBundles] account switch failed', {
+        status: failure.status,
+        code: failure.code,
+      });
+      return res.status(failure.status).json({ message: failure.message });
     }
-
-    const persisted = await setActiveAccount(mcp.bundleId, targetUserId);
-    if (!persisted) {
-      return res.status(503).json({ message: 'Could not persist active account switch' });
-    }
-    const summary = await hydrateUserSummary(targetUserId);
-    return res.json({
-      message: 'Active account updated',
-      activeUserId: targetUserId,
-      handle: summary.handle,
-      displayName: summary.displayName,
-    });
   } catch (error) {
     logger.error('[McpBundles] switch active failed', {
       error: error instanceof Error ? error.message : String(error),

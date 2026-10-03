@@ -13,7 +13,6 @@
  *   MCP_ALLOWED_ORIGINS          — CORS allowlist (comma-separated)
  *   MCP_MAX_REQUEST_BODY_BYTES   — Max JSON body size (default: 1048576)
  *   MCP_MAX_SESSIONS             — Max open legacy SSE sessions per task (default: 1000)
- *   MENTION_MCP_JWT_SECRET       — Shared HS256 secret (required)
  */
 import { startPlatformActivity } from './lib/platform-activity.js';
 import { randomUUID } from "node:crypto";

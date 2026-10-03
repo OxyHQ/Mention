@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export interface RequestContext {
   /** The resource-bound credential forwarded only to Mention's own backend. */
   userToken?: string;
-  authMode?: "central" | "legacy" | "capability";
+  authMode?: "central" | "capability";
   authorizationScheme?: "Bearer" | "Capability";
   /** OAuth token/client identity used only to bind transport state and effects. */
   tokenId?: string;

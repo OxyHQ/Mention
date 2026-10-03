@@ -4,18 +4,12 @@ import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
 } from "@oxy.so/mcp";
-import {
-  MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
-} from "@mention/shared-types/mcpCapabilities";
 import type { McpHttpConfig } from "./config.js";
-import {
-  type AuthenticatedMcpToken,
-  verifyLegacyMcpAccessToken,
-} from "./http-security.js";
+import { type AuthenticatedMcpToken } from "./http-security.js";
 
 type TokenAuthConfig = Pick<
   McpHttpConfig,
-  "jwtSecret" | "legacyOauthIssuer" | "oxyApiUrl" | "publicUrl" | "deploymentIdentity"
+  "oxyApiUrl" | "publicUrl" | "deploymentIdentity"
 >;
 
 export type CentralTokenIntrospector = (
@@ -37,32 +31,21 @@ export function createCentralTokenIntrospector(
     });
 }
 
+/**
+ * The principal behind an MCP access token: an Oxy-issued (EdDSA) token,
+ * introspected live. Mention-issued HS256 tokens were retired on 2026-10-02 and
+ * are refused like any other unknown token.
+ */
 export async function authenticateMcpAccessToken(
   token: string,
   options: {
     config: TokenAuthConfig;
     introspectCentral: CentralTokenIntrospector;
-    nowMs?: number;
   },
 ): Promise<AuthenticatedMcpToken | null> {
-  const algorithm = jwtAlgorithm(token);
-  if (algorithm === "EdDSA") {
-    const claims = await options.introspectCentral(token);
-    return claims ? centralPrincipal(claims, options.config) : null;
-  }
-  if (algorithm !== "HS256" || options.config.deploymentIdentity?.allowLegacyTokens === false) return null;
-
-  try {
-    return verifyLegacyMcpAccessToken(token, {
-      secret: options.config.jwtSecret,
-      audience: options.config.publicUrl,
-      issuer: options.config.legacyOauthIssuer,
-      cutoffMs: MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
-      nowMs: options.nowMs,
-    });
-  } catch {
-    return null;
-  }
+  if (jwtAlgorithm(token) !== "EdDSA") return null;
+  const claims = await options.introspectCentral(token);
+  return claims ? centralPrincipal(claims, options.config) : null;
 }
 
 function centralPrincipal(
