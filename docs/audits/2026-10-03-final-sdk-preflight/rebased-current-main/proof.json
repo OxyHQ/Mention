@@ -1,0 +1,123 @@
+{
+  "base": "80b03fb2d11d36f89ee608f05d4c5375f1ff0f8b",
+  "sourceCommit": "00bd5e4cefca5a12ee146e9f89ad7ac0d421487d",
+  "sources": [
+    {
+      "path": "packages/backend/src/__tests__/mcp/internalCatalogMcp.db.test.ts",
+      "sha256": "62bb581f8c68b0054cc5c9c2baf2093d45a536340d69a58a90e676189d555fe7"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/oxyRankingClient.test.ts",
+      "sha256": "f592e4da54cfe11e92cc4747398ad44d8cc8fa0661465f01440e043d181f7153"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/oxyRankingForeground.http.test.ts",
+      "sha256": "a15d32a6bf66b241ee41150b4bd9d58cfa2f1c38f2b03b9da1258a2116654b40"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/recommendationService.test.ts",
+      "sha256": "fb1153819a9bc386bbe9a3ccba39b3380c5ed8305f8b854f4ea6f03d91b10989"
+    },
+    {
+      "path": "packages/backend/src/__tests__/utils/oxyHelpers.test.ts",
+      "sha256": "253dc9dd0c4b89ccdf732cf0a4ad830e349435db381dbd463a7ba8c7d393b2c5"
+    },
+    {
+      "path": "packages/backend/src/routes/recommendations.ts",
+      "sha256": "05aafcbf98ddfae0d8dd85c675732b8133d4578adf6da75f864933f058a8569b"
+    },
+    {
+      "path": "packages/backend/src/services/ForegroundOxyProfileClient.ts",
+      "sha256": "31f83233b27338599d9685b236a9fd7125733d1115fecb11935f5d646d25b5bc"
+    },
+    {
+      "path": "packages/backend/src/services/OxyRankingClient.ts",
+      "sha256": "83e8b385a94b2b0c896496ca1a5193d8173a7080aefd3022383e14c73acf27d7"
+    },
+    {
+      "path": "packages/backend/src/services/RecommendationService.ts",
+      "sha256": "13ffa416a4e504ab33a43d07a8c9e3c16133221ce5d40dd61aaf5680592a3b21"
+    },
+    {
+      "path": "packages/backend/src/utils/oxyHelpers.ts",
+      "sha256": "f7808cd82c4d1416d0772a2884a1f32c146043f2fcba95fde7198099f7e3c2b0"
+    },
+    {
+      "path": "packages/mcp/__tests__/server-http.integration.test.ts",
+      "sha256": "8fad5affb69a89c64f0740577c14f2d55d09f0a5ffb113498137cddccb1ffc0f"
+    },
+    {
+      "path": "packages/mcp/lib/config.ts",
+      "sha256": "b2fb6d0027d796cc14d9fe38fb122c9347ec52c66546763fee4bf04c70a8d88e"
+    },
+    {
+      "path": "packages/mcp/lib/internal-capability-mcp.ts",
+      "sha256": "d620a9949c359550e2acea952831e099961d59f509733d02e75496e495f46e30"
+    },
+    {
+      "path": "packages/mcp/server-http.ts",
+      "sha256": "363a050099129a310f4a5d7a2caa8b81cf55a1f15ffa5798b21cd198a97397be"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-candidate-install.log",
+      "sha256": "dfbfcd9994840cdcbe69c9034487e70a0922b0d820271e1013197e67c394566a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-build.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-mcp-tests.log",
+      "sha256": "c3366e69701a484327f4846ed5c4c8e0190ce530b45a81a002baaeb4de140a2e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-backend-focals.log",
+      "sha256": "807801f53bbf411dd9fe95d268b101e173d10cf1045f024250253483991ad2da"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-pg-start.log",
+      "sha256": "66afd0411ccc09366e99fdd99b85f21899c8d2d064f5835126859618802153ad"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-pg-after.log",
+      "sha256": "4267836511e69117de5e003446eccca7470e11f21d34de1cea45f9a4ba88afb7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-preflight/rebased-current-main/logs/i04-mention-rebased-pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    }
+  ],
+  "candidateInputs": [
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/package.json",
+      "sha256": "bb102754ea1a917fcce695b8bacdc597279cb4fb6e7e6559eeab28df795ad79e"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/bun.lock",
+      "sha256": "388b6275e9cfe5e6775cceec70393d8e5287e165fbb76daf1423475fb6785255"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/manifest.json",
+      "sha256": "09ffea3b686a670fae48af907a27be1f8110be30c28fd46e03e280f3028a30d1"
+    }
+  ],
+  "results": {
+    "build": 0,
+    "mcp": {
+      "files": 19,
+      "pass": 119
+    },
+    "backend": {
+      "files": 7,
+      "pass": 50
+    }
+  },
+  "limits": [
+    "SDK candidate 1b505, not registry adoption",
+    "Backend issuer fixtures retain their original explicit synthetic boundary",
+    "No deployment or grant changes",
+    "Historical legacy Mention OAuth claims do not apply to current main"
+  ]
+}
