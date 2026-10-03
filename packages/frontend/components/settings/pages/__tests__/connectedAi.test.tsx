@@ -88,8 +88,12 @@ function texts(renderer: TestRenderer.ReactTestRenderer): string[] {
     .map((node) => [node.props.children].flat().join(''));
 }
 
+let mounted: { renderer: TestRenderer.ReactTestRenderer; queryClient: QueryClient } | undefined;
+
 async function render(): Promise<TestRenderer.ReactTestRenderer> {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // No retries and no garbage-collection timer: nothing may still be running
+  // once a test has finished.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -102,8 +106,19 @@ async function render(): Promise<TestRenderer.ReactTestRenderer> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+  mounted = { renderer, queryClient };
   return renderer;
 }
+
+afterEach(async () => {
+  if (!mounted) return;
+  const { renderer, queryClient } = mounted;
+  mounted = undefined;
+  await act(async () => {
+    renderer.unmount();
+  });
+  queryClient.clear();
+});
 
 describe('Connected AI settings', () => {
   beforeEach(() => {
@@ -130,6 +145,10 @@ describe('Connected AI settings', () => {
 
     await act(async () => {
       await revoke.props.onPress();
+    });
+    // The revoke invalidates the list; let that refetch finish inside the test.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(mockConnected.revokeMcpClient).toHaveBeenCalledWith('grant-claude');
