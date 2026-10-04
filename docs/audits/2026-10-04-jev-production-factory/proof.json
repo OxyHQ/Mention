@@ -1,0 +1,78 @@
+{
+  "sourceHead": "79e551284428440ec97a31ce26f17dc7419586b7",
+  "base": "520383ff3",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "3272d57b030b9897e9002b14d91ad70060a6bbd32d4e9ea3e117723654194f37"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "a9686d785265e64e1c625a000cf6bc1bd9fc39e493093d8e22f335707d8d3c06"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "90da7455a8a6066b217fb6240dded495987dc1fde46aed85e598e78c3827fcdb"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "ffac2a4b5a13afb9f5b7b93c2c293ada641d37cd908b0e600bab83fe12203f1f"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "6566eb21d27171bea33a0ad09f11faa3508bccbe015f2ce76434c3f273312b2d"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "3e2b78a223db81a5d4020c2d0cf5a70868c63258835064d58664079bfad18d65"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/fixture-setup-failure.log",
+      "sha256": "12ad925fd2987dfea37ae1286fbebf70ae026e8757cf374b2ea236df1cc17247"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/fixture-setup-cleanup.json",
+      "sha256": "a34f5b64972e7b3556fab7d2c88159b2fc67bf08df53e151ea503b036af4c389"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/tests.log",
+      "sha256": "713e79b594f15915e2b27004eea9aa1eccc72742232b050ef70f827f39eab09b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/cleanup.json",
+      "sha256": "c0e7c5f1fb3cafc02c19500452e33f3d06f3853622b4cf934742b7ff9beba0e6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/installed-core.json",
+      "sha256": "6d58227e7f40b20bf9cb2faba95ae1ffe775fcfd75b4d722f891c050c530db20"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/run.py",
+      "sha256": "eb90f509d7b76de8091e4f509b85cca85ddd4d8af9ba5c5b2c55ba2d9f3bbd3e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/records/tests.sh",
+      "sha256": "d6763f948f9d776687c39c0f6b504bdd0c28b768cde1cf0374f8bd968a29ef6c"
+    }
+  ],
+  "validation": {
+    "tests": 132,
+    "suites": 4,
+    "backendBuild": 0,
+    "installedCandidateCoreMembers": 581,
+    "ownedPostgresStopped": true
+  },
+  "limits": [
+    "No active production source approval; all six release blockers remain.",
+    "Synthetic workload token and source approval; actual SDK and PostgreSQL, no provider call.",
+    "Core candidate archive contains unpublished original-key method; manifests and lock restored exactly.",
+    "Initial factory SQL fixture used ignored flat federation properties; fixed to real schema fields. It is a fixture setup failure, not product RED.",
+    "No AWS/device operations, deployment, credential registration, funding or scope changes."
+  ]
+}
