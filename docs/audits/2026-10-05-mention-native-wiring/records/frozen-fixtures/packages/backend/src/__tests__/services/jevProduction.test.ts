@@ -12,7 +12,7 @@ vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ service
 function approval(): approvalSource.MentionJevProductionApproval {
   const release = { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1, evaluationVersion: 'fixture-v1', supportedLanguages: ['en'] };
   return { selection: { postId: 'synthetic-post', fingerprint: 'a'.repeat(64), idempotencyKey: input.idempotencyKey,
-    inputSha256: jevInputSha256(buildJevDecisionRequest(release, [], input.text, input.languages)) }, scope: 'native-original-public', ownerAccountId: approvalSource.MENTION_JEV_OWNER_ACCOUNT_ID, reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' }, deploymentId: 'synthetic-deployment', provider: 'fixture-provider', priceVersionId: 'fixture-price', evidenceRef: 'fixture:only',
+    inputSha256: jevInputSha256(buildJevDecisionRequest(release, [], input.text, input.languages)) }, scope: 'native-original-public', ownerAccountId: approvalSource.MENTION_JEV_OWNER_ACCOUNT_ID, reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' }, deploymentId: 'synthetic-deployment', evidenceRef: 'fixture:only',
     validUntil: new Date(Date.now() + 60_000).toISOString(),
     authority: { applicationId: approvalSource.MENTION_JEV_APPLICATION_ID, credentialId: approvalSource.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' },
     release: { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
@@ -37,7 +37,7 @@ describe('Mention production factory', () => {
     identity.mockReturnValue(false);
     expect(createProductionJevEvaluation()).toBeUndefined(); expect(token).not.toHaveBeenCalled();
   });
-  it.each(['app', 'owner', 'credential', 'reviews', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'ambiguous-date', 'selection'])(
+  it.each(['app', 'owner', 'credential', 'reviews', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'expired', 'ambiguous-date', 'selection'])(
     'rejects an invalid %s binding before obtaining a credential', kind => {
       const candidate = approval();
       const altered = { ...candidate, authority: { ...candidate.authority } };
@@ -51,6 +51,7 @@ describe('Mention production factory', () => {
       if (kind === 'scope') Object.assign(altered, { scope: 'federated-public' });
       if (kind === 'deployment') altered.deploymentId = '';
       if (kind === 'evidence') altered.evidenceRef = '';
+      if (kind === 'expired') altered.validUntil = '2000-01-01T00:00:00.000Z';
       if (kind === 'ambiguous-date') altered.validUntil = '2999-01-01';
       vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
       vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockReturnValue(altered);

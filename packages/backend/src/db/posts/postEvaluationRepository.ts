@@ -3,9 +3,9 @@ import { buildJevDecisionRequest, jevInputSha256, JEV_MAX_TEXT_LENGTH } from '..
 import { config } from '../../config';
 import { withShadowReceiptDatabase, type ShadowReceiptDatabase } from './shadowReceiptDatabase';
 import { isDeepStrictEqual } from 'node:util';
-import { shadowReceiptAuthoritySchema, shadowUsageReconciliationSchema, sameReceiptAuthority,
-  type ShadowReceiptAuthority, type ShadowReceiptReader } from '../../services/contentClassification/jevReceipt';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
+import { shadowReceiptAuthoritySchema, shadowRecoveryLineageSchema, shadowUsageReconciliationSchema, sameReceiptAuthority,
+  type ShadowReceiptAuthority, type ShadowReceiptReader, type ShadowRecoveryLineage } from '../../services/contentClassification/jevReceipt';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
@@ -224,16 +224,16 @@ export async function releaseUnsentPostEvaluation(claim: ShadowClaim): Promise<v
 
 
 /** A caller deadline does not wait indefinitely for a credential/transport promise. */
-async function readUsageBounded(reader: ShadowReceiptReader, id: string, model: string, signal?: AbortSignal) {
+async function readUsageBounded(reader: ShadowReceiptReader, id: string, model: string, signal?: AbortSignal, lineage?: ShadowRecoveryLineage) {
   signal?.throwIfAborted();
-  if (!signal) return reader.readOriginal(id, model);
+  if (!signal) return reader.readOriginal(id, model, undefined, lineage);
   let aborted: (() => void) | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
     aborted = () => reject(signal.reason);
     signal.addEventListener('abort', aborted, { once: true });
   });
   try {
-    return await Promise.race([reader.readOriginal(id, model, signal), deadline]);
+    return await Promise.race([reader.readOriginal(id, model, signal, lineage), deadline]);
   } finally {
     if (aborted) signal.removeEventListener('abort', aborted);
   }
@@ -254,8 +254,16 @@ export async function reconcilePostEvaluationUsage(id: string, reader: ShadowRec
   if (!original || !recoverableUsage(original) || !original.receiptAuthority
     || !sameReceiptAuthority(original.receiptAuthority, reader.authority)) return false;
   if (original.usageReconciliation) return true;
-  const originalAuthority = original.receiptAuthority;
-  const evidence = shadowUsageReconciliationSchema.parse(await readUsageBounded(reader, id, original.model, signal));
+  const parsedAuthority = shadowReceiptAuthoritySchema.safeParse(original.receiptAuthority);
+  if (!parsedAuthority.success) return false;
+  const originalAuthority = parsedAuthority.data;
+  const lineage = originalAuthority.recovery;
+  if (reader.recoveryOwnerAccountId && lineage?.ownerAccountId !== reader.recoveryOwnerAccountId) return false;
+  if (lineage && (!shadowRecoveryLineageSchema.safeParse(lineage).success
+    || lineage.idempotencyKey !== original.id || lineage.fingerprint !== original.fingerprint
+    || lineage.model !== original.model || lineage.policyRef !== original.policyRef
+    || lineage.policyVersion !== original.policyVersion || lineage.evaluationVersion !== original.evaluationVersion)) return false;
+  const evidence = shadowUsageReconciliationSchema.parse(await readUsageBounded(reader, id, original.model, signal, lineage));
   if (!sameReceiptAuthority(original.receiptAuthority, evidence.authority) || evidence.model !== original.model) {
     throw new Error('Recovered usage differs from the persisted claim');
   }
@@ -266,6 +274,9 @@ export async function reconcilePostEvaluationUsage(id: string, reader: ShadowRec
     context.check();
     if (!current || !recoverableUsage(current) || !current.receiptAuthority
       || !sameReceiptAuthority(current.receiptAuthority, originalAuthority)
+      || !isDeepStrictEqual(current.receiptAuthority, originalAuthority)
+      || current.policyRef !== original.policyRef || current.policyVersion !== original.policyVersion
+      || current.evaluationVersion !== original.evaluationVersion
       || current.fingerprint !== original.fingerprint || current.model !== original.model) return false;
     if (current.usageReconciliation) {
       if (!isDeepStrictEqual(current.usageReconciliation, evidence)) {
@@ -298,5 +309,25 @@ export async function listUnreconciledPostEvaluations(release: ShadowRelease, au
     eq(postEvaluations.evaluationVersion, release.evaluationVersion),
   )).orderBy(asc(postEvaluations.id)).limit(25);
   context.check();
+  return rows.map(row => row.id);
+}
+
+/** Restart recovery only for new own records with complete durable lineage; never reads posts. */
+export async function listDurableUnreconciledPostEvaluations(authority: ShadowReceiptAuthority, ownerAccountId: string,
+  afterId: string | undefined, context: ShadowReceiptDatabase): Promise<string[]> {
+  context.check();
+  const rows = await context.db.select().from(postEvaluations).where(and(
+    or(inArray(postEvaluations.state, ['cost_uncertain', 'cancelled']),
+      and(eq(postEvaluations.state, 'claimed'), lte(postEvaluations.requestDeadlineAt, new Date()))),
+    isNull(postEvaluations.usageReconciliation), afterId === undefined ? undefined : gt(postEvaluations.id, afterId),
+    sql`${postEvaluations.receiptAuthority}->>'applicationId' = ${authority.applicationId}`,
+    sql`${postEvaluations.receiptAuthority}->>'credentialId' = ${authority.credentialId}`,
+    sql`${postEvaluations.receiptAuthority}->>'environment' = ${authority.environment}`,
+    sql`${postEvaluations.receiptAuthority}->>'delegatedUserId' is null`,
+    sql`${postEvaluations.receiptAuthority}->'recovery'->>'ownerAccountId' = ${ownerAccountId}`,
+  )).orderBy(asc(postEvaluations.id)).limit(25);
+  context.check();
+  // Advance the maintenance cursor even over malformed own rows. Reconciliation
+  // validates each complete lineage before GET; one bad row cannot starve later work.
   return rows.map(row => row.id);
 }

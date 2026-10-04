@@ -4,9 +4,20 @@ import { currencyCodeSchema, exactDecimalSchema, inferenceEnvironmentSchema,
   inferenceRequestOutcomeSchema, usageQuantitySchema, usageSourceSchema } from '@oxy.so/contracts';
 import type { OxyInferenceClient } from '@oxy.so/core/inference';
 
+/** Immutable source lineage, persisted before the original send; not a new permission. */
+export const shadowRecoveryLineageSchema = z.object({
+  version: z.literal(1), ownerAccountId: z.string().min(1), deploymentId: z.string().min(1),
+  model: z.string().min(1), policyRef: z.string().min(1), policyVersion: z.number().int().positive(),
+  evaluationVersion: z.string().min(1), provider: z.string().min(1), priceVersionId: z.string().min(1),
+  sourceApprovalSha256: z.string().regex(/^[a-f0-9]{64}$/), inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  idempotencyKey: z.string().min(1), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type ShadowRecoveryLineage = z.infer<typeof shadowRecoveryLineageSchema>;
+
 /** Original public attribution only; never a bearer or provider credential. */
 export const shadowReceiptAuthoritySchema = z.object({
   applicationId: z.string().min(1), credentialId: z.string().min(1),
+  recovery: shadowRecoveryLineageSchema.optional(),
   environment: z.custom<InferenceEnvironment>(value => inferenceEnvironmentSchema.safeParse(value).success), delegatedUserId: z.string().min(1).optional(),
 }).strict();
 export type ShadowReceiptAuthority = z.infer<typeof shadowReceiptAuthoritySchema>;
@@ -38,7 +49,8 @@ export const shadowUsageReconciliationSchema = z.object({
 export type ShadowUsageReconciliation = z.infer<typeof shadowUsageReconciliationSchema>;
 export interface ShadowReceiptReader {
   readonly authority: ShadowReceiptAuthority;
-  readOriginal(key: string, model: string, signal?: AbortSignal): Promise<ShadowUsageReconciliation>;
+  readonly recoveryOwnerAccountId?: string;
+  readOriginal(key: string, model: string, signal?: AbortSignal, lineage?: ShadowRecoveryLineage): Promise<ShadowUsageReconciliation>;
 }
 export function sameReceiptAuthority(a: ShadowReceiptAuthority, b: ShadowReceiptAuthority): boolean {
   return a.applicationId === b.applicationId && a.credentialId === b.credentialId
@@ -49,14 +61,22 @@ export function createJevReceiptReader(
   client: Pick<OxyInferenceClient, 'getGenerationRecordByIdempotencyKey'>,
   input: ShadowReceiptAuthority,
 ): ShadowReceiptReader {
-  const authority = Object.freeze(shadowReceiptAuthoritySchema.parse(input));
-  return { authority, async readOriginal(key, model, signal) {
+  const parsed = shadowReceiptAuthoritySchema.parse(input);
+  if (parsed.recovery) Object.freeze(parsed.recovery);
+  const authority = Object.freeze(parsed);
+  return { authority, async readOriginal(key, model, signal, lineage) {
     // Exactly one read; failures/404 propagate, leaving the original claim intact.
     const record = await client.getGenerationRecordByIdempotencyKey(key,
       { signal, ...(authority.delegatedUserId === undefined ? {} : { delegatedUserId: authority.delegatedUserId }) });
     if (!sameReceiptAuthority(authority, record) || record.resolvedModelReference !== model) {
       throw new Error('Recovered usage does not match the original authority and model');
     }
+    if (lineage && (lineage.idempotencyKey !== key || lineage.model !== model
+      || record.servingProvider !== lineage.provider
+      || (record.schemaVersion === 1 ? record.priceSnapshot.priceVersionId : record.tariff.priceVersionId) !== lineage.priceVersionId)) {
+      throw new Error('Recovered usage differs from original route metadata');
+    }
+    // Public generation records do not attest deployment/policy or the source approval hash.
     return shadowUsageReconciliationSchema.parse({ status: 'reconciled_result_missing',
       requestId: record.requestId, authority, model, provider: record.servingProvider,
       outcome: record.outcome, usageSource: record.usageSource, units: record.units,

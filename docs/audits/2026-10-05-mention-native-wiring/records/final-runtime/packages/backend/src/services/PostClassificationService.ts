@@ -1,7 +1,5 @@
-import { MENTION_JEV_OWNER_ACCOUNT_ID } from './contentClassification/jevProductionApproval';
-import type { ShadowReceiptReader } from './contentClassification/jevReceipt';
 import { JEV_MAX_TEXT_LENGTH } from './contentClassification/jevRequest';
-import { createProductionJevEvaluation, createProductionJevReceiptReader, isReviewedNativeJevEvaluation } from './contentClassification/jevProduction';
+import { createProductionJevEvaluation, isReviewedNativeJevEvaluation } from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -21,7 +19,7 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
 import { evaluateShadowWithDeadline, isJevShadowReleased, ShadowAdmissionClosedError, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
   claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
-  listUnreconciledPostEvaluations, listDurableUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
+  listUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
 
 /**
@@ -140,9 +138,9 @@ function importLedgerRow() {
 }
 
 export class PostClassificationService {
-  // Production factories are wired; the source approval getter remains undefined until independent release reviews are complete.
+  // No production binding until independent release reviews are complete.
   // The published typed SDK consumer is inert until then.
-  constructor(private readonly shadowEvaluation?: ShadowEvaluation, private readonly durableReceiptReader?: ShadowReceiptReader) {}
+  constructor(private readonly shadowEvaluation?: ShadowEvaluation) {}
 
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
@@ -427,27 +425,19 @@ export class PostClassificationService {
 
   private async reconcileShadowUsage(): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    const reader = this.durableReceiptReader ?? (evaluation && (isJevShadowReleased() || isReviewedNativeJevEvaluation(evaluation)) ? evaluation.receiptReader : undefined);
-    if (!reader) return;
+    if (!evaluation?.receiptReader || (!isJevShadowReleased() && !isReviewedNativeJevEvaluation(evaluation))) return;
     const deadline = Date.now() + config.inference.timeoutMs;
     await withShadowReceiptDatabase(deadline, undefined, async context => {
-      const select = (cursor?: string) => {
-        if (this.durableReceiptReader) {
-          return listDurableUnreconciledPostEvaluations(reader.authority, MENTION_JEV_OWNER_ACCOUNT_ID, cursor, context);
-        }
-        if (!evaluation) return Promise.resolve([]);
-        return listUnreconciledPostEvaluations(evaluation.release, reader.authority, cursor, context);
-      };
-      let ids = await select(this.receiptCursor);
+      let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, this.receiptCursor, context);
       if (!ids.length && this.receiptCursor !== undefined) {
         this.receiptCursor = undefined;
-        ids = await select();
+        ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, undefined, context);
       }
       for (const id of ids) {
         context.check();
         this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
         try {
-          await reconcilePostEvaluationUsage(id, reader, context.signal, context);
+          await reconcilePostEvaluationUsage(id, evaluation.receiptReader!, context.signal, context);
         } catch {
           // Unknown or inaccessible receipts remain quarantined, without inference.
           logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
@@ -550,7 +540,7 @@ export class PostClassificationService {
 }
 
 export function createProductionPostClassificationService(): PostClassificationService {
-  return new PostClassificationService(createProductionJevEvaluation(), createProductionJevReceiptReader());
+  return new PostClassificationService(createProductionJevEvaluation());
 }
 
 export const postClassificationService = createProductionPostClassificationService();

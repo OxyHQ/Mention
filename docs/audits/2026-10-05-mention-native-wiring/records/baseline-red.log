@@ -1,0 +1,29 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts -t "connects the reviewed native factory" "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (49 tests | 1 failed | 48 skipped) 2135ms
+   ❯ PostClassificationService — shadow fanout (16)
+     × connects the reviewed native factory through the SDK while broader release gates remain closed 225ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > connects the reviewed native factory through the SDK while broader release gates remain closed
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/__tests__/services/postClassification.test.ts:1238:23
+    1236|     vi.stubGlobal('fetch', transport);
+    1237|     await createProductionPostClassificationService().processQueue();
+    1238|     expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBe…
+       |                       ^
+    1239|     expectBatchWasOurs();
+    1240|     expect((await classificationOf(native.id)).status).toBe('classifie…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 48 skipped (49)
+   Start at  00:23:27
+   Duration  5.09s (tests 50%, setup 18%, transform 17%, import 15%)
+
+error: script "test" exited with code 1

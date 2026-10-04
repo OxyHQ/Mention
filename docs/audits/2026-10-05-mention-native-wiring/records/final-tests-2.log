@@ -1,0 +1,10 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/packages/backend
+
+
+ Test Files  4 passed (4)
+      Tests  153 passed (153)
+   Start at  00:25:24
+   Duration  19.66s (tests 82%, import 8%, transform 5%, setup 4%)
+
