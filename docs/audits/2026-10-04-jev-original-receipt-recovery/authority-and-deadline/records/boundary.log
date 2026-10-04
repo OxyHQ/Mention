@@ -1,0 +1,3 @@
+$ bun ./scripts/validate-inference-boundary.mjs && bun ./scripts/test-validate-inference-boundary.mjs
+Validated Mention's Oxy/Kaana inference boundary across 1540 backend/frontend/MCP production source files.
+Inference boundary mutation tests passed (92 cases).

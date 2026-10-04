@@ -1,0 +1,35 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1506654, /tmp/mention-jev-semantic-uckzl7zo/data, socket /tmp/mention-jev-semantic-uckzl7zo/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1506654, /tmp/mention-jev-semantic-uckzl7zo/data, socket /tmp/mention-jev-semantic-uckzl7zo/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/jevSdk.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/services/jevSdk.test.ts (24 tests | 1 failed) 46ms
+   ❯ published Jev SDK consumer (24)
+     × uses the same frozen delegation original-delegation for a lost POST and its only GET 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/jevSdk.test.ts > published Jev SDK consumer > uses the same frozen delegation original-delegation for a lost POST and its only GET
+AssertionError: expected [Function] to throw error including 'Synthetic response lost after admissi…' but got 'expected null to be \'original-delega…'
+
+Expected: "Synthetic response lost after admission"
+Received: "expected null to be 'original-delegation' // Object.is equality"
+
+ ❯ src/__tests__/services/jevSdk.test.ts:60:45
+     58|     const evaluation = createJevShadowEvaluation(client, release, topi…
+     59|     authority.delegatedUserId = 'mutated-after-configuration';
+     60|     await expect(evaluation.evaluate(input)).rejects.toThrow('Syntheti…
+       |                                             ^
+     61|     const recovered = await evaluation.receiptReader!.readOriginal(inp…
+     62|     expect(recovered.authority).toEqual(original);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 23 passed (24)
+   Start at  18:02:08
+   Duration  994ms (import 54%, transform 21%, tests 18%, setup 6%, worker 1%)
+
+error: script "test" exited with code 1

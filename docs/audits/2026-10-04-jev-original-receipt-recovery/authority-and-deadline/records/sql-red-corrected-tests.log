@@ -1,0 +1,40 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1525749, /tmp/mention-jev-semantic-g1v1_6tp/data, socket /tmp/mention-jev-semantic-g1v1_6tp/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1525749, /tmp/mention-jev-semantic-g1v1_6tp/data, socket /tmp/mention-jev-semantic-g1v1_6tp/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/postClassification.test.ts -t "bounds real SQL"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (45 tests | 2 failed | 43 skipped) 3104ms
+   ❯ PostClassificationService — shadow fanout (12)
+     × bounds real SQL selector waiting and continues the baseline without late receipt writes 1611ms
+     × bounds real SQL row waiting and continues the baseline without late receipt writes 1415ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > bounds real SQL selector waiting and continues the baseline without late receipt writes
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > bounds real SQL row waiting and continues the baseline without late receipt writes
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/__tests__/services/postClassification.test.ts:1269:20
+    1267|       }, { timeout: 250, interval: 5 });
+    1268|       const done = await Promise.race([cycle.then(() => true), new Pro…
+    1269|       expect(done).toBe(true);
+       |                    ^
+    1270|       expectBatchWasOurs();
+    1271|       expect((await classificationOf(post.id)).status).toBe('classifie…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 43 skipped (45)
+   Start at  18:05:23
+   Duration  8.44s (tests 43%, transform 24%, setup 17%, import 16%)
+
+error: script "test" exited with code 1

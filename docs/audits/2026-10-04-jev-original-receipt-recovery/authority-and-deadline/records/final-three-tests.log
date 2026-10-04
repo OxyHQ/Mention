@@ -1,0 +1,85 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1537001, /tmp/mention-jev-semantic-okylt23y/data, socket /tmp/mention-jev-semantic-okylt23y/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1537001, /tmp/mention-jev-semantic-okylt23y/data, socket /tmp/mention-jev-semantic-okylt23y/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/jevSdk.test.ts src/__tests__/services/postClassification.test.ts src/__tests__/db/postEvaluationRepository.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts (51 tests | 2 failed) 3021ms
+   ❯ usage reconciliation keeps lost answers and original claims separate (18)
+     × destroys a queued maintenance mutation as well as the SQL holding its private connection 275ms
+     × bounds connection startup without touching the ordinary pool 1163ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > destroys a queued maintenance mutation as well as the SQL holding its private connection
+AssertionError: expected undefined to deeply equal [ ObjectContaining{…}, …(1) ]
+
+- Expected:
+[
+  ObjectContaining {
+    "status": "rejected",
+  },
+  ObjectContaining {
+    "status": "rejected",
+  },
+]
+
++ Received:
+undefined
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:519:26
+    517|       releaseLock.open(); await lock;
+    518|     }
+    519|     expect(await queued).toEqual([expect.objectContaining({ status: 'r…
+       |                          ^
+    520|     const [after] = await ledger(post.id);
+    521|     expect(after.state).toBe('cost_uncertain'); expect(after.usageReco…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > bounds connection startup without touching the ordinary pool
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ vi.waitFor.timeout src/__tests__/db/postEvaluationRepository.test.ts:539:51
+    537|       expect(connected).toBe(true);
+    538|       expect(Date.now() - began).toBeLessThan(1200);
+    539|       await vi.waitFor(() => expect(sockets.size).toBe(0), { timeout: …
+       |                                                   ^
+    540|     } finally {
+    541|       config.postgres.url = previousUrl;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: write CONNECTION_CLOSED /tmp/mention-jev-semantic-okylt23y/socket/.s.PGSQL.18991
+ ❯ Socket.closed ../../node_modules/postgres/src/connection.js:457:32
+ ❯ Socket.emit node:events:514:28
+ ❯ Pipe.<anonymous> node:net:362:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'CONNECTION_CLOSED', errno: 'CONNECTION_CLOSED', address: '/tmp/mention-jev-semantic-okylt23y/socket/.s.PGSQL.18991' }
+This error originated in "src/__tests__/db/postEvaluationRepository.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "destroys a queued maintenance mutation as well as the SQL holding its private connection". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  2 failed | 118 passed (120)
+     Errors  1 error
+   Start at  18:09:28
+   Duration  12.95s (tests 72%, import 12%, transform 10%, setup 5%)
+
+error: script "test" exited with code 1
