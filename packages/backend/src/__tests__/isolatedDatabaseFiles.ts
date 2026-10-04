@@ -90,6 +90,14 @@ export interface IsolatedDatabaseFile {
 }
 
 export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
+  {
+    path: 'src/__tests__/services/trendingBatchWrite.test.ts',
+    jobEntryPoint: 'calculateTrending',
+    reason:
+      'Calculates trends from every eligible post and invokes cleanupOldTrends across the ' +
+      'whole table. Its batch-timestamp teardown can also match a parallel suite row created ' +
+      'in the same millisecond; the entire writer suite needs its own database.',
+  },
   ...[
     'src/__tests__/mtn/forYouCandidateGatheringStatementBudget.test.ts',
     'src/__tests__/forYouCandidateSources.test.ts',
