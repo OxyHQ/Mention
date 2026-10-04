@@ -1,0 +1,450 @@
+﻿2026-10-04T14:22:32.7188226Z Current runner version: '2.337.0'
+2026-10-04T14:22:32.7214227Z ##[group]Runner Image Provisioner
+2026-10-04T14:22:32.7215170Z Hosted Compute Agent
+2026-10-04T14:22:32.7215774Z Version: 20260901.588
+2026-10-04T14:22:32.7216430Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-04T14:22:32.7217542Z Build Date: 2026-09-01T19:56:44Z
+2026-10-04T14:22:32.7218260Z Worker ID: {2262b1e3-61d3-473e-b475-8c693f26b1ec}
+2026-10-04T14:22:32.7219051Z Azure Region: westcentralus
+2026-10-04T14:22:32.7219724Z ##[endgroup]
+2026-10-04T14:22:32.7221290Z ##[group]Operating System
+2026-10-04T14:22:32.7222081Z Ubuntu
+2026-10-04T14:22:32.7222610Z 24.04.5
+2026-10-04T14:22:32.7223160Z LTS
+2026-10-04T14:22:32.7223698Z ##[endgroup]
+2026-10-04T14:22:32.7224290Z ##[group]Runner Image
+2026-10-04T14:22:32.7224936Z Image: ubuntu-24.04
+2026-10-04T14:22:32.7225515Z Version: 20260927.320.1
+2026-10-04T14:22:32.7227203Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-04T14:22:32.7228966Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-04T14:22:32.7230034Z ##[endgroup]
+2026-10-04T14:22:32.7231163Z ##[group]GITHUB_TOKEN Permissions
+2026-10-04T14:22:32.7233389Z Contents: read
+2026-10-04T14:22:32.7234054Z Metadata: read
+2026-10-04T14:22:32.7234722Z ##[endgroup]
+2026-10-04T14:22:32.7237348Z Secret source: Actions
+2026-10-04T14:22:32.7238326Z Cache mode: write
+2026-10-04T14:22:32.7239174Z Prepare workflow directory
+2026-10-04T14:22:32.7869767Z Prepare all required actions
+2026-10-04T14:22:32.7944525Z Getting action download info
+2026-10-04T14:22:33.1158724Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-04T14:22:33.2227354Z Download action repository 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6' (SHA:0c5077e51419868618aeaa5fe8019c62421857d6)
+2026-10-04T14:22:33.7283991Z Download action repository 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-10-04T14:22:33.8972918Z Complete job name: Build, lint and typecheck
+2026-10-04T14:22:33.9714068Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-04T14:22:33.9715222Z with:
+2026-10-04T14:22:33.9715744Z   repository: OxyHQ/Mention
+2026-10-04T14:22:33.9719997Z   token: ***
+2026-10-04T14:22:33.9720479Z   ssh-strict: true
+2026-10-04T14:22:33.9720959Z   ssh-user: git
+2026-10-04T14:22:33.9721453Z   persist-credentials: true
+2026-10-04T14:22:33.9721990Z   clean: true
+2026-10-04T14:22:33.9722493Z   sparse-checkout-cone-mode: true
+2026-10-04T14:22:33.9723057Z   fetch-depth: 1
+2026-10-04T14:22:33.9723535Z   fetch-tags: false
+2026-10-04T14:22:33.9724021Z   show-progress: true
+2026-10-04T14:22:33.9724516Z   lfs: false
+2026-10-04T14:22:33.9724977Z   submodules: false
+2026-10-04T14:22:33.9725464Z   set-safe-directory: true
+2026-10-04T14:22:33.9726012Z   allow-unsafe-pr-checkout: false
+2026-10-04T14:22:33.9727135Z env:
+2026-10-04T14:22:33.9727654Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:33.9728170Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:33.9728728Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:33.9729263Z ##[endgroup]
+2026-10-04T14:22:34.0711196Z Syncing repository: OxyHQ/Mention
+2026-10-04T14:22:34.0713922Z ##[group]Getting Git version info
+2026-10-04T14:22:34.0715348Z Working directory is '/home/runner/work/Mention/Mention'
+2026-10-04T14:22:34.0717509Z [command]/usr/bin/git version
+2026-10-04T14:22:34.0778514Z git version 2.55.0
+2026-10-04T14:22:34.0799652Z ##[endgroup]
+2026-10-04T14:22:34.0810042Z Temporarily overriding HOME='/home/runner/work/_temp/d72cd8f8-c7af-4305-80aa-50cc5e9cf306' before making global git config changes
+2026-10-04T14:22:34.0812853Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T14:22:34.0820571Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Mention/Mention
+2026-10-04T14:22:34.0872268Z Deleting the contents of '/home/runner/work/Mention/Mention'
+2026-10-04T14:22:34.0876316Z ##[group]Determining repository object format
+2026-10-04T14:22:34.0878907Z ##[endgroup]
+2026-10-04T14:22:34.0880690Z ##[group]Initializing the repository
+2026-10-04T14:22:34.0883366Z [command]/usr/bin/git init /home/runner/work/Mention/Mention
+2026-10-04T14:22:34.0978791Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-04T14:22:34.0984727Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-04T14:22:34.0987608Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-04T14:22:34.0989833Z hint: call:
+2026-10-04T14:22:34.0991035Z hint:
+2026-10-04T14:22:34.0992425Z hint: 	git config --global init.defaultBranch <name>
+2026-10-04T14:22:34.0994278Z hint:
+2026-10-04T14:22:34.0996049Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-04T14:22:34.0998691Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-04T14:22:34.1000526Z hint:
+2026-10-04T14:22:34.1001836Z hint: 	git branch -m <name>
+2026-10-04T14:22:34.1003095Z hint:
+2026-10-04T14:22:34.1004066Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-04T14:22:34.1005495Z Initialized empty Git repository in /home/runner/work/Mention/Mention/.git/
+2026-10-04T14:22:34.1009137Z [command]/usr/bin/git remote add origin https://github.com/OxyHQ/Mention
+2026-10-04T14:22:34.1046469Z ##[endgroup]
+2026-10-04T14:22:34.1048162Z ##[group]Disabling automatic garbage collection
+2026-10-04T14:22:34.1051066Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-04T14:22:34.1084565Z ##[endgroup]
+2026-10-04T14:22:34.1086142Z ##[group]Setting up auth
+2026-10-04T14:22:34.1087438Z Removing SSH command configuration
+2026-10-04T14:22:34.1091637Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T14:22:34.1125629Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T14:22:34.1499348Z Removing HTTP extra header
+2026-10-04T14:22:34.1505106Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T14:22:34.1547627Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T14:22:34.1775542Z Removing includeIf entries pointing to credentials config files
+2026-10-04T14:22:34.1781269Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T14:22:34.1815588Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T14:22:34.2041586Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-04T14:22:34.2082802Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Mention/Mention/.git.path /home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:22:34.2119509Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:22:34.2158196Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:22:34.2195249Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:22:34.2227413Z ##[endgroup]
+2026-10-04T14:22:34.2228269Z ##[group]Fetching the repository
+2026-10-04T14:22:34.2234365Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +5994c49a04472cd2296bef1c109205287f159e15:refs/remotes/pull/1312/merge
+2026-10-04T14:22:36.2445823Z From https://github.com/OxyHQ/Mention
+2026-10-04T14:22:36.2447468Z  * [new ref]         5994c49a04472cd2296bef1c109205287f159e15 -> pull/1312/merge
+2026-10-04T14:22:36.2450690Z ##[endgroup]
+2026-10-04T14:22:36.2451445Z ##[group]Determining the checkout info
+2026-10-04T14:22:36.2452527Z ##[endgroup]
+2026-10-04T14:22:36.2456427Z [command]/usr/bin/git sparse-checkout disable
+2026-10-04T14:22:36.2512388Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-04T14:22:36.2613544Z ##[group]Checking out the ref
+2026-10-04T14:22:36.2614593Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1312/merge
+2026-10-04T14:22:36.5292260Z Note: switching to 'refs/remotes/pull/1312/merge'.
+2026-10-04T14:22:36.5292834Z 
+2026-10-04T14:22:36.5293279Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-04T14:22:36.5294247Z changes and commit them, and you can discard any commits you make in this
+2026-10-04T14:22:36.5295160Z state without impacting any branches by switching back to a branch.
+2026-10-04T14:22:36.5295819Z 
+2026-10-04T14:22:36.5296191Z If you want to create a new branch to retain commits you create, you may
+2026-10-04T14:22:36.5297224Z do so (now or later) by using -c with the switch command. Example:
+2026-10-04T14:22:36.5297674Z 
+2026-10-04T14:22:36.5297857Z   git switch -c <new-branch-name>
+2026-10-04T14:22:36.5298186Z 
+2026-10-04T14:22:36.5298666Z Or undo this operation with:
+2026-10-04T14:22:36.5298961Z 
+2026-10-04T14:22:36.5299121Z   git switch -
+2026-10-04T14:22:36.5299385Z 
+2026-10-04T14:22:36.5299765Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-04T14:22:36.5300317Z 
+2026-10-04T14:22:36.5300939Z HEAD is now at 5994c49 Merge 5a47d84536039a6dcdd5c462e990db1913b3f31a into f28ac665a245861ad94d8078d0e31228f93a2973
+2026-10-04T14:22:36.5319361Z ##[endgroup]
+2026-10-04T14:22:36.5400435Z [command]/usr/bin/git log -1 --format=%H
+2026-10-04T14:22:36.5428878Z 5994c49a04472cd2296bef1c109205287f159e15
+2026-10-04T14:22:36.5673138Z ##[group]Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+2026-10-04T14:22:36.5673549Z with:
+2026-10-04T14:22:36.5673755Z   bun-version: 1.3.14
+2026-10-04T14:22:36.5673976Z   no-cache: false
+2026-10-04T14:22:36.5676362Z   token: ***
+2026-10-04T14:22:36.5676560Z env:
+2026-10-04T14:22:36.5677088Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:36.5677479Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:36.5677723Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:36.5677964Z ##[endgroup]
+2026-10-04T14:22:36.9227737Z Cache hit for: bun-fR4r1tsFeXfPQkusQwkKD2kGnsE=
+2026-10-04T14:22:38.0713690Z Received 33843767 of 33843767 (100.0%), 34.7 MBs/sec
+2026-10-04T14:22:38.0714494Z Cache Size: ~32 MB (33843767 B)
+2026-10-04T14:22:38.0752123Z [command]/usr/bin/tar -xf /home/runner/work/_temp/80b04942-29a9-48f6-a7d0-eb54ecffbf24/cache.tzst -P -C /home/runner/work/Mention/Mention --use-compress-program unzstd
+2026-10-04T14:22:38.2283057Z Cache restored successfully
+2026-10-04T14:22:38.2305603Z [command]/home/runner/.bun/bin/bun --revision
+2026-10-04T14:22:38.2349854Z 1.3.14+0d9b296af
+2026-10-04T14:22:38.2356305Z Using a cached version of Bun: 1.3.14+0d9b296af
+2026-10-04T14:22:38.2542290Z ##[group]Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+2026-10-04T14:22:38.2542697Z with:
+2026-10-04T14:22:38.2542908Z   node-version: 24.21.0
+2026-10-04T14:22:38.2543139Z   check-latest: false
+2026-10-04T14:22:38.2545535Z   token: ***
+2026-10-04T14:22:38.2545757Z   package-manager-cache: true
+2026-10-04T14:22:38.2546001Z env:
+2026-10-04T14:22:38.2546186Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:38.2546405Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:38.2546635Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:38.2547175Z ##[endgroup]
+2026-10-04T14:22:38.3783770Z Found in cache @ /opt/hostedtoolcache/node/24.21.0/x64
+2026-10-04T14:22:38.3787039Z ##[group]Environment details
+2026-10-04T14:22:38.7815816Z node: v24.21.0
+2026-10-04T14:22:38.7817927Z npm: 11.19.0
+2026-10-04T14:22:38.7818359Z yarn: 1.22.22
+2026-10-04T14:22:38.7819148Z ##[endgroup]
+2026-10-04T14:22:38.7943469Z ##[group]Run bun install --frozen-lockfile --ignore-scripts
+2026-10-04T14:22:38.7943982Z [36;1mbun install --frozen-lockfile --ignore-scripts[0m
+2026-10-04T14:22:38.8209182Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:22:38.8209474Z env:
+2026-10-04T14:22:38.8209694Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:38.8209942Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:38.8210198Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:38.8210467Z ##[endgroup]
+2026-10-04T14:22:38.8354907Z bun install v1.3.14 (0d9b296a)
+2026-10-04T14:22:38.8574422Z Resolving dependencies
+2026-10-04T14:22:38.8581806Z Resolved, downloaded and extracted [5]
+2026-10-04T14:22:47.1262160Z 
+2026-10-04T14:22:47.1262876Z + @oxy.so/doctor@1.1.0
+2026-10-04T14:22:47.1263713Z + @types/node@26.6.2
+2026-10-04T14:22:47.1264318Z + semver@7.8.5
+2026-10-04T14:22:47.1264896Z + typescript@6.0.3
+2026-10-04T14:22:47.1265454Z + yaml@2.9.1
+2026-10-04T14:22:47.1265752Z 
+2026-10-04T14:22:47.1266162Z 1626 packages installed [8.29s]
+2026-10-04T14:22:47.1508087Z ##[group]Run bun run doctor:oxy
+2026-10-04T14:22:47.1508427Z [36;1mbun run doctor:oxy[0m
+2026-10-04T14:22:47.1571062Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:22:47.1571307Z env:
+2026-10-04T14:22:47.1571501Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:47.1571720Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:47.1571953Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:47.1572194Z ##[endgroup]
+2026-10-04T14:22:47.1682290Z $ oxy-doctor --ci
+2026-10-04T14:22:47.7376099Z Oxy Doctor: 6 first-party packages across 6 manifests
+2026-10-04T14:22:47.7377459Z ✓ No dependency-health findings
+2026-10-04T14:22:47.8136631Z ##[group]Run bun run check
+2026-10-04T14:22:47.8137502Z [36;1mbun run check[0m
+2026-10-04T14:22:47.8201132Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:22:47.8201404Z env:
+2026-10-04T14:22:47.8201597Z   BUN_VERSION: 1.3.14
+2026-10-04T14:22:47.8201817Z   NODE_VERSION: 24.21.0
+2026-10-04T14:22:47.8202044Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:22:47.8202285Z ##[endgroup]
+2026-10-04T14:22:47.8650651Z $ bun run check:workspace && bun run build && bun run check:types
+2026-10-04T14:22:47.8691942Z $ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:no-mongo validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
+2026-10-04T14:22:47.9846239Z validate:suite-collection        | validate-suite-collection self-test:
+2026-10-04T14:22:47.9877706Z validate:suite-collection        | Done in 109ms
+2026-10-04T14:22:47.9887154Z validate:suite-collection        |   ok    a healthy suite passes
+2026-10-04T14:22:47.9937953Z validate:suite-collection        |   ok    counts are reported
+2026-10-04T14:22:47.9967811Z validate:suite-collection        |   ok    a file collecting ZERO tests FAILS the gate
+2026-10-04T14:22:48.0027834Z validate:suite-collection        |   ok    and the gate NAMES it
+2026-10-04T14:22:48.0087730Z validate:suite-collection        |   ok    100% passing with a dead file still FAILS
+2026-10-04T14:22:48.0089084Z doctor                           | Done in 135ms
+2026-10-04T14:22:48.0091882Z validate:suite-collection        |   ok    and says why the ratio is misleading
+2026-10-04T14:22:48.0093533Z validate:suite-collection        |   ok    a file on disk but ABSENT from the report FAILS
+2026-10-04T14:22:48.0094908Z validate:suite-collection        |   ok    and the gate NAMES it
+2026-10-04T14:22:48.0096295Z validate:suite-collection        |   ok    and names the DIED-AT-COLLECTION cause
+2026-10-04T14:22:48.0098012Z validate:suite-collection        |   ok    and names the INCLUDE-PATTERN cause
+2026-10-04T14:22:48.0099463Z validate:suite-collection        |   ok    a fully-skipped file PASSES (it still collects)
+2026-10-04T14:22:48.0101381Z validate:suite-collection        |   ok    an empty-but-consistent run does not hard-fail
+2026-10-04T14:22:48.0102883Z validate:suite-collection        |   ok    a file NEWER than the report does not fail the gate
+2026-10-04T14:22:48.0104338Z validate:suite-collection        |   ok    it is reported as staleness instead
+2026-10-04T14:22:48.0105676Z validate:suite-collection        |   ok    and the note says re-run
+2026-10-04T14:22:48.0107404Z validate:suite-collection        |   ok    a file OLDER than the report and absent still FAILS
+2026-10-04T14:22:48.0135571Z validate:suite-collection        |   ok    and is named as a real miss
+2026-10-04T14:22:48.0137402Z validate:suite-collection        |   ok    a file created mid-run is staleness, not a miss
+2026-10-04T14:22:48.0138772Z validate:suite-collection        |   ok    and startTime is what decided it
+2026-10-04T14:22:48.0140145Z validate:suite-collection        |   ok    with no startTime, an absent file still FAILS
+2026-10-04T14:22:48.0141813Z validate:suite-collection        |   ok    a report with no testResults FAILS rather than passing vacuously
+2026-10-04T14:22:48.0143045Z validate:suite-collection        | 
+2026-10-04T14:22:48.0143909Z validate:suite-collection        | all self-tests passed
+2026-10-04T14:22:48.0145888Z doctor                           | Mention workspace is reproducible: Bun 1.3.14, Node 24.21.0, Expo 57.0.25, Bloom 7.1.2, workspace dependencies and TypeScript references are aligned.
+2026-10-04T14:22:48.1741532Z validate:license                 | License consistency guard passed — 6 package.json files and 86 Markdown files scanned.
+2026-10-04T14:22:48.1880155Z validate:license                 | Done in 302ms
+2026-10-04T14:22:48.3504409Z validate:feed-hot-path           | validate-feed-hot-path: 86 hot-path files, no whole-store subscriptions; every embedded Feed is bounded.
+2026-10-04T14:22:48.5048362Z audit:security                   | Security audit passed; 6 reviewed exception(s) remain within their expiry window.
+2026-10-04T14:22:48.5160363Z validate:lockfile                | Validated 2506 bun.lock resolutions (registry-only, https, integrity-pinned, no aliases), 5 workspace records against their manifests, 6 frozen installs across 2 Dockerfiles, and 378 edges against the 55 overridden packages (3 accepted range violations); 3 Oxy runtime singletons.
+2026-10-04T14:22:48.5287995Z audit:security                   | Done in 619ms
+2026-10-04T14:22:48.5408076Z validate:lockfile                | Done in 665ms
+2026-10-04T14:22:48.5736274Z validate:architecture-boundaries | Architecture boundary guard passed — 1292 backend source files scanned.
+2026-10-04T14:22:48.5788511Z validate:architecture-boundaries |   rule 1 (protocol internals): 18 baseline crossing(s) honoured, 0 new violations.
+2026-10-04T14:22:48.5808652Z validate:architecture-boundaries |   rule 2 (route/controller -> db): 111 crossing(s) across 89 baselined (file, area) pair(s) over 79 route/controller files, 0 new violations.
+2026-10-04T14:22:48.7311937Z validate:architecture-boundaries | ok   the live baselines all carry a reason
+2026-10-04T14:22:48.7325652Z validate:architecture-boundaries | ok   an entry with an undefined reason is refused
+2026-10-04T14:22:48.7379513Z validate:architecture-boundaries | ok   an entry with a blank reason is refused
+2026-10-04T14:22:49.0806328Z validate:architecture-boundaries | ok   a tree carrying exactly the baselined crossings passes
+2026-10-04T14:22:49.3480653Z validate:architecture-boundaries | ok   a NEW route reaching into db/ fails
+2026-10-04T14:22:49.3821651Z validate:workflows               | Validated 20 GitHub Actions workflow file(s).
+2026-10-04T14:22:49.4595382Z validate:workflows               | 13 publisher classification controls PASS; original deployment classification preserved
+2026-10-04T14:22:49.4910084Z validate:workflows               | Done in 1.62s
+2026-10-04T14:22:49.6098214Z validate:architecture-boundaries | ok   a NEW controller reaching into db/ fails
+2026-10-04T14:22:49.8208494Z validate:architecture-boundaries | ok   an ALREADY-baselined file reaching into a NEW db area fails
+2026-10-04T14:22:49.9591140Z validate:no-mongo                | MongoDB reintroduction guard passed — 6 manifests, 2678 source files, 62 config files and 2506 lockfile resolutions scanned; 1 of 1 known exceptions honoured.
+2026-10-04T14:22:50.0535179Z validate:architecture-boundaries | ok   a dynamic import() of a db module from a new route fails
+2026-10-04T14:22:50.1238991Z validate:id-shape                | No id-shape assumptions in 1585 source file(s); 4 reasoned redaction exception(s), all still matching.
+2026-10-04T14:22:50.1589569Z validate:feed-hot-path           | test-validate-feed-hot-path: 14 cases passed
+2026-10-04T14:22:50.1642940Z validate:feed-hot-path           | Done in 2.27s
+2026-10-04T14:22:50.1662793Z validate:inference-boundary      | Validated Mention's Oxy/Kaana inference boundary across 1539 backend/frontend/MCP production source files.
+2026-10-04T14:22:50.1928405Z validate:no-mongo                | ok   a clean PostgreSQL-only tree passes
+2026-10-04T14:22:50.3003340Z validate:no-mongo                | ok   a dependency on mongoose is rejected
+2026-10-04T14:22:50.3099743Z validate:architecture-boundaries | ok   a schema table import is a violation, reported as the raw query surface
+2026-10-04T14:22:50.4248576Z validate:no-mongo                | ok   a devDependency on mongodb-memory-server is rejected
+2026-10-04T14:22:50.5036552Z validate:architecture-boundaries | ok   src/mtn/controllers IS in scope
+2026-10-04T14:22:50.5326320Z validate:no-mongo                | ok   a catalog entry is rejected
+2026-10-04T14:22:50.8428184Z validate:no-mongo                | ok   an override is rejected
+2026-10-04T14:22:51.0098815Z validate:no-mongo                | ok   a description claiming Mongoose is rejected
+2026-10-04T14:22:51.1181632Z validate:i18n                    | Validated 15 translation catalogs (2476 en entries) and 1784 keys across 740 source files.
+2026-10-04T14:22:51.1229104Z validate:i18n                    |   ar.json: 2586 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
+2026-10-04T14:22:51.1318495Z validate:i18n                    |   bn.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 184 identical to en (7%)
+2026-10-04T14:22:51.1344585Z validate:i18n                    |   ca.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 193 identical to en (8%)
+2026-10-04T14:22:51.1371029Z validate:i18n                    |   de.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 255 identical to en (10%)
+2026-10-04T14:22:51.1392927Z validate:i18n                    |   es.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 187 identical to en (7%)
+2026-10-04T14:22:51.1398041Z validate:i18n                    |   fr.json: 2507 entries, 0 untranslated (rendered in en), 0 orphaned, 273 identical to en (11%)
+2026-10-04T14:22:51.1438032Z validate:i18n                    |   hi.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 185 identical to en (7%)
+2026-10-04T14:22:51.1531257Z validate:i18n                    |   id.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 215 identical to en (9%)
+2026-10-04T14:22:51.1559921Z validate:i18n                    |   it.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 224 identical to en (9%)
+2026-10-04T14:22:51.1638265Z validate:i18n                    |   ja.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 188 identical to en (8%)
+2026-10-04T14:22:51.1669288Z validate:i18n                    |   pt.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 202 identical to en (8%)
+2026-10-04T14:22:51.1742410Z validate:i18n                    |   ru.json: 2532 entries, 0 untranslated (rendered in en), 0 orphaned, 179 identical to en (7%)
+2026-10-04T14:22:51.1798056Z validate:i18n                    |   tr.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 188 identical to en (8%)
+2026-10-04T14:22:51.1828056Z validate:i18n                    |   zh.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
+2026-10-04T14:22:51.1888425Z validate:architecture-boundaries | ok   a type-only import into db/ from a NEW route passes
+2026-10-04T14:22:51.1957871Z validate:no-mongo                | ok   a keyword claiming MongoDB is rejected
+2026-10-04T14:22:51.2668829Z validate:no-mongo                | ok   a description containing mongo inside another word passes
+2026-10-04T14:22:51.3152401Z validate:i18n                    | ok   real copy passes
+2026-10-04T14:22:51.4103578Z validate:no-mongo                | ok   a lockfile resolution is rejected even with clean manifests
+2026-10-04T14:22:51.4273066Z validate:i18n                    | ok   an English value that is its key spelled out is rejected
+2026-10-04T14:22:51.4410102Z validate:architecture-boundaries | ok   a type-only import FOLLOWING a bare-package import is still type-only
+2026-10-04T14:22:51.5048829Z validate:no-mongo                | ok   a NESTED lockfile resolution is rejected too
+2026-10-04T14:22:51.5552831Z validate:i18n                    | ok   the same value in a translation is rejected, naming that language
+2026-10-04T14:22:51.5908447Z validate:no-mongo                | ok   a package whose NAME merely contains a banned one is not rejected
+2026-10-04T14:22:51.6348512Z validate:i18n                    | ok   a snake_case key spelled out is rejected
+2026-10-04T14:22:51.6638381Z validate:no-mongo                | ok   an import statement is rejected
+2026-10-04T14:22:51.7238490Z validate:i18n                    | ok   a plural form is rejected on the key with its CLDR suffix stripped
+2026-10-04T14:22:51.7390674Z validate:architecture-boundaries | ok   a MIXED import naming one value beside a type FAILS
+2026-10-04T14:22:51.8066124Z validate:no-mongo                | ok   a require call is rejected
+2026-10-04T14:22:51.8108075Z validate:id-shape                | ok    a tree with only the allow-listed redactions passes
+2026-10-04T14:22:51.8157623Z validate:id-shape                | Done in 3.93s
+2026-10-04T14:22:51.8158613Z validate:id-shape                | ok    a 24-hex recogniser fails, naming the rule
+2026-10-04T14:22:51.8201295Z validate:id-shape                | ok    a version-pinned uuid fails, naming the rule
+2026-10-04T14:22:51.8229341Z validate:id-shape                | ok    a uuid pinned to v7 fails too — the rule is about pinning, not about which version
+2026-10-04T14:22:51.8257739Z validate:id-shape                | ok    an ObjectId validity check fails, naming the rule
+2026-10-04T14:22:51.8259655Z validate:id-shape                | ok    prose that QUOTES a removed pattern passes — the explanations are the point
+2026-10-04T14:22:51.8288691Z validate:id-shape                | ok    tests may assert what we MINT and may write a legacy id down
+2026-10-04T14:22:51.8317969Z validate:id-shape                | ok    a pattern after a URL literal on the same line still fails
+2026-10-04T14:22:51.8345479Z validate:id-shape                | ok    an allow-list entry that no longer matches anything fails
+2026-10-04T14:22:51.8398058Z validate:id-shape                | ok    a tree far below the file floor fails rather than reporting clean
+2026-10-04T14:22:51.8427411Z validate:id-shape                | 
+2026-10-04T14:22:51.8428396Z validate:id-shape                | 10 mutation cases pass.
+2026-10-04T14:22:51.8457516Z validate:i18n                    | ok   a legitimate Title Case label passes
+2026-10-04T14:22:51.8849698Z validate:architecture-boundaries | ok   a SERVICE reaching into db/ passes — that is the intended path
+2026-10-04T14:22:51.9300378Z validate:i18n                    | ok   a Title Case label whose last word is an acronym passes
+2026-10-04T14:22:51.9591473Z validate:no-mongo                | ok   a dynamic import is rejected
+2026-10-04T14:22:52.0499743Z validate:no-mongo                | ok   a subpath import is rejected
+2026-10-04T14:22:52.0527656Z validate:architecture-boundaries | ok   the non-controller half of src/mtn is NOT in scope
+2026-10-04T14:22:52.0588026Z validate:i18n                    | ok   a single-word key equal to its value passes
+2026-10-04T14:22:52.1345773Z validate:i18n                    | ok   sentence case under a slot-word key passes
+2026-10-04T14:22:52.1347540Z validate:no-mongo                | ok   MONGODB_URI in a workflow is rejected
+2026-10-04T14:22:52.2353312Z validate:no-mongo                | ok   MONGODB_URI in an env template is rejected
+2026-10-04T14:22:52.2743449Z validate:architecture-boundaries | ok   a test file beside a route is not policed
+2026-10-04T14:22:52.2778588Z validate:i18n                    | ok   a plural category English lacks is accepted in a translation
+2026-10-04T14:22:52.3148245Z validate:no-mongo                | ok   MONGODB_URI in a .github shell script is rejected
+2026-10-04T14:22:52.3804250Z validate:i18n                    | ok   a plural suffix on a key English does not define is still an orphan
+2026-10-04T14:22:52.4394124Z validate:architecture-boundaries | ok   a LAYER_BASELINE entry that matches nothing FAILS the run
+2026-10-04T14:22:52.4512507Z validate:no-mongo                | ok   a lowercased mongodb_uri config key is rejected
+2026-10-04T14:22:52.4698739Z validate:i18n                    | ok   a value that is its own dotted key path is rejected
+2026-10-04T14:22:52.5533808Z validate:i18n                    | ok   an English prose key equal to its value still passes
+2026-10-04T14:22:52.5624916Z validate:no-mongo                | ok   a suffixed MONGODB_URI_LEGACY is rejected
+2026-10-04T14:22:52.6298508Z validate:i18n                    | ok   a JavaScript template literal in a value is rejected
+2026-10-04T14:22:52.6659748Z validate:no-mongo                | ok   a mongodb:// connection string in a source file is rejected
+2026-10-04T14:22:52.6771515Z validate:architecture-boundaries | ok   a stale LAYER_BASELINE entry says the crossing was fixed, and to delete it
+2026-10-04T14:22:52.7216338Z validate:i18n                    | ok   the i18next interpolation form of the same string passes
+2026-10-04T14:22:52.7298693Z validate:no-mongo                | ok   a mongodb+srv:// connection string in a compose file is rejected
+2026-10-04T14:22:52.7997253Z validate:no-mongo                | ok   backticked prose about Mongo does NOT fire
+2026-10-04T14:22:52.8197496Z validate:i18n                    | ok   a literal JavaScript escape sequence in a value is rejected
+2026-10-04T14:22:52.8492298Z validate:architecture-boundaries | ok   a BASELINE (rule 1) entry that matches nothing FAILS the run
+2026-10-04T14:22:52.9025857Z validate:no-mongo                | ok   a QUOTED module name that is not an import does NOT fire
+2026-10-04T14:22:52.9123565Z validate:i18n                    | ok   the character the escape stands for passes
+2026-10-04T14:22:52.9738889Z validate:no-mongo                | ok   the guard's own source and self-test are not their own subject
+2026-10-04T14:22:53.0078796Z validate:i18n                    | ok   a real newline in a value passes
+2026-10-04T14:22:53.0319152Z validate:no-mongo                | ok   the loggers' Mongo-URI REDACTION pattern does NOT fire
+2026-10-04T14:22:53.0809755Z validate:architecture-boundaries | ok   a NEW service reaching into a protocol internal fails
+2026-10-04T14:22:53.0848349Z validate:i18n                    | ok   a translation that drops an English placeholder is rejected
+2026-10-04T14:22:53.1719192Z validate:i18n                    | ok   a translation that keeps it passes
+2026-10-04T14:22:53.1848166Z validate:no-mongo                | ok   a markdown file describing the migration does NOT fire
+2026-10-04T14:22:53.2382750Z validate:architecture-boundaries | ok   a NEW service reaching the PUBLIC connector entry passes
+2026-10-04T14:22:53.2738850Z validate:i18n                    | ok   a _one form may spell the number out instead of interpolating it
+2026-10-04T14:22:53.2876925Z validate:no-mongo                | ok   the retired removal directive is now an ordinary finding
+2026-10-04T14:22:53.3696530Z validate:i18n                    | ok   an extra plural form is checked against the English _other source
+2026-10-04T14:22:53.3814276Z validate:architecture-boundaries | ok   a broken file listing cannot pass silently (source-file floor)
+2026-10-04T14:22:53.3966475Z validate:no-mongo                | ok   the deploy workflow FAILS on an SSM ARN for the parameter
+2026-10-04T14:22:53.4918719Z validate:i18n                    | ok   a plural form beside an unsuffixed English base is checked against it
+2026-10-04T14:22:53.4961137Z validate:no-mongo                | ok   a tracked file missing from the working tree fails loudly, not with a stack trace
+2026-10-04T14:22:53.5141328Z validate:architecture-boundaries | ok   a listing with no route/controller files cannot pass silently
+2026-10-04T14:22:53.5888348Z validate:i18n                    | ok   the v3 _plural suffix is rejected
+2026-10-04T14:22:53.6567531Z validate:architecture-boundaries | ok   a listing with no db/ modules cannot pass silently
+2026-10-04T14:22:53.6582427Z validate:architecture-boundaries | 
+2026-10-04T14:22:53.6583544Z validate:architecture-boundaries | All 24 guard cases passed.
+2026-10-04T14:22:53.6638601Z validate:architecture-boundaries | Done in 5.78s
+2026-10-04T14:22:53.6659498Z validate:no-mongo                | ok   the no-DB spelling MONGO_URI is caught too, and reported as itself
+2026-10-04T14:22:53.6880246Z validate:i18n                    | ok   the CLDR spelling of the same pair passes
+2026-10-04T14:22:53.7336010Z validate:no-mongo                | ok   a broken file listing cannot pass silently (vacuity floors)
+2026-10-04T14:22:53.7576167Z validate:i18n                    | ok   a _one form may interpolate a count its English _one spells lexically
+2026-10-04T14:22:53.8160986Z validate:no-mongo                | ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
+2026-10-04T14:22:53.8165154Z validate:no-mongo                | 
+2026-10-04T14:22:53.8166170Z validate:no-mongo                | All 33 guard cases passed.
+2026-10-04T14:22:53.8226412Z validate:no-mongo                | Done in 5.94s
+2026-10-04T14:22:53.8342607Z validate:i18n                    | ok   a single-value category may spell its number lexically
+2026-10-04T14:22:53.9128236Z validate:i18n                    | ok   a multi-value category may not
+2026-10-04T14:22:54.0152338Z validate:i18n                    | ok   an exempt category may drop the count but not another placeholder
+2026-10-04T14:22:54.0974313Z validate:i18n                    | ok   the same form dropping the non-count placeholder is rejected
+2026-10-04T14:22:54.1483856Z validate:i18n                    | ok   a language is required to cover the categories it uses
+2026-10-04T14:22:54.2445822Z validate:i18n                    | ok   covering them passes
+2026-10-04T14:22:54.3385622Z validate:i18n                    | ok   a key English does not pluralise demands no forms
+2026-10-04T14:22:54.4283338Z validate:i18n                    | ok   a key defined both flat and nested is rejected
+2026-10-04T14:22:54.5040442Z validate:i18n                    | ok   the same key defined once, nested only, passes
+2026-10-04T14:22:54.5594805Z validate:i18n                    | ok   the same key defined once, flat only, passes
+2026-10-04T14:22:54.6619353Z validate:i18n                    | ok   a catalog byte-identical to English is rejected
+2026-10-04T14:22:54.7628708Z validate:i18n                    | ok   declared translation debt lets an unfinished catalog through
+2026-10-04T14:22:54.8508730Z validate:i18n                    | ok   declared debt smaller than the reality is rejected
+2026-10-04T14:22:54.9502400Z validate:i18n                    | ok   declared debt a finished translation no longer needs is rejected
+2026-10-04T14:22:55.0284647Z validate:i18n                    | ok   the real floors reject a tree this small
+2026-10-04T14:22:55.0319476Z validate:i18n                    | 
+2026-10-04T14:22:55.0347460Z validate:i18n                    | Done in 7.16s
+2026-10-04T14:22:55.0348842Z validate:i18n                    | 41 cases passed.
+2026-10-04T14:22:55.0799074Z validate:logger                  | Logger argument validation passed — 166 files import @oxy.so/core/logger, of 2530 scanned.
+2026-10-04T14:22:55.6887669Z validate:logger                  | ok   clean tree passes
+2026-10-04T14:22:56.2443180Z validate:logger                  | ok   an object-literal second argument is rejected
+2026-10-04T14:22:56.9821240Z validate:logger                  | ok   a logger from createLogger is checked too
+2026-10-04T14:22:57.5979508Z validate:logger                  | ok   a child logger is checked too
+2026-10-04T14:22:58.1265375Z validate:logger                  | ok   the backend's pino form is NOT rejected (this is the scope)
+2026-10-04T14:22:58.1301596Z validate:commerce-boundary       | Validated Mention's Mercaria boundary: 1587 production source files (backend 646, frontend 856, mcp 43, shared-types 42), 66029 literals, 2 @mercaria.co/sdk import(s) seen.
+2026-10-04T14:22:58.6308192Z validate:logger                  | ok   debug/info/warn with a context object are NOT rejected
+2026-10-04T14:22:59.1791811Z validate:logger                  | ok   a third-argument context object is NOT rejected
+2026-10-04T14:22:59.5340022Z validate:inference-boundary      | Inference boundary mutation tests passed (92 cases).
+2026-10-04T14:22:59.5407387Z validate:inference-boundary      | Done in 11.65s
+2026-10-04T14:22:59.5492930Z validate:logger                  | ok   a broken traversal cannot pass silently (scanned-file floor)
+2026-10-04T14:22:59.9045474Z validate:logger                  | ok   a broken import matcher cannot pass silently (logger-file floor)
+2026-10-04T14:22:59.9056579Z validate:logger                  | 
+2026-10-04T14:22:59.9057678Z validate:logger                  | All 9 validator cases passed.
+2026-10-04T14:22:59.9079145Z validate:logger                  | Done in 12.03s
+2026-10-04T14:23:03.5873702Z validate:commerce-boundary       | Commerce boundary mutation tests passed (21 cases).
+2026-10-04T14:23:03.5897939Z validate:commerce-boundary       | Done in 15.70s
+2026-10-04T14:23:03.5933595Z $ bun run build:shared-types && bun run --cwd packages/backend build && bun run --cwd packages/mcp build
+2026-10-04T14:23:03.5965975Z $ bun run --cwd packages/shared-types build
+2026-10-04T14:23:03.5997527Z $ tsc
+2026-10-04T14:23:05.8224927Z $ tsc
+2026-10-04T14:23:27.8227895Z ##[error]src/services/contentClassification/jevReceipt.ts(49,36): error TS2344: Type '"getGenerationRecordByIdempotencyKey"' does not satisfy the constraint 'keyof OxyInferenceClient'.
+2026-10-04T14:23:27.8240162Z ##[error]src/services/contentClassification/jevReceipt.ts(55,26): error TS18046: 'client.getGenerationRecordByIdempotencyKey' is of type 'unknown'.
+2026-10-04T14:23:27.8244049Z ##[error]src/services/contentClassification/jevSdk.ts(33,81): error TS2344: Type '"getGenerationRecordByIdempotencyKey"' does not satisfy the constraint 'keyof OxyInferenceClient'.
+2026-10-04T14:23:27.8247241Z ##[error]src/services/contentClassification/jevSdk.ts(50,68): error TS2339: Property 'bind' does not exist on type '{}'.
+2026-10-04T14:23:27.9659933Z ##[error]Process completed with exit code 2.
+2026-10-04T14:23:27.9785201Z Post job cleanup.
+2026-10-04T14:23:28.0627618Z [command]/usr/bin/git version
+2026-10-04T14:23:28.0679254Z git version 2.55.0
+2026-10-04T14:23:28.0719649Z Temporarily overriding HOME='/home/runner/work/_temp/cceb3f9e-d7bf-40cc-8ddc-1fe568ffdcd1' before making global git config changes
+2026-10-04T14:23:28.0721436Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T14:23:28.0723581Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Mention/Mention
+2026-10-04T14:23:28.0755947Z Removing SSH command configuration
+2026-10-04T14:23:28.0762549Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T14:23:28.0799529Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T14:23:28.1058934Z Removing HTTP extra header
+2026-10-04T14:23:28.1065224Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T14:23:28.1101737Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T14:23:28.1399815Z Removing includeIf entries pointing to credentials config files
+2026-10-04T14:23:28.1414457Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T14:23:28.1451943Z includeif.gitdir:/home/runner/work/Mention/Mention/.git.path
+2026-10-04T14:23:28.1467277Z includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path
+2026-10-04T14:23:28.1468236Z includeif.gitdir:/github/workspace/.git.path
+2026-10-04T14:23:28.1469146Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T14:23:28.1471534Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Mention/Mention/.git.path
+2026-10-04T14:23:28.1528006Z /home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:23:28.1569364Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Mention/Mention/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-8ea4a9e2\-deea\-4024\-887e\-771881c7be61\.config
+2026-10-04T14:23:28.1572814Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path
+2026-10-04T14:23:28.1606280Z /home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:23:28.1646145Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-8ea4a9e2\-deea\-4024\-887e\-771881c7be61\.config
+2026-10-04T14:23:28.1708925Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-04T14:23:28.1744636Z /github/runner_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:23:28.1759988Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-8ea4a9e2\-deea\-4024\-887e\-771881c7be61\.config
+2026-10-04T14:23:28.1823376Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T14:23:28.1842825Z /github/runner_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config
+2026-10-04T14:23:28.1855097Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-8ea4a9e2\-deea\-4024\-887e\-771881c7be61\.config
+2026-10-04T14:23:28.1896858Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T14:23:28.2121543Z Removing credentials config '/home/runner/work/_temp/git-credentials-8ea4a9e2-deea-4024-887e-771881c7be61.config'
+2026-10-04T14:23:28.2269347Z Cleaning up orphan processes
