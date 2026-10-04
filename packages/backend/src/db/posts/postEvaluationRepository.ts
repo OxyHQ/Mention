@@ -1,3 +1,5 @@
+import type { ShadowTopic } from '../../services/contentClassification/jevSdk';
+import { buildJevDecisionRequest, jevInputSha256, JEV_MAX_TEXT_LENGTH } from '../../services/contentClassification/jevRequest';
 import { config } from '../../config';
 import { withShadowReceiptDatabase, type ShadowReceiptDatabase } from './shadowReceiptDatabase';
 import { isDeepStrictEqual } from 'node:util';
@@ -15,8 +17,8 @@ import { lockProfileVisibility } from '../userProfile/userSettingsRepository';
 import { lockPostContent } from './postRepository';
 import { logger } from '../../utils/logger';
 import {
-  shadowAbstention, shadowFingerprint, shadowSignalsSchema, validateShadowRelease,
-  type ShadowRelease, type ShadowSignals, type ShadowSnapshot,
+  shadowAbstention, shadowFingerprint, shadowSignalsSchema, shadowSelectionSchema, validateShadowRelease,
+  type ShadowRelease, type ShadowSignals, type ShadowSnapshot, type ShadowSelectedOperation, type ShadowSelection,
 } from '../../services/contentClassification/jevShadow';
 
 /**
@@ -31,7 +33,7 @@ import {
  * A private or followers-only profile overrides its posts' own `public` flag,
  * as in `canViewAuthorFeed` and the SEO sitemap's `publicSeoPost`: no settings
  * row is the default public profile, a missing owner fails closed. That check is
- * {@link publicProfileLocked}. Following is a quality signal, never a privacy
+ * {@link publicProfile}. Following is a quality signal, never a privacy
  * grant; security enforcement stays separate.
  */
 const eligibleSource = (tx: Transaction) => and(
@@ -48,33 +50,58 @@ const eligibleSource = (tx: Transaction) => and(
  * waits for this transaction. Taken after the post locks: writers take nothing
  * before it, so the order cannot invert.
  */
-async function publicProfileLocked(tx: Transaction, owner: string): Promise<boolean> {
-  await lockProfileVisibility(tx, owner, 'read');
+async function publicProfile(tx: Transaction, owner: string, lockRows = true): Promise<boolean> {
+  if (lockRows) await lockProfileVisibility(tx, owner, 'read');
   const [settings] = await tx.select({ visibility: userSettings.privacyProfileVisibility })
     .from(userSettings).where(eq(userSettings.oxyUserId, owner));
   return !settings || settings.visibility === 'public';
 }
 
-/** Lock order matches content writers: rendition advisory lock, then post row. */
-async function lockSnapshot(tx: Transaction, postId: string): Promise<ShadowSnapshot | null> {
-  await lockPostContent(tx, postId);
-  const [post] = await tx.select({
+/** Claim lock order matches content writers; read-only preparation uses a stable SQL snapshot. */
+async function loadSnapshot(tx: Transaction, postId: string, lockRows = true): Promise<ShadowSnapshot | null> {
+  if (lockRows) await lockPostContent(tx, postId);
+  const postQuery = tx.select({
     actorUri: posts.federationActorUri,
     owner: posts.oxyUserId,
     languages: posts.classificationLanguages,
   }).from(posts).where(and(
     eq(posts.id, postId), eq(posts.visibility, 'public'), eq(posts.status, 'published'),
     isNull(posts.boostOf), eligibleSource(tx),
-  )).for('update');
-  if (!post?.owner || !await publicProfileLocked(tx, post.owner)) return null;
-  const renditions = await tx.select({
+  ));
+  const [post] = await (lockRows ? postQuery.for('update') : postQuery);
+  if (!post?.owner || !await publicProfile(tx, post.owner, lockRows)) return null;
+  const renditionQuery = tx.select({
     id: postContentVariants.id, position: postContentVariants.position,
     tag: postContentVariants.tag, source: postContentVariants.source,
     body: postContentVariants.body, articleTitle: postContentVariants.articleTitle,
     articleBody: postContentVariants.articleBody, articleExcerpt: postContentVariants.articleExcerpt,
   }).from(postContentVariants).where(eq(postContentVariants.postId, postId))
-    .orderBy(asc(postContentVariants.position)).for('share');
+    .orderBy(asc(postContentVariants.position));
+  const renditions = await (lockRows ? renditionQuery.for('share') : renditionQuery);
   return { postId, ...post, languages: post.languages ?? [], renditions };
+}
+
+/** Read-only preparation returns hashes/IDs, never post contents, credentials or a claim.
+ * The later claim must recheck this snapshot under locks; preparation grants nothing.
+ */
+export async function preparePostEvaluationSelection(postId: string, release: ShadowRelease,
+  topics: readonly ShadowTopic[], idempotencyKey: string): Promise<ShadowSelection | null> {
+  validateShadowRelease(release);
+  return getDb().transaction(async tx => {
+    const snapshot = await loadSnapshot(tx, postId, false);
+    if (!snapshot || shadowAbstention(snapshot, release)) return null;
+    const fingerprint = shadowFingerprint(snapshot);
+    const [existing] = await tx.select({ id: postEvaluations.id }).from(postEvaluations).where(and(
+      eq(postEvaluations.postId, postId), eq(postEvaluations.fingerprint, fingerprint),
+      eq(postEvaluations.model, release.model), eq(postEvaluations.policyRef, release.policyRef),
+      eq(postEvaluations.policyVersion, release.policyVersion), eq(postEvaluations.evaluationVersion, release.evaluationVersion),
+    )).limit(1);
+    if (existing) return null;
+    const primary = snapshot.renditions.find(rendition => rendition.position === 0)!;
+    return shadowSelectionSchema.parse({ postId, fingerprint, idempotencyKey,
+      inputSha256: jevInputSha256(buildJevDecisionRequest(release, topics,
+        primary.body.slice(0, JEV_MAX_TEXT_LENGTH), snapshot.languages)) });
+  }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
 }
 
 export interface ShadowClaim {
@@ -84,18 +111,28 @@ export interface ShadowClaim {
 }
 
 /** A successful insert is the only authorization to infer. No lease takeover. */
-export async function claimPostEvaluation(postId: string, release: ShadowRelease, receiptAuthority?: ShadowReceiptAuthority, requestDeadlineAt?: Date): Promise<ShadowClaim | null> {
+export async function claimPostEvaluation(postId: string, release: ShadowRelease, receiptAuthority?: ShadowReceiptAuthority, requestDeadlineAt?: Date, selectedOperation?: ShadowSelectedOperation): Promise<ShadowClaim | null> {
   validateShadowRelease(release);
   const authority = receiptAuthority === undefined ? null : shadowReceiptAuthoritySchema.parse(receiptAuthority);
   if (requestDeadlineAt && (!authority || !Number.isFinite(requestDeadlineAt.getTime()))) {
     throw new Error('Original deadline requires valid recorded authority');
   }
   return getDb().transaction(async tx => {
-    const snapshot = await lockSnapshot(tx, postId);
+    const snapshot = await loadSnapshot(tx, postId);
     if (!snapshot) return null;
     const fingerprint = shadowFingerprint(snapshot);
     const abstention = shadowAbstention(snapshot, release);
+    if (selectedOperation) {
+      const parsed = shadowSelectionSchema.safeParse(selectedOperation.selection);
+      const expiresAt = Date.parse(selectedOperation.expiresAt);
+      if (!parsed.success || !Number.isFinite(expiresAt) || expiresAt <= Date.now()
+        || parsed.data.postId !== postId || parsed.data.fingerprint !== fingerprint || abstention) return null;
+      const primary = snapshot.renditions.find(rendition => rendition.position === 0);
+      if (!primary || jevInputSha256(buildJevDecisionRequest(release, selectedOperation.topics,
+        primary.body.slice(0, JEV_MAX_TEXT_LENGTH), snapshot.languages)) !== parsed.data.inputSha256) return null;
+    }
     const [claim] = await tx.insert(postEvaluations).values({
+      ...(selectedOperation ? { id: selectedOperation.selection.idempotencyKey } : {}),
       postId, fingerprint, model: release.model, receiptAuthority: authority, requestDeadlineAt, policyRef: release.policyRef,
       policyVersion: release.policyVersion, evaluationVersion: release.evaluationVersion,
       state: abstention ? 'abstained' : 'claimed', abstention,
@@ -143,7 +180,7 @@ export async function completePostEvaluation(claim: ShadowClaim, input: ShadowSi
       || identity.policyVersion !== signals.sdkReceipt.routingPolicy.policyVersion) {
       throw new Error('Shadow SDK policy receipt differs from the claim');
     }
-    const current = await lockSnapshot(tx, claim.snapshot.postId);
+    const current = await loadSnapshot(tx, claim.snapshot.postId);
     const same = current && shadowFingerprint(current) === claim.fingerprint;
     if (!same) {
       await tx.update(postEvaluations).set({ state: 'cancelled', finishedAt: new Date() })

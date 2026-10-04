@@ -8,7 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState, reconcilePostEvaluationUsage, listUnreconciledPostEvaluations,
+  claimPostEvaluation, preparePostEvaluationSelection, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState, reconcilePostEvaluationUsage, listUnreconciledPostEvaluations,
 } from '../../db/posts/postEvaluationRepository';
 import { replacePostContent, storeMachineVariant } from '../../db/posts/postRepository';
 import { postEvaluations, postEvaluationTopics } from '../../db/schema/postEvaluations';
@@ -20,7 +20,7 @@ import { postImports } from '../../db/schema/imports';
 import { userSettings } from '../../db/schema/userProfile';
 import { updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
+import type { ShadowRelease, ShadowSignals, ShadowSelectedOperation } from '../../services/contentClassification/jevShadow';
 
 const scope = postScope('jev-shadow-ledger');
 const release: ShadowRelease = { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy',
@@ -93,6 +93,62 @@ async function followFixture(edges: Array<typeof federatedFollows.$inferInsert>)
   });
 }
 afterAll(() => closePostgres());
+
+async function selectedFor(postId: string): Promise<ShadowSelectedOperation> {
+  const selection = await preparePostEvaluationSelection(postId, release, [], `selected-${postId}`);
+  if (!selection) throw new Error('Synthetic preparation failed');
+  expect(await ledger(postId)).toEqual([]);
+  return { selection, topics: [], expiresAt: new Date(Date.now() + 60_000).toISOString() };
+}
+
+function selectedClaim(postId: string, selected: ShadowSelectedOperation) {
+  return claimPostEvaluation(postId, release, undefined, undefined, selected);
+}
+
+describe('source-selected one-operation claim', () => {
+  it('uses the preassigned key once under concurrent claims, and never reclaims uncertain work', async () => {
+    const post = await fixture(); const selected = await selectedFor(post.id);
+    const claims = await Promise.all(Array.from({ length: 5 }, () => selectedClaim(post.id, selected)));
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    const winner = claims.find(c => c !== null)!;
+    expect(winner.id).toBe(selected.selection.idempotencyKey);
+    await markPostEvaluationUncertain(winner);
+    expect(await selectedClaim(post.id, selected)).toBeNull();
+    expect(await ledger(post.id)).toEqual([expect.objectContaining({ id: winner.id, state: 'cost_uncertain' })]);
+  });
+
+  it.each(['private', 'profile', 'deleted', 'imported', 'federated', 'text', 'post', 'hash', 'expired'] as const)(
+    'rejects changed %s after preparation without a claim', async kind => {
+      const post = await fixture(); const selected = await selectedFor(post.id);
+      if (kind === 'private') await getDb().update(posts).set({ visibility: PostVisibility.PRIVATE }).where(eq(posts.id, post.id));
+      if (kind === 'profile') await setProfile('private');
+      if (kind === 'deleted') await getDb().delete(posts).where(eq(posts.id, post.id));
+      if (kind === 'imported') await getDb().insert(postImports).values({ postId: post.id, oxyUserId: scope.user('author'),
+        platform: 'mastodon', sourceId: 'selected-import', sourceUrl: 'https://synthetic.invalid/import', importBatchId: 'synthetic-selected' });
+      if (kind === 'federated') await getDb().update(posts).set({ federationActorUri: 'https://synthetic.invalid/actor' }).where(eq(posts.id, post.id));
+      if (kind === 'text') await replacePostContent(post.id, { variants: [{ source: 'author', tag: 'en', text: 'Changed after preparation' }] }, []);
+      if (kind === 'post') selected.selection.postId = 'different-post';
+      if (kind === 'hash') selected.selection.inputSha256 = 'f'.repeat(64);
+      if (kind === 'expired') Object.assign(selected, { expiresAt: new Date(0).toISOString() });
+      expect(await selectedClaim(post.id, selected)).toBeNull();
+      expect(await ledger(post.id)).toEqual([]);
+    },
+  );
+
+  it('rechecks the profile after waiting for its privacy writer before any claim', async () => {
+    const post = await fixture(); const selected = await selectedFor(post.id);
+    const holder = barrier(); const releaseHolder = barrier();
+    const writer = getDb().transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`profile-visibility:${scope.user('author')}`}))`);
+      await tx.insert(userSettings).values({ oxyUserId: scope.user('author'), privacyProfileVisibility: 'private' });
+      holder.open(); await releaseHolder.reached;
+    });
+    await holder.reached;
+    const waiting = selectedClaim(post.id, selected);
+    try { await untilProfileLockHasWaiter(); } finally { releaseHolder.open(); await writer; }
+    expect(await waiting).toBeNull(); expect(await ledger(post.id)).toEqual([]);
+  });
+});
 
 describe('durable shadow evaluation ledger', () => {
   it('allows only one concurrent claim and never reclaims uncertain or abandoned work', async () => {

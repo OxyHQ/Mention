@@ -1,4 +1,4 @@
-import type { ShadowRelease } from './jevShadow';
+import type { ShadowRelease, ShadowSelection } from './jevShadow';
 import type { ShadowTopic } from './jevSdk';
 import type { ShadowReceiptAuthority } from './jevReceipt';
 
@@ -7,6 +7,7 @@ export const MENTION_JEV_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 /** A source-reviewed product binding, never a caller body or environment flag. */
 export interface MentionJevProductionApproval {
   readonly scope: 'native-original-public';
+  readonly selection: ShadowSelection;
   /** Review metadata only: public decisions/receipts do not attest the exact deployment.
    * Activation also requires Oxy resolver policy evidence pinning this deployment before dispatch. */
   readonly deploymentId: string;

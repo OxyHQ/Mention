@@ -1,3 +1,4 @@
+import { JEV_MAX_TEXT_LENGTH } from './contentClassification/jevRequest';
 import { createProductionJevEvaluation } from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
@@ -155,7 +156,7 @@ export class PostClassificationService {
    * the live queue's; see {@link selectQueue}.
    */
   private readonly IMPORTED_BATCH_SIZE = 10;
-  private readonly MAX_TEXT_LENGTH = 1000;
+  private readonly MAX_TEXT_LENGTH = JEV_MAX_TEXT_LENGTH;
   private readonly MAX_ATTEMPTS = 3;
   private readonly AI_TEMPERATURE = 0.2;
   private readonly AI_MAX_TOKENS = 4000;
@@ -286,13 +287,17 @@ export class PostClassificationService {
   private async classifyBatch(): Promise<void> {
     const queue = await this.selectQueue();
 
-    if (queue.length === 0) return;
+    // A reviewed one-operation shadow may target an already-classified post.
+    // It never resets or expands the ordinary queue.
+    const shadowQueue = this.shadowEvaluation?.selectedOperation
+      ? [{ id: this.shadowEvaluation.selectedOperation.selection.postId }] : queue;
+    if (queue.length === 0 && shadowQueue.length === 0) return;
 
     logger.info(`[PostClassification] Classifying batch of ${queue.length} posts`);
 
     // Fan out from the existing live/import worker. A shadow error must not
     // consume a legacy attempt or prevent canonical enrichment.
-    const outcomes = await Promise.allSettled([this.classifyCanonicalBatch(queue), this.enrichShadowBatch(queue)]);
+    const outcomes = await Promise.allSettled([queue.length ? this.classifyCanonicalBatch(queue) : Promise.resolve(), this.enrichShadowBatch(shadowQueue)]);
     // Keep the cycle's re-entrancy guard until both branches finish, even if a
     // canonical database write fails while shadow inference is still pending.
     for (const outcome of outcomes) {
@@ -441,7 +446,7 @@ export class PostClassificationService {
     });
   }
 
-  private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {
+  private async enrichShadowBatch(queue: readonly Pick<QueueDoc, 'id'>[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation) return;
     const deadline = Date.now() + config.inference.timeoutMs;
@@ -452,7 +457,7 @@ export class PostClassificationService {
       let sent = false;
       try {
         claim = await claimPostEvaluation(post.id, evaluation.release, evaluation.receiptReader?.authority,
-          evaluation.receiptReader ? new Date(deadline) : undefined);
+          evaluation.receiptReader ? new Date(deadline) : undefined, evaluation.selectedOperation);
         if (!claim) continue;
         if (evaluation.isAdmissionOpen?.() === false) {
           await releaseUnsentPostEvaluation(claim);

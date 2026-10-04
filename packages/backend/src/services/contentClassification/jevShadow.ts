@@ -1,7 +1,7 @@
 import type { ShadowReceiptReader } from './jevReceipt';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { requestIdSchema, routingPolicyReferenceSchema, usageQuantitySchema } from '@oxy.so/contracts';
+import { requestIdSchema, idempotencyKeySchema, routingPolicyReferenceSchema, usageQuantitySchema } from '@oxy.so/contracts';
 import type { DecisionSuccess } from '@oxy.so/contracts';
 
 /** This is an application release gate, never provider/credential configuration. */
@@ -113,8 +113,23 @@ export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
 /** A local admission refusal before calling the SDK; it cannot represent provider failure. */
 export class ShadowAdmissionClosedError extends Error {}
 
+/** Exactly one source-reviewed native revision; never supplied by a public request. */
+export const shadowSelectionSchema = z.object({
+  postId: z.string().min(1).max(200),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  idempotencyKey: z.string().refine(value => idempotencyKeySchema.safeParse(value).success),
+  inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type ShadowSelection = z.infer<typeof shadowSelectionSchema>;
+export interface ShadowSelectedOperation {
+  readonly selection: ShadowSelection;
+  readonly topics: readonly import('./jevSdk').ShadowTopic[];
+  readonly expiresAt: string;
+}
+
 export interface ShadowEvaluation {
   readonly release: ShadowRelease;
+  readonly selectedOperation?: ShadowSelectedOperation;
   readonly receiptReader?: ShadowReceiptReader;
   /** Optional product gate, checked before and after the SQL claim. */
   isAdmissionOpen?(): boolean;
