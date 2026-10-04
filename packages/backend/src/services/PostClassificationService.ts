@@ -142,6 +142,7 @@ export class PostClassificationService {
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
   private isClassifying = false;
+  private receiptCursor: string | undefined;
 
   private readonly CLASSIFICATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly INITIAL_RUN_DELAY_MS = 30_000;
@@ -413,9 +414,15 @@ export class PostClassificationService {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation?.receiptReader) return;
     const deadline = Date.now() + config.inference.timeoutMs;
-    for (const id of await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority)) {
+    let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority, this.receiptCursor);
+    if (!ids.length && this.receiptCursor !== undefined) {
+      this.receiptCursor = undefined;
+      ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority);
+    }
+    for (const id of ids) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
+      this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
       try {
         await reconcilePostEvaluationUsage(id, evaluation.receiptReader, AbortSignal.timeout(remaining));
       } catch {

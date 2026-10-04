@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState, reconcilePostEvaluationUsage,
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState, reconcilePostEvaluationUsage, listUnreconciledPostEvaluations,
 } from '../../db/posts/postEvaluationRepository';
 import { replacePostContent, storeMachineVariant } from '../../db/posts/postRepository';
 import { postEvaluations, postEvaluationTopics } from '../../db/schema/postEvaluations';
@@ -550,6 +550,15 @@ describe('usage reconciliation keeps lost answers and original claims separate',
       const [current] = await getDb().select().from(posts).where(eq(posts.id, post.id));
       expect(current.visibility).toBe('private');
     }
+  });
+  it('can move past permanently unavailable claims without changing them or mixing authorities', async () => {
+    const first = await uncertain(); const second = await uncertain();
+    const ids = [first.claim.id, second.claim.id].sort();
+    expect(await listUnreconciledPostEvaluations(release, authority)).toEqual(ids);
+    expect(await listUnreconciledPostEvaluations(release, authority, ids[0])).toEqual([ids[1]]);
+    expect(await listUnreconciledPostEvaluations(release, authority, ids[1])).toEqual([]);
+    expect(await listUnreconciledPostEvaluations(release, { ...authority, credentialId: 'foreign' })).toEqual([]);
+    expect((await ledger(first.post.id))[0].usageReconciliation).toBeNull();
   });
   it('bounds a held read and never writes its late result after abort', async () => {
     const { post, claim } = await uncertain(); const before = await ledger(post.id); const control = new AbortController();

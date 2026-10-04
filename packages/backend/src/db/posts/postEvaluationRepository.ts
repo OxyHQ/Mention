@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { shadowReceiptAuthoritySchema, shadowUsageReconciliationSchema, sameReceiptAuthority,
   type ShadowReceiptAuthority, type ShadowReceiptReader } from '../../services/contentClassification/jevReceipt';
-import { and, asc, eq, inArray, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
@@ -237,14 +237,15 @@ export async function reconcilePostEvaluationUsage(id: string, reader: ShadowRec
 
 
 /** Bounded maintenance read within the existing classifier cycle. */
-export async function listUnreconciledPostEvaluations(release: ShadowRelease, authority: ShadowReceiptAuthority): Promise<string[]> {
+export async function listUnreconciledPostEvaluations(release: ShadowRelease, authority: ShadowReceiptAuthority, afterId?: string): Promise<string[]> {
   const rows = await getDb().select({ id: postEvaluations.id }).from(postEvaluations).where(and(
     or(inArray(postEvaluations.state, ['cost_uncertain', 'cancelled']),
       and(eq(postEvaluations.state, 'claimed'), lte(postEvaluations.requestDeadlineAt, new Date()))),
     isNull(postEvaluations.usageReconciliation),
+    afterId === undefined ? undefined : gt(postEvaluations.id, afterId),
     eq(postEvaluations.receiptAuthority, shadowReceiptAuthoritySchema.parse(authority)), eq(postEvaluations.model, release.model),
     eq(postEvaluations.policyRef, release.policyRef), eq(postEvaluations.policyVersion, release.policyVersion),
     eq(postEvaluations.evaluationVersion, release.evaluationVersion),
-  )).orderBy(asc(postEvaluations.createdAt)).limit(25);
+  )).orderBy(asc(postEvaluations.id)).limit(25);
   return rows.map(row => row.id);
 }
