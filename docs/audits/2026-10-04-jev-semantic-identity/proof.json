@@ -1,0 +1,92 @@
+{
+  "sourceCommit": "1342488b8c03d53cf9c317692b4c70ef3e6dfdc6",
+  "base": "83459d4a9aad3342d016e7f8ea1a76d8de410076",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "3eb41928a5a8ea3b79daaad12dbf5a73349ef414a9eb9e51ce51c520d9e4f532"
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "27aab7d988b96579d682358cc4bb59dc2633ed369f8098b9ca29d7cb5269d504"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevShadow.test.ts",
+      "sha256": "b30bb0b817146d0ece5583413ea932e783f9d2224a5beb654194cad1457becd6"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "70d5b8eca5cc4478e22906cc2927d21e2fe6fd3249c4a04c34504fd4274840ed"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/00-tests.log",
+      "sha256": "74a25117f5594c428edb6fe32a61f5193dd7b500027fc78ae275d5c77d79c05a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/01-receipt.json",
+      "sha256": "79c5282048859d5705f4f5c4caf858250f8649dd1e0ebe493d628d954bf4e617"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/02-tests.log",
+      "sha256": "0ba41ed0167956703264c7f962399359950cb6a23933707154d6f7ad7fece8dd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/03-receipt.json",
+      "sha256": "0021ff8393b4a364193c97f0e998aa26e632b2aba44cc49f1021646d6915f1e2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/04-tests.log",
+      "sha256": "de8056b6d8dadd55200999499dc4f40f95ddce9f3894eacb1d2e9c41976853b8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/05-receipt.json",
+      "sha256": "16d22a9b47acbb687748a3833a3120724d161f05fb1115caf5a58a0e6740fd64"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/06-full-cut-mention-backend-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/07-full-cut-mention-backend-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/08-full-cut-mention-shared-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-semantic-identity/records/09-full-cut-mention-additive.log",
+      "sha256": "7009db7958f13ff6465850b770d15c7c99586687361e650ec83a4089194d7aec"
+    }
+  ],
+  "frozenFixtures": [
+    {
+      "path": "packages/backend/src/__tests__/services/jevShadow.test.ts",
+      "sha256": "b30bb0b817146d0ece5583413ea932e783f9d2224a5beb654194cad1457becd6"
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "27aab7d988b96579d682358cc4bb59dc2633ed369f8098b9ca29d7cb5269d504"
+    }
+  ],
+  "results": {
+    "baseline": {
+      "passed": 346,
+      "failed": 7
+    },
+    "final": {
+      "suites": 14,
+      "passed": 353
+    },
+    "backendTypes": 0,
+    "backendBuild": 0
+  },
+  "limits": [
+    "Release remains dormant; no provider calls, activation, financial writes, SDK changes or production state reads.",
+    "Existing fingerprints are not rewritten or automatically reconciled. This is a pre-activation identity correction, not a migration claim.",
+    "Historical standalone validate-jev-additive script already fails on current main0059/SDK4.9+4.2 while hardcoding0058/4.7+4.1; preserved separately and not counted green.",
+    "Initial run had unbuilt shared-types setup failures; canonical shared build preceded exact full RED and GREEN."
+  ]
+}

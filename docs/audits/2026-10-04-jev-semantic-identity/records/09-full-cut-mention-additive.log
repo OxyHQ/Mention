@@ -1,0 +1,24 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '0059_search_engine_indexing_opt_out'
+- '0058_jev_shadow_ledger'
+      ^
+
+    at file:///home/nate/Oxy/Mention/.worktrees/full-cut-capability-20261004/scripts/validate-jev-additive.mjs:21:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '0059_search_engine_indexing_opt_out',
+  expected: '0058_jev_shadow_ledger',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

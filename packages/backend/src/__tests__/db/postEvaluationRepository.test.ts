@@ -115,13 +115,45 @@ describe('durable shadow evaluation ledger', () => {
     expect(await getDb().select().from(postEvaluationTopics).where(eq(postEvaluationTopics.evaluationId, claim.id))).toHaveLength(2);
   });
 
-  it('cancels an old result after a rendition edit, including identical-text replacement', async () => {
+  it('keeps an in-flight result across a semantic no-op rewrite without another claim', async () => {
     const post = await fixture();
     const claim = await requiredClaim(post.id);
     await replacePostContent(post.id, post.content, []);
-    expect(await completePostEvaluation(claim, signals)).toBe(false);
-    expect((await ledger(post.id))[0]?.state).toBe('cancelled');
-    expect(await claimPostEvaluation(post.id, release)).not.toBeNull();
+    expect(await completePostEvaluation(claim, signals)).toBe(true);
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    expect(await ledger(post.id)).toHaveLength(1);
+  });
+
+  it.each(['claimed', 'cost_uncertain', 'cancelled', 'completed'] as const)(
+    'does not spend again after a no-op rewrite of a %s claim', async state => {
+      const post = await fixture();
+      const claim = await requiredClaim(post.id);
+      if (state === 'cost_uncertain') await markPostEvaluationUncertain(claim);
+      if (state === 'completed') await completePostEvaluation(claim, signals);
+      if (state === 'cancelled') {
+        await getDb().update(posts).set({ visibility: PostVisibility.PRIVATE }).where(eq(posts.id, post.id));
+        expect(await completePostEvaluation(claim, signals)).toBe(false);
+        await getDb().update(posts).set({ visibility: PostVisibility.PUBLIC }).where(eq(posts.id, post.id));
+      }
+      const before = await ledger(post.id);
+      await replacePostContent(post.id, post.content, []);
+      const retries = await Promise.all(Array.from({ length: 5 }, () => claimPostEvaluation(post.id, release)));
+      expect(retries).toEqual([null, null, null, null, null]);
+      expect(await ledger(post.id)).toEqual(before);
+    },
+  );
+
+  it('cancels a real semantic edit and never spends twice after editing back', async () => {
+    const post = await fixture();
+    const original = await requiredClaim(post.id);
+    await replacePostContent(post.id, { variants: [{ source: 'author', tag: 'en', text: 'Changed semantic content.' }] }, []);
+    expect(await completePostEvaluation(original, signals)).toBe(false);
+    const changed = await requiredClaim(post.id);
+    expect(changed.fingerprint).not.toBe(original.fingerprint);
+    await replacePostContent(post.id, post.content, []);
+    expect(await completePostEvaluation(changed, signals)).toBe(false);
+    expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    expect(await ledger(post.id)).toHaveLength(2);
   });
 
   it('accepts unrelated updatedAt changes and rejects private or unpublished final state', async () => {

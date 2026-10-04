@@ -33,9 +33,9 @@ describe('Jev shadow policy', () => {
     expect(shadowFingerprint(edited)).not.toBe(shadowFingerprint(snapshot));
   });
 
-  it('distinguishes replacement renditions with identical text and changed actor/language', () => {
+  it('ignores physical rendition replacement but distinguishes changed actor/language', () => {
     expect(shadowFingerprint({ ...snapshot, renditions: snapshot.renditions.map(row => ({ ...row, id: 'revision-2' })) }))
-      .not.toBe(shadowFingerprint(snapshot));
+      .toBe(shadowFingerprint(snapshot));
     expect(shadowFingerprint({ ...snapshot, actorUri: 'did:plc:other' })).not.toBe(shadowFingerprint(snapshot));
     expect(shadowFingerprint({ ...snapshot, languages: ['es'] })).not.toBe(shadowFingerprint(snapshot));
   });
