@@ -1,0 +1,10 @@
+$ node ../../node_modules/vitest/vitest.mjs run --config ".agent-evidence/1571-collaboration-docs/unit.config.ts"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1571-current-mcp-collaboration-20261004/packages/backend
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  21:40:41
+   Duration  103ms (transform 61%, import 23%, tests 8%, worker 7%)
+

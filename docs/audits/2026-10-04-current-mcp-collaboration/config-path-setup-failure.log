@@ -1,0 +1,24 @@
+$ node ../../node_modules/vitest/vitest.mjs run --config "../../.agent-evidence/1571-collaboration-docs/unit.config.ts"
+failed to load config from /home/nate/Oxy/Mention/.worktrees/1571-current-mcp-collaboration-20261004/.agent-evidence/1571-collaboration-docs/unit.config.ts
+
+⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯
+Error: Build failed with 1 error:
+
+[31m[UNRESOLVED_ENTRY] [0mCannot resolve entry module ../../.agent-evidence/1571-collaboration-docs/unit.config.ts.
+
+    at aggregateBindingErrorsIntoJsError (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/rolldown/dist/shared/error-B68YLzl3.mjs:48:18)
+    at unwrapBindingResult (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/rolldown/dist/shared/error-B68YLzl3.mjs:18:128)
+    at #build (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/rolldown/dist/shared/rolldown-build-DR0wzp0V.mjs:3256:34)
+    at async bundleConfigFile (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vite/dist/node/chunks/node.js:35654:17)
+    at async bundleAndLoadConfigFile (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vite/dist/node/chunks/node.js:35562:18)
+    at async loadConfigFromFile (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vite/dist/node/chunks/node.js:35523:42)
+    at async resolveConfig (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vite/dist/node/chunks/node.js:35139:22)
+    at async resolveConfig$1 (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:14777:25)
+    at async createVitest (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:26:17)
+    at async prepareVitest (file:///home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:421:14) {
+  errors: [Getter/Setter]
+}
+
+
+
+error: script "test" exited with code 1

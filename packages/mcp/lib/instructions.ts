@@ -54,8 +54,8 @@ Feed and list tools support \`cursor\` and \`limit\`. Responses include \`hasMor
 ## Collaborative posts
 Invite up to **5 local** co-authors on \`create-post\` or \`update-post\` (within the 30-minute edit window) via \`collaboratorIds\` or \`collaboratorHandles\` (@username). Federated users and threads are not supported.
 
-- **Invited accounts:** the invite stays \`pending\` until that account accepts or declines through its own authorized connection.
-- **Legacy transition:** already-issued multi-account bundles can retain their historical auto-accept behavior only until the fixed migration cutoff.
+- **Invited accounts:** an account already in this connection's live Oxy-approved account set is accepted automatically. Other invitations stay \`pending\` until that account accepts or declines through its own authorized connection.
+- **Retired credentials:** Mention-issued legacy bundles cannot authorize collaboration or account switching.
 - **Stop sharing:** an accepted collaborator can call \`stop-collab-sharing\`.
 - **Federation:** posts with pending invites are not federated until every invite is resolved.
 

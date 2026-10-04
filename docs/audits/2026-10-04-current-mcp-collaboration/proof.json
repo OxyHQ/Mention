@@ -1,0 +1,75 @@
+{
+  "sourceCommit": "12a1b459b915d16d0eed8d204f2ada071114495d",
+  "baseCommit": "0646d72935e698a29e91ea549719df02af5a2ceb",
+  "sources": [
+    {
+      "path": "packages/mcp/README.md",
+      "sha256": "357fe7c46b25c7c2f23138a35d02cbed893068e57927d81b17162b2ea93f5a1b"
+    },
+    {
+      "path": "packages/mcp/lib/instructions.ts",
+      "sha256": "aeb8f1ca21e0f22a6353fad79ccb48c7e11746e844395fdd793c8d8a1ea4da28"
+    },
+    {
+      "path": "packages/backend/src/mcp/utils/resolveMcpAutoAcceptIds.ts",
+      "sha256": "885729a1461eedb8db880e69c3b007ac3df53a113e192cf7d9282b70f0c99053"
+    },
+    {
+      "path": "packages/backend/src/mcp/middleware/mcpAuth.ts",
+      "sha256": "7cfd3efc2e006f0589f0db215c67f1135c8d3b44095dcccc316cf455a9e810ef"
+    },
+    {
+      "path": "packages/backend/src/controllers/posts/createPost.ts",
+      "sha256": "45f63c0702926a9b9484b2b6841c6b47c9d98327909913f06471f813c9e70f4a"
+    },
+    {
+      "path": "packages/backend/src/controllers/posts/updatePost.ts",
+      "sha256": "1b3967432457d511af0b77b131814ba0b26dec278b7076ae49c6438a53cb8da9"
+    },
+    {
+      "path": "packages/backend/src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts",
+      "sha256": "b5e01838556d8e5514f5c2fdf3ff5854c3373adbdb714b0316ec7ee8855a3681"
+    },
+    {
+      "path": "packages/mcp/lib/tool-registry.ts",
+      "sha256": "2a212c57248cf838c00d7fecf741619073ea7bfc87d0fff9529952f05cb3e292"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/README.md",
+      "sha256": "fafa0d4d99fc5407e92cb5b6f491ca44a40ce7c9bf679bea3605194d53b81897"
+    },
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/backend-db-setup-failure.log",
+      "sha256": "ca63432875f07f25e6a631c57b0fecb275fe481ffd0831baa0d7b3081a12f1e0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/config-path-setup-failure.log",
+      "sha256": "c2300f14e1a9967878a717a6dcc4416d676238aae179b82f59611044d17bedc6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/membership-unit.log",
+      "sha256": "56c385f604c0fbffb9e49596b57e151d0d230f499e44ee51809e6b5f7c978691"
+    },
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/root-script-setup-failure.log",
+      "sha256": "916013fd6ae688ccc34cbfed8252a22785fb9c2e375f33d676dc9ed4da93a079"
+    },
+    {
+      "path": "docs/audits/2026-10-04-current-mcp-collaboration/unit.config.ts",
+      "sha256": "429e410dfbca8c1383ea2f025ae1b9eede09f1f67c6fd37cac52f23f501dbce6"
+    }
+  ],
+  "tests": {
+    "existingMembershipControls": 3,
+    "fullBackendClaim": false,
+    "databaseRun": false
+  },
+  "effects": {
+    "production": false,
+    "aws": false,
+    "authChanges": false
+  },
+  "remainingIssue": "https://github.com/OxyHQ/oxy/issues/1571"
+}
