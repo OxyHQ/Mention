@@ -1,0 +1,12 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1609998, /tmp/mention-jev-semantic-1goxmw61/data, socket /tmp/mention-jev-semantic-1goxmw61/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1609998, /tmp/mention-jev-semantic-1goxmw61/data, socket /tmp/mention-jev-semantic-1goxmw61/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/postClassification.test.ts -t "production approval expires"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-production-factory-20261004/packages/backend
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 46 skipped (48)
+   Start at  18:37:17
+   Duration  3.99s (transform 30%, tests 26%, import 22%, setup 22%)
+

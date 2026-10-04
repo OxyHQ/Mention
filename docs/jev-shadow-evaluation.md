@@ -1,14 +1,16 @@
-# Jev shadow evaluation (blocked candidate)
+# Jev shadow evaluation (production admission remains blocked)
 
-This additive first cut is based on main `285f4719f9beead269fce847a24c7a89c885dc87`,
+Historical storage baseline: the additive first cut was based on main `285f4719f9beead269fce847a24c7a89c885dc87`,
 ending at migration 0057. New migration `0058_jev_shadow_ledger` creates only
 `post_evaluations` and `post_evaluation_topics`, including SDK receipt and language
 evidence storage. Every pre-existing snapshot table, including
 `actor_key_pairs.private_key_pem`, is preserved. This branch has no dependency on
 PR #1300, its migrations, or its post-link-preview changes.
 
-The normal dependency catalog and core override pin public npm
-`@oxy.so/contracts@4.7.0` and `@oxy.so/core@4.1.0`; Bun generates the lockfile.
+The normal dependency catalog currently pins public npm
+`@oxy.so/contracts@4.9.0` and `@oxy.so/core@4.2.0`; Bun generates the lockfile.
+Original-key receipt recovery requires the pending additive core release; its
+candidate validation does not count as published dependency adoption.
 `createJevShadowEvaluation` consumes the published `decide()` method with typed
 Noul propositions for overlapping topics, spam, internal repetition and each
 canonical language, plus an ordered five-level `feedScore`. The normalized
@@ -25,8 +27,11 @@ Usage quantities are not money or proof of financial settlement. Missing usage
 in synthetic domain fixtures is never treated as zero cost. Receipt recovery after
 ambiguous/late results remains blocked pending reconciliation review.
 
-There is no production client binding, provider call, manual transport, local
-package override, environment bypass, or retry after dispatch. All six existing
+The production singleton now calls `createProductionJevEvaluation`, which uses
+the canonical `OxyInferenceClient` and existing Mention `serviceToken()` path.
+Its reviewed source approval is absent, so it constructs no active evaluator.
+There is no provider call, manual transport, committed local package override,
+environment bypass, or retry after dispatch. All six existing
 release blockers remain nonempty, including `published_decisions_sdk`: publication
 and implementation alone do not satisfy independent integration review.
 
@@ -333,3 +338,40 @@ classifier pool remains available. The row is checked again under lock and
 after each asynchronous boundary, and a cancelled transaction cannot write
 late after a blocking lock is released. Unknown receipts remain unresolved;
 none of these paths issues another inference request.
+
+## Production factory and remaining authority
+
+`jevProductionApproval.ts` is the single source-reviewed product binding. It
+currently returns `undefined`. An eventual approved record must identify the
+reviewed deployment metadata and evidence, immutable model/policy/evaluation version,
+question set, canonical UTC expiry and Mention's own production application and
+credential. Borrowed human delegation is refused for this background product
+lane. The factory does not register credentials, expand scopes, fund accounts or
+interpret an environment switch as approval. Expiry is checked before and after a SQL claim, so unsent work is not
+quarantined as cost-uncertain. Original-key receipt reads remain available for
+accounting reconciliation. A local factory refusal is distinct from an
+ambiguous provider outcome.
+
+The deployment ID is review metadata, not request or receipt attestation: the
+public decisions contract returns model/policy, and usage recovery does not
+prove an exact deployment. Before activation, the matching Oxy policy must
+restrict the resolver to that reviewed deployment before provider dispatch.
+This factory cannot enforce or establish that condition by merely storing an ID.
+
+Fresh runtime 694 authority readback found Mention's effective invocation scope
+missing and its billing account unprovisioned. The existing Alia internal-metered
+pilot does not transfer either authority or funding to Mention. Canonical
+operations available for a separately reviewed activation are the Oxy application
+scope update, existing workload binding scope update ([Oxy workload-binding CLI](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/scripts/bind-workload-identity.ts)),
+and the owning account's commercial billing provisioning and balance readback.
+[Oxy economic policy](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/src/config/inferenceEconomicPolicy.ts) currently exempts Alia only; no exemption is added
+here. The exact Jev deployment/privacy/ZDR and policy approval also remains
+required. Public provider availability is not this product approval.
+
+The factory is wired to the existing worker, not a second scheduler. A real
+PostgreSQL fixture invokes the actual SDK through that factory with a synthetic
+source review and workload token. It observes one persisted native claim before
+one POST, excludes a federated row, and preserves ordinary classification. The
+repository suite separately exercises imports, private sources, federated owners
+and privacy/deletion races. No real provider, production funding or human
+consent is claimed by these fixtures. All six release blockers remain intact.

@@ -1,0 +1,77 @@
+{
+  "sourceHead": "d64ad3dbd33657b4b05d1cc5bf014667e2d0fea6",
+  "baseline": "0c0dfdf47",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "0e383258c58325945cc5f2e8f4af76720acbdd586a5f31690ed7d38c33c276cd"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "3e06861afe50af3fcd0ff0199f4ddb1adc9c6735a7cc823a50032e40dfe936ed"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "6b88752696ed58dabb1771c69fbd859f0b975720663145f5b83fa94bb384c461"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "36694ea7b82852e23ae6cde384a79a3e6616db22d471213c251320c520ea6162"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "d88db1a929f79f8b0658d39df6872a4c08532d5430ba07de6b05b201e714c7e8"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/red.log",
+      "sha256": "1281c0d161d5f099e75fd5e6e8e88141c340e627c6aefdf0069f6ebe7b70a46d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/red-cleanup.json",
+      "sha256": "e7c25ca39cc561dcad4083824e67c2414cd975588e30e3bb17ca8cf54799c53b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/green.log",
+      "sha256": "87286ece7daa11b6b5309b8343ff0fc70a0ef56eaae143d113d744c15e66f712"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/green-cleanup.json",
+      "sha256": "bd936b6ca10ca44c732bab4f0e51b646e6f8cf96ae4db08fda15ee7c5c55570f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/final.log",
+      "sha256": "d63221e643d30fd96109f2ddc708b9bed7ebe9fc59ce583ea9abb49b04a49b88"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/final-cleanup.json",
+      "sha256": "a5c780481e9afc779382f4ef2cd1c9f5ad57ddd1f087db65387d062158a727c3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/fixture.ts",
+      "sha256": "3e06861afe50af3fcd0ff0199f4ddb1adc9c6735a7cc823a50032e40dfe936ed"
+    }
+  ],
+  "results": {
+    "exactFixtureRedFailures": 2,
+    "exactFixtureGreenPasses": 2,
+    "relatedPasses": 134,
+    "suites": 4,
+    "build": 0
+  },
+  "limits": [
+    "Deployment ID is metadata only. Exact resolver-side deployment restriction remains prerequisite; public decisions/usage cannot verify it.",
+    "No active source approval or gate changes.",
+    "Both expiry failures made no SDK transport calls. Original-key receipt reads and ordinary classifier remain available.",
+    "Candidate SDK provenance is retained in the parent proof; registry release still pending."
+  ]
+}

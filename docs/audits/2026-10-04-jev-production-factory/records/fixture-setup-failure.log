@@ -1,0 +1,31 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1592463, /tmp/mention-jev-semantic-pisq6ow_/data, socket /tmp/mention-jev-semantic-pisq6ow_/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1592463, /tmp/mention-jev-semantic-pisq6ow_/data, socket /tmp/mention-jev-semantic-pisq6ow_/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=2" src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/services/postClassification.test.ts src/__tests__/db/postEvaluationRepository.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-production-factory-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (46 tests | 1 failed) 7730ms
+   ❯ PostClassificationService — shadow fanout (13)
+     × connects the production factory to the real native-only queue through the SDK 347ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > connects the production factory to the real native-only queue through the SDK
+AssertionError: expected "vi.fn()" to be called 1 times, but got 2 times
+ ❯ src/__tests__/services/postClassification.test.ts:1231:23
+    1229|     vi.stubGlobal('fetch', transport);
+    1230|     await createProductionPostClassificationService().processQueue();
+    1231|     expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBe…
+       |                       ^
+    1232|     expectBatchWasOurs();
+    1233|     expect((await classificationOf(native.id)).status).toBe('classifie…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 131 passed (132)
+   Start at  18:28:12
+   Duration  10.63s (tests 68%, import 14%, transform 12%, setup 6%)
+
+error: script "test" exited with code 1

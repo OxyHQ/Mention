@@ -1,3 +1,4 @@
+import { createProductionJevEvaluation } from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -14,7 +15,7 @@ import { config } from '../config';
 import { topicService } from './TopicService';
 import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
-import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
+import { evaluateShadowWithDeadline, isJevShadowReleased, ShadowAdmissionClosedError, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
   claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
   listUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
@@ -446,13 +447,17 @@ export class PostClassificationService {
     const deadline = Date.now() + config.inference.timeoutMs;
     // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
     for (const post of queue) {
-      if (Date.now() >= deadline) break;
+      if (Date.now() >= deadline || evaluation.isAdmissionOpen?.() === false) break;
       let claim: ShadowClaim | null = null;
       let sent = false;
       try {
         claim = await claimPostEvaluation(post.id, evaluation.release, evaluation.receiptReader?.authority,
           evaluation.receiptReader ? new Date(deadline) : undefined);
         if (!claim) continue;
+        if (evaluation.isAdmissionOpen?.() === false) {
+          await releaseUnsentPostEvaluation(claim);
+          break;
+        }
         const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
         const remaining = deadline - Date.now();
@@ -477,7 +482,7 @@ export class PostClassificationService {
         logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
         if (claim) {
           try {
-            if (sent) await markPostEvaluationUncertain(claim);
+            if (sent && !(error instanceof ShadowAdmissionClosedError)) await markPostEvaluationUncertain(claim);
             else await releaseUnsentPostEvaluation(claim);
           } catch (ledgerError) {
             // An abandoned claim is also never reclaimed with a fresh request id.
@@ -529,4 +534,8 @@ export class PostClassificationService {
   }
 }
 
-export const postClassificationService = new PostClassificationService();
+export function createProductionPostClassificationService(): PostClassificationService {
+  return new PostClassificationService(createProductionJevEvaluation());
+}
+
+export const postClassificationService = createProductionPostClassificationService();
