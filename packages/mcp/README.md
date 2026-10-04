@@ -46,14 +46,24 @@ MCP client → mcp.mention.earth → api.mention.earth
                               ↑ account selection + consent on auth.oxy.so
 ```
 
-Native Oxy execution uses a separate HTTP surface on the same adapter, never
-the MCP protocol or an OAuth token:
+Configured Alia-to-Mention execution uses the shared internal MCP service with
+a capability ticket and an exact registered catalog binding. It is separate
+from the external OAuth MCP connection:
 
 ```text
-Alia → Capability ticket → mcp.mention.earth/_oxy/capabilities/:tool
-                              → Capability ticket → api.mention.earth
+Alia → Capability ticket → mcp.mention.earth/_oxy/mcp
+                              → canonical tool handler → api.mention.earth
                               ↘ live reauthorization + audit ↗ api.oxy.so
 ```
+
+`/_oxy/mcp` refuses requests when its catalog binding is absent. A failure does
+not fall back to the retained HTTP capability endpoint. The catalog still
+advertises `/_oxy/capabilities/:tool`, which remains mounted for existing
+capability consumers and uses the same domain handlers. Removing it requires a
+coordinated catalog/version and caller migration; the presence of the internal
+MCP route alone does not make the HTTP contract unreachable. Neither native
+path uses an external OAuth connection token. See the
+[retirement register](../../docs/COMPATIBILITY_RETIREMENT.md).
 
 | Component | Role |
 |-----------|------|
