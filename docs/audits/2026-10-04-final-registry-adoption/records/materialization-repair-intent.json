@@ -1,0 +1,15 @@
+{
+  "head": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+  "originalFailedReceiptPreserved": true,
+  "directories": {
+    "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core": {
+      "name": "@oxy.so/core",
+      "mismatches": [
+        "dist/cjs/session/refresh.js",
+        "dist/esm/session/refresh.js",
+        "src/session/refresh.ts"
+      ]
+    }
+  },
+  "method": "Move only own mismatched package directories aside, canonical frozen reinstall, then complete importer comparison"
+}

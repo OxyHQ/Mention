@@ -1,0 +1,12 @@
+$ node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand oxyRuntimeCompatibility.test.ts
+PASS __tests__/oxyRuntimeCompatibility.test.ts
+  Oxy runtime compatibility unit
+    ✓ @alia.onl/sdk resolves its Services peer to the app singleton (1 ms)
+    ✓ @syra.fm/sdk resolves its Services peer to the app singleton
+    ✓ gives Services the same Core and Bloom runtime as Mention (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        0.89 s
+Ran all test suites matching oxyRuntimeCompatibility.test.ts.

@@ -1,0 +1,63 @@
+[
+  {
+    "name": "mcp-tests",
+    "cwd": "packages/mcp",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "test"
+    ],
+    "exitCode": 0,
+    "seconds": 6.429
+  },
+  {
+    "name": "backend-mcp-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 4.474
+  },
+  {
+    "name": "mcp-types",
+    "cwd": "packages/mcp",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 0,
+    "seconds": 1.668
+  },
+  {
+    "name": "frontend-compat",
+    "cwd": "packages/frontend",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "test",
+      "oxyRuntimeCompatibility.test.ts"
+    ],
+    "exitCode": 0,
+    "seconds": 1.467
+  },
+  {
+    "name": "frontend-types",
+    "cwd": "packages/frontend",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "typecheck"
+    ],
+    "exitCode": 1,
+    "seconds": 14.398
+  }
+]

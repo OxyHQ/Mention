@@ -1,0 +1,9 @@
+{
+  "name": "@oxy.so/services",
+  "version": "11.1.0",
+  "sha256": "20edf86b755293700e81b2dbe680ea2fa99e42d5a85fc089b53398f0eb05c99d",
+  "integrity": "sha512-OMRCdULR30WmDc66TzBov1VP2aZAFUBjuskEJPBRvDWIC+9r9DaOCYhLxlBhy6YgdKPnJBnY5YU1Bp/HcFiZDw==",
+  "files": 2418,
+  "candidateSha256": "b8d232cb04d934ac38c8be303dbbcf9819d444bec8458628c8478cbbf2155c9c",
+  "allFilesEqual": true
+}

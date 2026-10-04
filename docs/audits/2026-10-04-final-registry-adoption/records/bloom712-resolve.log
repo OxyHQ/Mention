@@ -1,0 +1,10 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [106]
+Saved lockfile
+
+$ bun run build:shared-types
+$ bun run --cwd packages/shared-types build
+$ tsc
+
+1 package installed [2.39s]
