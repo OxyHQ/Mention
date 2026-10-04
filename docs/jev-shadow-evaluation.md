@@ -362,9 +362,9 @@ Fresh runtime 694 authority readback found Mention's effective invocation scope
 missing and its billing account unprovisioned. The existing Alia internal-metered
 pilot does not transfer either authority or funding to Mention. Canonical
 operations available for a separately reviewed activation are the Oxy application
-scope update, existing workload binding scope update (`bind-workload-identity.ts`),
+scope update, existing workload binding scope update ([Oxy workload-binding CLI](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/scripts/bind-workload-identity.ts)),
 and the owning account's commercial billing provisioning and balance readback.
-`inferenceEconomicPolicy.ts` currently exempts Alia only; no exemption is added
+[Oxy economic policy](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/src/config/inferenceEconomicPolicy.ts) currently exempts Alia only; no exemption is added
 here. The exact Jev deployment/privacy/ZDR and policy approval also remains
 required. Public provider availability is not this product approval.
 
