@@ -95,6 +95,10 @@
     {
       "path": "docs/audits/2026-10-04-native-edit-atomicity/records/shared-build.log",
       "sha256": "9896849eea153f9d9c4009077767db9b8fdefb4eff8b7571389fa8ef22051c5b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-postcommit-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
     }
   ],
   "results": {
