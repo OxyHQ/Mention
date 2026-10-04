@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "5fe94e9a23c6789e057fce8d3c9fb6f9c6a3ad89",
+  "base": "7570ef707291a3fe932c6fab2935240cc4946135",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "6b1b067cf75247f51ecf2abcb74b08572e950ab2aa6fd5cff7aef35b3bf867eb"
+    },
+    {
+      "path": "packages/backend/drizzle/0060_jev_usage_reconciliation.sql",
+      "sha256": "9414e5f4ab0bf8224728ccf2b0c611012ce281e5e441cbcb05d99b8303ecfc89"
+    },
+    {
+      "path": "packages/backend/drizzle/meta/0060_snapshot.json",
+      "sha256": "d3aa39552af635877c6cbad36445bcb7516eb6888f7dba086a8da1cada4e7a53"
+    },
+    {
+      "path": "packages/backend/drizzle/meta/_journal.json",
+      "sha256": "4cb527be1712589d939563d3f161e12f9b2fc0a0cd1976434a5e1cf76c690ce9"
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "6870bfd4f870f54f33ed97ded3d42ef95c169b3933fe8ff2821eecae07dac01e"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevSdk.test.ts",
+      "sha256": "5f183dd8ed4add0f610ab72fe433a44753108d5ab4fd93ffe62983b563ab1740"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "b3815855b7a27945925367b5559f295f64c84b92cc312f6261220d7f3047fa97"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "89902d41e2a8fca5e6e9936f359d27958c4943f7a76451e99aaac1220cea19ba"
+    },
+    {
+      "path": "packages/backend/src/db/schema/postEvaluations.ts",
+      "sha256": "a176ad0128ea012cf146e4418e0b94672a3d7762dd38447538fba4bfa81b45de"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "8044235b9408778105de8a67a7d60426a6507b329c0afecf0bd10b3385b93a95"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevReceipt.ts",
+      "sha256": "d8bb40112dd07030fb7726875a4d99659ea805c2426c7c1519910fc41845d5c1"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevSdk.ts",
+      "sha256": "a1b9c2ebf3e5b5cdbabe7d90d89072f8a61ba4c15b1fd397450daf43286e6953"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "08c0147cc2731f3ced478c74428dd1809abd5b870bdca9e9c3a8566c6e08f49f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/first-tests.log",
+      "sha256": "ffbf36167f017377a599efbc9842aaaf53325792378c1e32e50d2a466c01b84d",
+      "classification": "implementationFailure"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/first-receipt.json",
+      "sha256": "caa269bc14f89d225128067fb94b606c92d2eb1403fad94b3895c7deb59e760a",
+      "classification": "implementationFailure"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/second-tests.log",
+      "sha256": "7c9c39f8b55f92163a0d66a0662c1b4c5570a82cb90d86ba8067adbb1e1632e3",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/second-receipt.json",
+      "sha256": "166ec2274d411be9be9fd82554119c9c5f24c9abf777f05ead3d685dc1c14de4",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/cycle-tests.log",
+      "sha256": "2f018d14161bdcf5e45cda17d4710293bb31a522086950c2ee81bc0618fb48c5",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/cycle-receipt.json",
+      "sha256": "33e36796e6456fea1daf5979f342c11e8ab540ee0a52150d5b49dd9132e468bf",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/deadline-final-tests.log",
+      "sha256": "e6ac630c7f9e33c38588796d054b6e7b7fffb3ae5ef010ef82e9a012f716bba7",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/deadline-final-receipt.json",
+      "sha256": "ab403a1a3c3ac9f011c78d5337001caba002dab953837169d780922d09c87b79",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/freeze-tests.log",
+      "sha256": "41e0df934d097bb9fc17b2590953aa39e37e6a6dd4650985ce3e82b008ca09e5",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/freeze-receipt.json",
+      "sha256": "58ea2d2be6df67dcaf34a5a390e3dc90068a2f12950d9a031eb1e91e3a3134fb",
+      "classification": "intermediateGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/fair-final-tests.log",
+      "sha256": "be20659a8fbbb50c40882de1291d35b14db45991b7ad3ee2ab209c587b26f5bf",
+      "classification": "finalGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/fair-final-receipt.json",
+      "sha256": "2a42875b4b4df1f04c9009727ddd4822c0918b7c6381b5dd42f208733df63554",
+      "classification": "finalGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/initial-types.log",
+      "sha256": "9ed880d5bb2108ad2c418641006abf7026dd1de402de3e64ab6d613e1b492e7e",
+      "classification": "implementationFailure"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "classification": "green"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454",
+      "classification": "finalGreen"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/initial-overlay-install.log",
+      "sha256": "31f419534823d00fd98851b4698b98faafc7abae9c0f1f0e7be4292bbf9d10b4",
+      "classification": "setupFailure"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/overlay-install.log",
+      "sha256": "75a613d8833e42683e6e1e4100fbf6c7afc78c945d6bf7d4bc1f0242a713677c",
+      "classification": "candidateInstall"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/migration-generation.log",
+      "sha256": "c7a674d6ea9ac1290562339cb7e4f0850bfe5909afda84986c2078b57e18cb89",
+      "classification": "generatedMigration"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/installed-core.json",
+      "sha256": "2998ae08afd9c974e3e3151d6abd83e7bba818214171bdce09203053c8ed4f70",
+      "classification": "candidateEvidence"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/migration-check.json",
+      "sha256": "d9fbb3cf44427704d8e5626da330a892b54e9f1ceb542cf9a82da79bf90af66a",
+      "classification": "candidateEvidence"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/package.json.candidate",
+      "sha256": "b1dec6fb9c597391594ca30efb3711cc21d2c674b7e736ecf48e5f62ee0d4121",
+      "classification": "candidateEvidence"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/bun.lock.candidate",
+      "sha256": "37d52955a5ef11159959dea5c878804b4857c673af9064c4511565fdbc38e309",
+      "classification": "candidateEvidence"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/run-owned-pg.py",
+      "sha256": "6fba7c86cec9368dee293fb29d720220bdc1a58088536239eeb26c4b682cfea7",
+      "classification": "harness"
+    }
+  ],
+  "sdk": {
+    "source": "OxyHQ/oxy@1dd665784",
+    "pullRequest": "https://github.com/OxyHQ/oxy/pull/1574",
+    "archivePath": "/home/nate/Oxy/.agent-evidence/mention-jev-receipt-final/oxy.so-core-4.2.0-candidate.tgz",
+    "sha256": "77c3617226022c193175d358c2f509387b7e235ab31ce771539d08a4aba42bd9",
+    "installedMembers": 581,
+    "registryAdopted": false,
+    "manifestAndLockRestored": true
+  },
+  "results": {
+    "finalTests": 371,
+    "finalSuites": 14,
+    "buildExit": 0,
+    "typesExit": 0,
+    "ownedPostgresStopped": true,
+    "sqlMigration": "0060: three nullable columns, existing schema unchanged"
+  },
+  "limits": [
+    "Candidate SDK only: the method is not yet published; consumer manifests/lock remain the existing published baseline.",
+    "Initial nine test failures were implementation interoperability errors, not a frozen baseline-product regression claim.",
+    "Accounting recovery cannot restore lost Jev answers. No new inference, request key, claim takeover, provider call or receipt access grant.",
+    "Historical rows without original authority/deadline stay unresolved. Expired/revoked credentials and unknown receipts stay unresolved.",
+    "Synthetic issuer/HTTP transport and owned PostgreSQL; no production migration, deployment, Jev activation or provider-policy acceptance.",
+    "All existing Jev eligibility/privacy/release gates remain in force."
+  ]
+}

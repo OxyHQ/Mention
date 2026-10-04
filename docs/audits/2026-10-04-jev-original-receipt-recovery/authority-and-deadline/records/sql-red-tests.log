@@ -1,0 +1,41 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1519993, /tmp/mention-jev-semantic-5v8pn5og/data, socket /tmp/mention-jev-semantic-5v8pn5og/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1519993, /tmp/mention-jev-semantic-5v8pn5og/data, socket /tmp/mention-jev-semantic-5v8pn5og/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/postClassification.test.ts -t "bounds real SQL"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts [ src/__tests__/services/postClassification.test.ts ]
+Error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mIdentifier `config` has already been declared
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/__tests__/services/postClassification.test.ts:84:10 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m84 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mconfig[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m.[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249m.[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mg[0m[38;5;249m'[0m[38;5;249m;[0m
+ [38;5;240m   │[0m          ───┬──  
+ [38;5;240m   │[0m             ╰──── `config` has already been declared here
+ [38;5;240m   │[0m 
+ [38;5;246m92 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mconfig[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m.[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249m.[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mg[0m[38;5;249m'[0m[38;5;249m;[0m
+ [38;5;240m   │[0m          ───┬──  
+ [38;5;240m   │[0m             ╰──── It can not be redeclared here
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend/src/__tests__/services/postClassification.test.ts
+ ❯ transformWithOxc ../../node_modules/vite/dist/node/chunks/node.js:3661:19
+ ❯ TransformPluginContext.transform ../../node_modules/vite/dist/node/chunks/node.js:3732:26
+ ❯ EnvironmentPluginContainer.transform ../../node_modules/vite/dist/node/chunks/node.js:29714:51
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/node.js:19729:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  18:04:32
+   Duration  2.57s (setup 95%, transform 4%, worker 1%)
+
+error: script "test" exited with code 1

@@ -1,0 +1,152 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1347347, /tmp/mention-jev-semantic-0awxkmvs/data, socket /tmp/mention-jev-semantic-0awxkmvs/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1347347, /tmp/mention-jev-semantic-0awxkmvs/data, socket /tmp/mention-jev-semantic-0awxkmvs/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts (42 tests | 9 failed) 3359ms
+   ❯ usage reconciliation keeps lost answers and original claims separate (9)
+     × records v1 evidence without restoring answers or permitting a paid retry 44ms
+     × records v2 evidence without restoring answers or permitting a paid retry 31ms
+     × leaves unknown usage unchanged 35ms
+     × rejects foreign applicationId before writing 35ms
+     × rejects foreign credentialId before writing 23ms
+     × rejects foreign environment before writing 31ms
+     × rejects foreign resolvedModelReference before writing 32ms
+     × does not invent attribution for old claims 48ms
+     × serializes concurrent duplicate receipts without another claim 34ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > records v1 evidence without restoring answers or permitting a paid retry
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Internals.wrapped ../../node_modules/zod/v4/core/memoizer.js:239:32
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ claimPostEvaluation src/db/posts/postEvaluationRepository.ts:87:90
+     85| export async function claimPostEvaluation(postId: string, release: Sha…
+     86|   validateShadowRelease(release);
+     87|   const authority = receiptAuthority === undefined ? null : shadowRece…
+       |                                                                                          ^
+     88|   return getDb().transaction(async tx => {
+     89|     const snapshot = await lockSnapshot(tx, postId);
+ ❯ uncertain src/__tests__/db/postEvaluationRepository.test.ts:483:55
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > records v2 evidence without restoring answers or permitting a paid retry
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ claimPostEvaluation src/db/posts/postEvaluationRepository.ts:87:90
+     85| export async function claimPostEvaluation(postId: string, release: Sha…
+     86|   validateShadowRelease(release);
+     87|   const authority = receiptAuthority === undefined ? null : shadowRece…
+       |                                                                                          ^
+     88|   return getDb().transaction(async tx => {
+     89|     const snapshot = await lockSnapshot(tx, postId);
+ ❯ uncertain src/__tests__/db/postEvaluationRepository.test.ts:483:55
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:488:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > leaves unknown usage unchanged
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ claimPostEvaluation src/db/posts/postEvaluationRepository.ts:87:90
+     85| export async function claimPostEvaluation(postId: string, release: Sha…
+     86|   validateShadowRelease(release);
+     87|   const authority = receiptAuthority === undefined ? null : shadowRece…
+       |                                                                                          ^
+     88|   return getDb().transaction(async tx => {
+     89|     const snapshot = await lockSnapshot(tx, postId);
+ ❯ uncertain src/__tests__/db/postEvaluationRepository.test.ts:483:55
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:502:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > rejects foreign applicationId before writing
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > rejects foreign credentialId before writing
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > rejects foreign environment before writing
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > rejects foreign resolvedModelReference before writing
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ claimPostEvaluation src/db/posts/postEvaluationRepository.ts:87:90
+     85| export async function claimPostEvaluation(postId: string, release: Sha…
+     86|   validateShadowRelease(release);
+     87|   const authority = receiptAuthority === undefined ? null : shadowRece…
+       |                                                                                          ^
+     88|   return getDb().transaction(async tx => {
+     89|     const snapshot = await lockSnapshot(tx, postId);
+ ❯ uncertain src/__tests__/db/postEvaluationRepository.test.ts:483:55
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:507:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > does not invent attribution for old claims
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ createJevReceiptReader src/services/contentClassification/jevReceipt.ts:47:64
+     45|   input: ShadowReceiptAuthority,
+     46| ): ShadowReceiptReader {
+     47|   const authority = Object.freeze(shadowReceiptAuthoritySchema.parse(i…
+       |                                                                ^
+     48|   return { authority, async readOriginal(key, model) {
+     49|     // Exactly one read; failures/404 propagate, leaving the original …
+ ❯ reader src/__tests__/db/postEvaluationRepository.test.ts:479:32
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:513:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > usage reconciliation keeps lost answers and original claims separate > serializes concurrent duplicate receipts without another claim
+Error: Invalid element at key "environment": expected a Zod schema
+ ❯ normalizeDef ../../node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.fn ../../node_modules/zod/v4/core/parse.js:11:36
+ ❯ _parse ../../node_modules/zod/v4/classic/schemas.js:135:22
+ ❯ claimPostEvaluation src/db/posts/postEvaluationRepository.ts:87:90
+     85| export async function claimPostEvaluation(postId: string, release: Sha…
+     86|   validateShadowRelease(release);
+     87|   const authority = receiptAuthority === undefined ? null : shadowRece…
+       |                                                                                          ^
+     88|   return getDb().transaction(async tx => {
+     89|     const snapshot = await lockSnapshot(tx, postId);
+ ❯ uncertain src/__tests__/db/postEvaluationRepository.test.ts:483:55
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:517:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+
+ Test Files  1 failed | 13 passed (14)
+      Tests  9 failed | 353 passed (362)
+   Start at  17:02:33
+   Duration  27.24s (tests 56%, import 27%, transform 13%, setup 4%)
+
+     Import  412 modules were evaluated 1596 times · 13.17s total, 27% of tracked time
+             ~3.87s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

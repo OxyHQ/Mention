@@ -1,0 +1,55 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1439852, /tmp/mention-jev-semantic-l7lssq5z/data, socket /tmp/mention-jev-semantic-l7lssq5z/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1439852, /tmp/mention-jev-semantic-l7lssq5z/data, socket /tmp/mention-jev-semantic-l7lssq5z/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (43 tests | 2 failed) 5169ms
+   ❯ PostClassificationService — shadow fanout (10)
+     × continues the ordinary classifier when optional receipt selection fails 65ms
+     × does not suppress an ordinary classifier failure while containing receipt maintenance 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > continues the ordinary classifier when optional receipt selection fails
+Error: synthetic receipt selection unavailable
+ ❯ src/__tests__/services/postClassification.test.ts:1209:26
+    1207|     vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    1208|     const selection = vi.spyOn(evaluationRepository, 'listUnreconciled…
+    1209|       .mockRejectedValue(new Error('synthetic receipt selection unavai…
+       |                          ^
+    1210|     const post = await seedSubject('Ordinary work survives receipt mai…
+    1211|     await padBatch(1); respondWith([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > does not suppress an ordinary classifier failure while containing receipt maintenance
+AssertionError: expected Error: optional selection failed to be Error: ordinary classifier unavailable // Object.is equality
+
+- Expected
++ Received
+
+  Error {
+-   "message": "ordinary classifier unavailable",
++   "message": "optional selection failed",
+  }
+
+ ❯ src/__tests__/services/postClassification.test.ts:1231:40
+    1229|     const failure = new Error('ordinary classifier unavailable');
+    1230|     vi.spyOn(worker as unknown as { markEmptyPosts(): Promise<void> },…
+    1231|     await expect(worker.processQueue()).rejects.toBe(failure);
+       |                                        ^
+    1232|   });
+    1233|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 13 passed (14)
+      Tests  2 failed | 371 passed (373)
+   Start at  17:35:22
+   Duration  12.54s (tests 55%, import 29%, transform 12%, setup 4%)
+
+     Import  412 modules were evaluated 1596 times · 6.52s total, 29% of tracked time
+             ~1.92s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

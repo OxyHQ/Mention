@@ -1,0 +1,60 @@
+{
+  "sourceHead": "4d3afeec9e4fc8f195e122c412345fbadbaf1a39",
+  "baseline": "5a47d84536039a6dcdd5c462e990db1913b3f31a",
+  "sources": [
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "5e4343bada0613d7f4d58f090f72dc681de292ddb5f9b94e837006ab83963289"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "d519bc7f1a23c7b4f8f438db8b34ead2c27df87550b9d5b7b75b51c9fe46da7f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/red.log",
+      "sha256": "f81a97a227a44008a282984fc3ec8e2df5f7e77024458312b49e80d28d90d902"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/red-pg.json",
+      "sha256": "e2529c1f139ae50b9cfcb798ca64368dd1bad9fb5830b6a305ab4a5e2c2df8be"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/frozen-test.ts",
+      "sha256": "d519bc7f1a23c7b4f8f438db8b34ead2c27df87550b9d5b7b75b51c9fe46da7f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/green.log",
+      "sha256": "ae8d2ef33131385ea588457a3003f4eef13d3550d3487ca7e5c25a1e4a239d48"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/green-pg.json",
+      "sha256": "1bad0bcd83ee4ed9f93fd9ce988cdbb59c3e086763300f6ccde635a84c387318"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/ci-build.log",
+      "sha256": "9ab520b219ec3175c7ff39cefb8fe75e422a093af4d41f6ec3199bb60496b239"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/optional-maintenance/records/ci-backend3.log",
+      "sha256": "7892b836299f87ed678e24878665c41d7b97d274cc00704ca63de779a85dd816"
+    }
+  ],
+  "results": {
+    "baseline": "2FAIL/371PASS",
+    "fixed": "373PASS/14suites",
+    "sameTestBytes": true,
+    "buildExit": 0,
+    "pgStopped": true
+  },
+  "limits": [
+    "Selector fault is injected at the repository boundary; actual classifier cycle and ordinary SQL run.",
+    "Catch contains optional maintenance only; ordinary classifier failure still rejects.",
+    "CI build four type errors and backend13 failures are the unpublished SDK method; other211backend suites passed. Candidate install remains explicit; no registry release or activation."
+  ]
+}

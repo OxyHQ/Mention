@@ -1,3 +1,4 @@
+import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -15,7 +16,8 @@ import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation, type ShadowClaim,
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
+  listUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
 
 /**
@@ -141,6 +143,7 @@ export class PostClassificationService {
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
   private isClassifying = false;
+  private receiptCursor: string | undefined;
 
   private readonly CLASSIFICATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly INITIAL_RUN_DELAY_MS = 30_000;
@@ -205,6 +208,13 @@ export class PostClassificationService {
     this.isClassifying = true;
 
     try {
+      try {
+        await this.reconcileShadowUsage();
+      } catch {
+        // Optional accounting maintenance must not block ordinary classification.
+        // Do not log query details or widen this catch to baseline inference.
+        logger.info('[PostClassification] Original usage maintenance unavailable');
+      }
       await this.markEmptyPosts();
       await this.classifyBatch();
     } finally {
@@ -407,6 +417,29 @@ export class PostClassificationService {
     return byIndex;
   }
 
+  private async reconcileShadowUsage(): Promise<void> {
+    const evaluation = this.shadowEvaluation;
+    if (!isJevShadowReleased() || !evaluation?.receiptReader) return;
+    const deadline = Date.now() + config.inference.timeoutMs;
+    await withShadowReceiptDatabase(deadline, undefined, async context => {
+      let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, this.receiptCursor, context);
+      if (!ids.length && this.receiptCursor !== undefined) {
+        this.receiptCursor = undefined;
+        ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, undefined, context);
+      }
+      for (const id of ids) {
+        context.check();
+        this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
+        try {
+          await reconcilePostEvaluationUsage(id, evaluation.receiptReader!, context.signal, context);
+        } catch {
+          // Unknown or inaccessible receipts remain quarantined, without inference.
+          logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
+        }
+      }
+    });
+  }
+
   private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation) return;
@@ -417,7 +450,8 @@ export class PostClassificationService {
       let claim: ShadowClaim | null = null;
       let sent = false;
       try {
-        claim = await claimPostEvaluation(post.id, evaluation.release);
+        claim = await claimPostEvaluation(post.id, evaluation.release, evaluation.receiptReader?.authority,
+          evaluation.receiptReader ? new Date(deadline) : undefined);
         if (!claim) continue;
         const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');

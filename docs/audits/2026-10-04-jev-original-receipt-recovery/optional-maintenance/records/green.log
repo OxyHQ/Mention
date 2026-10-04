@@ -1,0 +1,15 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1442195, /tmp/mention-jev-semantic-rv23k3h1/data, socket /tmp/mention-jev-semantic-rv23k3h1/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1442195, /tmp/mention-jev-semantic-rv23k3h1/data, socket /tmp/mention-jev-semantic-rv23k3h1/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+
+ Test Files  14 passed (14)
+      Tests  373 passed (373)
+   Start at  17:36:29
+   Duration  12.64s (tests 54%, import 29%, transform 13%, setup 4%)
+
+     Import  412 modules were evaluated 1612 times · 6.53s total, 29% of tracked time
+             ~1.90s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

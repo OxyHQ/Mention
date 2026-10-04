@@ -1,0 +1,11 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [155]
+error: ENOENT extracting tarball from @oxy.so/core
+error: @oxy.so/core@catalog: is not in the catalog
+  bun add --catalog @oxy.so/core
+error: @oxy.so/core@catalog: is not in the catalog
+  bun add --catalog @oxy.so/core
+error: @oxy.so/core@catalog: is not in the catalog
+  bun add --catalog @oxy.so/core
+error: @oxy.so/core@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 failed to resolve

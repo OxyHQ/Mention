@@ -1,0 +1,11 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1370383, /tmp/mention-jev-semantic-kdmp76jp/data, socket /tmp/mention-jev-semantic-kdmp76jp/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1370383, /tmp/mention-jev-semantic-kdmp76jp/data, socket /tmp/mention-jev-semantic-kdmp76jp/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+
+ Test Files  14 passed (14)
+      Tests  363 passed (363)
+   Start at  17:06:26
+   Duration  22.11s (tests 57%, import 25%, transform 13%, setup 4%)
+

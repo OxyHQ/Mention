@@ -1,0 +1,154 @@
+{
+  "sourceHead": "548423f64e82e7b636d7b8386c3c78104d21c1a6",
+  "baseline": "c6d2abe5f12d4fd799bebf769496e8014500e88f",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "87e53f629a682714f048810858385ea11d9bf65a8e722cf522f367967a1708ae"
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "a6f652098523c543899448f7815868ca992eb83a42238561843d95e017610540"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevSdk.test.ts",
+      "sha256": "40129da5b19709c6df904fe7282902e8bfd49e9c096f4e078151d0f5e465dfe8"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "8c554d5462e055a26472a08a6f82ee92660ebba1e4c1a055ca78945a4bd1742f"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "20050372f992a01a28c17ecd0d5abec4eab73baf05ca5d0d2ba1d8cfd0e603b9"
+    },
+    {
+      "path": "packages/backend/src/db/posts/shadowReceiptDatabase.ts",
+      "sha256": "a02e0ae80ae0126def8e91db5e962bd9514eaafa3a7fdd977b766d191a993a38"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "3029a8a34e3ea6d83c3658543059355be4b600973688eac3944567655e2578fa"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevSdk.ts",
+      "sha256": "c53cb8caca00a054e24b4366200e8429ccf9709704ada9b3f7391e9769dfc2fb"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/delegation-red-tests.log",
+      "sha256": "830f082370c643674c9212566696730652b40658687626211dfccf8ea68264f8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/delegation-red-receipt.json",
+      "sha256": "ae1ebb3f2e7a4fa5ede670c5bfa65f14dc0944623398d216b13e1576057bf745"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-red-tests.log",
+      "sha256": "67a53bcfdb444c93173eb55b96892bafb741b602fb30751d2421a29b2de2c243"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-red-receipt.json",
+      "sha256": "246a3a325285636c806d24264828b90dbf7ff39d2e2d8b1c89ce3c90f98f0ba3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-red-corrected-tests.log",
+      "sha256": "34b073e90d5dec881339fd68b00b467dd7cce0b3abd2e7349f8c4376135acc91"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-red-corrected-receipt.json",
+      "sha256": "0a43f60a6ca0714e20bf739aa84eb3c8c67cc4f7e587e7d01591468e68fceccf"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-green-tests.log",
+      "sha256": "eda8daed4722030834689db7503d72c99948811207290facd2138b67c068d64c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/sql-green-receipt.json",
+      "sha256": "f9e00c93a7bd5fab1812d2616cdd0e738ad61772df15dbcfd7d83effe8893981"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-three-tests.log",
+      "sha256": "90ef98aecc9ee2f5a8848bda6f5aecf2e2fef9f00b6b3c8ad549a4e450f2b2bc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-three-receipt.json",
+      "sha256": "91a11d395d8b6617912c826eb2efb768c78d2c65637b16ee23a5f055abaee8bd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-three-corrected-tests.log",
+      "sha256": "d6900a962672ae0dc28e958814e75689cb8c5119f8f5f83da3e2b7f3aa1a9614"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-three-corrected-receipt.json",
+      "sha256": "b67e18683b9993f6b04e1f49b56b56eeabdce7687c38131fc86b28a459a5f6bc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-expanded-tests.log",
+      "sha256": "df15aba31fe00366e45f5febc97378502105444dd81297b64e48ea1f807928f5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/final-expanded-receipt.json",
+      "sha256": "8991497d854b2cf40f976bcbe04d3d6895066b80ff167791dd497da13d43bd96"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/build.log",
+      "sha256": "f40f965d32608ba9d330d150af010bdff3872021abca36e437c2b5c079db165b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/build-final.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/boundary.log",
+      "sha256": "182edfe3ae8a285224db3a1703c1b1fe20e95e45c8ed518f33db6604c240c3d3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/frozen-delegation.test.ts",
+      "sha256": "40129da5b19709c6df904fe7282902e8bfd49e9c096f4e078151d0f5e465dfe8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/frozen-sql-budget.test.ts",
+      "sha256": "8c554d5462e055a26472a08a6f82ee92660ebba1e4c1a055ca78945a4bd1742f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/candidate-installed-core.json",
+      "sha256": "2998ae08afd9c974e3e3151d6abd83e7bba818214171bdce09203053c8ed4f70"
+    }
+  ],
+  "results": {
+    "delegationExactFixtureRed": {
+      "failed": 1,
+      "passed": 23
+    },
+    "sqlExactFixtureRed": {
+      "failed": 2,
+      "skipped": 43
+    },
+    "sqlExactFixtureGreen": {
+      "passed": 2,
+      "skipped": 43
+    },
+    "focalFinal": {
+      "passed": 120,
+      "suites": 3
+    },
+    "expandedFinal": {
+      "passed": 214,
+      "suites": 12
+    },
+    "backendBuildExit": 0,
+    "inferenceBoundaryControls": 92,
+    "candidateInstalledCoreFilesVerified": 581,
+    "ownedPgStopped": true
+  },
+  "limits": [
+    "Local controlled SDK transport and owned PostgreSQL only; no provider, production credential, grant or activation.",
+    "The same final delegation and SQL-block fixtures were preserved before runtime edits and remain byte-identical.",
+    "Both SQL deadline tests hold their table/row locks until after the baseline classification has completed; usageReconciliation remains NULL after releasing those locks. Additional controls close a queued max1 mutation and a stalled connection handshake without affecting the normal pool.",
+    "The first SQL attempt contained a duplicate test import and executed no tests. The first added queue/startup controls used an over-specific application_name observer and a non-reading TCP server; both test mistakes and the unhandled test-owned promise are retained, then fixed. They are not product RED claims.",
+    "Initial build found optional URL and numeric option typing mistakes; the final source includes explicit configuration validation and correctly typed numeric server timeouts.",
+    "Installed core remains the earlier reviewed local candidate with the additive original-key GET; 581 member bytes independently rechecked unchanged. Published core4.2 lacks that method, so CI/adoption cannot pass until the coordinated core4.3 release. No candidate dependency references were committed."
+  ]
+}

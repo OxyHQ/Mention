@@ -1,4 +1,9 @@
-import { and, asc, eq, isNotNull, isNull, notExists } from 'drizzle-orm';
+import { config } from '../../config';
+import { withShadowReceiptDatabase, type ShadowReceiptDatabase } from './shadowReceiptDatabase';
+import { isDeepStrictEqual } from 'node:util';
+import { shadowReceiptAuthoritySchema, shadowUsageReconciliationSchema, sameReceiptAuthority,
+  type ShadowReceiptAuthority, type ShadowReceiptReader } from '../../services/contentClassification/jevReceipt';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import { posts } from '../schema/posts';
 import { postContentVariants } from '../schema/postContent';
@@ -79,15 +84,19 @@ export interface ShadowClaim {
 }
 
 /** A successful insert is the only authorization to infer. No lease takeover. */
-export async function claimPostEvaluation(postId: string, release: ShadowRelease): Promise<ShadowClaim | null> {
+export async function claimPostEvaluation(postId: string, release: ShadowRelease, receiptAuthority?: ShadowReceiptAuthority, requestDeadlineAt?: Date): Promise<ShadowClaim | null> {
   validateShadowRelease(release);
+  const authority = receiptAuthority === undefined ? null : shadowReceiptAuthoritySchema.parse(receiptAuthority);
+  if (requestDeadlineAt && (!authority || !Number.isFinite(requestDeadlineAt.getTime()))) {
+    throw new Error('Original deadline requires valid recorded authority');
+  }
   return getDb().transaction(async tx => {
     const snapshot = await lockSnapshot(tx, postId);
     if (!snapshot) return null;
     const fingerprint = shadowFingerprint(snapshot);
     const abstention = shadowAbstention(snapshot, release);
     const [claim] = await tx.insert(postEvaluations).values({
-      postId, fingerprint, model: release.model, policyRef: release.policyRef,
+      postId, fingerprint, model: release.model, receiptAuthority: authority, requestDeadlineAt, policyRef: release.policyRef,
       policyVersion: release.policyVersion, evaluationVersion: release.evaluationVersion,
       state: abstention ? 'abstained' : 'claimed', abstention,
       finishedAt: abstention ? new Date() : null,
@@ -174,4 +183,83 @@ export async function releaseUnsentPostEvaluation(claim: ShadowClaim): Promise<v
   await getDb().delete(postEvaluations)
     .where(and(eq(postEvaluations.id, claim.id), eq(postEvaluations.state, 'claimed')));
   logger.info('[PostClassification] Shadow claim released before any evaluator call', { evaluationId: claim.id });
+}
+
+
+/** A caller deadline does not wait indefinitely for a credential/transport promise. */
+async function readUsageBounded(reader: ShadowReceiptReader, id: string, model: string, signal?: AbortSignal) {
+  signal?.throwIfAborted();
+  if (!signal) return reader.readOriginal(id, model);
+  let aborted: (() => void) | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    aborted = () => reject(signal.reason);
+    signal.addEventListener('abort', aborted, { once: true });
+  });
+  try {
+    return await Promise.race([reader.readOriginal(id, model, signal), deadline]);
+  } finally {
+    if (aborted) signal.removeEventListener('abort', aborted);
+  }
+}
+
+function recoverableUsage(row: typeof postEvaluations.$inferSelect): boolean {
+  return ['cost_uncertain', 'cancelled'].includes(row.state)
+    || (row.state === 'claimed' && row.requestDeadlineAt !== null && row.requestDeadlineAt.getTime() <= Date.now());
+}
+
+/** Recover only accounting evidence; never run an evaluator or revive an answer. */
+export async function reconcilePostEvaluationUsage(id: string, reader: ShadowReceiptReader, signal?: AbortSignal, context?: ShadowReceiptDatabase): Promise<boolean> {
+  if (!context) return withShadowReceiptDatabase(Date.now() + config.inference.timeoutMs, signal,
+    scoped => reconcilePostEvaluationUsage(id, reader, scoped.signal, scoped));
+  context.check();
+  const [original] = await context.db.select().from(postEvaluations).where(eq(postEvaluations.id, id));
+  context.check();
+  if (!original || !recoverableUsage(original) || !original.receiptAuthority
+    || !sameReceiptAuthority(original.receiptAuthority, reader.authority)) return false;
+  if (original.usageReconciliation) return true;
+  const originalAuthority = original.receiptAuthority;
+  const evidence = shadowUsageReconciliationSchema.parse(await readUsageBounded(reader, id, original.model, signal));
+  if (!sameReceiptAuthority(original.receiptAuthority, evidence.authority) || evidence.model !== original.model) {
+    throw new Error('Recovered usage differs from the persisted claim');
+  }
+  context.check();
+  return context.db.transaction(async tx => {
+    context.check();
+    const [current] = await tx.select().from(postEvaluations).where(eq(postEvaluations.id, id)).for('update');
+    context.check();
+    if (!current || !recoverableUsage(current) || !current.receiptAuthority
+      || !sameReceiptAuthority(current.receiptAuthority, originalAuthority)
+      || current.fingerprint !== original.fingerprint || current.model !== original.model) return false;
+    if (current.usageReconciliation) {
+      if (!isDeepStrictEqual(current.usageReconciliation, evidence)) {
+        throw new Error('Recovered usage conflicts with previously recorded evidence');
+      }
+      return true;
+    }
+    context.check();
+    await tx.update(postEvaluations).set({ usageReconciliation: evidence,
+      ...(current.state === 'claimed' ? { state: 'cost_uncertain' as const, finishedAt: new Date() } : {}),
+    }).where(eq(postEvaluations.id, id));
+    context.check();
+    return true;
+  });
+}
+
+
+/** Bounded maintenance read within the existing classifier cycle. */
+export async function listUnreconciledPostEvaluations(release: ShadowRelease, authority: ShadowReceiptAuthority, afterId?: string, context?: ShadowReceiptDatabase): Promise<string[]> {
+  if (!context) return withShadowReceiptDatabase(Date.now() + config.inference.timeoutMs, undefined,
+    scoped => listUnreconciledPostEvaluations(release, authority, afterId, scoped));
+  context.check();
+  const rows = await context.db.select({ id: postEvaluations.id }).from(postEvaluations).where(and(
+    or(inArray(postEvaluations.state, ['cost_uncertain', 'cancelled']),
+      and(eq(postEvaluations.state, 'claimed'), lte(postEvaluations.requestDeadlineAt, new Date()))),
+    isNull(postEvaluations.usageReconciliation),
+    afterId === undefined ? undefined : gt(postEvaluations.id, afterId),
+    eq(postEvaluations.receiptAuthority, shadowReceiptAuthoritySchema.parse(authority)), eq(postEvaluations.model, release.model),
+    eq(postEvaluations.policyRef, release.policyRef), eq(postEvaluations.policyVersion, release.policyVersion),
+    eq(postEvaluations.evaluationVersion, release.evaluationVersion),
+  )).orderBy(asc(postEvaluations.id)).limit(25);
+  context.check();
+  return rows.map(row => row.id);
 }

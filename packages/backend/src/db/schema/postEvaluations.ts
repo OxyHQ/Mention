@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, doublePrecision, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { posts } from './posts';
+import type { ShadowReceiptAuthority, ShadowUsageReconciliation } from '../../services/contentClassification/jevReceipt';
 import type { ShadowSignals } from '../../services/contentClassification/jevShadow';
 
 export const POST_EVALUATION_STATES = ['claimed', 'completed', 'abstained', 'cancelled', 'cost_uncertain'] as const;
@@ -22,6 +23,9 @@ export const postEvaluations = pgTable('post_evaluations', {
   followState: text({ enum: POST_EVALUATION_FOLLOW_STATES }).notNull().default('unknown'),
   languages: text().array(),
   sdkReceipt: jsonb().$type<ShadowSignals['sdkReceipt']>(),
+  receiptAuthority: jsonb().$type<ShadowReceiptAuthority>(),
+  requestDeadlineAt: timestamptz(),
+  usageReconciliation: jsonb().$type<ShadowUsageReconciliation>(),
   languageEvidence: jsonb().$type<ShadowSignals['languageEvidence']>(),
   spam: doublePrecision(),
   repetition: doublePrecision(),

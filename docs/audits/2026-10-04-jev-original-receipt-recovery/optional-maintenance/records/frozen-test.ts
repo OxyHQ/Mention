@@ -2,7 +2,7 @@ import * as evaluationRepository from '../../db/posts/postEvaluationRepository';
 import { claimPostEvaluation, markPostEvaluationUncertain } from '../../db/posts/postEvaluationRepository';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import * as jevShadow from '../../services/contentClassification/jevShadow';
 import { postEvaluations } from '../../db/schema/postEvaluations';
 
@@ -1229,55 +1229,6 @@ describe('PostClassificationService — shadow fanout', () => {
     const failure = new Error('ordinary classifier unavailable');
     vi.spyOn(worker as unknown as { markEmptyPosts(): Promise<void> }, 'markEmptyPosts').mockRejectedValue(failure);
     await expect(worker.processQueue()).rejects.toBe(failure);
-  });
-
-  it.each(['selector', 'row'] as const)('bounds real SQL %s waiting and continues the baseline without late receipt writes', async blocked => {
-    const oldTimeout = config.inference.timeoutMs;
-    config.inference.timeoutMs = 300;
-    // Enable only maintenance; this test does not activate shadow inference.
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValueOnce(true).mockReturnValue(false);
-    const authority = { applicationId: 'bounded-app', credentialId: 'bounded-credential', environment: 'production' as const };
-    const oldPost = await seedSubject('Synthetic uncertain usage', { classification: { languages: ['en'], status: 'classified' } });
-    const claim = await claimPostEvaluation(oldPost.id, release, authority);
-    if (!claim) throw new Error('Missing owned claim');
-    await markPostEvaluationUncertain(claim);
-    const post = await seedSubject('Ordinary classification while maintenance SQL is blocked');
-    await padBatch(1); respondWith([]);
-    const readOriginal = vi.fn(async () => ({ status: 'reconciled_result_missing' as const, requestId: 'owned-original',
-      authority, model: release.model, provider: 'fixture', outcome: 'completed' as const, usageSource: 'provider_reported' as const,
-      units: [{ unit: 'input_tokens' as const, quantity: 17 }], settledAt: '2026-10-04T00:00:00.000Z', providerCost: 'unknown' as const,
-      economics: { kind: 'internal_usage' as const, customerCharge: 'not_charged' as const, tariff: { status: 'unpriced' as const, priceVersionId: null } } }));
-    let unlock!: () => void; let locked!: () => void;
-    const reached = new Promise<void>(resolve => { locked = resolve; });
-    const held = new Promise<void>(resolve => { unlock = resolve; });
-    const lock = getDb().transaction(async tx => {
-      if (blocked === 'selector') await tx.execute(sql`lock table post_evaluations in access exclusive mode`);
-      else await tx.select().from(postEvaluations).where(eq(postEvaluations.id, claim.id)).for('update');
-      locked(); await held;
-    });
-    await reached;
-    const worker = new PostClassificationService({ release, evaluate: vi.fn(), receiptReader: { authority, readOriginal } });
-    const cycle = worker.processQueue();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await vi.waitFor(async () => {
-        const [row] = await getDb().execute<{ waiting: number }>(sql`select count(*)::int as waiting from pg_stat_activity
-          where datname=current_database() and wait_event_type='Lock' and query like '%post_evaluations%'`);
-        expect(row.waiting).toBeGreaterThan(0);
-      }, { timeout: 250, interval: 5 });
-      const done = await Promise.race([cycle.then(() => true), new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), 1200); })]);
-      expect(done).toBe(true);
-      expectBatchWasOurs();
-      expect((await classificationOf(post.id)).status).toBe('classified');
-      expect(readOriginal).toHaveBeenCalledTimes(blocked === 'selector' ? 0 : 1);
-    } finally {
-      if (timer) clearTimeout(timer);
-      unlock(); await lock; await cycle;
-      config.inference.timeoutMs = oldTimeout;
-    }
-    const [after] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, claim.id));
-    expect(after.usageReconciliation).toBeNull();
-    expect(after.state).toBe('cost_uncertain');
   });
 
   it('recovers missing usage in the existing cycle without evaluating the original claim again', async () => {

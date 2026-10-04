@@ -1,0 +1,12 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1534448, /tmp/mention-jev-semantic-2tc1jdl4/data, socket /tmp/mention-jev-semantic-2tc1jdl4/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1534448, /tmp/mention-jev-semantic-2tc1jdl4/data, socket /tmp/mention-jev-semantic-2tc1jdl4/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/postClassification.test.ts -t "bounds real SQL"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 43 skipped (45)
+   Start at  18:07:50
+   Duration  3.85s (tests 30%, transform 30%, import 21%, setup 19%)
+
