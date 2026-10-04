@@ -1,0 +1,34 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1571-current-mcp-collaboration-20261004/packages/backend
+
+No test files found, exiting with code 1
+
+filter: src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts
+include: /home/nate/Oxy/Mention/.worktrees/1571-current-mcp-collaboration-20261004/packages/backend/src/__tests__/**/*.test.ts
+exclude:  **/node_modules/**, **/.git/**
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: TEST_DATABASE_URL (or DATABASE_URL) must point at a Postgres server so a throwaway test database can be created on it. Start one with: docker compose -f docker-compose.postgres.yml up -d postgres
+ ❯ createTestDatabase src/db/testDatabase.ts:85:11
+     83|   const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABAS…
+     84|   if (!baseUrl) {
+     85|     throw new Error(
+       |           ^
+     86|       'TEST_DATABASE_URL (or DATABASE_URL) must point at a Postgres se…
+     87|       'a throwaway test database can be created on it. Start one with:…
+ ❯ Object.setup vitest.globalSetup.ts:41:9
+ ❯ TestProject._initializeGlobalSetup ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:12113:50
+ ❯ Vitest.initializeGlobalSetup ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:21212:35
+ ❯ ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:21052:6
+ ❯ ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:21081:11
+ ❯ ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/index.DzobfTyw.js:20943:19
+ ❯ startVitest ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:369:8
+ ❯ start ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/cac.fSuRXrAx.js:2370:15
+ ❯ CAC.run ../../../jev-receipt-recovery-20261004/node_modules/vitest/dist/chunks/cac.fSuRXrAx.js:2346:2
+
+
+
+
+error: script "test" exited with code 1

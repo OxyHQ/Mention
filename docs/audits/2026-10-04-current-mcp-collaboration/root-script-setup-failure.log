@@ -1,0 +1,12 @@
+$ bun run --parallel test:shared-types test:backend test:mcp test:frontend src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts
+test:shared-types                                 | $ bun test
+test:backend                                      | $ node ../../node_modules/vitest/vitest.mjs run
+test:mcp                                          | $ bun test
+test:frontend                                     | $ node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand
+src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts | error: Module not found "src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts"
+src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts | Exited with code 1
+test:shared-types                                 | Signaled: SIGINT
+test:mcp                                          | Signaled: SIGINT
+test:frontend                                     | Signaled: SIGINT
+test:backend                                      | Signaled: SIGABRT
+error: script "test" exited with code 130
