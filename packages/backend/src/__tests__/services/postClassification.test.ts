@@ -1,3 +1,4 @@
+import * as evaluationRepository from '../../db/posts/postEvaluationRepository';
 import { claimPostEvaluation, markPostEvaluationUncertain } from '../../db/posts/postEvaluationRepository';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
@@ -1200,6 +1201,34 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(evaluate).not.toHaveBeenCalled();
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
     expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('continues the ordinary classifier when optional receipt selection fails', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const selection = vi.spyOn(evaluationRepository, 'listUnreconciledPostEvaluations')
+      .mockRejectedValue(new Error('synthetic receipt selection unavailable'));
+    const post = await seedSubject('Ordinary work survives receipt maintenance failure');
+    await padBatch(1); respondWith([]);
+    const readOriginal = vi.fn();
+    const worker = new PostClassificationService({ release, evaluate: vi.fn(), receiptReader: {
+      authority: { applicationId: 'worker-app', credentialId: 'worker-credential', environment: 'production' }, readOriginal,
+    } });
+    await worker.processQueue();
+    expect(selection).toHaveBeenCalledTimes(1);
+    expect(readOriginal).not.toHaveBeenCalled();
+    expectBatchWasOurs();
+    expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('does not suppress an ordinary classifier failure while containing receipt maintenance', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    vi.spyOn(evaluationRepository, 'listUnreconciledPostEvaluations').mockRejectedValue(new Error('optional selection failed'));
+    const worker = new PostClassificationService({ release, evaluate: vi.fn(), receiptReader: {
+      authority: { applicationId: 'worker-app', credentialId: 'worker-credential', environment: 'production' }, readOriginal: vi.fn(),
+    } });
+    const failure = new Error('ordinary classifier unavailable');
+    vi.spyOn(worker as unknown as { markEmptyPosts(): Promise<void> }, 'markEmptyPosts').mockRejectedValue(failure);
+    await expect(worker.processQueue()).rejects.toBe(failure);
   });
 
   it('recovers missing usage in the existing cycle without evaluating the original claim again', async () => {

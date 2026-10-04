@@ -207,7 +207,13 @@ export class PostClassificationService {
     this.isClassifying = true;
 
     try {
-      await this.reconcileShadowUsage();
+      try {
+        await this.reconcileShadowUsage();
+      } catch {
+        // Optional accounting maintenance must not block ordinary classification.
+        // Do not log query details or widen this catch to baseline inference.
+        logger.info('[PostClassification] Original usage maintenance unavailable');
+      }
       await this.markEmptyPosts();
       await this.classifyBatch();
     } finally {
