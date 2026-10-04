@@ -1,0 +1,2168 @@
+$ bun run --parallel typecheck:frontend lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend
+lint:shared-types  | $ tsc --noEmit --noUnusedLocals --noUnusedParameters
+lint:mcp           | $ tsc --noEmit
+typecheck:frontend | $ node ./scripts/typecheck.mjs
+lint:backend       | $ tsc --noEmit
+lint:e2e           | $ tsc --noEmit && bun run test:identity-evidence
+lint:shared-types  | Done in 529ms
+lint:e2e           | $ node --test coldIdentityEvidence.test.mjs
+lint:e2e           | ✔ accepts only matching pre-discovery zero reports (1.104372ms)
+lint:e2e           | ✔ refuses existing Oxy user before any discovery (0.238744ms)
+lint:e2e           | ✔ refuses missing source reports before any discovery (0.100038ms)
+lint:e2e           | ✔ refuses non-read-only report before any discovery (0.1001ms)
+lint:e2e           | ✔ refuses existing Mention post before any discovery (0.190334ms)
+lint:e2e           | ✔ refuses different source before any discovery (0.125236ms)
+lint:e2e           | ✔ refuses different image before any discovery (0.139507ms)
+lint:e2e           | ✔ refuses different revision before any discovery (0.104105ms)
+lint:e2e           | ✔ refuses reconcile preview before any discovery (0.096601ms)
+lint:e2e           | ✔ refuses failed inspection before any discovery (0.158455ms)
+lint:e2e           | ✔ refuses future inspection before any discovery (0.13106ms)
+lint:e2e           | ✔ refuses stale inspection before any discovery (0.086392ms)
+lint:e2e           | ✔ refuses unknown count before any discovery (0.067642ms)
+lint:e2e           | ✔ refuses no reviewed boilerplate before any discovery (0.055204ms)
+lint:e2e           | ✔ cold gate refuses static previews that bypass server HTML (0.240181ms)
+lint:e2e           | ✔ cold gate accepts the deployed app origin (0.16908ms)
+lint:e2e           | ✔ environment accepts matching origins only with explicit cold opt-in (73.493238ms)
+lint:e2e           | ✔ ordinary environment still accepts an isolated candidate (11.637096ms)
+lint:e2e           | ✔ actual cold preflight refuses different origins before loading evidence (21.291975ms)
+lint:e2e           | ✔ actual cold preflight still requires fresh database absence evidence (88.664768ms)
+lint:e2e           | ℹ tests 20
+lint:e2e           | ℹ suites 0
+lint:e2e           | ℹ pass 20
+lint:e2e           | ℹ fail 0
+lint:e2e           | ℹ cancelled 0
+lint:e2e           | ℹ skipped 0
+lint:e2e           | ℹ todo 0
+lint:e2e           | ℹ duration_ms 290.019533
+lint:e2e           | Done in 1.57s
+lint:mcp           | Done in 1.99s
+lint:backend       | Done in 2.48s
+typecheck:frontend | Frontend type-check passed with 0 errors.
+typecheck:frontend | Done in 3.46s
+$ bun run --cwd packages/frontend lint
+$ expo lint
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/__tests__/cameraPublish.test.tsx
+  76:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/__tests__/cameraSensorRelease.test.tsx
+  82:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/index.tsx
+  132:13  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/index.tsx:132:13
+  130 |         if (!isAuthResolved) return;
+  131 |         if (homeTabs.length > 0 && !homeTabs.some((tab) => tab.key === activeTab)) {
+> 132 |             setActiveTab(homeTabs[0].key);
+      |             ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  133 |         }
+  134 |     }, [isAuthResolved, homeTabs, activeTab]);
+  135 |  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/notifications.tsx
+  14:10  warning  'RiChat3Line' is defined but never used    @typescript-eslint/no-unused-vars
+  15:10  warning  'RiEditBoxLine' is defined but never used  @typescript-eslint/no-unused-vars
+  17:10  warning  'RiHeartLine' is defined but never used    @typescript-eslint/no-unused-vars
+  18:10  warning  'RiUserAddLine' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/videos.tsx
+  1153:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/videos.tsx:1153:5
+  1151 |     const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
+  1152 |     const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
+> 1153 |     activeFeedRef.current = activeFeed;
+       |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  1154 |     const globalMuted = useVideoMuteStore((s) => s.isMuted);
+  1155 |     const loadMutedState = useVideoMuteStore((s) => s.loadMutedState);
+  1156 |                                                                                                            react-hooks/refs
+  1396:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/videos.tsx:1396:5
+  1394 |     // reads fresh values without re-creating the callback each render.
+  1395 |     const feedCursorRef = useRef<{ hasMore: boolean; nextCursor?: string }>({ hasMore: true, nextCursor: undefined });
+> 1396 |     feedCursorRef.current = { hasMore, nextCursor };
+       |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  1397 |
+  1398 |     // Walk forward through `videos` pages until at least one NEW post is added or
+  1399 |     // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel  react-hooks/refs
+  1598:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/(tabs)/videos.tsx:1598:5
+  1596 |     // unmounting, and its callback closes over the render BEFORE the rebuild.
+  1597 |     const postsLengthRef = useRef(posts.length);
+> 1598 |     postsLengthRef.current = posts.length;
+       |     ^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  1599 |
+  1600 |     const handleSessionEnded = useCallback((index: number) => {
+  1601 |         if (index >= postsLengthRef.current) return;                                                                                                                             react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/[username]/__tests__/connectionsMissingProfile.test.tsx
+  143:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/[username]/__tests__/jobsRoute.test.tsx
+  18:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/__tests__/listsSignedOutGate.test.tsx
+  74:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/__tests__/savedScreenRevalidation.test.tsx
+  258:1  warning  Import in body of module; reorder to top  import/first
+  259:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/c/[username]/settings.tsx
+  25:40  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+  26:48  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/feeds/[id].tsx
+  775:6  warning  React Hook useMemo has an unnecessary dependency: 'feedId'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/feeds/marketplace.tsx
+  410:6  warning  React Hook useMemo has an unnecessary dependency: 'theme'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/jobs/[id]/apply.tsx
+  74:40  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setPortfolioLinkDraft`, but the source dependencies were [portfolioLinkDraft]. Inferred different dependency than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/jobs/[id]/apply.tsx:74:40
+  72 |   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  73 |
+> 74 |   const addPortfolioLink = useCallback(() => {
+     |                                        ^^^^^^^
+> 75 |     const value = portfolioLinkDraft.trim();
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 76 |     if (!value) return;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 77 |     setPortfolioLinks((prev) => (prev.includes(value) ? prev : [...prev, value]));
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     setPortfolioLinkDraft('');
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 79 |   }, [portfolioLinkDraft]);
+     | ^^^^ Could not preserve existing manual memoization
+  80 |
+  81 |   const removePortfolioLink = useCallback((value: string) => {
+  82 |     setPortfolioLinks((prev) => prev.filter((link) => link !== value));  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/jobs/[id]/edit.tsx
+  117:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/jobs/[id]/edit.tsx:117:5
+  115 |     const job = jobQuery.data?.job;
+  116 |     if (!job || hydrated) return;
+> 117 |     setTitle(job.title);
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  118 |     setDescription(job.description);
+  119 |     setLocation(jobLocationDraftFrom(job.location));
+  120 |     setWorkplaceType(job.workplaceType ?? '');  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists.tsx
+  16:10  warning  'List' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists/[id].tsx
+  106:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists/[id].tsx:106:5
+  104 |
+  105 |   useEffect(() => {
+> 106 |     loadList();
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  107 |   }, [loadList]);
+  108 |
+  109 |   // Auto-refresh when this list's membership/metadata changes anywhere in the                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/set-state-in-effect
+  157:39  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `list`, but the source dependencies were [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, listOwnerHandle, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists/[id].tsx:157:39
+  155 |   // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
+  156 |   // that tab's own <ScrollView>. Declared after the data so it can read `list`.
+> 157 |   const renderSubheader = useCallback(() => (
+      |                                       ^^^^^^^
+> 158 |     <View className="px-4 pt-3 pb-2">
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 159 |       <View className="flex-row items-start gap-3">
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 239 |     </View>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 240 |   ), [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, listOwnerHandle, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]);
+      | ^^^^ Could not preserve existing manual memoization
+  241 |
+  242 |   // Chrome (subheader + tab bar) handed to the posts-tab Feed as its
+  243 |   // listHeaderComponent. A single element so the Feed treats it as one header  react-hooks/preserve-manual-memoization
+  249:6   warning  React Hook useMemo has an unnecessary dependency: 'listId'. Either exclude it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists/[id]/edit.tsx
+   18:27  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          import/no-duplicates
+   19:25  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          import/no-duplicates
+  103:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/lists/[id]/edit.tsx:103:5
+  101 |
+  102 |   useEffect(() => {
+> 103 |     load();
+      |     ^^^^ Avoid calling setState() directly within an effect
+  104 |   }, [load]);
+  105 |
+  106 |   useEffect(() => () => {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/live-rooms/[id].tsx
+    5:27  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  import/no-duplicates
+   37:39  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  import/no-duplicates
+  125:32  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [id, user?.id]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/live-rooms/[id].tsx:125:32
+  123 |   const bottomSheet = useContext(BottomSheetContext);
+  124 |
+> 125 |   const loadRoom = useCallback(async () => {
+      |                                ^^^^^^^^^^^^^
+> 126 |     if (!id) return;
+      | ^^^^^^^^^^^^^^^^^^^^
+> 127 |     try {
+      …
+      | ^^^^^^^^^^^^^^^^^^^^
+> 139 |     }
+      | ^^^^^^^^^^^^^^^^^^^^
+> 140 |   }, [id, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  141 |
+  142 |   useEffect(() => {
+  143 |     loadRoom();  react-hooks/preserve-manual-memoization
+  143:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/live-rooms/[id].tsx:143:5
+  141 |
+  142 |   useEffect(() => {
+> 143 |     loadRoom();
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  144 |   }, [loadRoom]);
+  145 |
+  146 |   const handleStartRoom = async () => {                                                react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/live-rooms/index.tsx
+  83:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/live-rooms/index.tsx:83:5
+  81 |
+  82 |   useEffect(() => {
+> 83 |     loadRooms();
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  84 |   }, [loadRooms]);
+  85 |
+  86 |   const onRefresh = useCallback(() => {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/moderation/labelers/[id].tsx
+  164:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/moderation/labelers/[id].tsx:164:5
+  162 |
+  163 |   useEffect(() => {
+> 164 |     loadLabeler().finally(() => setLoading(false));
+      |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  165 |     return () => {
+  166 |       if (saveTimer.current) clearTimeout(saveTimer.current);
+  167 |     };  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/p/[id].tsx
+  202:13  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/p/[id].tsx:202:13
+  200 |     useEffect(() => {
+  201 |         if (!id) {
+> 202 |             setError('Post ID is required');
+      |             ^^^^^^^^ Avoid calling setState() directly within an effect
+  203 |             setLoading(false);
+  204 |             return;
+  205 |         }  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/saved.tsx
+  108:9  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/saved.tsx:108:9
+  106 |     // AccountSwitchReset clears server query data; this resets the UI state.
+  107 |     useEffect(() => {
+> 108 |         setSelectedFolder(null);
+      |         ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  109 |         setMovingPostId(null);
+  110 |         setShowMoveModal(false);
+  111 |     }, [viewerId]);  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/starter-packs/[id]/edit.tsx
+   81:28  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [packId, user?.id]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/starter-packs/[id]/edit.tsx:81:28
+   79 |   const remainingCapacity = Math.max(MAX_MEMBERS - members.length, 0);
+   80 |
+>  81 |   const load = useCallback(async () => {
+      |                            ^^^^^^^^^^^^^
+>  82 |     setLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^
+>  83 |     setError(null);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 108 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 109 |   }, [packId, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  110 |
+  111 |   useEffect(() => {
+  112 |     load();  react-hooks/preserve-manual-memoization
+  112:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/starter-packs/[id]/edit.tsx:112:5
+  110 |
+  111 |   useEffect(() => {
+> 112 |     load();
+      |     ^^^^ Avoid calling setState() directly within an effect
+  113 |   }, [load]);
+  114 |
+  115 |   useEffect(() => () => {                                                                                                    react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/starter-packs/create.tsx
+  66:32  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [name, description, members, queryClient, user?.id, t]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/app/(app)/starter-packs/create.tsx:66:32
+  64 |   const removeMember = (id: string) => setMembers((prev) => prev.filter((m) => m.id !== id));
+  65 |
+> 66 |   const onCreate = useCallback(async () => {
+     |                                ^^^^^^^^^^^^^
+> 67 |     if (!name.trim()) return;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 68 |     setSaving(true);
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 86 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 87 |   }, [name, description, members, queryClient, user?.id, t]);
+     | ^^^^ Could not preserve existing manual memoization
+  88 |
+  89 |   return (
+  90 |     <View className="flex-1">  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/AccountInfoScreen.tsx
+  90:28  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `profileData.createdAt`, but the source dependencies were [profileData?.createdAt]. Inferred different dependency than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/AccountInfoScreen.tsx:90:28
+  88 |
+  89 |   // Format join date
+> 90 |   const joinDate = useMemo(() => {
+     |                            ^^^^^^^
+> 91 |     if (!profileData?.createdAt) return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 92 |     return new Date(profileData.createdAt).toLocaleDateString('en-US', {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 93 |       month: 'long',
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 94 |       year: 'numeric'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 95 |     });
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 96 |   }, [profileData?.createdAt]);
+     | ^^^^ Could not preserve existing manual memoization
+  97 |
+  98 |   // Format verified date if available (using createdAt as fallback)
+  99 |   const verifiedDate = useMemo(() => {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/preserve-manual-memoization
+  99:32  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `profileData`, but the source dependencies were [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/AccountInfoScreen.tsx:99:32
+   97 |
+   98 |   // Format verified date if available (using createdAt as fallback)
+>  99 |   const verifiedDate = useMemo(() => {
+      |                                ^^^^^^^
+> 100 |     if (!profileData?.verified) return null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 101 |     // If we have a verifiedAt date, use it, otherwise use createdAt
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 102 |     const dateToUse = profileData.verifiedAt || profileData.createdAt;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 103 |     if (!dateToUse) return null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 104 |     return new Date(dateToUse).toLocaleDateString('en-US', {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 105 |       month: 'long',
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |       year: 'numeric'
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 108 |   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
+      | ^^^^ Could not preserve existing manual memoization
+  109 |
+  110 |   // Every category the account carries that this build can name, in the
+  111 |   // account's OWN order — the first is its primary. Filtered, never sorted:  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Camera/CameraCapture.tsx
+  290:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Camera/CameraCapture.tsx:290:7
+  288 |     if (!isRecording) {
+  289 |       ringProgress.value = 0;
+> 290 |       setRemaining(MAX_VIDEO_SECONDS);
+      |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  291 |       return;
+  292 |     }
+  293 |     ringProgress.value = withTiming(1, { duration: MAX_VIDEO_SECONDS * 1000 });  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Camera/__tests__/cameraPermission.test.tsx
+  78:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Camera/useVideoRecorder.ts
+  130:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Camera/useVideoRecorder.ts:130:7
+  128 |       // likely. Reset rather than wait for a camera that is not there.
+  129 |       busy.current = false;
+> 130 |       setPhase('idle');
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  131 |       setMode('picture');
+  132 |       return;
+  133 |     }  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/ChannelScreen.tsx
+  400:9  warning  React Hook useMemo has an unnecessary dependency: 'username'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Channels/__tests__/ChannelInfoDialog.test.tsx
+  298:14  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  299:16  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  308:52  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx
+   530:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:530:5
+  528 |   // nothing changed.
+  529 |   useEffect(() => {
+> 530 |     setMainMentionState((previous) => {
+      |     ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  531 |       const nextMentions = reconcileMentionData(
+  532 |         [
+  533 |           previous.text,                                                                                                             react-hooks/set-state-in-effect
+   843:32  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:843:32
+  841 |     pendingShareMediaRef.current = presentation === 'tab' ? [] : consumePendingShareMedia();
+  842 |   }
+> 843 |   const hasPendingShareMedia = pendingShareMediaRef.current.length > 0;
+      |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  844 |   const [draftConflict, setDraftConflict] = useState(false);
+  845 |
+  846 |   // Attach an already-uploaded Oxy file to the composer's media list, de-duped                                                                                                                                                                                                                                                                                            react-hooks/refs
+  1056:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:1056:7
+  1054 |     }
+  1055 |     if (drafts.length > 0) {
+> 1056 |       setDraftConflict(true);
+       |       ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  1057 |       intentConflictControl.open();
+  1058 |       return;
+  1059 |     }                                                                                                                                                   react-hooks/set-state-in-effect
+  1070:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:1070:5
+  1068 |   useEffect(() => {
+  1069 |     if (!quoteFallbackUrl) return;
+> 1070 |     setPostContent((prev) => {
+       |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  1071 |       if (prev.includes(quoteFallbackUrl)) return prev;
+  1072 |       const trimmed = prev.trim();
+  1073 |       const next = trimmed.length > 0 ? `${trimmed} ${quoteFallbackUrl}` : quoteFallbackUrl;  react-hooks/set-state-in-effect
+  1082:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:1082:5
+  1080 |     if (!editPostId) return;
+  1081 |     let cancelled = false;
+> 1082 |     setEditLoading(true);
+       |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  1083 |     setIsEditMode(true);
+  1084 |     (async () => {
+  1085 |       try {                                                                                                                                      react-hooks/set-state-in-effect
+  1158:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ComposeScreen.tsx:1158:5
+  1156 |     if (!replyToPostId) return;
+  1157 |     let cancelled = false;
+> 1158 |     setReplyLoading(true);
+       |     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  1159 |     (async () => {
+  1160 |       try {
+  1161 |         const post = await usePostsStore.getState().getPostById(replyToPostId);                                                                          react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/GifPickerSheet.tsx
+  83:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/GifPickerSheet.tsx:83:5
+  81 |   useEffect(() => {
+  82 |     // Fetch trending GIFs on initial load (empty query = trending)
+> 83 |     fetchGifs('');
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  84 |   }, [fetchGifs]);
+  85 |
+  86 |   useEffect(() => {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ScheduleSheet.tsx
+  59:61  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Compose/ScheduleSheet.tsx:59:61
+  57 |   const { t } = useTranslation();
+  58 |
+> 59 |   const initialDate = useMemo(() => scheduledAt ?? new Date(Date.now() + 15 * 60000), [scheduledAt]);
+     |                                                             ^^^^^^^^^^ Cannot call impure function
+  60 |   const [customDate, setCustomDate] = useState<Date | null>(() => toLocalDay(initialDate));
+  61 |   const [customTime, setCustomTime] = useState<string | null>(() => formatTimeInput(initialDate));
+  62 |   // Days before today cannot be scheduled; the time is still checked on apply  react-hooks/purity
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.native.tsx
+  247:13  warning  'type' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  420:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.native.tsx:420:5
+  418 |     // published either way (a blurred screen's players are gated on focus anyway).
+  419 |     const isFocusedRef = useRef(isFocused);
+> 420 |     isFocusedRef.current = isFocused;
+      |     ^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  421 |     const handleViewableItemsChanged = useCallback(
+  422 |         ({ viewableItems }: { viewableItems: ViewToken[]; changed: ViewToken[] }) => {
+  423 |             const visibleUris: string[] = [];  react-hooks/refs
+  521:13  warning  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.native.tsx:521:13
+  519 |             'worklet';
+  520 |             const offsetY = event.contentOffset.y;
+> 521 |             scrollPosition.value = offsetY;
+      |             ^^^^^^^^^^^^^^ `scrollPosition` cannot be modified
+  522 |             if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
+  523 |             lastReportedOffset.value = offsetY;
+  524 |             runOnJS(reportScrollOffset)(offsetY);                                                                                                                                                                                                              react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.web.tsx
+  212:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.web.tsx:212:5
+  210 |     const sentinelRef = useRef<HTMLDivElement | null>(null);
+  211 |     const loadMoreRef = useRef(handleLoadMore);
+> 212 |     loadMoreRef.current = handleLoadMore;
+      |     ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  213 |     const hasMore = feedState.hasMore;
+  214 |     useEffect(() => {
+  215 |         const node = sentinelRef.current;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/refs
+  353:47  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/Feed.web.tsx:353:47
+  351 |                             style={{ height: spacerHeight, width: '100%', position: 'relative' }}
+  352 |                         >
+> 353 |                             {virtualItems.map((virtualRow) => {
+      |                                               ^^^^^^^^^^^^^^^^^
+> 354 |                                 const row = feedRows[virtualRow.index];
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 355 |                                 return (
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 372 |                                 );
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 373 |                             })}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  374 |                             {/* Load-more sentinel: a 1px probe pinned to the END of
+  375 |                                 the spacer. Observed against the document viewport
+  376 |                                 with a forward rootMargin so the next page loads just  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx
+   84:3   warning  Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:84:3
+  82 |   const [posts, setPosts] = useState<HydratedPost[]>([]);
+  83 |   const cellsRef = React.useRef(new Map<string, number>());
+> 84 |   handle.setPosts = setPosts;
+     |   ^^^^^^ value cannot be modified
+  85 |
+  86 |   const cells = cellsRef.current;
+  87 |   const ids = new Set(posts.map((post) => post.id));                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/immutability
+   86:17  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:86:17
+  84 |   handle.setPosts = setPosts;
+  85 |
+> 86 |   const cells = cellsRef.current;
+     |                 ^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  87 |   const ids = new Set(posts.map((post) => post.id));
+  88 |   const free: number[] = [];
+  89 |   for (const [id, cell] of cells) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/refs
+   86:17  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:86:17
+  84 |   handle.setPosts = setPosts;
+  85 |
+> 86 |   const cells = cellsRef.current;
+     |                 ^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  87 |   const ids = new Set(posts.map((post) => post.id));
+  88 |   const free: number[] = [];
+  89 |   for (const [id, cell] of cells) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/refs
+   91:7   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:91:7
+  89 |   for (const [id, cell] of cells) {
+  90 |     if (!ids.has(id)) {
+> 91 |       cells.delete(id);
+     |       ^^^^^ Passing a ref to a function may read its value during render
+  92 |       free.push(cell);
+  93 |     }
+  94 |   }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/refs
+   91:7   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:91:7
+  89 |   for (const [id, cell] of cells) {
+  90 |     if (!ids.has(id)) {
+> 91 |       cells.delete(id);
+     |       ^^^^^^^^^^^^ Passing a ref to a function may read its value during render
+  92 |       free.push(cell);
+  93 |     }
+  94 |   }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/refs
+   96:14  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:96:14
+  94 |   }
+  95 |   free.sort((a, b) => a - b);
+> 96 |   let next = cells.size + free.length;
+     |              ^^^^^^^^^^ Cannot access ref value during render
+  97 |   for (const post of posts) {
+  98 |     if (!cells.has(post.id)) cells.set(post.id, free.shift() ?? next++);
+  99 |   }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/refs
+   98:10  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:98:10
+   96 |   let next = cells.size + free.length;
+   97 |   for (const post of posts) {
+>  98 |     if (!cells.has(post.id)) cells.set(post.id, free.shift() ?? next++);
+      |          ^^^^^ Passing a ref to a function may read its value during render
+   99 |   }
+  100 |
+  101 |   return (                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/refs
+   98:10  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:98:10
+   96 |   let next = cells.size + free.length;
+   97 |   for (const post of posts) {
+>  98 |     if (!cells.has(post.id)) cells.set(post.id, free.shift() ?? next++);
+      |          ^^^^^^^^^ Passing a ref to a function may read its value during render
+   99 |   }
+  100 |
+  101 |   return (                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/refs
+   98:30  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:98:30
+   96 |   let next = cells.size + free.length;
+   97 |   for (const post of posts) {
+>  98 |     if (!cells.has(post.id)) cells.set(post.id, free.shift() ?? next++);
+      |                              ^^^^^ Passing a ref to a function may read its value during render
+   99 |   }
+  100 |
+  101 |   return (                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/refs
+   98:30  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:98:30
+   96 |   let next = cells.size + free.length;
+   97 |   for (const post of posts) {
+>  98 |     if (!cells.has(post.id)) cells.set(post.id, free.shift() ?? next++);
+      |                              ^^^^^^^^^ Passing a ref to a function may read its value during render
+   99 |   }
+  100 |
+  101 |   return (                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/refs
+  103:18  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__perf__/rowCost.perf.tsx:103:18
+  101 |   return (
+  102 |     <>
+> 103 |       {posts.map((post) => (
+      |                  ^^^^^^^^^^^
+> 104 |         <Profiler key={cells.get(post.id)} id={post.boost?.originalPost?.id ?? post.id} onRender={onRender}>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 105 |           {renderFeedRow(toRow(post), { router, threadLineColor: '#ccc', feedDescriptor: 'perf' })}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |         </Profiler>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |       ))}
+      | ^^^^^^^^ Cannot access ref value during render
+  108 |     </>
+  109 |   );
+  110 | }  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__tests__/engagementCopy.test.ts
+  23:20  warning  Caution: `i18next` also has a named export `createInstance`. Check if you meant to write `import {createInstance} from 'i18next'` instead  import/no-named-as-default-member
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__tests__/feedAnonymousPagination.test.tsx
+  26:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  27:30  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  67:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  68:30  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__tests__/feedCore.test.tsx
+  15:53  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  28:20  warning  A `require()` style import is forbidden                      @typescript-eslint/no-require-imports
+  29:30  warning  A `require()` style import is forbidden                      @typescript-eslint/no-require-imports
+  69:20  warning  A `require()` style import is forbidden                      @typescript-eslint/no-require-imports
+  70:30  warning  A `require()` style import is forbidden                      @typescript-eslint/no-require-imports
+  75:48  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/__tests__/feedScrollReporting.test.tsx
+  33:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  34:30  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  74:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  75:30  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx
+  92:3  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/interstitials/TrendingTopicsInterstitial.tsx:92:3
+  90 |   // identity-stable while still seeing what is on screen right now.
+  91 |   const renderedRef = useRef<Trend[]>(trends);
+> 92 |   renderedRef.current = trends;
+     |   ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  93 |
+  94 |   /**
+  95 |    * The band's reporter, with one addition: when the shell reports the card's  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx
+  152:92  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx:152:92
+  150 |     // Memoized explicitly, not left to the compiler: these rows are FlashList's
+  151 |     // `data`, and a new array identity re-renders every mounted row.
+> 152 |     const feedRows = useMemo(() => boundFeedRows(allFeedRows, previewLimit), [allFeedRows, previewLimit]);
+      |                                                                                            ^^^^^^^^^^^^ This dependency may be modified later
+  153 |
+  154 |     const holdForLeading = useHoldForLeading(
+  155 |         merged.leadingPending,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/preserve-manual-memoization
+  163:40  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx:163:40
+  161 |     // opening it from here hijacked public browse one fling in (#1272). The
+  162 |     // footer's tap is the only sign-in affordance. A bounded preview never pages.
+> 163 |     const handleLoadMore = useCallback(() => {
+      |                                        ^^^^^^^
+> 164 |         if (!canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 165 |         feedLoadMore();
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 166 |     }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore]);
+      | ^^^^^^ Could not preserve existing memoization
+  167 |
+  168 |     const handleRetry = useCallback(async () => {
+  169 |         feedClearError();                                                                                                                                                                                                                                             react-hooks/preserve-manual-memoization
+  166:9   warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx:166:9
+  164 |         if (!canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })) return;
+  165 |         feedLoadMore();
+> 166 |     }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore]);
+      |         ^^^^^^^^^^^^ This dependency may be modified later
+  167 |
+  168 |     const handleRetry = useCallback(async () => {
+  169 |         feedClearError();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/preserve-manual-memoization
+  184:39  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx:184:39
+  182 |     // failure would surface as an unhandled rejection.
+  183 |     const [refreshing, setRefreshing] = useState(false);
+> 184 |     const handleRefresh = useCallback(async () => {
+      |                                       ^^^^^^^^^^^^^
+> 185 |         setRefreshing(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 186 |         try {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 187 |             await Promise.all([feedRefresh(), onRefresh?.()]);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 188 |         } catch (err) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 189 |             logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 190 |         } finally {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 191 |             setRefreshing(false);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 192 |         }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 193 |     }, [feedRefresh, onRefresh]);
+      | ^^^^^^ Could not preserve existing memoization
+  194 |
+  195 |     // Feed-ranking telemetry. The session resets when the descriptor changes or
+  196 |     // the feed is reloaded, so impressions count once per post per session  react-hooks/preserve-manual-memoization
+  193:22  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This dependency may be mutated later, which could cause the value to change unexpectedly.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Feed/useFeedCore.tsx:193:22
+  191 |             setRefreshing(false);
+  192 |         }
+> 193 |     }, [feedRefresh, onRefresh]);
+      |                      ^^^^^^^^^ This dependency may be modified later
+  194 |
+  195 |     // Feed-ranking telemetry. The session resets when the descriptor changes or
+  196 |     // the feed is reloaded, so impressions count once per post per session                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Jobs/__tests__/JobDiscoveryResultCard.test.tsx
+   72:1   warning  Import in body of module; reorder to top                     import/first
+  131:54  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Jobs/__tests__/JobLocationField.test.tsx
+  51:1  warning  Import in body of module; reorder to top  import/first
+  58:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Jobs/__tests__/OrganizationJobRow.test.tsx
+  33:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Lists/AddToListSheet.tsx
+  78:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Lists/AddToListSheet.tsx:78:5
+  76 |
+  77 |   useEffect(() => {
+> 78 |     load();
+     |     ^^^^ Avoid calling setState() directly within an effect
+  79 |   }, [load]);
+  80 |
+  81 |   const label = useMemo(() => targetLabel || t('lists.addTo.thisUser', { defaultValue: 'this user' }), [targetLabel, t]);  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/NotificationsList.web.tsx
+  137:35  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/NotificationsList.web.tsx:137:35
+  135 |             {header}
+  136 |             <div ref={wrapperRef} style={{ height: spacerHeight, width: '100%', position: 'relative' }}>
+> 137 |                 {virtualItems.map((virtualRow) => {
+      |                                   ^^^^^^^^^^^^^^^^^
+> 138 |                     const item = items[virtualRow.index];
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 139 |                     return (
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 157 |                     );
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 158 |                 })}
+      | ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  159 |             </div>
+  160 |             {onEndReached ? (
+  161 |                 <LoadMoreSentinel onLoadMore={onEndReached} enabled={!!hasMore} />  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.native.tsx
+  95:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/Attachments/ExternalEmbedPlayer.native.tsx:95:5
+  93 |   useEffect(() => {
+  94 |     if (!active) return;
+> 95 |     setLoading(true);
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  96 |     frameCallback.setActive(true);
+  97 |     return () => frameCallback.setActive(false);
+  98 |   }, [active, frameCallback]);  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/Attachments/PostAttachmentMedia.tsx
+  1:41  warning  'useMemo' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/Attachments/__tests__/externalEmbedPlayerReferrer.test.tsx
+  18:22  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  47:1   warning  Import in body of module; reorder to top                     import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/EngagementList.tsx
+  62:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/EngagementList.tsx:62:5
+  60 |
+  61 |   useEffect(() => {
+> 62 |     loadUsers();
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  63 |   }, [loadUsers]);
+  64 |
+  65 |   const handleLoadMore = useCallback(() => {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/PostArticleModal.tsx
+  65:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/PostArticleModal.tsx:65:5
+  63 |
+  64 |     let isMounted = true;
+> 65 |     setIsLoading(true);
+     |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  66 |     setLoadError(null);
+  67 |     articleService.getArticle(articleId)
+  68 |       .then((article) => {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/PostCrosspostRow.tsx
+  2:33  warning  'Pressable' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Post/__tests__/PollCard.test.tsx
+  97:54  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/ProfileShell.tsx
+  184:16  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/ProfileShell.tsx:184:16
+  182 |           listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
+  183 |       </View> : <FlashList
+> 184 |           ref={chrome.assignScrollRef}
+      |                ^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  185 |           data={['tabs', 'content'] as const}
+  186 |           keyExtractor={item => item}
+  187 |           renderItem={({ item }) => item === 'tabs' ? stickyTabs : nativeContent}               react-hooks/refs
+  190:21  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/ProfileShell.tsx:190:21
+  188 |           ListHeaderComponent={listHeader}
+  189 |           ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+> 190 |           onScroll={chrome.onScroll}
+      |                     ^^^^^^^^^^^^^^^ Cannot access ref value during render
+  191 |           scrollEventThrottle={16}
+  192 |           showsVerticalScrollIndicator={false}
+  193 |           // The tabs are the first data row; FlashList keeps ListHeaderComponent  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/__tests__/ProfileChromeFrame.web.test.tsx
+  48:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/__tests__/ProfileShell.test.tsx
+  45:18  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/__tests__/ProfileShell.web.test.tsx
+  51:18  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/__tests__/channelWritersTab.test.tsx
+  201:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 import/first
+  202:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 import/first
+  203:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 import/first
+  204:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 import/first
+  241:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latest` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/__tests__/channelWritersTab.test.tsx:241:3
+  239 |
+  240 | function Probe({ channelId }: { channelId: string | undefined }) {
+> 241 |   latest = useChannelWriters(channelId);
+      |   ^^^^^^ `latest` cannot be reassigned
+  242 |   return null;
+  243 | }
+  244 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useDeferredToggle.test.tsx
+  30:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latest` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useDeferredToggle.test.tsx:30:3
+  28 |
+  29 | function Probe({ skip, handlers }: { skip: boolean; handlers: Handlers }) {
+> 30 |   latest = useDeferredToggle({
+     |   ^^^^^^ `latest` cannot be reassigned
+  31 |     skip,
+  32 |     fetchStatus: handlers.fetchStatus,
+  33 |     onEnable: handlers.onEnable,  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileAccount.test.tsx
+  17:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latest` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileAccount.test.tsx:17:3
+  15 | let latest: ProfileAccount | null = null;
+  16 | function Probe({ handle }: { handle: string }) {
+> 17 |   latest = useProfileAccount(handle);
+     |   ^^^^^^ `latest` cannot be reassigned
+  18 |   return null;
+  19 | }
+  20 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileMoreMenu.test.tsx
+  50:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latest` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileMoreMenu.test.tsx:50:3
+  48 | let latest: (() => void) | null = null;
+  49 | function Probe(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {
+> 50 |   latest = useProfileMoreMenu({ profileData, ...props });
+     |   ^^^^^^ `latest` cannot be reassigned
+  51 |   return null;
+  52 | }
+  53 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileScroll.test.tsx
+  72:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latest` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useProfileScroll.test.tsx:72:3
+  70 |
+  71 | function Probe({ profileId, currentTab }: { profileId?: string; currentTab: ProfileTab }) {
+> 72 |   latest = useProfileScroll({ profileId, currentTab });
+     |   ^^^^^^ `latest` cannot be reassigned
+  73 |   return null;
+  74 | }
+  75 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useSubscriptionInvalidation.test.tsx
+  47:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latestResult` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/__tests__/useSubscriptionInvalidation.test.tsx:47:3
+  45 |
+  46 | function Probe() {
+> 47 |   latestResult = useSubscription(PROFILE_ID, VIEWER_ID, false);
+     |   ^^^^^^^^^^^^ `latestResult` cannot be reassigned
+  48 |   return null;
+  49 | }
+  50 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts
+  28:7  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts:28:7
+  26 |
+  27 |   // Reset tracking when the profile changes (component reused via dynamic route)
+> 28 |   if (prevProfileIdRef.current !== profileId) {
+     |       ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  29 |     prevProfileIdRef.current = profileId;
+  30 |     settledRef.current = false;
+  31 |     prevFollowingRef.current = isFollowing;  react-hooks/refs
+  29:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts:29:5
+  27 |   // Reset tracking when the profile changes (component reused via dynamic route)
+  28 |   if (prevProfileIdRef.current !== profileId) {
+> 29 |     prevProfileIdRef.current = profileId;
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  30 |     settledRef.current = false;
+  31 |     prevFollowingRef.current = isFollowing;
+  32 |   }      react-hooks/refs
+  30:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts:30:5
+  28 |   if (prevProfileIdRef.current !== profileId) {
+  29 |     prevProfileIdRef.current = profileId;
+> 30 |     settledRef.current = false;
+     |     ^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  31 |     prevFollowingRef.current = isFollowing;
+  32 |   }
+  33 |                                                                                              react-hooks/refs
+  31:5  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useFederatedFollowSync.ts:31:5
+  29 |     prevProfileIdRef.current = profileId;
+  30 |     settledRef.current = false;
+> 31 |     prevFollowingRef.current = isFollowing;
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  32 |   }
+  33 |
+  34 |   useEffect(() => {                                                                                                                    react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts
+  26:7   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:26:7
+  24 |   const prevUserIdRef = useRef(userId);
+  25 |
+> 26 |   if (prevUserIdRef.current !== userId) {
+     |       ^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  27 |     // Navigated to a different account: nothing carries over.
+  28 |     prevUserIdRef.current = userId;
+  29 |     settledRef.current = false;                                                                                                                                                                                           react-hooks/refs
+  28:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:28:5
+  26 |   if (prevUserIdRef.current !== userId) {
+  27 |     // Navigated to a different account: nothing carries over.
+> 28 |     prevUserIdRef.current = userId;
+     |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  29 |     settledRef.current = false;
+  30 |     prevFollowRef.current = false;
+  31 |     if (justFollowed) setJustFollowed(false);                                                                                                                                                          react-hooks/refs
+  29:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:29:5
+  27 |     // Navigated to a different account: nothing carries over.
+  28 |     prevUserIdRef.current = userId;
+> 29 |     settledRef.current = false;
+     |     ^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  30 |     prevFollowRef.current = false;
+  31 |     if (justFollowed) setJustFollowed(false);
+  32 |   } else if (!settledRef.current) {                                                                                                                                                                   react-hooks/refs
+  30:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:30:5
+  28 |     prevUserIdRef.current = userId;
+  29 |     settledRef.current = false;
+> 30 |     prevFollowRef.current = false;
+     |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  31 |     if (justFollowed) setJustFollowed(false);
+  32 |   } else if (!settledRef.current) {
+  33 |     // First settled value for this account — store hydration, not an action                                                                                                                                                  react-hooks/refs
+  32:15  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:32:15
+  30 |     prevFollowRef.current = false;
+  31 |     if (justFollowed) setJustFollowed(false);
+> 32 |   } else if (!settledRef.current) {
+     |               ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  33 |     // First settled value for this account — store hydration, not an action.
+  34 |     settledRef.current = true;
+  35 |     prevFollowRef.current = isFollowing;
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`  react-hooks/refs
+  35:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:35:5
+  33 |     // First settled value for this account — store hydration, not an action.
+  34 |     settledRef.current = true;
+> 35 |     prevFollowRef.current = isFollowing;
+     |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  36 |   } else if (isFollowing !== prevFollowRef.current) {
+  37 |     if (isFollowing) {
+  38 |       setJustFollowed(true);                                                                                                                                                        react-hooks/refs
+  36:30  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:36:30
+  34 |     settledRef.current = true;
+  35 |     prevFollowRef.current = isFollowing;
+> 36 |   } else if (isFollowing !== prevFollowRef.current) {
+     |                              ^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  37 |     if (isFollowing) {
+  38 |       setJustFollowed(true);
+  39 |     } else if (justFollowed) {                                                                                                                                                                       react-hooks/refs
+  42:5   warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useJustFollowed.ts:42:5
+  40 |       setJustFollowed(false);
+  41 |     }
+> 42 |     prevFollowRef.current = isFollowing;
+     |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  43 |   }
+  44 |
+  45 |   return justFollowed;                                                                                                                                                                                                                                                                                                                react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/usePersonProfileView.tsx
+  382:44  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `profileData`, but the source dependencies were [profileData?.actorUri]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/usePersonProfileView.tsx:382:44
+  380 |
+  381 |   // Open on remote instance (federated only)
+> 382 |   const handleOpenOnInstance = useCallback(() => {
+      |                                            ^^^^^^^
+> 383 |     if (profileData?.actorUri) openExternalLink(profileData.actorUri);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 384 |   }, [profileData?.actorUri]);
+      | ^^^^ Could not preserve existing manual memoization
+  385 |
+  386 |   const userNameStyle = useMemo(
+  387 |     () => ({  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useProfileScroll.ts
+  180:39  warning  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/hooks/useProfileScroll.ts:180:39
+  178 |   // Create animated scroll handler (native only — web uses the document scroll).
+  179 |   const onScroll = useMemo(
+> 180 |     () => createAnimatedScrollHandler(handleScrollEvent),
+      |                                       ^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render
+  181 |     [createAnimatedScrollHandler, handleScrollEvent]
+  182 |   );
+  183 |  react-hooks/refs
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/useProfileMediaFeed.ts
+  63:9  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `primaryFeed`, but the source dependencies were [primaryFeed?.items, postsFeed?.items]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/Profile/useProfileMediaFeed.ts:63:9
+  61 |
+  62 |     const items = useMemo<FeedItem[]>(
+> 63 |         () => (primaryFeed?.items?.length ? primaryFeed.items : (postsFeed?.items || [])),
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not preserve existing manual memoization
+  64 |         [primaryFeed?.items, postsFeed?.items],
+  65 |     );
+  66 |  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/SEO.tsx
+  39:27  warning  Array type using 'ReadonlyArray<T>' is forbidden. Use 'readonly T[]' instead  @typescript-eslint/array-type
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/StarterPacksTab.tsx
+  41:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/StarterPacksTab.tsx:41:5
+  39 |
+  40 |   useEffect(() => {
+> 41 |     fetchPacks();
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |   }, [fetchPacks]);
+  43 |
+  44 |   if (loading) {  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/MentionTextInput.test.tsx
+  61:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `latestState` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/MentionTextInput.test.tsx:61:3
+  59 |     initial ?? { text: 'Hello [mention:alice-id]', mentions: [alice] },
+  60 |   );
+> 61 |   latestState = state;
+     |   ^^^^^^^^^^^ `latestState` cannot be reassigned
+  62 |   return (
+  63 |     <MentionTextInput
+  64 |       value={state.text}  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/RegisterPushToken.test.tsx
+   90:5  warning  'renderer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  113:5  warning  'renderer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  145:5  warning  'renderer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  172:5  warning  'renderer' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/notFoundScreen.test.tsx
+  19:1  warning  Import in body of module; reorder to top  import/first
+  20:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/notificationsListScroll.test.tsx
+  42:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  43:22  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/__tests__/profileCardIdentity.test.tsx
+  181:42  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/common/FocusedFlashList.tsx
+  31:13  warning  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/common/FocusedFlashList.tsx:31:13
+  29 |         onScroll: (event) => {
+  30 |             'worklet';
+> 31 |             scrollPosition.value = event.contentOffset.y;
+     |             ^^^^^^^^^^^^^^ `scrollPosition` cannot be modified
+  32 |         },
+  33 |     });
+  34 |     return (  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/common/__tests__/Ionicons.test.tsx
+  27:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/common/__tests__/SignInRequired.test.tsx
+  32:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/feeds/FeedBuilder.tsx
+  740:34  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, chipDrafts, selectedAccounts, savedFeedId, queryClient, t, user?.id]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/feeds/FeedBuilder.tsx:740:34
+  738 |     setSignalStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
+  739 |
+> 740 |   const handleSave = useCallback(async () => {
+      |                                  ^^^^^^^^^^^^^
+> 741 |     if (!catalog) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 742 |     if (!title.trim()) {
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 813 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 814 |   }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, chipDrafts, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  815 |
+  816 |   const canSave = title.trim().length > 0 && Boolean(catalog);
+  817 |  react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx
+  197:7   warning  Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:197:7
+  195 |       // table rather than a property of either.
+  196 |       const page = event.position + event.offset;
+> 197 |       progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, page);
+      |       ^^^^^^^^ `progress` cannot be modified
+  198 |       // Same frame, same interpolation, different quantity: the bar fades out as
+  199 |       // the finger travels onto a page it draws no item for. Continuous, because
+  200 |       // a bar that vanished on commit would announce the commit rather than                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/immutability
+  202:7   warning  Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:202:7
+  200 |       // a bar that vanished on commit would announce the commit rather than
+  201 |       // follow the finger.
+> 202 |       chromeProgress.value = barPositionForPage(CHROME_HIDDEN_BY_PAGE, page);
+      |       ^^^^^^^^^^^^^^ `chromeProgress` cannot be modified
+  203 |     },
+  204 |     [progress, chromeProgress],
+  205 |   );                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/immutability
+  221:13  warning  Error: Cannot modify local variables after render completes
+
+This argument is a function which may reassign or mutate `progress` after render, which can cause inconsistent behavior on subsequent renders. Consider using state instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:221:13
+  219 |   // same reason — the bar must fade out over a page that draws no item for it
+  220 |   // whether the finger or a tap put us there.
+> 221 |   useEffect(() => {
+      |             ^^^^^^^
+> 222 |     if (focusedPage === pageRef.current) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 223 |     pageRef.current = focusedPage;
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 233 |     );
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 234 |   }, [focusedPage, keyForPage, admit, progress, chromeProgress]);
+      | ^^^^ This function may (indirectly) reassign or modify `progress` after render
+  235 |
+  236 |   // Warm the neighbours of wherever the band has come to rest, on the frame
+  237 |   // AFTER the one that put it there. Mounting a feed is not something to do on a
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:226:5
+  224 |     admit([keyForPage(focusedPage)]);
+  225 |     pagerRef.current?.setPageWithoutAnimation(focusedPage);
+> 226 |     progress.value = withSpring(
+      |     ^^^^^^^^ This modifies `progress`
+  227 |       barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage),
+  228 |       BAR_SETTLE_SPRING,
+  229 |     );  react-hooks/immutability
+  226:5   warning  Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:226:5
+  224 |     admit([keyForPage(focusedPage)]);
+  225 |     pagerRef.current?.setPageWithoutAnimation(focusedPage);
+> 226 |     progress.value = withSpring(
+      |     ^^^^^^^^ `progress` cannot be modified
+  227 |       barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage),
+  228 |       BAR_SETTLE_SPRING,
+  229 |     );                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/immutability
+  230:5   warning  Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/TabsPager.tsx:230:5
+  228 |       BAR_SETTLE_SPRING,
+  229 |     );
+> 230 |     chromeProgress.value = withSpring(
+      |     ^^^^^^^^^^^^^^ `chromeProgress` cannot be modified
+  231 |       barPositionForPage(CHROME_HIDDEN_BY_PAGE, focusedPage),
+  232 |       BAR_SETTLE_SPRING,
+  233 |     );                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/__tests__/TabsPager.test.tsx
+  36:17  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  37:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  63:17  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  64:20  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/__tests__/tabs.test.ts
+  246:13  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/__tests__/useMentionSidebar.test.tsx
+  31:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `sidebar` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/__tests__/useMentionSidebar.test.tsx:31:3
+  29 | let sidebar!: SidebarProps;
+  30 | function Probe() {
+> 31 |   sidebar = useMentionSidebar();
+     |   ^^^^^^^ `sidebar` cannot be reassigned
+  32 |   return null;
+  33 | }
+  34 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/navigation/useMentionSidebar.tsx
+  7:31  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+  8:25  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx
+   17:43  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         import/no-duplicates
+   18:25  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         import/no-duplicates
+  577:33  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setActionLoading`, but the source dependencies were [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]. Inferred different dependency than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx:577:33
+  575 |   }, [resolvedPrimary, bylineName]);
+  576 |
+> 577 |   const runAccept = useCallback(async () => {
+      |                                 ^^^^^^^^^^^^^
+> 578 |     if (!postId) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 579 |     setActionLoading(true);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 601 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 602 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  603 |
+  604 |   const runDecline = useCallback(async () => {
+  605 |     if (!postId) return;                                                                      react-hooks/preserve-manual-memoization
+  577:33  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx:577:33
+  575 |   }, [resolvedPrimary, bylineName]);
+  576 |
+> 577 |   const runAccept = useCallback(async () => {
+      |                                 ^^^^^^^^^^^^^
+> 578 |     if (!postId) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 579 |     setActionLoading(true);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 601 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 602 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  603 |
+  604 |   const runDecline = useCallback(async () => {
+  605 |     if (!postId) return;                                                                                react-hooks/preserve-manual-memoization
+  604:34  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setActionLoading`, but the source dependencies were [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]. Inferred different dependency than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx:604:34
+  602 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+  603 |
+> 604 |   const runDecline = useCallback(async () => {
+      |                                  ^^^^^^^^^^^^^
+> 605 |     if (!postId) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 606 |     setActionLoading(true);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 626 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 627 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  628 |
+  629 |   const openAcceptSheet = useCallback(() => {
+  630 |     if (!inviter) return;  react-hooks/preserve-manual-memoization
+  604:34  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `user`, but the source dependencies were [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx:604:34
+  602 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+  603 |
+> 604 |   const runDecline = useCallback(async () => {
+      |                                  ^^^^^^^^^^^^^
+> 605 |     if (!postId) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 606 |     setActionLoading(true);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 626 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 627 |   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  628 |
+  629 |   const openAcceptSheet = useCallback(() => {
+  630 |     if (!inviter) return;            react-hooks/preserve-manual-memoization
+  643:38  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setExpanded`, but the source dependencies were []. Inferred dependency not present in source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/notifications/NotificationItem.tsx:643:38
+  641 |   }, [bottomSheet, inviter, actionLoading, runAccept, runDecline]);
+  642 |
+> 643 |   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
+      |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not preserve existing manual memoization
+  644 |
+  645 |   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
+  646 |                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/preserve-manual-memoization
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/AccountSwitchReset.tsx
+  160:35  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/AccountSwitchReset.tsx:160:35
+  158 |         prevViewerIdRef.current = null;
+  159 |       }
+> 160 |       if (readyViewerId !== null) setReadyViewerId(null);
+      |                                   ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  161 |       return;
+  162 |     }
+  163 |  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/appShellContextReach.test.tsx
+  206:7  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `sheetSawOpen` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/appShellContextReach.test.tsx:206:7
+  204 |
+  205 |     const SheetProbe = () => {
+> 206 |       sheetSawOpen = useDrawer().isOpen;
+      |       ^^^^^^^^^^^^ `sheetSawOpen` cannot be reassigned
+  207 |       return null;
+  208 |     };
+  209 |                                 react-hooks/globals
+  238:7  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `fromTree` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/appShellContextReach.test.tsx:238:7
+  236 |
+  237 |     const TreeProbe = () => {
+> 238 |       fromTree = usePostInteractions();
+      |       ^^^^^^^^ `fromTree` cannot be reassigned
+  239 |       return null;
+  240 |     };
+  241 |     const SheetProbe = () => {                react-hooks/globals
+  242:7  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `fromSheet` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/appShellContextReach.test.tsx:242:7
+  240 |     };
+  241 |     const SheetProbe = () => {
+> 242 |       fromSheet = usePostInteractions();
+      |       ^^^^^^^^^ `fromSheet` cannot be reassigned
+  243 |       return null;
+  244 |     };
+  245 |     const OutsideProbe = () => {  react-hooks/globals
+  246:7  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `outsideApp` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/appShellContextReach.test.tsx:246:7
+  244 |     };
+  245 |     const OutsideProbe = () => {
+> 246 |       outsideApp = usePostInteractions();
+      |       ^^^^^^^^^^ `outsideApp` cannot be reassigned
+  247 |       return null;
+  248 |     };
+  249 |                             react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/communityNoteProvider.test.tsx
+  18:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         import/first
+  19:1  warning  Import in body of module; reorder to top                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         import/first
+  24:3  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `seen` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/communityNoteProvider.test.tsx:24:3
+  22 |
+  23 | function Row() {
+> 24 |   seen = useCommunityNoteHandlerContext();
+     |   ^^^^ `seen` cannot be reassigned
+  25 |   return null;
+  26 | }
+  27 |  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/providers/__tests__/handleLanguageError.test.ts
+  6:1  warning  Import in body of module; reorder to top  import/first
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/__tests__/MentionSettingsProvider.test.tsx
+  27:20  warning  Error: Cannot reassign variables declared outside of the component/hook
+
+Variable `actions` is declared outside of the component/hook. Reassigning this value during render is a form of side effect, which can cause unpredictable behavior depending on when the component happens to re-render. If this variable is used in rendering, use useState instead. Otherwise, consider updating it in an effect. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#side-effects-must-run-outside-of-render).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/__tests__/MentionSettingsProvider.test.tsx:27:20
+  25 | jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string, options?: { defaultValue?: string } | string) => typeof options === 'string' ? options : options?.defaultValue ?? key }) }));
+  26 | let actions: MentionSettingsActions;
+> 27 | function Probe() { actions = useMentionSettings(); return null; }
+     |                    ^^^^^^^ `actions` cannot be reassigned
+  28 | let renderer: TestRenderer.ReactTestRenderer;
+  29 | beforeEach(() => { jest.clearAllMocks(); mockRouter.canGoBack.mockReturnValue(true); });
+  30 | afterEach(() => { act(() => renderer?.unmount()); });  react-hooks/globals
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/interests.tsx
+  14:61  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+  15:40  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times  import/no-duplicates
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/notifications.tsx
+  56:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/notifications.tsx:56:7
+  54 |     }
+  55 |     if (!canUsePrivateApi) {
+> 56 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  57 |       return;
+  58 |     }
+  59 |     loadPreferences();                                                                                                                                                                               react-hooks/set-state-in-effect
+  59:5  warning  Error: Cannot access variable before it is declared
+
+`loadPreferences` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/notifications.tsx:59:5
+  57 |       return;
+  58 |     }
+> 59 |     loadPreferences();
+     |     ^^^^^^^^^^^^^^^ `loadPreferences` accessed before it is declared
+  60 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  61 |
+  62 |   const loadPreferences = async () => {
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/notifications.tsx:62:3
+  60 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  61 |
+> 62 |   const loadPreferences = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 63 |     try {
+     | ^^^^^^^^^
+> 64 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+     …
+     | ^^^^^^^^^
+> 75 |     }
+     | ^^^^^^^^^
+> 76 |   };
+     | ^^^^^ `loadPreferences` is declared here
+  77 |
+  78 |   const updatePreference = useCallback(
+  79 |     async (key: keyof NotificationPreferences, value: boolean) => {  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy.tsx
+  94:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy.tsx:94:7
+  92 |     }
+  93 |     if (!isAuthenticated || !viewerId) {
+> 94 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  95 |       return;
+  96 |     }
+  97 |     loadPrivacySettings();                                                                                                                                                                                                                                         react-hooks/set-state-in-effect
+  97:5  warning  Error: Cannot access variable before it is declared
+
+`loadPrivacySettings` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy.tsx:97:5
+   95 |       return;
+   96 |     }
+>  97 |     loadPrivacySettings();
+      |     ^^^^^^^^^^^^^^^^^^^ `loadPrivacySettings` accessed before it is declared
+   98 |     getRecommendationFilters(viewerId).then(setRecFilters);
+   99 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated, viewerId]);
+  100 |
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy.tsx:101:3
+   99 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated, viewerId]);
+  100 |
+> 101 |   const loadPrivacySettings = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 102 |     try {
+      | ^^^^^^^^^
+> 103 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+      …
+      | ^^^^^^^^^
+> 113 |     }
+      | ^^^^^^^^^
+> 114 |   };
+      | ^^^^^ `loadPrivacySettings` is declared here
+  115 |
+  116 |   const updateRecFilter = (
+  117 |     key: keyof RecommendationFilters,  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/blocked.tsx
+   23:27  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            import/no-duplicates
+   24:40  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            import/no-duplicates
+  138:32  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/blocked.tsx:138:32
+  136 |
+  137 |   React.useEffect(() => {
+> 138 |     if (canUsePrivateApi) void loadBlockedUsers();
+      |                                ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  139 |   }, [canUsePrivateApi, loadBlockedUsers]);
+  140 |
+  141 |   const searchUsersViaOxy = useCallback(  react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/hide-counts.tsx
+  40:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/hide-counts.tsx:40:7
+  38 |     }
+  39 |     if (!canUsePrivateApi) {
+> 40 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  41 |       return;
+  42 |     }
+  43 |     loadSettings();                                                                                               react-hooks/set-state-in-effect
+  43:5  warning  Error: Cannot access variable before it is declared
+
+`loadSettings` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/hide-counts.tsx:43:5
+  41 |       return;
+  42 |     }
+> 43 |     loadSettings();
+     |     ^^^^^^^^^^^^ `loadSettings` accessed before it is declared
+  44 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  45 |
+  46 |   const loadSettings = async () => {
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/hide-counts.tsx:46:3
+  44 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  45 |
+> 46 |   const loadSettings = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 47 |     try {
+     | ^^^^^^^^^
+> 48 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+     …
+     | ^^^^^^^^^
+> 60 |     }
+     | ^^^^^^^^^
+> 61 |   };
+     | ^^^^^ `loadSettings` is declared here
+  62 |
+  63 |   const updateSetting = async (
+  64 |     field:  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/online-status.tsx
+  28:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/online-status.tsx:28:7
+  26 |     }
+  27 |     if (!canUsePrivateApi) {
+> 28 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  29 |       return;
+  30 |     }
+  31 |     loadSettings();                                                                                                                    react-hooks/set-state-in-effect
+  31:5  warning  Error: Cannot access variable before it is declared
+
+`loadSettings` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/online-status.tsx:31:5
+  29 |       return;
+  30 |     }
+> 31 |     loadSettings();
+     |     ^^^^^^^^^^^^ `loadSettings` accessed before it is declared
+  32 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  33 |
+  34 |   const loadSettings = async () => {
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/online-status.tsx:34:3
+  32 |   }, [canUsePrivateApi, isPrivateApiPending]);
+  33 |
+> 34 |   const loadSettings = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 35 |     try {
+     | ^^^^^^^^^
+> 36 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+     …
+     | ^^^^^^^^^
+> 45 |     }
+     | ^^^^^^^^^
+> 46 |   };
+     | ^^^^^ `loadSettings` is declared here
+  47 |
+  48 |   const updateSetting = async (value: boolean) => {
+  49 |     try {  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/profile-visibility.tsx
+  52:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/profile-visibility.tsx:52:7
+  50 |     }
+  51 |     if (!isAuthenticated) {
+> 52 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  53 |       return;
+  54 |     }
+  55 |     loadSettings();                                                                                                                                                                                                           react-hooks/set-state-in-effect
+  55:5  warning  Error: Cannot access variable before it is declared
+
+`loadSettings` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/profile-visibility.tsx:55:5
+  53 |       return;
+  54 |     }
+> 55 |     loadSettings();
+     |     ^^^^^^^^^^^^ `loadSettings` accessed before it is declared
+  56 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
+  57 |
+  58 |   const loadSettings = async () => {
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/profile-visibility.tsx:58:3
+  56 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
+  57 |
+> 58 |   const loadSettings = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 59 |     try {
+     | ^^^^^^^^^
+> 60 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+     …
+     | ^^^^^^^^^
+> 69 |     }
+     | ^^^^^^^^^
+> 70 |   };
+     | ^^^^^ `loadSettings` is declared here
+  71 |
+  72 |   const handleSave = async (newVisibility: VisibilityOption) => {
+  73 |     if (newVisibility === profileVisibility) {  react-hooks/immutability
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/restricted.tsx
+   24:27  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              import/no-duplicates
+   25:40  warning  '/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/services/lib/typescript/module/ui/client.d.ts' imported multiple times                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              import/no-duplicates
+   78:43  warning  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `currentUser`, but the source dependencies were [t, currentUser?.id, canUsePrivateApi, oxyServices]. Inferred less specific property than source.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/restricted.tsx:78:43
+   76 |   );
+   77 |
+>  78 |   const loadRestrictedUsers = useCallback(async () => {
+      |                                           ^^^^^^^^^^^^^
+>  79 |     if (!canUsePrivateApi) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  80 |       restrictedLogger.debug("Not authenticated, skipping load");
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 150 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 151 |   }, [t, currentUser?.id, canUsePrivateApi, oxyServices]);
+      | ^^^^ Could not preserve existing manual memoization
+  152 |
+  153 |   useEffect(() => {
+  154 |     if (canUsePrivateApi) {  react-hooks/preserve-manual-memoization
+  155:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/restricted.tsx:155:7
+  153 |   useEffect(() => {
+  154 |     if (canUsePrivateApi) {
+> 155 |       loadRestrictedUsers();
+      |       ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  156 |     }
+  157 |   }, [canUsePrivateApi, loadRestrictedUsers]);
+  158 |                                                                                                                                                        react-hooks/set-state-in-effect
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/tags-mentions.tsx
+  34:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/tags-mentions.tsx:34:7
+  32 |     }
+  33 |     if (!isAuthenticated) {
+> 34 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  35 |       return;
+  36 |     }
+  37 |     loadSettings();                                                                                                                                                               react-hooks/set-state-in-effect
+  37:5  warning  Error: Cannot access variable before it is declared
+
+`loadSettings` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/tags-mentions.tsx:37:5
+  35 |       return;
+  36 |     }
+> 37 |     loadSettings();
+     |     ^^^^^^^^^^^^ `loadSettings` accessed before it is declared
+  38 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
+  39 |
+  40 |   const loadSettings = async () => {
+
+/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend/components/settings/pages/privacy/tags-mentions.tsx:40:3
+  38 |   }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
+  39 |
+> 40 |   const loadSettings = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 41 |     try {
+     | ^^^^^^^^^
+> 42 |       const response = await authenticatedClient.get<UserSettingsResponse>(
+     …
+     | ^^^^^^^^^
+> 52 |     }
+     | ^^^^^^^^^
+> 53 |   };
+     | ^^^^^ `loadSettings` is declared here
+  54 |
+  55 |   const updateSetting = async (
+  56 |     field: "allowTags" | "allowMentions",  react-hooks/immutability
+
+✖ 205 problems (0 errors, 205 warnings)
+  0 errors and 39 warnings potentially fixable with the `--fix` option.
+

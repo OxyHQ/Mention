@@ -1,0 +1,200 @@
+$ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:no-mongo validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
+validate:suite-collection        | validate-suite-collection self-test:
+validate:suite-collection        |   ok    a healthy suite passes
+validate:suite-collection        |   ok    counts are reported
+validate:suite-collection        |   ok    a file collecting ZERO tests FAILS the gate
+validate:suite-collection        |   ok    and the gate NAMES it
+validate:suite-collection        |   ok    100% passing with a dead file still FAILS
+validate:suite-collection        |   ok    and says why the ratio is misleading
+validate:suite-collection        |   ok    a file on disk but ABSENT from the report FAILS
+validate:suite-collection        |   ok    and the gate NAMES it
+validate:suite-collection        |   ok    and names the DIED-AT-COLLECTION cause
+validate:suite-collection        |   ok    and names the INCLUDE-PATTERN cause
+validate:suite-collection        |   ok    a fully-skipped file PASSES (it still collects)
+validate:suite-collection        |   ok    an empty-but-consistent run does not hard-fail
+validate:suite-collection        |   ok    a file NEWER than the report does not fail the gate
+validate:suite-collection        |   ok    it is reported as staleness instead
+validate:suite-collection        |   ok    and the note says re-run
+validate:suite-collection        |   ok    a file OLDER than the report and absent still FAILS
+validate:suite-collection        |   ok    and is named as a real miss
+validate:suite-collection        |   ok    a file created mid-run is staleness, not a miss
+validate:suite-collection        |   ok    and startTime is what decided it
+validate:suite-collection        |   ok    with no startTime, an absent file still FAILS
+validate:suite-collection        |   ok    a report with no testResults FAILS rather than passing vacuously
+validate:suite-collection        | 
+validate:suite-collection        | all self-tests passed
+validate:suite-collection        | Done in 205ms
+doctor                           | Mention workspace is reproducible: Bun 1.3.14, Node 24.21.0, Expo 57.0.25, Bloom 7.1.2, workspace dependencies and TypeScript references are aligned.
+doctor                           | Done in 217ms
+validate:license                 | License consistency guard passed — 6 package.json files and 81 Markdown files scanned.
+validate:license                 | Done in 253ms
+validate:lockfile                | bun.lock validation failed:
+validate:lockfile                | 
+validate:lockfile                | - ACCEPTED_OVERRIDE_RANGE_VIOLATIONS lists "@oxy.so/mcp -> @oxy.so/contracts@^1.0.1", which no longer happens — the override or the dependent moved. Delete the entry so the list keeps describing the tree.
+validate:lockfile                | 
+validate:lockfile                | Exited with code 1
+audit:security                   | Signaled: SIGINT
+validate:workflows               | Signaled: SIGINT
+validate:feed-hot-path           | validate-feed-hot-path: 86 hot-path files, no whole-store subscriptions; every embedded Feed is bounded.
+validate:architecture-boundaries | Architecture boundary guard passed — 1291 backend source files scanned.
+validate:architecture-boundaries |   rule 1 (protocol internals): 18 baseline crossing(s) honoured, 0 new violations.
+validate:architecture-boundaries |   rule 2 (route/controller -> db): 111 crossing(s) across 89 baselined (file, area) pair(s) over 79 route/controller files, 0 new violations.
+validate:architecture-boundaries | ok   the live baselines all carry a reason
+validate:architecture-boundaries | ok   an entry with an undefined reason is refused
+validate:architecture-boundaries | ok   an entry with a blank reason is refused
+validate:architecture-boundaries | ok   a tree carrying exactly the baselined crossings passes
+validate:architecture-boundaries | ok   a NEW route reaching into db/ fails
+validate:architecture-boundaries | ok   a NEW controller reaching into db/ fails
+validate:inference-boundary      | Validated Mention's Oxy/Kaana inference boundary across 1538 backend/frontend/MCP production source files.
+validate:architecture-boundaries | ok   an ALREADY-baselined file reaching into a NEW db area fails
+validate:architecture-boundaries | ok   a dynamic import() of a db module from a new route fails
+validate:id-shape                | No id-shape assumptions in 1584 source file(s); 4 reasoned redaction exception(s), all still matching.
+validate:architecture-boundaries | ok   a schema table import is a violation, reported as the raw query surface
+validate:feed-hot-path           | test-validate-feed-hot-path: 14 cases passed
+validate:feed-hot-path           | Done in 720ms
+validate:architecture-boundaries | ok   src/mtn/controllers IS in scope
+validate:no-mongo                | MongoDB reintroduction guard passed — 6 manifests, 2674 source files, 62 config files and 2506 lockfile resolutions scanned; 1 of 1 known exceptions honoured.
+validate:architecture-boundaries | ok   a type-only import into db/ from a NEW route passes
+validate:no-mongo                | ok   a clean PostgreSQL-only tree passes
+validate:i18n                    | Validated 15 translation catalogs (2476 en entries) and 1784 keys across 740 source files.
+validate:i18n                    |   ar.json: 2586 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
+validate:i18n                    |   bn.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 184 identical to en (7%)
+validate:i18n                    |   ca.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 193 identical to en (8%)
+validate:i18n                    |   de.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 255 identical to en (10%)
+validate:i18n                    |   es.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 187 identical to en (7%)
+validate:i18n                    |   fr.json: 2507 entries, 0 untranslated (rendered in en), 0 orphaned, 273 identical to en (11%)
+validate:i18n                    |   hi.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 185 identical to en (7%)
+validate:i18n                    |   id.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 215 identical to en (9%)
+validate:i18n                    |   it.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 224 identical to en (9%)
+validate:i18n                    |   ja.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 188 identical to en (8%)
+validate:i18n                    |   pt.json: 2504 entries, 0 untranslated (rendered in en), 0 orphaned, 202 identical to en (8%)
+validate:i18n                    |   ru.json: 2532 entries, 0 untranslated (rendered in en), 0 orphaned, 179 identical to en (7%)
+validate:i18n                    |   tr.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 188 identical to en (8%)
+validate:i18n                    |   zh.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
+validate:architecture-boundaries | ok   a type-only import FOLLOWING a bare-package import is still type-only
+validate:no-mongo                | ok   a dependency on mongoose is rejected
+validate:i18n                    | ok   real copy passes
+validate:no-mongo                | ok   a devDependency on mongodb-memory-server is rejected
+validate:architecture-boundaries | ok   a MIXED import naming one value beside a type FAILS
+validate:i18n                    | ok   an English value that is its key spelled out is rejected
+validate:no-mongo                | ok   a catalog entry is rejected
+validate:i18n                    | ok   the same value in a translation is rejected, naming that language
+validate:no-mongo                | ok   an override is rejected
+validate:architecture-boundaries | ok   a SERVICE reaching into db/ passes — that is the intended path
+validate:i18n                    | ok   a snake_case key spelled out is rejected
+validate:no-mongo                | ok   a description claiming Mongoose is rejected
+validate:id-shape                | ok    a tree with only the allow-listed redactions passes
+validate:id-shape                | ok    a 24-hex recogniser fails, naming the rule
+validate:id-shape                | ok    a version-pinned uuid fails, naming the rule
+validate:id-shape                | ok    a uuid pinned to v7 fails too — the rule is about pinning, not about which version
+validate:id-shape                | ok    an ObjectId validity check fails, naming the rule
+validate:id-shape                | ok    prose that QUOTES a removed pattern passes — the explanations are the point
+validate:id-shape                | ok    tests may assert what we MINT and may write a legacy id down
+validate:id-shape                | ok    a pattern after a URL literal on the same line still fails
+validate:id-shape                | ok    an allow-list entry that no longer matches anything fails
+validate:id-shape                | ok    a tree far below the file floor fails rather than reporting clean
+validate:id-shape                | 
+validate:id-shape                | 10 mutation cases pass.
+validate:id-shape                | Done in 1.07s
+validate:i18n                    | ok   a plural form is rejected on the key with its CLDR suffix stripped
+validate:no-mongo                | ok   a keyword claiming MongoDB is rejected
+validate:architecture-boundaries | ok   the non-controller half of src/mtn is NOT in scope
+validate:i18n                    | ok   a legitimate Title Case label passes
+validate:no-mongo                | ok   a description containing mongo inside another word passes
+validate:i18n                    | ok   a Title Case label whose last word is an acronym passes
+validate:no-mongo                | ok   a lockfile resolution is rejected even with clean manifests
+validate:architecture-boundaries | ok   a test file beside a route is not policed
+validate:i18n                    | ok   a single-word key equal to its value passes
+validate:no-mongo                | ok   a NESTED lockfile resolution is rejected too
+validate:i18n                    | ok   sentence case under a slot-word key passes
+validate:no-mongo                | ok   a package whose NAME merely contains a banned one is not rejected
+validate:architecture-boundaries | ok   a LAYER_BASELINE entry that matches nothing FAILS the run
+validate:i18n                    | ok   a plural category English lacks is accepted in a translation
+validate:no-mongo                | ok   an import statement is rejected
+validate:i18n                    | ok   a plural suffix on a key English does not define is still an orphan
+validate:architecture-boundaries | ok   a stale LAYER_BASELINE entry says the crossing was fixed, and to delete it
+validate:no-mongo                | ok   a require call is rejected
+validate:i18n                    | ok   a value that is its own dotted key path is rejected
+validate:no-mongo                | ok   a dynamic import is rejected
+validate:i18n                    | ok   an English prose key equal to its value still passes
+validate:architecture-boundaries | ok   a BASELINE (rule 1) entry that matches nothing FAILS the run
+validate:no-mongo                | ok   a subpath import is rejected
+validate:i18n                    | ok   a JavaScript template literal in a value is rejected
+validate:i18n                    | ok   the i18next interpolation form of the same string passes
+validate:no-mongo                | ok   MONGODB_URI in a workflow is rejected
+validate:architecture-boundaries | ok   a NEW service reaching into a protocol internal fails
+validate:i18n                    | ok   a literal JavaScript escape sequence in a value is rejected
+validate:no-mongo                | ok   MONGODB_URI in an env template is rejected
+validate:i18n                    | ok   the character the escape stands for passes
+validate:no-mongo                | ok   MONGODB_URI in a .github shell script is rejected
+validate:architecture-boundaries | ok   a NEW service reaching the PUBLIC connector entry passes
+validate:i18n                    | ok   a real newline in a value passes
+validate:no-mongo                | ok   a lowercased mongodb_uri config key is rejected
+validate:architecture-boundaries | ok   a broken file listing cannot pass silently (source-file floor)
+validate:i18n                    | ok   a translation that drops an English placeholder is rejected
+validate:logger                  | Logger argument validation passed — 166 files import @oxy.so/core/logger, of 2529 scanned.
+validate:no-mongo                | ok   a suffixed MONGODB_URI_LEGACY is rejected
+validate:architecture-boundaries | ok   a listing with no route/controller files cannot pass silently
+validate:i18n                    | ok   a translation that keeps it passes
+validate:no-mongo                | ok   a mongodb:// connection string in a source file is rejected
+validate:architecture-boundaries | ok   a listing with no db/ modules cannot pass silently
+validate:architecture-boundaries | 
+validate:architecture-boundaries | All 24 guard cases passed.
+validate:architecture-boundaries | Done in 1.52s
+validate:i18n                    | ok   a _one form may spell the number out instead of interpolating it
+validate:no-mongo                | ok   a mongodb+srv:// connection string in a compose file is rejected
+validate:i18n                    | ok   an extra plural form is checked against the English _other source
+validate:no-mongo                | ok   backticked prose about Mongo does NOT fire
+validate:i18n                    | ok   a plural form beside an unsuffixed English base is checked against it
+validate:no-mongo                | ok   a QUOTED module name that is not an import does NOT fire
+validate:i18n                    | ok   the v3 _plural suffix is rejected
+validate:no-mongo                | ok   the guard's own source and self-test are not their own subject
+validate:i18n                    | ok   the CLDR spelling of the same pair passes
+validate:no-mongo                | ok   the loggers' Mongo-URI REDACTION pattern does NOT fire
+validate:i18n                    | ok   a _one form may interpolate a count its English _one spells lexically
+validate:no-mongo                | ok   a markdown file describing the migration does NOT fire
+validate:i18n                    | ok   a single-value category may spell its number lexically
+validate:no-mongo                | ok   the retired removal directive is now an ordinary finding
+validate:i18n                    | ok   a multi-value category may not
+validate:no-mongo                | ok   the deploy workflow FAILS on an SSM ARN for the parameter
+validate:i18n                    | ok   an exempt category may drop the count but not another placeholder
+validate:no-mongo                | ok   a tracked file missing from the working tree fails loudly, not with a stack trace
+validate:i18n                    | ok   the same form dropping the non-count placeholder is rejected
+validate:no-mongo                | ok   the no-DB spelling MONGO_URI is caught too, and reported as itself
+validate:i18n                    | ok   a language is required to cover the categories it uses
+validate:no-mongo                | ok   a broken file listing cannot pass silently (vacuity floors)
+validate:i18n                    | ok   covering them passes
+validate:logger                  | ok   clean tree passes
+validate:no-mongo                | ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
+validate:no-mongo                | 
+validate:no-mongo                | All 33 guard cases passed.
+validate:i18n                    | ok   a key English does not pluralise demands no forms
+validate:no-mongo                | Done in 1.86s
+validate:i18n                    | ok   a key defined both flat and nested is rejected
+validate:i18n                    | ok   the same key defined once, nested only, passes
+validate:i18n                    | ok   the same key defined once, flat only, passes
+validate:i18n                    | ok   a catalog byte-identical to English is rejected
+validate:i18n                    | ok   declared translation debt lets an unfinished catalog through
+validate:i18n                    | ok   declared debt smaller than the reality is rejected
+validate:i18n                    | ok   declared debt a finished translation no longer needs is rejected
+validate:i18n                    | ok   the real floors reject a tree this small
+validate:i18n                    | 
+validate:i18n                    | 41 cases passed.
+validate:i18n                    | Done in 2.07s
+validate:logger                  | ok   an object-literal second argument is rejected
+validate:commerce-boundary       | Validated Mention's Mercaria boundary: 1586 production source files (backend 645, frontend 856, mcp 43, shared-types 42), 65988 literals, 2 @mercaria.co/sdk import(s) seen.
+validate:logger                  | ok   a logger from createLogger is checked too
+validate:logger                  | ok   a child logger is checked too
+validate:logger                  | ok   the backend's pino form is NOT rejected (this is the scope)
+validate:logger                  | ok   debug/info/warn with a context object are NOT rejected
+validate:logger                  | ok   a third-argument context object is NOT rejected
+validate:inference-boundary      | Inference boundary mutation tests passed (92 cases).
+validate:inference-boundary      | Done in 3.42s
+validate:logger                  | ok   a broken traversal cannot pass silently (scanned-file floor)
+validate:logger                  | ok   a broken import matcher cannot pass silently (logger-file floor)
+validate:logger                  | 
+validate:logger                  | All 9 validator cases passed.
+validate:logger                  | Done in 3.73s
+validate:commerce-boundary       | Commerce boundary mutation tests passed (21 cases).
+validate:commerce-boundary       | Done in 5.39s
+error: script "check:workspace" exited with code 130

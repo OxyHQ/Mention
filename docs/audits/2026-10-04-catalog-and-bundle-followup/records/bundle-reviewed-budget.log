@@ -1,0 +1,84 @@
+$ bun ./scripts/analyze-bundle.js --ci --json "/home/nate/Oxy/.agent-evidence/i04-consumer-final-prs/registry-Mention-20261004/bundle-reviewed-budget.json"
+Mention frontend bundle report
+
+totalBytes: 20.67 MiB / budget 20.75 MiB
+javascriptBytes: 16.25 MiB / budget 16.45 MiB
+javascriptGzipBytes: 4.15 MiB
+javascriptBrotliBytes: 3.31 MiB
+initialJavascriptBytes: 6.85 MiB / budget 6.90 MiB
+initialJavascriptGzipBytes: 1.76 MiB / budget 1.78 MiB
+initialJavascriptBrotliBytes: 1.34 MiB
+fontBytes: 1.92 MiB / budget 4.00 MiB
+largestFileBytes: 5.78 MiB / budget 7.50 MiB
+
+Deferred modules:
+- all 5 load on demand
+
+Long-term targets:
+- initialJavascriptGzipBytes: 1.76 MiB / target 1.60 MiB (159.46 KiB remaining)
+
+Initial JavaScript chunks:
+- _expo/static/js/web/__common-4573c23749a15149bcfa78b7be952357.js: 5.78 MiB raw, 1.48 MiB gzip
+- _expo/static/js/web/entry-f0f2196cee0741259a5751d88978e9de.js: 1.06 MiB raw, 283.71 KiB gzip
+- _expo/static/js/web/__expo-metro-runtime-fc637fb692f807b1a79b8287c8b1e313.js: 3.80 KiB raw, 1.65 KiB gzip
+
+Largest files:
+- _expo/static/js/web/__common-4573c23749a15149bcfa78b7be952357.js: 5.78 MiB (javascript)
+- assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.6e435534bd35da5fef04168860a9b8fa.ttf: 1.25 MiB (font)
+- assets/__node_modules/@lottiefiles/dotlottie-web/dist/dotlottie-player.a1169eabafd51555892e40965391b6e7.wasm: 1.18 MiB (wasm)
+- _expo/static/js/web/entry-f0f2196cee0741259a5751d88978e9de.js: 1.06 MiB (javascript)
+- _expo/static/js/web/index-f4d987ec1e7db7641dc6315adce67dfe.js: 976.47 KiB (javascript)
+- _expo/static/js/web/LiveFeatureRuntime-8046251bea464e2431a052af386eeb97.js: 903.59 KiB (javascript)
+- _expo/static/js/web/hls-5ee463cd124946596fbb4cfea66e9f48.js: 579.63 KiB (javascript)
+- _expo/static/js/web/ru-706edf073d4acc64ec6120ff205c0304.js: 412.37 KiB (javascript)
+- _expo/static/js/web/bn-e29d9fe3fa4de00e63cd59c831ee3468.js: 388.48 KiB (javascript)
+- assets/__node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf: 380.59 KiB (font)
+
+Largest route/async chunks:
+- /ai: 256.07 KiB gzip
+- async:LiveFeatureRuntime: 229.21 KiB gzip
+- async:hls: 176.27 KiB gzip
+- async:ru: 89.90 KiB gzip
+- async:ComposeScreen: 87.11 KiB gzip
+- async:hi: 84.17 KiB gzip
+- async:ar: 84.09 KiB gzip
+- async:bn: 82.50 KiB gzip
+- async:ja: 76.40 KiB gzip
+- async:zh: 70.39 KiB gzip
+
+Largest initial source groups (isolated gzip attribution):
+- @oxy.so/bloom: 963.59 KiB
+- @mention/frontend: 825.00 KiB
+- expo-router: 370.80 KiB
+- @oxy.so/core: 302.60 KiB
+- react-native-web: 228.77 KiB
+- @oxy.so/contracts: 219.93 KiB
+- @oxy.so/services: 213.16 KiB
+- react-native-reanimated: 213.09 KiB
+- zod: 207.46 KiB
+- react-native-gesture-handler: 112.71 KiB
+
+Largest source groups (isolated gzip attribution):
+- @mention/frontend: 2.04 MiB
+- @oxy.so/bloom: 1.65 MiB
+- @oxy.so/services: 426.36 KiB
+- expo-router: 380.54 KiB
+- @oxy.so/core: 372.29 KiB
+- hls.js: 336.61 KiB
+- livekit-client: 294.88 KiB
+- react-native-web: 228.77 KiB
+- @oxy.so/contracts: 219.93 KiB
+- react-native-reanimated: 213.09 KiB
+
+Icon/font families:
+- MaterialCommunityIcons: 1.25 MiB
+- Ionicons: 380.59 KiB
+- BlomusModernus-Regular: 75.82 KiB
+- BlomusModernus-Bold: 75.79 KiB
+- InterVariable: 47.13 KiB
+- OxyServicesIonicons: 42.00 KiB
+- JetBrainsMono-Variable: 39.46 KiB
+- OxyServicesMaterialCommunityIcons: 28.18 KiB
+
+All configured bundle budgets pass.
+Bundle report written to /home/nate/Oxy/.agent-evidence/i04-consumer-final-prs/registry-Mention-20261004/bundle-reviewed-budget.json
