@@ -1238,6 +1238,46 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, federated.id))).toEqual([]);
   });
 
+  it.each(['before-cycle', 'during-claim'] as const)('does not quarantine unsent work when production approval expires %s', async phase => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
+    const token = vi.fn(async () => 'synthetic-only');
+    vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
+    const post = await seedSubject('Native after approval expiry', { classification: { languages: ['en'] } });
+    await padBatch(1); respondWith([]);
+    const expiresAt = Date.now() + 500;
+    vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
+      scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      validUntil: new Date(expiresAt).toISOString(), release, topics: [], authority: {
+        applicationId: productionApproval.MENTION_JEV_APPLICATION_ID, credentialId: 'synthetic-mention-workload', environment: 'production',
+      },
+    });
+    const transport = vi.fn(() => { throw new Error('No transport is permitted after expiry'); });
+    vi.stubGlobal('fetch', transport);
+    const worker = createProductionPostClassificationService();
+    if (phase === 'before-cycle') {
+      vi.spyOn(Date, 'now').mockReturnValue(expiresAt);
+      await worker.processQueue();
+    } else {
+      let unlock!: () => void; let locked!: () => void;
+      const ready = new Promise<void>(resolve => { locked = resolve; });
+      const holder = getDb().transaction(async tx => {
+        await lockPostContent(tx, post.id); locked();
+        await new Promise<void>(resolve => { unlock = resolve; });
+      });
+      await ready;
+      const claim = vi.spyOn(evaluationRepository, 'claimPostEvaluation');
+      const pending = worker.processQueue();
+      try {
+        await vi.waitFor(() => expect(claim).toHaveBeenCalled());
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, expiresAt - Date.now()) + 30));
+      } finally { unlock(); await holder; await pending; }
+    }
+    expect(transport).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
+    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+  });
+
   it('keeps the production gate closed even when a projection binding is supplied', async () => {
     const post = await seedSubject('Synthetic public news', { classification: { languages: ['en'] } });
     await padBatch(1);

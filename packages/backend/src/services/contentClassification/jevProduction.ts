@@ -3,7 +3,7 @@ import { config } from '../../config';
 import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { createJevShadowEvaluation } from './jevSdk';
-import { isJevShadowReleased, type ShadowEvaluation } from './jevShadow';
+import { isJevShadowReleased, ShadowAdmissionClosedError, type ShadowEvaluation } from './jevShadow';
 import { MENTION_JEV_APPLICATION_ID, reviewedMentionJevProduction } from './jevProductionApproval';
 
 /** The real product factory stays inert while any independent release gate is absent. */
@@ -26,9 +26,10 @@ export function createProductionJevEvaluation(): ShadowEvaluation | undefined {
     credential: () => getServiceOxyClient().serviceToken(),
   });
   const evaluation = createJevShadowEvaluation(client, approval.release, approval.topics, approval.authority);
-  return { ...evaluation, async evaluate(input) {
-    if (!isJevShadowReleased() || Date.now() >= expiresAt) {
-      throw new Error('Mention Jev production approval is no longer active');
+  const isAdmissionOpen = () => isJevShadowReleased() && Date.now() < expiresAt;
+  return { ...evaluation, isAdmissionOpen, async evaluate(input) {
+    if (!isAdmissionOpen()) {
+      throw new ShadowAdmissionClosedError('Mention Jev production approval is no longer active');
     }
     return evaluation.evaluate(input);
   } };

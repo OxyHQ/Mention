@@ -341,12 +341,20 @@ none of these paths issues another inference request.
 
 `jevProductionApproval.ts` is the single source-reviewed product binding. It
 currently returns `undefined`. An eventual approved record must identify the
-exact deployment and review evidence, immutable model/policy/evaluation version,
+reviewed deployment metadata and evidence, immutable model/policy/evaluation version,
 question set, canonical UTC expiry and Mention's own production application and
 credential. Borrowed human delegation is refused for this background product
 lane. The factory does not register credentials, expand scopes, fund accounts or
-interpret an environment switch as approval. Expiry blocks new decisions;
-original-key receipt reads remain available for accounting reconciliation.
+interpret an environment switch as approval. Expiry is checked before and after a SQL claim, so unsent work is not
+quarantined as cost-uncertain. Original-key receipt reads remain available for
+accounting reconciliation. A local factory refusal is distinct from an
+ambiguous provider outcome.
+
+The deployment ID is review metadata, not request or receipt attestation: the
+public decisions contract returns model/policy, and usage recovery does not
+prove an exact deployment. Before activation, the matching Oxy policy must
+restrict the resolver to that reviewed deployment before provider dispatch.
+This factory cannot enforce or establish that condition by merely storing an ID.
 
 Fresh runtime 694 authority readback found Mention's effective invocation scope
 missing and its billing account unprovisioned. The existing Alia internal-metered

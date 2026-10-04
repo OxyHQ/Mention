@@ -110,9 +110,14 @@ export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
  * Domain projection of the published Oxy SDK. Production has no binding until
  * every release gate is independently reviewed.
  */
+/** A local admission refusal before calling the SDK; it cannot represent provider failure. */
+export class ShadowAdmissionClosedError extends Error {}
+
 export interface ShadowEvaluation {
   readonly release: ShadowRelease;
   readonly receiptReader?: ShadowReceiptReader;
+  /** Optional product gate, checked before and after the SQL claim. */
+  isAdmissionOpen?(): boolean;
   evaluate(input: {
     readonly text: string;
     readonly languages: readonly string[];
