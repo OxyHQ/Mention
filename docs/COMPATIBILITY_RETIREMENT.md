@@ -1,7 +1,7 @@
 # Compatibility retirement register
 
 Mention does not keep compatibility code without an observable reason to
-remove it. This register covers the remaining transitional surfaces that cannot
+retain it. This register covers the remaining transitional surfaces that cannot
 yet be deleted safely. A retirement must land with the evidence named below;
 absence of a completion marker is not evidence that old data or clients are
 gone.
@@ -11,6 +11,7 @@ gone.
 | Surface | Why it remains | Evidence required before deletion |
 | --- | --- | --- |
 | API `GET /` readiness response | The current ALB target group still probes `/`; the application deploy role cannot mutate ELB configuration. | `oxy-infra` changes the target-group health check to `/health/ready`, production confirms healthy targets, and normalized route telemetry shows no operational dependency on the root response. |
+| Native HTTP capability receiver `/_oxy/capabilities/:tool` | The signed catalog in `packages/mcp/lib/tool-registry.ts` still advertises these invocation paths. Configured Alia calls use `/_oxy/mcp`, but other catalog consumers and the HTTP receiver contract remain supported. | Replace the registered catalog and migrate every remaining HTTP caller to equivalent shared handlers with authority, audit and effect-receipt parity; then remove the old advertisement and receiver together. Never use fallback after an internal MCP denial. |
 | MCP `/sse` and `/messages` | Released MCP clients may still use the pre-Streamable-HTTP transport. It is authenticated, session-bound, and emits a deprecation header. It is also the only stateful MCP surface: its stream lives in one task, so it fails for a client whose requests reach another task during a rollover or scale-out, while `/mcp` is stateless and served by any task. | Thirty consecutive days with zero normalized `/legacy-sse` requests across a representative deployment window, plus confirmation that supported connector versions use `/mcp`. |
 | `POST /hashtags/search` | Older released app builds use the tag-only response; current clients use `GET /hashtags/search`. | Thirty consecutive days with zero calls from supported clients, then removal in the backend and shared client contract in the same release. |
 | Legacy post-create payload aliases | Released clients may still send `content.images`, top-level media, or the old location object. Reads and stored DTOs are canonical. | The minimum supported mobile build emits only the canonical request, and normalized route/version telemetry records no legacy payloads for thirty days. |
