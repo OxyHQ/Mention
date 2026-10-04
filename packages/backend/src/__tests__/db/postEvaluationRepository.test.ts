@@ -1,3 +1,6 @@
+import { createServer, type Socket } from 'node:net';
+import { config } from '../../config';
+import { withShadowReceiptDatabase } from '../../db/posts/shadowReceiptDatabase';
 import { OxyInferenceClient } from '@oxy.so/core/inference';
 import { createJevReceiptReader } from '../../services/contentClassification/jevReceipt';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -484,6 +487,65 @@ describe('usage reconciliation keeps lost answers and original claims separate',
     if (!claim) throw new Error('Expected original claim');
     await markPostEvaluationUncertain(claim); return { post, claim };
   }
+  it('destroys a queued maintenance mutation as well as the SQL holding its private connection', async () => {
+    const { post, claim } = await uncertain();
+    const reached = barrier(); const releaseLock = barrier();
+    const lock = getDb().transaction(async tx => {
+      await tx.select().from(postEvaluations).where(eq(postEvaluations.id, claim.id)).for('update');
+      reached.open(); await releaseLock.reached;
+    });
+    await reached.reached;
+    let queued!: Promise<unknown[]>;
+    const pending = withShadowReceiptDatabase(Date.now() + 400, undefined, async context => {
+      const active = context.db.transaction(async tx => {
+        await tx.select().from(postEvaluations).where(eq(postEvaluations.id, claim.id)).for('update');
+      });
+      void active.catch(() => undefined);
+      await vi.waitFor(async () => {
+        const [row] = await getDb().execute<{ waiting: number }>(sql`select count(*)::int as waiting from pg_stat_activity
+          where datname=current_database() and query like '%post_evaluations%' and wait_event_type='Lock'`);
+        expect(row.waiting).toBeGreaterThan(0);
+      }, { timeout: 250, interval: 5 });
+      // This is intentionally queued before expiry to verify driver cancellation,
+      // beyond the production callback's additional checks before each write.
+      const mutation = context.db.update(postEvaluations).set({ state: 'cancelled' }).where(eq(postEvaluations.id, claim.id));
+      queued = Promise.allSettled([active, mutation]);
+      await queued;
+    });
+    try {
+      await expect(pending).rejects.toThrow();
+    } finally {
+      releaseLock.open(); await lock;
+    }
+    expect(await queued).toEqual([expect.objectContaining({ status: 'rejected' }), expect.objectContaining({ status: 'rejected' })]);
+    const [after] = await ledger(post.id);
+    expect(after.state).toBe('cost_uncertain'); expect(after.usageReconciliation).toBeNull();
+  });
+
+  it('bounds connection startup without touching the ordinary pool', async () => {
+    const previousUrl = config.postgres.url;
+    const sockets = new Set<Socket>(); let connected = false;
+    const server = createServer(socket => { connected = true; sockets.add(socket); socket.resume(); socket.on('close', () => sockets.delete(socket)); });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing owned listener');
+    config.postgres.url = `postgres://owned:synthetic@127.0.0.1:${address.port}/owned`;
+    const began = Date.now();
+    try {
+      await expect(withShadowReceiptDatabase(Date.now() + 150, undefined, async context => {
+        await context.db.execute(sql`select 1`);
+      })).rejects.toThrow();
+      expect(connected).toBe(true);
+      expect(Date.now() - began).toBeLessThan(1200);
+      await vi.waitFor(() => expect(sockets.size).toBe(0), { timeout: 1000 });
+    } finally {
+      config.postgres.url = previousUrl;
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+    expect(await getDb().execute(sql`select 1 as healthy`)).toHaveLength(1);
+  });
+
   it.each([1, 2])('records v%s evidence without restoring answers or permitting a paid retry', async version => {
     const { post, claim } = await uncertain(); const before = (await ledger(post.id))[0]; const r = reader(wire(version));
     expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(true);

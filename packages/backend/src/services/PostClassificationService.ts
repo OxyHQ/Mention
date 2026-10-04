@@ -1,3 +1,4 @@
+import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -420,22 +421,23 @@ export class PostClassificationService {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation?.receiptReader) return;
     const deadline = Date.now() + config.inference.timeoutMs;
-    let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority, this.receiptCursor);
-    if (!ids.length && this.receiptCursor !== undefined) {
-      this.receiptCursor = undefined;
-      ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority);
-    }
-    for (const id of ids) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
-      this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
-      try {
-        await reconcilePostEvaluationUsage(id, evaluation.receiptReader, AbortSignal.timeout(remaining));
-      } catch {
-        // Unknown or inaccessible receipts remain quarantined, without inference.
-        logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
+    await withShadowReceiptDatabase(deadline, undefined, async context => {
+      let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, this.receiptCursor, context);
+      if (!ids.length && this.receiptCursor !== undefined) {
+        this.receiptCursor = undefined;
+        ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, undefined, context);
       }
-    }
+      for (const id of ids) {
+        context.check();
+        this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
+        try {
+          await reconcilePostEvaluationUsage(id, evaluation.receiptReader!, context.signal, context);
+        } catch {
+          // Unknown or inaccessible receipts remain quarantined, without inference.
+          logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
+        }
+      }
+    });
   }
 
   private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {

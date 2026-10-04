@@ -37,6 +37,33 @@ describe('published Jev SDK consumer', () => {
     expect(decide).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, 'original-delegation'])('uses the same frozen delegation %s for a lost POST and its only GET', async delegatedUserId => {
+    const authority = { applicationId: 'owned-app', credentialId: 'owned-credential', environment: 'production' as const,
+      ...(delegatedUserId === undefined ? {} : { delegatedUserId }) };
+    const original = { ...authority };
+    const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get('Idempotency-Key')).toBe(input.idempotencyKey);
+      expect(headers.get('X-Oxy-User-Id')).toBe(delegatedUserId ?? null);
+      if (init?.method === 'POST') throw new Error('Synthetic response lost after admission');
+      expect(init?.method).toBe('GET');
+      return new Response(JSON.stringify({ data: { ...original, schemaVersion: 2, kind: 'metered_usage',
+        meteredUsageId: 'owned-usage', requestId: 'original-request', economicTreatment: 'internal_metered',
+        economicPolicyVersion: 'fixture', customerCharge: { status: 'not_charged' },
+        tariff: { status: 'unpriced', priceVersionId: null }, outcome: 'completed', usageSource: 'provider_reported',
+        units: [{ unit: 'input_tokens', quantity: 17 }], resolvedModelReference: release.model,
+        servingProvider: 'fixture-provider', settledAt: '2026-10-04T00:00:00.000Z' } }));
+    });
+    const client = new OxyInferenceClient({ credential: 'synthetic-only', fetch: transport });
+    const evaluation = createJevShadowEvaluation(client, release, topics, authority);
+    authority.delegatedUserId = 'mutated-after-configuration';
+    await expect(evaluation.evaluate(input)).rejects.toThrow('Synthetic response lost after admission');
+    const recovered = await evaluation.receiptReader!.readOriginal(input.idempotencyKey, release.model);
+    expect(recovered.authority).toEqual(original);
+    expect(recovered.status).toBe('reconciled_result_missing');
+    expect(transport.mock.calls.map(call => call[1]?.method)).toEqual(['POST', 'GET']);
+  });
+
   it('uses independent propositions, ordered score and actual SDK request/policy references', async () => {
     const { evaluation, transport } = fixture(result => ({ ...result, data: [...result.data].reverse() }));
     const result = await evaluation.evaluate(input);

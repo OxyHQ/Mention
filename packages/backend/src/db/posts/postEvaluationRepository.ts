@@ -1,3 +1,5 @@
+import { config } from '../../config';
+import { withShadowReceiptDatabase, type ShadowReceiptDatabase } from './shadowReceiptDatabase';
 import { isDeepStrictEqual } from 'node:util';
 import { shadowReceiptAuthoritySchema, shadowUsageReconciliationSchema, sameReceiptAuthority,
   type ShadowReceiptAuthority, type ShadowReceiptReader } from '../../services/contentClassification/jevReceipt';
@@ -206,8 +208,12 @@ function recoverableUsage(row: typeof postEvaluations.$inferSelect): boolean {
 }
 
 /** Recover only accounting evidence; never run an evaluator or revive an answer. */
-export async function reconcilePostEvaluationUsage(id: string, reader: ShadowReceiptReader, signal?: AbortSignal): Promise<boolean> {
-  const [original] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, id));
+export async function reconcilePostEvaluationUsage(id: string, reader: ShadowReceiptReader, signal?: AbortSignal, context?: ShadowReceiptDatabase): Promise<boolean> {
+  if (!context) return withShadowReceiptDatabase(Date.now() + config.inference.timeoutMs, signal,
+    scoped => reconcilePostEvaluationUsage(id, reader, scoped.signal, scoped));
+  context.check();
+  const [original] = await context.db.select().from(postEvaluations).where(eq(postEvaluations.id, id));
+  context.check();
   if (!original || !recoverableUsage(original) || !original.receiptAuthority
     || !sameReceiptAuthority(original.receiptAuthority, reader.authority)) return false;
   if (original.usageReconciliation) return true;
@@ -216,8 +222,11 @@ export async function reconcilePostEvaluationUsage(id: string, reader: ShadowRec
   if (!sameReceiptAuthority(original.receiptAuthority, evidence.authority) || evidence.model !== original.model) {
     throw new Error('Recovered usage differs from the persisted claim');
   }
-  return getDb().transaction(async tx => {
+  context.check();
+  return context.db.transaction(async tx => {
+    context.check();
     const [current] = await tx.select().from(postEvaluations).where(eq(postEvaluations.id, id)).for('update');
+    context.check();
     if (!current || !recoverableUsage(current) || !current.receiptAuthority
       || !sameReceiptAuthority(current.receiptAuthority, originalAuthority)
       || current.fingerprint !== original.fingerprint || current.model !== original.model) return false;
@@ -227,18 +236,22 @@ export async function reconcilePostEvaluationUsage(id: string, reader: ShadowRec
       }
       return true;
     }
-    signal?.throwIfAborted();
+    context.check();
     await tx.update(postEvaluations).set({ usageReconciliation: evidence,
       ...(current.state === 'claimed' ? { state: 'cost_uncertain' as const, finishedAt: new Date() } : {}),
     }).where(eq(postEvaluations.id, id));
+    context.check();
     return true;
   });
 }
 
 
 /** Bounded maintenance read within the existing classifier cycle. */
-export async function listUnreconciledPostEvaluations(release: ShadowRelease, authority: ShadowReceiptAuthority, afterId?: string): Promise<string[]> {
-  const rows = await getDb().select({ id: postEvaluations.id }).from(postEvaluations).where(and(
+export async function listUnreconciledPostEvaluations(release: ShadowRelease, authority: ShadowReceiptAuthority, afterId?: string, context?: ShadowReceiptDatabase): Promise<string[]> {
+  if (!context) return withShadowReceiptDatabase(Date.now() + config.inference.timeoutMs, undefined,
+    scoped => listUnreconciledPostEvaluations(release, authority, afterId, scoped));
+  context.check();
+  const rows = await context.db.select({ id: postEvaluations.id }).from(postEvaluations).where(and(
     or(inArray(postEvaluations.state, ['cost_uncertain', 'cancelled']),
       and(eq(postEvaluations.state, 'claimed'), lte(postEvaluations.requestDeadlineAt, new Date()))),
     isNull(postEvaluations.usageReconciliation),
@@ -247,5 +260,6 @@ export async function listUnreconciledPostEvaluations(release: ShadowRelease, au
     eq(postEvaluations.policyRef, release.policyRef), eq(postEvaluations.policyVersion, release.policyVersion),
     eq(postEvaluations.evaluationVersion, release.evaluationVersion),
   )).orderBy(asc(postEvaluations.id)).limit(25);
+  context.check();
   return rows.map(row => row.id);
 }

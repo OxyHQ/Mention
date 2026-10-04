@@ -315,3 +315,19 @@ The production gate remains closed pending the exact Jev route/privacy review,
 SDK publication/adoption and the remaining semantic/language transition review.
 No production ledger backfill, funding mode, credential or provider approval is
 inferred from these fixtures.
+
+### Recovery authority and maintenance deadline
+
+The validated, frozen receipt authority supplies the same optional delegated
+user to the original SDK decision POST and its original-key GET. Mutating the
+caller configuration cannot change either attribution after construction.
+
+Receipt maintenance has one absolute deadline for selection, connection
+startup, remote reading and transactional persistence. A cycle owns at most
+one private connection constructed by `@oxy.so/db` with the canonical schema
+and casing. Server statement/lock timeouts bound SQL; expiry or cancellation
+forcibly closes that private connection and its queued work. The ordinary
+classifier pool remains available. The row is checked again under lock and
+after each asynchronous boundary, and a cancelled transaction cannot write
+late after a blocking lock is released. Unknown receipts remain unresolved;
+none of these paths issues another inference request.
