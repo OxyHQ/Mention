@@ -1,0 +1,62 @@
+{
+  "sourceHead": "bcc3274ad6ebfa4ea0d256fc3772f2769e1fc3c0",
+  "sourceSha256": [
+    {
+      "path": "packages/backend/src/__tests__/routes/imports.test.ts",
+      "sha256": "99884e546c00fff96223e3162b71bcf0516a3e2f74e91685f7bf87080522a9a4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/green.log",
+      "sha256": "3f8320fdb80ad95ba9ab65f393184fe92747f357ee95fdc569c82de99c9c78a7",
+      "bytes": 2029
+    },
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/imports-before.test.ts",
+      "sha256": "7f5eedab8a357fbc9cb2d109fce2f2962d58be70ba1f4e14158d836cf4156d71",
+      "bytes": 23005
+    },
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/installed-core.json",
+      "sha256": "6b5022644689e97eec3dcc393a5c574a07cb9a55cf947e35dbaa454e4f62ae7f",
+      "bytes": 1037
+    },
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/owned-pg.py",
+      "sha256": "0a1376fc1366df73b7be9139ea8f164168420eb29e1453bb206f96cc4200a631",
+      "bytes": 3144
+    },
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/red.log",
+      "sha256": "2ce439db14fe4f6d6b1cd254213ff1e7191ee24bc12e1cae6be84bc9ecbe96e9",
+      "bytes": 97190
+    },
+    {
+      "path": "docs/audits/2026-10-04-imports-explicit-authority-fixture/records/types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    }
+  ],
+  "beforeSourceSha256": "7f5eedab8a357fbc9cb2d109fce2f2962d58be70ba1f4e14158d836cf4156d71",
+  "validation": {
+    "originalFixture": "22 tests;19 FAIL/3 PASS with explicit-grant requirement, actual HTTP403 before imports",
+    "finalFixture": "same22 domain assertions retained +1 no-grant denial;23 PASS",
+    "packageCommand": "bun run test src/__tests__/routes/imports.test.ts",
+    "typecheck": "bun --no-env-file run lint \u2192 tsc --noEmit exit0",
+    "postgresPort": 5622,
+    "ownPostgresPids": [
+      260248,
+      261207
+    ],
+    "bothProcessesAbsent": true
+  },
+  "authorityBoundary": "Only OxyServer.verifyActingAs is a synthetic remote boundary. Explicit test pairs Move/Alice,Move/Bob,Other/Alice; fresh options credential/owner/environment asserted. No production grants and no core/middleware/runtime edits. Real JWT EdDSA/data JWKS verification and real Mention SQL writers. User-session cases preserve existing simulation.",
+  "limits": [
+    "This is a fixture correction to account for strict published core, not a product authority relaxation or end-to-end Oxy grant verification.",
+    "The original source is retained; the green fixture adds explicit synthetic grants and a negative, so do not call its request environment unchanged.",
+    "Vitest imports the source shipped inside published core4.2; it does not execute compiled core CJS in this fixture.",
+    "Local disposable PostgreSQL only; no AWS/provider/production DB writes or rollout.",
+    "Main CI, source-bound ARM images, and live promotion remain separate gates."
+  ]
+}

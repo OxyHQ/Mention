@@ -1,0 +1,25 @@
+{
+  "publishedCoreVersion": "4.2.0",
+  "archivePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/published-final-sdk-85dad/core.tgz",
+  "archiveSha256": "20fbd2e6fadd5d1e0a6ea9b6ad0ed9f65e77d5289600f6085ebfc16c224d5795",
+  "sourceMappingsVerified": [
+    {
+      "path": "node_modules/@oxy.so/core/package.json",
+      "sha256": "4a1099d6307d0f80a951aed3de75366ce3026fe2433dd85fb6205b75359b4549"
+    },
+    {
+      "path": "node_modules/@oxy.so/core/src/server/index.ts",
+      "sha256": "2dc4447c179be7b89afcbaa73aada53bbdf64b780f94aafc90fff2541e86ad61"
+    },
+    {
+      "path": "node_modules/@oxy.so/core/src/server/middleware.ts",
+      "sha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb"
+    },
+    {
+      "path": "node_modules/@oxy.so/core/src/server/OxyServer.ts",
+      "sha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a"
+    }
+  ],
+  "testAlias": "Vitest @oxy.so/core/server \u2192 installed core/src/server/index.ts",
+  "compiledCjsRuntimeExecutedByFixture": false
+}
