@@ -1,0 +1,62 @@
+✖ current published SDK and additive migration remain valid after unrelated migrations (195.658217ms)
+✔ rejects a changed migration identity (162.861442ms)
+✔ rejects duplicate migration identity (219.301011ms)
+✔ rejects destructive changes to the owned migration (188.575815ms)
+✔ rejects mutation of an existing table in the additive snapshot (188.27246ms)
+✔ rejects catalogue version drift (408.233112ms)
+✔ rejects a changed published package integrity (392.962716ms)
+✔ rejects removal of an approval blocker (252.385522ms)
+✔ rejects an environment activation bypass (283.060575ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2593.561554
+
+✖ failing tests:
+
+test at scripts/validate-jev-additive.test.mjs:38:1
+✖ current published SDK and additive migration remain valid after unrelated migrations (195.658217ms)
+  AssertionError [ERR_ASSERTION]: node:internal/modules/run_main:107
+      triggerUncaughtException(
+      ^
+  
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '0059_search_engine_indexing_opt_out'
+  - '0058_jev_shadow_ledger'
+        ^
+  
+      at file:///tmp/jev-validator-aHW66e/scripts/validate-jev-additive.mjs:21:8
+      at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+      at async node:internal/modules/esm/loader:647:26
+      at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '0059_search_engine_indexing_opt_out',
+    expected: '0058_jev_shadow_ledger',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+  
+  Node.js v24.21.0
+  
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///home/nate/Oxy/Mention/.worktrees/full-cut-capability-20261004/scripts/validate-jev-additive.test.mjs:39:36)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "d0bed3d4c4dbfb1c7b3a9c56c3c35681d0fd3e30",
+  "sources": [
+    {
+      "path": "scripts/validate-jev-additive.mjs",
+      "sha256": "fb8b5d3772b539bac08a1de21e347df4df363276c830990d0ad8fc21dcd1e010"
+    },
+    {
+      "path": "scripts/validate-jev-additive.test.mjs",
+      "sha256": "cde84640d880acbfd60629f8fb057d8d6e2bab4cc53e75e3e2f556f54846fede"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-additive-validator/records/current.log",
+      "sha256": "366ae0f2199580b09e539c9f5eeffe21ac48d134763122b23eba21723749f9ef"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-additive-validator/records/frozen-test.mjs",
+      "sha256": "cde84640d880acbfd60629f8fb057d8d6e2bab4cc53e75e3e2f556f54846fede"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-additive-validator/records/green.log",
+      "sha256": "dcb31d7d46f6eb9f665805fde6135b81c444a1cf909338c2f6ffdec61343453a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-additive-validator/records/red.log",
+      "sha256": "bc697067732c4cd63d9259c3dffea4d2f673549f77402336d7f082f3e72aa59e"
+    }
+  ],
+  "results": {
+    "baseline": "1 failed / 8 passed: valid current migration journal rejected at 0059",
+    "fixed": "9 passed",
+    "currentRepositoryValidator": "PASS",
+    "frozenTestIdentical": true
+  },
+  "limits": [
+    "No runtime, schema, package, policy, or approval gate changes.",
+    "Negative controls establish rejection on fixed validator; baseline failures can terminate at its stale journal assumption."
+  ]
+}
