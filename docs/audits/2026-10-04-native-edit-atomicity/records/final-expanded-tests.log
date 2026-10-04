@@ -1,0 +1,16 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1440919, /tmp/mention-jev-semantic-e9igxuzh/data, socket /tmp/mention-jev-semantic-e9igxuzh/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1440919, /tmp/mention-jev-semantic-e9igxuzh/data, socket /tmp/mention-jev-semantic-e9igxuzh/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=2" src/__tests__/controllers/updatePostAtomicContent.test.ts src/__tests__/controllers/updatePostDropsMachineVariants.test.ts src/__tests__/controllers/updatePostScheduledWindow.test.ts src/__tests__/controllers/updatePostHashtagValidation.test.ts src/__tests__/controllers/updatePostChannelCorrections.test.ts src/__tests__/controllers/updatePostLocationValidation.test.ts src/__tests__/controllers/postEditSource.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/jevShadow.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-atomic-edit-20261004/packages/backend
+
+
+ Test Files  9 passed (9)
+      Tests  110 passed (110)
+   Start at  17:35:41
+   Duration  8.81s (import 47%, tests 30%, transform 21%, setup 1%)
+
+     Import  371 modules were evaluated 2171 times · 7.05s total, 47% of tracked time
+             ~2.36s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

@@ -121,6 +121,8 @@ interface JobEntryPoint {
 }
 
 const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
+  { name: 'calculateTrending', call: /\.calculateTrending\s*\(/ },
+  { name: 'cleanupOldTrends', call: /\bcleanupOldTrends\s*\(/ },
   // Global reads also need isolation when their result cohort is the fixture.
   { name: 'gatherGlobalLane', call: /\bgatherGlobalLane\s*\(/ },
   { name: 'reconcileEngagementProjections', call: /\breconcileEngagementProjections\s*\(/ },

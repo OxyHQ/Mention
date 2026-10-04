@@ -1,0 +1,1186 @@
+﻿2026-10-04T14:58:49.7868389Z Current runner version: '2.337.0'
+2026-10-04T14:58:49.7890452Z ##[group]Runner Image Provisioner
+2026-10-04T14:58:49.7891486Z Hosted Compute Agent
+2026-10-04T14:58:49.7891976Z Version: 20260901.588
+2026-10-04T14:58:49.7892484Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-04T14:58:49.7893168Z Build Date: 2026-09-01T19:56:44Z
+2026-10-04T14:58:49.7893721Z Worker ID: {bd3ebb0b-037e-4125-8a07-e1b22cbb112f}
+2026-10-04T14:58:49.7894318Z Azure Region: eastus
+2026-10-04T14:58:49.7894790Z ##[endgroup]
+2026-10-04T14:58:49.7896018Z ##[group]Operating System
+2026-10-04T14:58:49.7896683Z Ubuntu
+2026-10-04T14:58:49.7897152Z 24.04.5
+2026-10-04T14:58:49.7897631Z LTS
+2026-10-04T14:58:49.7898071Z ##[endgroup]
+2026-10-04T14:58:49.7898517Z ##[group]Runner Image
+2026-10-04T14:58:49.7899116Z Image: ubuntu-24.04
+2026-10-04T14:58:49.7899584Z Version: 20260927.320.1
+2026-10-04T14:58:49.7900646Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-04T14:58:49.7901975Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-04T14:58:49.7902849Z ##[endgroup]
+2026-10-04T14:58:49.7903783Z ##[group]GITHUB_TOKEN Permissions
+2026-10-04T14:58:49.7905635Z Contents: read
+2026-10-04T14:58:49.7906127Z Metadata: read
+2026-10-04T14:58:49.7906659Z ##[endgroup]
+2026-10-04T14:58:49.7908680Z Secret source: Actions
+2026-10-04T14:58:49.7909536Z Cache mode: write
+2026-10-04T14:58:49.7910337Z Prepare workflow directory
+2026-10-04T14:58:49.8394356Z Prepare all required actions
+2026-10-04T14:58:49.8437279Z Getting action download info
+2026-10-04T14:58:50.0507861Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-04T14:58:50.1547856Z Download action repository 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6' (SHA:0c5077e51419868618aeaa5fe8019c62421857d6)
+2026-10-04T14:58:50.2862909Z Download action repository 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-10-04T14:58:50.3975033Z Download action repository 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-10-04T14:58:50.5807226Z Complete job name: Test backend (2/3)
+2026-10-04T14:58:50.6190247Z ##[group]Checking docker version
+2026-10-04T14:58:50.6201115Z ##[command]/usr/bin/docker version --format '{{.Server.APIVersion}}'
+2026-10-04T14:58:50.6841039Z '1.48'
+2026-10-04T14:58:50.6849831Z Docker daemon API version: '1.48'
+2026-10-04T14:58:50.6850456Z ##[command]/usr/bin/docker version --format '{{.Client.APIVersion}}'
+2026-10-04T14:58:50.6993204Z '1.48'
+2026-10-04T14:58:50.7003787Z Docker client API version: '1.48'
+2026-10-04T14:58:50.7008798Z ##[endgroup]
+2026-10-04T14:58:50.7012544Z ##[group]Clean up resources from previous jobs
+2026-10-04T14:58:50.7017077Z ##[command]/usr/bin/docker ps --all --quiet --no-trunc --filter "label=2d5470"
+2026-10-04T14:58:50.7142507Z ##[command]/usr/bin/docker network prune --force --filter "label=2d5470"
+2026-10-04T14:58:50.7254626Z ##[endgroup]
+2026-10-04T14:58:50.7255066Z ##[group]Create local container network
+2026-10-04T14:58:50.7263822Z ##[command]/usr/bin/docker network create --label 2d5470 github_network_280530abc5c74fd4a81ba47c344361b1
+2026-10-04T14:58:50.8159728Z 576e6b7a8cefe5cb93595294aaf60578d3446a4fd4e2389e05e9733091198f66
+2026-10-04T14:58:50.8189717Z ##[endgroup]
+2026-10-04T14:58:50.8219469Z ##[group]Starting postgres service container
+2026-10-04T14:58:50.8244355Z ##[command]/usr/bin/docker pull postgis/postgis:17-3.5
+2026-10-04T14:58:51.0550336Z 17-3.5: Pulling from postgis/postgis
+2026-10-04T14:58:51.1664233Z ccaf924377f9: Pulling fs layer
+2026-10-04T14:58:51.1665289Z a0a48bd22597: Pulling fs layer
+2026-10-04T14:58:51.1666162Z 953b3faade64: Pulling fs layer
+2026-10-04T14:58:51.1666757Z 4c5e3cb23b1e: Pulling fs layer
+2026-10-04T14:58:51.1667245Z b032a4e70c86: Pulling fs layer
+2026-10-04T14:58:51.1667734Z 84e2e0dafa9e: Pulling fs layer
+2026-10-04T14:58:51.1668619Z 9388a07819e8: Pulling fs layer
+2026-10-04T14:58:51.1669124Z 9b3173aa38c2: Pulling fs layer
+2026-10-04T14:58:51.1669600Z 2f600d70ef01: Pulling fs layer
+2026-10-04T14:58:51.1670078Z 26a029cc5101: Pulling fs layer
+2026-10-04T14:58:51.1670574Z 87746d0d7566: Pulling fs layer
+2026-10-04T14:58:51.1671431Z 5756942faa50: Pulling fs layer
+2026-10-04T14:58:51.1672204Z dc61d0df75b4: Pulling fs layer
+2026-10-04T14:58:51.1672942Z 0c9580cd8863: Pulling fs layer
+2026-10-04T14:58:51.1673714Z 26502799a66b: Pulling fs layer
+2026-10-04T14:58:51.1674509Z 4f4fb700ef54: Pulling fs layer
+2026-10-04T14:58:51.1674985Z ee293c60aa50: Pulling fs layer
+2026-10-04T14:58:51.1675467Z ea025e641e62: Pulling fs layer
+2026-10-04T14:58:51.1675931Z b032a4e70c86: Waiting
+2026-10-04T14:58:51.1676365Z 84e2e0dafa9e: Waiting
+2026-10-04T14:58:51.1676791Z 9388a07819e8: Waiting
+2026-10-04T14:58:51.1677837Z 9b3173aa38c2: Waiting
+2026-10-04T14:58:51.1678279Z 2f600d70ef01: Waiting
+2026-10-04T14:58:51.1678808Z 26a029cc5101: Waiting
+2026-10-04T14:58:51.1679313Z 87746d0d7566: Waiting
+2026-10-04T14:58:51.1679727Z 5756942faa50: Waiting
+2026-10-04T14:58:51.1680232Z dc61d0df75b4: Waiting
+2026-10-04T14:58:51.1680653Z 0c9580cd8863: Waiting
+2026-10-04T14:58:51.1681265Z 26502799a66b: Waiting
+2026-10-04T14:58:51.1681863Z 4f4fb700ef54: Waiting
+2026-10-04T14:58:51.1682497Z ee293c60aa50: Waiting
+2026-10-04T14:58:51.1682952Z ea025e641e62: Waiting
+2026-10-04T14:58:51.1683537Z 4c5e3cb23b1e: Waiting
+2026-10-04T14:58:51.1933206Z a0a48bd22597: Verifying Checksum
+2026-10-04T14:58:51.1934142Z a0a48bd22597: Download complete
+2026-10-04T14:58:51.2199198Z 953b3faade64: Verifying Checksum
+2026-10-04T14:58:51.2200697Z 953b3faade64: Download complete
+2026-10-04T14:58:51.2369835Z 4c5e3cb23b1e: Verifying Checksum
+2026-10-04T14:58:51.2373380Z 4c5e3cb23b1e: Download complete
+2026-10-04T14:58:51.2749383Z 84e2e0dafa9e: Verifying Checksum
+2026-10-04T14:58:51.2766844Z 84e2e0dafa9e: Download complete
+2026-10-04T14:58:51.2768183Z ccaf924377f9: Verifying Checksum
+2026-10-04T14:58:51.2769122Z ccaf924377f9: Download complete
+2026-10-04T14:58:51.2772992Z b032a4e70c86: Verifying Checksum
+2026-10-04T14:58:51.2773742Z b032a4e70c86: Download complete
+2026-10-04T14:58:51.3017145Z 9b3173aa38c2: Download complete
+2026-10-04T14:58:51.3019875Z 9388a07819e8: Verifying Checksum
+2026-10-04T14:58:51.3021704Z 9388a07819e8: Download complete
+2026-10-04T14:58:51.3276882Z 26a029cc5101: Download complete
+2026-10-04T14:58:51.3299575Z 87746d0d7566: Verifying Checksum
+2026-10-04T14:58:51.3300367Z 87746d0d7566: Download complete
+2026-10-04T14:58:51.3519187Z 5756942faa50: Download complete
+2026-10-04T14:58:51.3571540Z dc61d0df75b4: Download complete
+2026-10-04T14:58:51.3834537Z 0c9580cd8863: Download complete
+2026-10-04T14:58:51.4097928Z 4f4fb700ef54: Verifying Checksum
+2026-10-04T14:58:51.4113477Z 4f4fb700ef54: Download complete
+2026-10-04T14:58:51.4378143Z ee293c60aa50: Download complete
+2026-10-04T14:58:51.4665655Z ea025e641e62: Verifying Checksum
+2026-10-04T14:58:51.4667608Z ea025e641e62: Download complete
+2026-10-04T14:58:51.6267114Z 26502799a66b: Verifying Checksum
+2026-10-04T14:58:51.6270040Z 26502799a66b: Download complete
+2026-10-04T14:58:51.7962322Z 2f600d70ef01: Verifying Checksum
+2026-10-04T14:58:51.7964048Z 2f600d70ef01: Download complete
+2026-10-04T14:58:52.4091822Z ccaf924377f9: Pull complete
+2026-10-04T14:58:59.1164513Z a0a48bd22597: Pull complete
+2026-10-04T14:58:59.2729156Z 953b3faade64: Pull complete
+2026-10-04T14:58:59.3492638Z 4c5e3cb23b1e: Pull complete
+2026-10-04T14:58:59.7372542Z b032a4e70c86: Pull complete
+2026-10-04T14:58:59.8079776Z 84e2e0dafa9e: Pull complete
+2026-10-04T14:58:59.8143302Z 9388a07819e8: Pull complete
+2026-10-04T14:58:59.8224119Z 9b3173aa38c2: Pull complete
+2026-10-04T14:59:03.3433686Z 2f600d70ef01: Pull complete
+2026-10-04T14:59:03.3533913Z 26a029cc5101: Pull complete
+2026-10-04T14:59:03.3650486Z 87746d0d7566: Pull complete
+2026-10-04T14:59:03.3775899Z 5756942faa50: Pull complete
+2026-10-04T14:59:03.3869581Z dc61d0df75b4: Pull complete
+2026-10-04T14:59:03.3929418Z 0c9580cd8863: Pull complete
+2026-10-04T14:59:05.5848824Z 26502799a66b: Pull complete
+2026-10-04T14:59:05.5917416Z 4f4fb700ef54: Pull complete
+2026-10-04T14:59:05.6017899Z ee293c60aa50: Pull complete
+2026-10-04T14:59:05.6306485Z ea025e641e62: Pull complete
+2026-10-04T14:59:05.6307639Z Digest: sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+2026-10-04T14:59:05.6308733Z Status: Downloaded newer image for postgis/postgis:17-3.5
+2026-10-04T14:59:05.6309272Z docker.io/postgis/postgis:17-3.5
+2026-10-04T14:59:05.6348693Z ##[command]/usr/bin/docker create --name fbc2cadaf1664d0583de98ee36a2153f_postgispostgis1735_63c692 --label 2d5470 --network github_network_280530abc5c74fd4a81ba47c344361b1 --network-alias postgres -p 5432:5432 --health-cmd "pg_isready -U mention -d mention_ci" --health-interval 5s --health-timeout 5s --health-retries 10 -e "POSTGRES_USER=mention" -e "POSTGRES_PASSWORD=mention" -e "POSTGRES_DB=mention_ci" -e GITHUB_ACTIONS=true -e CI=true postgis/postgis:17-3.5
+2026-10-04T14:59:05.6599264Z dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:05.6618425Z ##[command]/usr/bin/docker start dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:05.8634516Z dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:05.8651209Z ##[command]/usr/bin/docker ps --all --filter id=dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94 --filter status=running --no-trunc --format "{{.ID}} {{.Status}}"
+2026-10-04T14:59:05.8766681Z dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94 Up Less than a second (health: starting)
+2026-10-04T14:59:05.8784998Z ##[command]/usr/bin/docker port dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:05.8923987Z 5432/tcp -> 0.0.0.0:5432
+2026-10-04T14:59:05.8932134Z 5432/tcp -> [::]:5432
+2026-10-04T14:59:05.8979811Z ##[endgroup]
+2026-10-04T14:59:05.8987160Z ##[group]Waiting for all services to be ready
+2026-10-04T14:59:05.8998709Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:05.9119784Z starting
+2026-10-04T14:59:05.9140143Z postgres service is starting, waiting 2 seconds before checking again.
+2026-10-04T14:59:07.9140455Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:07.9248009Z starting
+2026-10-04T14:59:07.9258087Z postgres service is starting, waiting 4 seconds before checking again.
+2026-10-04T14:59:12.2750261Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T14:59:12.2928455Z healthy
+2026-10-04T14:59:12.2942997Z postgres service is healthy.
+2026-10-04T14:59:12.2943647Z ##[endgroup]
+2026-10-04T14:59:12.3153407Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-04T14:59:12.3153890Z with:
+2026-10-04T14:59:12.3154055Z   fetch-depth: 0
+2026-10-04T14:59:12.3154231Z   repository: OxyHQ/Mention
+2026-10-04T14:59:12.3156152Z   token: ***
+2026-10-04T14:59:12.3156327Z   ssh-strict: true
+2026-10-04T14:59:12.3156498Z   ssh-user: git
+2026-10-04T14:59:12.3156666Z   persist-credentials: true
+2026-10-04T14:59:12.3156863Z   clean: true
+2026-10-04T14:59:12.3157040Z   sparse-checkout-cone-mode: true
+2026-10-04T14:59:12.3157248Z   fetch-tags: false
+2026-10-04T14:59:12.3157411Z   show-progress: true
+2026-10-04T14:59:12.3157577Z   lfs: false
+2026-10-04T14:59:12.3157733Z   submodules: false
+2026-10-04T14:59:12.3157899Z   set-safe-directory: true
+2026-10-04T14:59:12.3158095Z   allow-unsafe-pr-checkout: false
+2026-10-04T14:59:12.3158523Z env:
+2026-10-04T14:59:12.3158684Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:12.3158864Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:12.3159090Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:12.3159639Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:12.3159867Z ##[endgroup]
+2026-10-04T14:59:12.3996387Z Syncing repository: OxyHQ/Mention
+2026-10-04T14:59:12.3997820Z ##[group]Getting Git version info
+2026-10-04T14:59:12.3998239Z Working directory is '/home/runner/work/Mention/Mention'
+2026-10-04T14:59:12.3998904Z [command]/usr/bin/git version
+2026-10-04T14:59:12.4057465Z git version 2.55.0
+2026-10-04T14:59:12.4073256Z ##[endgroup]
+2026-10-04T14:59:12.4084787Z Temporarily overriding HOME='/home/runner/work/_temp/ef0ffc8d-0b0e-4a56-a466-ede4b9a29504' before making global git config changes
+2026-10-04T14:59:12.4085700Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T14:59:12.4090545Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Mention/Mention
+2026-10-04T14:59:12.4134678Z Deleting the contents of '/home/runner/work/Mention/Mention'
+2026-10-04T14:59:12.4137663Z ##[group]Determining repository object format
+2026-10-04T14:59:12.4138503Z ##[endgroup]
+2026-10-04T14:59:12.4139133Z ##[group]Initializing the repository
+2026-10-04T14:59:12.4142301Z [command]/usr/bin/git init /home/runner/work/Mention/Mention
+2026-10-04T14:59:12.4219706Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-04T14:59:12.4220282Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-04T14:59:12.4220891Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-04T14:59:12.4221277Z hint: call:
+2026-10-04T14:59:12.4221441Z hint:
+2026-10-04T14:59:12.4221734Z hint: 	git config --global init.defaultBranch <name>
+2026-10-04T14:59:12.4222047Z hint:
+2026-10-04T14:59:12.4222291Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-04T14:59:12.4222722Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-04T14:59:12.4223056Z hint:
+2026-10-04T14:59:12.4223263Z hint: 	git branch -m <name>
+2026-10-04T14:59:12.4223496Z hint:
+2026-10-04T14:59:12.4223753Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-04T14:59:12.4228503Z Initialized empty Git repository in /home/runner/work/Mention/Mention/.git/
+2026-10-04T14:59:12.4236715Z [command]/usr/bin/git remote add origin https://github.com/OxyHQ/Mention
+2026-10-04T14:59:12.4281395Z ##[endgroup]
+2026-10-04T14:59:12.4281924Z ##[group]Disabling automatic garbage collection
+2026-10-04T14:59:12.4285633Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-04T14:59:12.4319967Z ##[endgroup]
+2026-10-04T14:59:12.4320502Z ##[group]Setting up auth
+2026-10-04T14:59:12.4321094Z Removing SSH command configuration
+2026-10-04T14:59:12.4326540Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T14:59:12.4357920Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T14:59:12.4657925Z Removing HTTP extra header
+2026-10-04T14:59:12.4663474Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T14:59:12.4698576Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T14:59:12.4891090Z Removing includeIf entries pointing to credentials config files
+2026-10-04T14:59:12.4896020Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T14:59:12.4927816Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T14:59:12.5121792Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-04T14:59:12.5158139Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Mention/Mention/.git.path /home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T14:59:12.5189294Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T14:59:12.5222473Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T14:59:12.5254364Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T14:59:12.5282292Z ##[endgroup]
+2026-10-04T14:59:12.5282742Z ##[group]Fetching the repository
+2026-10-04T14:59:12.5288414Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +065a1cc8c5a076b5c2c87e02c6e60d210a9cb057:refs/remotes/pull/1313/merge
+2026-10-04T14:59:15.4336845Z From https://github.com/OxyHQ/Mention
+2026-10-04T14:59:15.4337573Z  * [new branch]          ccr-968b68e8-rniv9s   -> origin/ccr-968b68e8-rniv9s
+2026-10-04T14:59:15.4338495Z  * [new branch]          codex/fix-mutable-merge-queue-tags-issue -> origin/codex/fix-mutable-merge-queue-tags-issue
+2026-10-04T14:59:15.4339427Z  * [new branch]          feat/1519-i05-internal-mcp-20261003 -> origin/feat/1519-i05-internal-mcp-20261003
+2026-10-04T14:59:15.4340166Z  * [new branch]          feat/jev-evaluation-20261001 -> origin/feat/jev-evaluation-20261001
+2026-10-04T14:59:15.4341136Z  * [new branch]          feat/jev-receipt-recovery-20261004 -> origin/feat/jev-receipt-recovery-20261004
+2026-10-04T14:59:15.4342015Z  * [new branch]          fix/jev-atomic-edit-20261004 -> origin/fix/jev-atomic-edit-20261004
+2026-10-04T14:59:15.4342676Z  * [new branch]          main                  -> origin/main
+2026-10-04T14:59:15.4343203Z  * [new branch]          perf/1103-row-harness -> origin/perf/1103-row-harness
+2026-10-04T14:59:15.4343858Z  * [new tag]             deployed/backend      -> deployed/backend
+2026-10-04T14:59:15.4344367Z  * [new tag]             deployed/frontend     -> deployed/frontend
+2026-10-04T14:59:15.4344898Z  * [new tag]             deployed/mcp          -> deployed/mcp
+2026-10-04T14:59:15.4345480Z  * [new ref]             065a1cc8c5a076b5c2c87e02c6e60d210a9cb057 -> pull/1313/merge
+2026-10-04T14:59:15.4347433Z ##[endgroup]
+2026-10-04T14:59:15.4347852Z ##[group]Determining the checkout info
+2026-10-04T14:59:15.4348194Z ##[endgroup]
+2026-10-04T14:59:15.4348475Z [command]/usr/bin/git sparse-checkout disable
+2026-10-04T14:59:15.4401570Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-04T14:59:15.4430858Z ##[group]Checking out the ref
+2026-10-04T14:59:15.4435560Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1313/merge
+2026-10-04T14:59:15.6709476Z Note: switching to 'refs/remotes/pull/1313/merge'.
+2026-10-04T14:59:15.6709808Z 
+2026-10-04T14:59:15.6710060Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-04T14:59:15.6710900Z changes and commit them, and you can discard any commits you make in this
+2026-10-04T14:59:15.6711460Z state without impacting any branches by switching back to a branch.
+2026-10-04T14:59:15.6711791Z 
+2026-10-04T14:59:15.6712009Z If you want to create a new branch to retain commits you create, you may
+2026-10-04T14:59:15.6712540Z do so (now or later) by using -c with the switch command. Example:
+2026-10-04T14:59:15.6712797Z 
+2026-10-04T14:59:15.6712892Z   git switch -c <new-branch-name>
+2026-10-04T14:59:15.6713025Z 
+2026-10-04T14:59:15.6713115Z Or undo this operation with:
+2026-10-04T14:59:15.6713284Z 
+2026-10-04T14:59:15.6713419Z   git switch -
+2026-10-04T14:59:15.6713525Z 
+2026-10-04T14:59:15.6713719Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-04T14:59:15.6714170Z 
+2026-10-04T14:59:15.6714444Z HEAD is now at 065a1cc8c Merge fdb3456894eafc303b5bb0477c523390bdd01fb9 into f28ac665a245861ad94d8078d0e31228f93a2973
+2026-10-04T14:59:15.6741692Z ##[endgroup]
+2026-10-04T14:59:15.6787927Z [command]/usr/bin/git log -1 --format=%H
+2026-10-04T14:59:15.6814690Z 065a1cc8c5a076b5c2c87e02c6e60d210a9cb057
+2026-10-04T14:59:15.6990345Z ##[group]Run bash .github/scripts/ci-scope.sh backend
+2026-10-04T14:59:15.6990711Z [36;1mbash .github/scripts/ci-scope.sh backend[0m
+2026-10-04T14:59:15.7162890Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:59:15.7163131Z env:
+2026-10-04T14:59:15.7163301Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:15.7163483Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:15.7163666Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:15.7164262Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:15.7164506Z   CI_SCOPE_BASE: origin/main
+2026-10-04T14:59:15.7164698Z ##[endgroup]
+2026-10-04T14:59:15.7324724Z leg=backend run=true (A docs/audits/2026-10-04-native-edit-atomicity/README.md changes the tracked-file set)
+2026-10-04T14:59:15.7412347Z ##[group]Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+2026-10-04T14:59:15.7412647Z with:
+2026-10-04T14:59:15.7412822Z   bun-version: 1.3.14
+2026-10-04T14:59:15.7413000Z   no-cache: false
+2026-10-04T14:59:15.7414804Z   token: ***
+2026-10-04T14:59:15.7414973Z env:
+2026-10-04T14:59:15.7415131Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:15.7415303Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:15.7415489Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:15.7415829Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:15.7416078Z ##[endgroup]
+2026-10-04T14:59:15.9408800Z Cache hit for: bun-fR4r1tsFeXfPQkusQwkKD2kGnsE=
+2026-10-04T14:59:16.2190094Z Received 33843767 of 33843767 (100.0%), 147.4 MBs/sec
+2026-10-04T14:59:16.2190558Z Cache Size: ~32 MB (33843767 B)
+2026-10-04T14:59:16.2219357Z [command]/usr/bin/tar -xf /home/runner/work/_temp/c14890be-25a9-4efd-8c48-c3e42811eac6/cache.tzst -P -C /home/runner/work/Mention/Mention --use-compress-program unzstd
+2026-10-04T14:59:16.3569554Z Cache restored successfully
+2026-10-04T14:59:16.3596314Z [command]/home/runner/.bun/bin/bun --revision
+2026-10-04T14:59:16.3642114Z 1.3.14+0d9b296af
+2026-10-04T14:59:16.3649095Z Using a cached version of Bun: 1.3.14+0d9b296af
+2026-10-04T14:59:16.3836740Z ##[group]Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+2026-10-04T14:59:16.3837043Z with:
+2026-10-04T14:59:16.3837210Z   node-version: 24.21.0
+2026-10-04T14:59:16.3837411Z   check-latest: false
+2026-10-04T14:59:16.3839216Z   token: ***
+2026-10-04T14:59:16.3839406Z   package-manager-cache: true
+2026-10-04T14:59:16.3839613Z env:
+2026-10-04T14:59:16.3839769Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:16.3839945Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:16.3840133Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:16.3840457Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:16.3840703Z ##[endgroup]
+2026-10-04T14:59:16.4832130Z Found in cache @ /opt/hostedtoolcache/node/24.21.0/x64
+2026-10-04T14:59:16.4834811Z ##[group]Environment details
+2026-10-04T14:59:16.8018833Z node: v24.21.0
+2026-10-04T14:59:16.8019103Z npm: 11.19.0
+2026-10-04T14:59:16.8019278Z yarn: 1.22.22
+2026-10-04T14:59:16.8020195Z ##[endgroup]
+2026-10-04T14:59:16.8129908Z ##[group]Run bun install --frozen-lockfile --ignore-scripts
+2026-10-04T14:59:16.8130279Z [36;1mbun install --frozen-lockfile --ignore-scripts[0m
+2026-10-04T14:59:16.8193682Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:59:16.8193903Z env:
+2026-10-04T14:59:16.8194070Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:16.8194254Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:16.8194440Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:16.8194881Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:16.8195123Z ##[endgroup]
+2026-10-04T14:59:16.8299178Z bun install v1.3.14 (0d9b296a)
+2026-10-04T14:59:16.8509400Z Resolving dependencies
+2026-10-04T14:59:16.8510121Z Resolved, downloaded and extracted [5]
+2026-10-04T14:59:25.9577090Z 
+2026-10-04T14:59:25.9577957Z + @oxy.so/doctor@1.1.0
+2026-10-04T14:59:25.9578901Z + @types/node@26.6.2
+2026-10-04T14:59:25.9579334Z + semver@7.8.5
+2026-10-04T14:59:25.9579643Z + typescript@6.0.3
+2026-10-04T14:59:25.9579911Z + yaml@2.9.1
+2026-10-04T14:59:25.9580163Z 
+2026-10-04T14:59:25.9580322Z 1626 packages installed [9.13s]
+2026-10-04T14:59:25.9748772Z ##[group]Run bun run build:shared-types
+2026-10-04T14:59:25.9749057Z [36;1mbun run build:shared-types[0m
+2026-10-04T14:59:25.9810077Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:59:25.9810291Z env:
+2026-10-04T14:59:25.9810454Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:25.9810633Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:25.9811013Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:25.9811462Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:25.9811702Z ##[endgroup]
+2026-10-04T14:59:25.9910519Z $ bun run --cwd packages/shared-types build
+2026-10-04T14:59:25.9941049Z $ tsc
+2026-10-04T14:59:27.8393256Z ##[group]Run bun run --cwd packages/backend test:coverage -- --shard="$SHARD_INDEX/$SHARD_TOTAL" --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage-shard" --reporter=default --reporter=blob --outputFile.blob="$RUNNER_TEMP/backend-blobs/blob-$SHARD_INDEX-$SHARD_TOTAL.json"
+2026-10-04T14:59:27.8394721Z [36;1mbun run --cwd packages/backend test:coverage -- --shard="$SHARD_INDEX/$SHARD_TOTAL" --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage-shard" --reporter=default --reporter=blob --outputFile.blob="$RUNNER_TEMP/backend-blobs/blob-$SHARD_INDEX-$SHARD_TOTAL.json"[0m
+2026-10-04T14:59:27.8452993Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:59:27.8453207Z env:
+2026-10-04T14:59:27.8453367Z   BUN_VERSION: 1.3.14
+2026-10-04T14:59:27.8453550Z   NODE_VERSION: 24.21.0
+2026-10-04T14:59:27.8453743Z   CI_BASE_REVISION: origin/main
+2026-10-04T14:59:27.8454171Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T14:59:27.8454419Z   SHARD_INDEX: 2
+2026-10-04T14:59:27.8454630Z   SHARD_TOTAL: 3
+2026-10-04T14:59:27.8454795Z ##[endgroup]
+2026-10-04T14:59:27.8578767Z $ node ../../node_modules/vitest/vitest.mjs run --coverage "--shard=2/3" "--coverage.reportsDirectory=/home/runner/work/_temp/backend-coverage-shard" "--reporter=default" "--reporter=blob" "--outputFile.blob=/home/runner/work/_temp/backend-blobs/blob-2-3.json"
+2026-10-04T14:59:28.1611249Z 
+2026-10-04T14:59:28.1614559Z [1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/runner/work/Mention/Mention/packages/backend[39m
+2026-10-04T14:59:28.1615580Z       [2mCoverage enabled with [22m[33mv8[39m
+2026-10-04T14:59:28.1615869Z 
+2026-10-04T14:59:34.3597365Z  [32m✓[39m src/__tests__/services/mtn/mentionRecordStore.test.ts [2m([22m[2m26 tests[22m[2m)[22m[33m 975[2mms[22m[39m
+2026-10-04T14:59:35.1428692Z  [32m✓[39m src/__tests__/controllers/threadPublishAsAccount.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 226[2mms[22m[39m
+2026-10-04T14:59:37.5741553Z  [32m✓[39m src/__tests__/feedRanking.test.ts [2m([22m[2m51 tests[22m[2m)[22m[32m 130[2mms[22m[39m
+2026-10-04T14:59:40.9958767Z  [32m✓[39m src/__tests__/webShellRoutes.integration.test.ts [2m([22m[2m51 tests[22m[2m)[22m[33m 5959[2mms[22m[39m
+2026-10-04T14:59:40.9995477Z    [32m✓[39m webShell routes (integration) [2m(34)[22m
+2026-10-04T14:59:41.0102158Z      [33m[2m✓[22m[39m tells search engines a local profile's public post count[33m 732[2mms[22m[39m
+2026-10-04T14:59:41.0131718Z      [33m[2m✓[22m[39m names the dependency and the path when a post page degrades to 503[33m 358[2mms[22m[39m
+2026-10-04T14:59:41.0133170Z    [32m✓[39m webShell post OG sensitivity gate [2m(17)[22m
+2026-10-04T14:59:41.0134433Z      [33m[2m✓[22m[39m withholds a boost original that became unavailable: {"visibility":"private"}[33m 389[2mms[22m[39m
+2026-10-04T14:59:41.0137425Z      [33m[2m✓[22m[39m withholds a boost original that became unavailable: {"status":"draft"}[33m 541[2mms[22m[39m
+2026-10-04T14:59:41.9403558Z  [32m✓[39m src/__tests__/exploreFeed.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 4537[2mms[22m[39m
+2026-10-04T14:59:41.9433695Z    [32m✓[39m discovery is hard SFW [2m(2)[22m
+2026-10-04T14:59:41.9469996Z      [33m[2m✓[22m[39m withholds every sensitivity signal, even from a viewer who opted in[33m 736[2mms[22m[39m
+2026-10-04T14:59:41.9471500Z    [32m✓[39m what the candidate window excludes [2m(3)[22m
+2026-10-04T14:59:41.9512352Z      [33m[2m✓[22m[39m excludes the viewer, the accounts they follow, replies and boosts[33m 393[2mms[22m[39m
+2026-10-04T14:59:41.9578645Z    [32m✓[39m a pagination session is a frozen snapshot [2m(4)[22m
+2026-10-04T14:59:41.9657129Z      [33m[2m✓[22m[39m walks adjacent pages that neither overlap nor gap, across a score tie[33m 373[2mms[22m[39m
+2026-10-04T14:59:41.9721286Z      [33m[2m✓[22m[39m breaks a score tie by id so the tied sibling is neither repeated nor skipped[33m 416[2mms[22m[39m
+2026-10-04T14:59:42.4575860Z  [32m✓[39m src/__tests__/services/trendingBatchWrite.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 2057[2mms[22m[39m
+2026-10-04T14:59:42.4619693Z    [32m✓[39m calculateTrending — end to end [2m(1)[22m
+2026-10-04T14:59:42.4720480Z      [33m[2m✓[22m[39m publishes the batch only after its rows exist, and broadcasts[33m 491[2mms[22m[39m
+2026-10-04T14:59:42.9882486Z  [32m✓[39m src/__tests__/services/contentAffinityService.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 9471[2mms[22m[39m
+2026-10-04T14:59:42.9995719Z    [32m✓[39m engagement affinity [2m(6)[22m
+2026-10-04T14:59:43.0076417Z      [33m[2m✓[22m[39m picks the authors of liked, replied-to and boosted posts[33m 441[2mms[22m[39m
+2026-10-04T14:59:43.0134933Z      [33m[2m✓[22m[39m discounts a video-surface like against a normal-surface like[33m 344[2mms[22m[39m
+2026-10-04T14:59:43.0135983Z      [33m[2m✓[22m[39m outranks hashtag affinity for the same amount of evidence[33m 329[2mms[22m[39m
+2026-10-04T14:59:43.0136781Z    [32m✓[39m exclusions and profile access [2m(3)[22m
+2026-10-04T14:59:43.0140255Z      [33m[2m✓[22m[39m excludes self and blocked/muted/restricted users[33m 516[2mms[22m[39m
+2026-10-04T14:59:43.0176738Z      [33m[2m✓[22m[39m filters private and followers-only candidates unless the viewer follows them[33m 600[2mms[22m[39m
+2026-10-04T14:59:43.0277324Z      [33m[2m✓[22m[39m batches the follow-graph read across every protected candidate[33m 2375[2mms[22m[39m
+2026-10-04T14:59:43.0364159Z    [32m✓[39m the candidate cap [2m(1)[22m
+2026-10-04T14:59:43.0501823Z      [33m[2m✓[22m[39m returns no more candidates than the caller asked for, strongest first[33m 1742[2mms[22m[39m
+2026-10-04T14:59:43.0503026Z    [32m✓[39m the behavior-derived signals [2m(6)[22m
+2026-10-04T14:59:43.0559915Z      [33m[2m✓[22m[39m picks authors posting under the viewer's preferred topics, scaled per topic[33m 429[2mms[22m[39m
+2026-10-04T14:59:43.9920107Z  [32m✓[39m src/__tests__/services/accountErasure.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 6636[2mms[22m[39m
+2026-10-04T14:59:44.0033476Z    [32m✓[39m eraseOxyUser on real rows [2m(4)[22m
+2026-10-04T14:59:44.0081730Z      [33m[2m✓[22m[39m erases every mapped category, keeps what the map keeps, and is a no-op the second time[33m 3141[2mms[22m[39m
+2026-10-04T14:59:44.0138553Z      [33m[2m✓[22m[39m sends nothing to the fediverse without a handle, and still erases[33m 779[2mms[22m[39m
+2026-10-04T14:59:44.0212163Z      [33m[2m✓[22m[39m clears a boost closure larger than one chunk, deepest level first, and batches big deletes[33m 589[2mms[22m[39m
+2026-10-04T14:59:44.0307569Z      [33m[2m✓[22m[39m treats an account Mention never saw as a successful no-op[33m 320[2mms[22m[39m
+2026-10-04T14:59:44.0355507Z    [32m✓[39m processAccountErasure: the ledger, the lease and resumption [2m(6)[22m
+2026-10-04T14:59:44.0382344Z      [33m[2m✓[22m[39m completes, records counts, and answers already-completed for the same event[33m 445[2mms[22m[39m
+2026-10-04T14:59:44.0674552Z      [33m[2m✓[22m[39m resumes after a crash midway: the failure is recorded and a re-run completes[33m 424[2mms[22m[39m
+2026-10-04T14:59:44.0761863Z      [33m[2m✓[22m[39m uses the handle Oxy still returns when the event carried none[33m 328[2mms[22m[39m
+2026-10-04T14:59:45.1713012Z  [32m✓[39m src/__tests__/services/mtn/mentionRecordService.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 2487[2mms[22m[39m
+2026-10-04T14:59:45.1802777Z    [32m✓[39m MentionRecordService.signAndAppend [2m(14)[22m
+2026-10-04T14:59:45.2077261Z      [33m[2m✓[22m[39m writes a verifiable app.mention.feed.post genesis record with seq 0 / prev null[33m 310[2mms[22m[39m
+2026-10-04T14:59:45.2092258Z    [32m✓[39m MentionRecordEmitter dual-write gate [2m(4)[22m
+2026-10-04T14:59:45.2237538Z      [33m[2m✓[22m[39m does NOT emit a record for a DRAFT or non-public LOCAL post[33m 546[2mms[22m[39m
+2026-10-04T14:59:46.9052661Z  [32m✓[39m src/__tests__/routes/searchPosts.test.ts [2m([22m[2m35 tests[22m[2m)[22m[33m 11972[2mms[22m[39m
+2026-10-04T14:59:46.9098575Z    [32m✓[39m GET /search — what the query selects [2m(4)[22m
+2026-10-04T14:59:46.9172484Z      [33m[2m✓[22m[39m returns only public, published posts matching the text[33m 1185[2mms[22m[39m
+2026-10-04T14:59:46.9242154Z      [33m[2m✓[22m[39m matches a non-primary rendition, because the vector is per variant[33m 478[2mms[22m[39m
+2026-10-04T14:59:46.9327417Z      [33m[2m✓[22m[39m treats a regex-looking query as text rather than a pattern[33m 364[2mms[22m[39m
+2026-10-04T14:59:46.9357607Z    [32m✓[39m GET /search — order and pagination [2m(7)[22m
+2026-10-04T14:59:46.9412212Z      [33m[2m✓[22m[39m walks every post exactly once across id shapes that interleave[33m 485[2mms[22m[39m
+2026-10-04T14:59:46.9464954Z      [33m[2m✓[22m[39m walks a page boundary that falls INSIDE one millisecond[33m 532[2mms[22m[39m
+2026-10-04T14:59:46.9511127Z      [33m[2m✓[22m[39m stitches its time windows newest first, with nothing skipped or repeated[33m 967[2mms[22m[39m
+2026-10-04T14:59:46.9542723Z      [33m[2m✓[22m[39m reports hasMore only when a further page exists[33m 389[2mms[22m[39m
+2026-10-04T14:59:46.9613398Z    [32m✓[39m GET /search — operators [2m(15)[22m
+2026-10-04T14:59:46.9709870Z      [33m[2m✓[22m[39m resolves to:me to the viewer[33m 313[2mms[22m[39m
+2026-10-04T14:59:46.9752111Z      [33m[2m✓[22m[39m combines from: and to: into one conjunctive filter[33m 346[2mms[22m[39m
+2026-10-04T14:59:46.9753881Z      [33m[2m✓[22m[39m selects has:media by a real media row, and mediaType by its type[33m 640[2mms[22m[39m
+2026-10-04T14:59:46.9783978Z      [33m[2m✓[22m[39m selects has:links from the stored flag rather than scanning the body[33m 402[2mms[22m[39m
+2026-10-04T14:59:46.9809569Z      [33m[2m✓[22m[39m applies min_likes and min_boosts against the stored counters[33m 312[2mms[22m[39m
+2026-10-04T14:59:46.9834258Z    [32m✓[39m GET /search — sensitive-content gating [2m(4)[22m
+2026-10-04T14:59:46.9882030Z      [33m[2m✓[22m[39m excludes every sensitive shape for a viewer who has not opted in[33m 472[2mms[22m[39m
+2026-10-04T14:59:46.9918891Z      [33m[2m✓[22m[39m returns them all for a viewer who opted in[33m 424[2mms[22m[39m
+2026-10-04T14:59:46.9992047Z      [33m[2m✓[22m[39m gates an anonymous viewer, who has no opt-in to consult[33m 576[2mms[22m[39m
+2026-10-04T14:59:47.0006183Z    [32m✓[39m GET /search — muted words [2m(5)[22m
+2026-10-04T14:59:47.0052110Z      [33m[2m✓[22m[39m takes the cursor from the UNFILTERED page window, so a drop skips nothing[33m 456[2mms[22m[39m
+2026-10-04T14:59:47.2567645Z  [32m✓[39m src/__tests__/utils/threadContinuation.test.ts [2m([22m[2m32 tests[22m[2m)[22m[33m 2185[2mms[22m[39m
+2026-10-04T14:59:47.9517443Z  [31m❯[39m src/__tests__/services/channelDeletionService.test.ts [2m([22m[2m28 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 10108[2mms[22m[39m
+2026-10-04T14:59:47.9611519Z    [32m✓[39m ChannelDeletionService — the manifest binding [2m(3)[22m
+2026-10-04T14:59:47.9742983Z      [33m[2m✓[22m[39m accounts for every manifest entry exactly once, in exactly one of four ways[33m 498[2mms[22m[39m
+2026-10-04T14:59:47.9812033Z      [33m[2m✓[22m[39m leaves the constraint-performed entries to the database, with no leg of their own[33m 388[2mms[22m[39m
+2026-10-04T14:59:47.9908849Z      [32m✓[39m reports a column classified under two scopes as locally executed, with the local count[32m 272[2mms[22m[39m
+2026-10-04T14:59:47.9992472Z    [31m❯[39m ChannelDeletionService — what happens to real rows [2m(8)[22m
+2026-10-04T14:59:48.0052233Z      [33m[2m✓[22m[39m destroys the channel posts and a stranger's boost of one, and keeps their quote[33m 981[2mms[22m[39m
+2026-10-04T14:59:48.0076459Z      [33m[2m✓[22m[39m never reattributes a channel post to the person who wrote it[33m 400[2mms[22m[39m
+2026-10-04T14:59:48.0077882Z      [33m[2m✓[22m[39m counts the destroyed posts that had a human behind them[33m 471[2mms[22m[39m
+2026-10-04T14:59:48.0078959Z      [32m✓[39m deletes rows that exist only for the channel[32m 259[2mms[22m[39m
+2026-10-04T14:59:48.0080166Z [31m     [31m×[31m scrubs an ENTRY out of somebody else's row without destroying the row[39m[32m 242[2mms[22m[39m
+2026-10-04T14:59:48.0081466Z      [33m[2m✓[22m[39m keeps a report about a destroyed post[33m 315[2mms[22m[39m
+2026-10-04T14:59:48.0082370Z      [33m[2m✓[22m[39m repairs the counter on a surviving post the channel had liked[33m 365[2mms[22m[39m
+2026-10-04T14:59:48.0083013Z      [33m[2m✓[22m[39m repairs the counter on a surviving post the channel had boosted[33m 480[2mms[22m[39m
+2026-10-04T14:59:48.0083531Z    [32m✓[39m ChannelDeletionService — the run contract [2m(3)[22m
+2026-10-04T14:59:48.0084077Z      [33m[2m✓[22m[39m a dry run reads and reports without writing or federating[33m 306[2mms[22m[39m
+2026-10-04T14:59:48.0084734Z      [33m[2m✓[22m[39m is idempotent: a second run finds nothing and does not throw[33m 476[2mms[22m[39m
+2026-10-04T14:59:48.0085290Z      [33m[2m✓[22m[39m previews without touching anything[33m 316[2mms[22m[39m
+2026-10-04T14:59:48.0085802Z    [32m✓[39m ChannelDeletionService — the account-kind gate [2m(7)[22m
+2026-10-04T14:59:48.0086684Z      [32m✓[39m deleteChannelContent refuses a personal account, and destroys nothing[32m 160[2mms[22m[39m
+2026-10-04T14:59:48.0087694Z      [32m✓[39m deleteChannelContent refuses an account whose kind will not resolve[32m 124[2mms[22m[39m
+2026-10-04T14:59:48.0088702Z      [32m✓[39m deleteChannelContent refuses when the kind lookup itself fails[32m 109[2mms[22m[39m
+2026-10-04T14:59:48.0089756Z      [32m✓[39m previewChannelDeletion refuses a personal account, and destroys nothing[32m 179[2mms[22m[39m
+2026-10-04T14:59:48.0091114Z      [32m✓[39m previewChannelDeletion refuses an account whose kind will not resolve[32m 84[2mms[22m[39m
+2026-10-04T14:59:48.0092189Z      [32m✓[39m previewChannelDeletion refuses when the kind lookup itself fails[32m 76[2mms[22m[39m
+2026-10-04T14:59:48.0093198Z      [32m✓[39m proceeds for a channel — without this the gate could be refusing everything[32m 257[2mms[22m[39m
+2026-10-04T14:59:48.0094043Z    [32m✓[39m ChannelDeletionService — the keyset loop [2m(2)[22m
+2026-10-04T14:59:48.0094851Z      [33m[2m✓[22m[39m walks past one batch without visiting a post twice[33m 586[2mms[22m[39m
+2026-10-04T14:59:48.0095712Z      [33m[2m✓[22m[39m destroys every post across every batch[33m 1033[2mms[22m[39m
+2026-10-04T14:59:48.0096480Z    [32m✓[39m ChannelDeletionService — federation ordering [2m(5)[22m
+2026-10-04T14:59:48.0098034Z      [33m[2m✓[22m[39m ROLLS THE BATCH BACK and REFUSES to report success — the posts survive and the caller is told[33m 395[2mms[22m[39m
+2026-10-04T14:59:48.0099152Z      [33m[2m✓[22m[39m sends a post Tombstone while the post still exists[33m 348[2mms[22m[39m
+2026-10-04T14:59:48.0100528Z      [33m[2m✓[22m[39m sends the actor Delete while the follow rows it addresses are still there[33m 354[2mms[22m[39m
+2026-10-04T14:59:48.0105081Z      [33m[2m✓[22m[39m federates nothing when the channel has no remote followers[33m 336[2mms[22m[39m
+2026-10-04T14:59:48.0106139Z      [32m✓[39m aborts before deleting anything when the channel username will not resolve[32m 153[2mms[22m[39m
+2026-10-04T14:59:49.2674297Z  [32m✓[39m src/__tests__/services/postEquivalence.test.ts [2m([22m[2m47 tests[22m[2m)[22m[33m 14684[2mms[22m[39m
+2026-10-04T14:59:49.2712722Z    [32m✓[39m what collapses [2m(5)[22m
+2026-10-04T14:59:49.2739946Z      [33m[2m✓[22m[39m collapses identical text and media published minutes apart[33m 913[2mms[22m[39m
+2026-10-04T14:59:49.2764193Z      [33m[2m✓[22m[39m collapses on an explicit declared original, whatever else disagrees[33m 592[2mms[22m[39m
+2026-10-04T14:59:49.2775962Z      [33m[2m✓[22m[39m renders the richer variant, not the one that happened to arrive first[33m 478[2mms[22m[39m
+2026-10-04T14:59:49.2826523Z      [33m[2m✓[22m[39m prefers the declared original over an earlier richer copy and preserves it on re-evaluation[33m 755[2mms[22m[39m
+2026-10-04T14:59:49.2877877Z      [33m[2m✓[22m[39m uses the exact source URL as media evidence when no stable Meta asset id exists[33m 339[2mms[22m[39m
+2026-10-04T14:59:49.2935635Z    [32m✓[39m what must never collapse [2m(14)[22m
+2026-10-04T14:59:49.2983365Z      [33m[2m✓[22m[39m periodically restores untouched posts after Oxy proof expires, with bounded durable progress[33m 875[2mms[22m[39m
+2026-10-04T14:59:49.3014956Z      [33m[2m✓[22m[39m refuses stale matching cached author ids after Oxy revokes the identity proof[33m 354[2mms[22m[39m
+2026-10-04T14:59:49.3122563Z      [33m[2m✓[22m[39m refuses reconciliation across different Oxy people even with a declared original[33m 365[2mms[22m[39m
+2026-10-04T14:59:49.3272519Z      [33m[2m✓[22m[39m refuses the same content from two DIFFERENT people[33m 305[2mms[22m[39m
+2026-10-04T14:59:49.3378777Z      [33m[2m✓[22m[39m refuses two networks that are not a reviewed pair, even for one person[33m 313[2mms[22m[39m
+2026-10-04T14:59:49.3521779Z      [33m[2m✓[22m[39m refuses the same author repeating themselves outside the window[33m 318[2mms[22m[39m
+2026-10-04T14:59:49.3732828Z      [33m[2m✓[22m[39m refuses carousels that reuse an asset a different number of times[33m 311[2mms[22m[39m
+2026-10-04T14:59:49.3834422Z      [33m[2m✓[22m[39m refuses a text-only pair outside its own tighter window[33m 324[2mms[22m[39m
+2026-10-04T14:59:49.3902259Z      [33m[2m✓[22m[39m refuses different assets with equal dimensions and byte size[33m 336[2mms[22m[39m
+2026-10-04T14:59:49.3942356Z      [33m[2m✓[22m[39m refuses an unrelated origin reusing a Meta filename[33m 387[2mms[22m[39m
+2026-10-04T14:59:49.3991120Z      [33m[2m✓[22m[39m preserves resource-selecting query parameters in declared-original URLs[33m 369[2mms[22m[39m
+2026-10-04T14:59:49.4168634Z    [32m✓[39m a cluster that has stopped being true [2m(5)[22m
+2026-10-04T14:59:49.4246166Z      [33m[2m✓[22m[39m restores an image-only source when its sibling edit adds unique text[33m 428[2mms[22m[39m
+2026-10-04T14:59:49.4368380Z      [33m[2m✓[22m[39m does not retain a stored original declaration after a material edit[33m 332[2mms[22m[39m
+2026-10-04T14:59:49.4502777Z      [33m[2m✓[22m[39m splits when an edit makes one variant materially different[33m 321[2mms[22m[39m
+2026-10-04T14:59:49.4524230Z      [33m[2m✓[22m[39m restores both source posts when their Oxy identities no longer match[33m 338[2mms[22m[39m
+2026-10-04T14:59:49.4698846Z      [33m[2m✓[22m[39m keeps the survivor visible when the other variant is deleted[33m 418[2mms[22m[39m
+2026-10-04T14:59:49.4773433Z    [32m✓[39m provenance for the rendered card [2m(4)[22m
+2026-10-04T14:59:49.4871687Z      [33m[2m✓[22m[39m puts the representative first, so two readers see one order[33m 373[2mms[22m[39m
+2026-10-04T14:59:49.4962572Z      [33m[2m✓[22m[39m reads the network off the actor identity, never the bridge host[33m 395[2mms[22m[39m
+2026-10-04T14:59:49.5064348Z    [32m✓[39m pagination [2m(1)[22m
+2026-10-04T14:59:49.5092980Z      [33m[2m✓[22m[39m fills the requested page rather than returning it short[33m 892[2mms[22m[39m
+2026-10-04T14:59:49.5133046Z    [32m✓[39m strict administrative error handling [2m(5)[22m
+2026-10-04T14:59:49.5174975Z      [33m[2m✓[22m[39m rejects unavailable Oxy authority before detection writes; live detection remains fail-open[33m 304[2mms[22m[39m
+2026-10-04T14:59:49.5222463Z      [33m[2m✓[22m[39m rejects unavailable authority before splitting an existing cluster; live reevaluation still reveals it[33m 349[2mms[22m[39m
+2026-10-04T14:59:49.5282982Z      [33m[2m✓[22m[39m surfaces cluster creation and reevaluation write failures only for strict callers[33m 386[2mms[22m[39m
+2026-10-04T14:59:50.4168962Z  [32m✓[39m src/__tests__/routes/notificationsList.test.ts [2m([22m[2m25 tests[22m[2m)[22m[33m 1550[2mms[22m[39m
+2026-10-04T14:59:50.4202340Z    [32m✓[39m GET /notifications keyset pagination [2m(6)[22m
+2026-10-04T14:59:50.4262208Z      [33m[2m✓[22m[39m walks every row exactly once across pages, with no repeat and no gap[33m 418[2mms[22m[39m
+2026-10-04T14:59:50.9597267Z  [32m✓[39m src/__tests__/trendLabeling.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 222[2mms[22m[39m
+2026-10-04T14:59:51.5486681Z  [32m✓[39m src/__tests__/feedEngine.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+2026-10-04T14:59:52.4825632Z  [32m✓[39m src/__tests__/services/postHydrationBoost.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 5338[2mms[22m[39m
+2026-10-04T14:59:52.4955769Z    [32m✓[39m PostHydrationService — boost original embedding is deterministic [2m(15)[22m
+2026-10-04T14:59:52.5062677Z      [33m[2m✓[22m[39m embeds the boosted original on EVERY repeated anonymous fetch[33m 1532[2mms[22m[39m
+2026-10-04T14:59:52.5096595Z      [33m[2m✓[22m[39m embeds the boosted original identically for anon (fetch 1) and authed (fetch 2)[33m 304[2mms[22m[39m
+2026-10-04T14:59:52.5188650Z      [33m[2m✓[22m[39m embeds the boosted original on EVERY repeated authenticated fetch[33m 1322[2mms[22m[39m
+2026-10-04T14:59:52.7192893Z  [32m✓[39m src/__tests__/services/moderation/reportIntakeDurability.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1007[2mms[22m[39m
+2026-10-04T14:59:52.7241862Z    [32m✓[39m report intake — durable reception (§7.1) [2m(8)[22m
+2026-10-04T14:59:52.7372726Z      [33m[2m✓[22m[39m answers a CONCURRENT duplicate the same way it answers a sequential one (local-only)[32m 300[2mms[22m[39m
+2026-10-04T14:59:53.0272078Z  [32m✓[39m src/__tests__/socialSources.test.ts [2m([22m[2m25 tests[22m[2m)[22m[33m 4315[2mms[22m[39m
+2026-10-04T14:59:53.0437698Z    [32m✓[39m the mutuals source [2m(2)[22m
+2026-10-04T14:59:53.0479644Z      [33m[2m✓[22m[39m serves a mutual's followers-only posts, which are not public to anyone else[33m 567[2mms[22m[39m
+2026-10-04T14:59:53.0558745Z    [32m✓[39m the quotes source [2m(3)[22m
+2026-10-04T14:59:53.0623291Z      [33m[2m✓[22m[39m finds the quotes OF a post[33m 329[2mms[22m[39m
+2026-10-04T14:59:53.0662713Z    [32m✓[39m the repliesFromFollows source [2m(2)[22m
+2026-10-04T14:59:53.0692009Z      [33m[2m✓[22m[39m selects a follow's replies under both parent encodings[33m 325[2mms[22m[39m
+2026-10-04T14:59:53.3161895Z  [32m✓[39m src/__tests__/utils/mediaResolver.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-10-04T14:59:54.8035362Z  [32m✓[39m src/__tests__/apexFrontendProxy.integration.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 325[2mms[22m[39m
+2026-10-04T14:59:56.4471486Z  [32m✓[39m src/__tests__/routes/lanesRoutes.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 2639[2mms[22m[39m
+2026-10-04T14:59:56.4506582Z    [32m✓[39m GET /lanes/mine [2m(2)[22m
+2026-10-04T14:59:56.4552697Z      [33m[2m✓[22m[39m returns the caller's lanes with counts aggregated on read[33m 463[2mms[22m[39m
+2026-10-04T14:59:58.0309933Z  [32m✓[39m src/__tests__/services/mtn/mentionNodeSync.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1008[2mms[22m[39m
+2026-10-04T14:59:58.2773388Z  [32m✓[39m src/__tests__/connectors/atproto/profileMapper.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 1148[2mms[22m[39m
+2026-10-04T14:59:58.7738901Z  [32m✓[39m src/__tests__/feedRankingOptInSignals.test.ts [2m([22m[2m46 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+2026-10-04T14:59:59.3834422Z  [32m✓[39m src/__tests__/services/federation/blockedDomainPurgeReconciler.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 2791[2mms[22m[39m
+2026-10-04T14:59:59.5711898Z  [32m✓[39m src/__tests__/services/moderation/crowdSourceWebhook.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 947[2mms[22m[39m
+2026-10-04T15:00:04.3432975Z  [32m✓[39m src/__tests__/services/mediaCacheDurableFailure.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 4515[2mms[22m[39m
+2026-10-04T15:00:04.3744510Z  [32m✓[39m src/__tests__/controllers/updatePostScheduledWindow.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 5529[2mms[22m[39m
+2026-10-04T15:00:04.3785942Z    [32m✓[39m updatePost — the 30-minute window still binds a PUBLISHED post [2m(4)[22m
+2026-10-04T15:00:04.3812105Z      [33m[2m✓[22m[39m REFUSES an edit to a published post outside the window[33m 376[2mms[22m[39m
+2026-10-04T15:00:04.3842393Z      [33m[2m✓[22m[39m ALLOWS an edit to a published post INSIDE the window (the rule is a window, not a ban)[33m 347[2mms[22m[39m
+2026-10-04T15:00:04.3871803Z    [32m✓[39m updatePost — a SCHEDULED post is exempt [2m(7)[22m
+2026-10-04T15:00:04.3873094Z      [33m[2m✓[22m[39m ALLOWS an edit long past the window, because nobody has seen it[33m 302[2mms[22m[39m
+2026-10-04T15:00:04.3929024Z    [32m✓[39m updatePost — rescheduling moves the whole thread [2m(5)[22m
+2026-10-04T15:00:04.3956870Z      [33m[2m✓[22m[39m carries the continuations to the new time[33m 511[2mms[22m[39m
+2026-10-04T15:00:04.3999552Z      [33m[2m✓[22m[39m scopes the move to the caller's own still-scheduled posts[33m 444[2mms[22m[39m
+2026-10-04T15:00:04.4024158Z      [33m[2m✓[22m[39m moves nothing when the edit changed no time at all[33m 508[2mms[22m[39m
+2026-10-04T15:00:04.4073356Z      [33m[2m✓[22m[39m carries a CHANNEL’s continuations, walked as the channel and not the caller[33m 424[2mms[22m[39m
+2026-10-04T15:00:05.3603764Z  [32m✓[39m src/__tests__/services/postHydrationLinkPreview.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 237[2mms[22m[39m
+2026-10-04T15:00:05.4002889Z  [32m✓[39m src/__tests__/popularFallbackPagination.test.ts [2m([22m[2m29 tests[22m[2m)[22m[33m 8952[2mms[22m[39m
+2026-10-04T15:00:05.4037648Z    [32m✓[39m popular pagination [2m(7)[22m
+2026-10-04T15:00:05.4089579Z      [33m[2m✓[22m[39m serves the pool in engagement, then createdAt, then id order[33m 655[2mms[22m[39m
+2026-10-04T15:00:05.4122108Z      [33m[2m✓[22m[39m walks adjacent pages that neither overlap nor gap[33m 716[2mms[22m[39m
+2026-10-04T15:00:05.4152133Z      [33m[2m✓[22m[39m refuses to keyset on a legacy cursor it cannot fully express[33m 517[2mms[22m[39m
+2026-10-04T15:00:05.4172037Z      [33m[2m✓[22m[39m refuses to keyset on a cursor the popular regime did not mint[33m 463[2mms[22m[39m
+2026-10-04T15:00:05.4262178Z      [33m[2m✓[22m[39m excludes the ids the cursor is carrying[33m 400[2mms[22m[39m
+2026-10-04T15:00:05.4312363Z      [33m[2m✓[22m[39m excludes what the viewer has already been shown[33m 424[2mms[22m[39m
+2026-10-04T15:00:05.4314807Z    [32m✓[39m popularVideos pagination [2m(7)[22m
+2026-10-04T15:00:05.4345491Z      [33m[2m✓[22m[39m walks adjacent pages that neither overlap nor gap[33m 347[2mms[22m[39m
+2026-10-04T15:00:05.4353008Z      [33m[2m✓[22m[39m refuses to keyset on a legacy cursor it cannot fully express[33m 362[2mms[22m[39m
+2026-10-04T15:00:05.4354296Z      [33m[2m✓[22m[39m refuses to keyset on a cursor the popular regime did not mint[33m 371[2mms[22m[39m
+2026-10-04T15:00:05.4355404Z      [33m[2m✓[22m[39m excludes the ids the cursor is carrying[33m 332[2mms[22m[39m
+2026-10-04T15:00:05.4356367Z      [33m[2m✓[22m[39m excludes what the viewer has already been shown[33m 312[2mms[22m[39m
+2026-10-04T15:00:05.4357189Z    [32m✓[39m popularMedia pagination [2m(7)[22m
+2026-10-04T15:00:05.4358132Z      [33m[2m✓[22m[39m walks adjacent pages that neither overlap nor gap[33m 373[2mms[22m[39m
+2026-10-04T15:00:05.4359300Z      [33m[2m✓[22m[39m refuses to keyset on a legacy cursor it cannot fully express[33m 306[2mms[22m[39m
+2026-10-04T15:00:05.4360872Z      [33m[2m✓[22m[39m refuses to keyset on a cursor the popular regime did not mint[33m 350[2mms[22m[39m
+2026-10-04T15:00:05.4362003Z      [33m[2m✓[22m[39m excludes the ids the cursor is carrying[33m 429[2mms[22m[39m
+2026-10-04T15:00:05.4364906Z      [33m[2m✓[22m[39m excludes what the viewer has already been shown[33m 366[2mms[22m[39m
+2026-10-04T15:00:05.4366010Z    [32m✓[39m popularSource — reader-language predicate [2m(4)[22m
+2026-10-04T15:00:05.4367112Z      [33m[2m✓[22m[39m filters NOTHING for a reader whose languages are unknown[33m 336[2mms[22m[39m
+2026-10-04T15:00:06.3509550Z  [32m✓[39m src/__tests__/rankedSourceCandidateWindow.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4345[2mms[22m[39m
+2026-10-04T15:00:06.3617087Z    [32m✓[39m the videos candidate window [2m(3)[22m
+2026-10-04T15:00:06.3702367Z      [33m[2m✓[22m[39m keeps a lower-scoring but NEWER candidate in the pool the engine ranks[33m 743[2mms[22m[39m
+2026-10-04T15:00:06.3743307Z      [33m[2m✓[22m[39m narrows the pool by nothing but the seen set[33m 374[2mms[22m[39m
+2026-10-04T15:00:06.3780679Z      [33m[2m✓[22m[39m ignores a cursor minted by the popular fallback too[33m 510[2mms[22m[39m
+2026-10-04T15:00:06.3814507Z    [32m✓[39m the media candidate window [2m(3)[22m
+2026-10-04T15:00:06.3837517Z      [33m[2m✓[22m[39m keeps a lower-scoring but NEWER candidate in the pool the engine ranks[33m 401[2mms[22m[39m
+2026-10-04T15:00:06.3892210Z      [33m[2m✓[22m[39m narrows the pool by nothing but the seen set[33m 385[2mms[22m[39m
+2026-10-04T15:00:06.3914486Z      [33m[2m✓[22m[39m ignores a cursor minted by the popular fallback too[33m 441[2mms[22m[39m
+2026-10-04T15:00:06.3960605Z    [32m✓[39m score-window pagination without an id bound [2m(2)[22m
+2026-10-04T15:00:06.4058451Z      [33m[2m✓[22m[39m serves two adjacent pages that neither overlap nor gap[33m 674[2mms[22m[39m
+2026-10-04T15:00:06.4106913Z      [33m[2m✓[22m[39m walks the tied pool to exhaustion, never repeating and never stalling[33m 602[2mms[22m[39m
+2026-10-04T15:00:07.2062838Z  [32m✓[39m src/__tests__/connectors/federatedProfileSync.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 2090[2mms[22m[39m
+2026-10-04T15:00:07.2090365Z    [32m✓[39m federatedProfileSync author backfill [2m(2)[22m
+2026-10-04T15:00:07.2112210Z      [33m[2m✓[22m[39m claims ONLY the synced actor's orphaned posts, never a username-prefix sibling's[33m 497[2mms[22m[39m
+2026-10-04T15:00:07.3748387Z  [32m✓[39m src/__tests__/videosFeedMetadata.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 3823[2mms[22m[39m
+2026-10-04T15:00:07.3784003Z    [32m✓[39m the orientation option [2m(6)[22m
+2026-10-04T15:00:07.3838474Z      [33m[2m✓[22m[39m defaults to portrait — the Reels surface is portrait-first[33m 626[2mms[22m[39m
+2026-10-04T15:00:07.3878147Z      [33m[2m✓[22m[39m restricts to portrait when asked for it explicitly[33m 343[2mms[22m[39m
+2026-10-04T15:00:07.3932796Z      [33m[2m✓[22m[39m restricts to landscape when asked for it explicitly[33m 318[2mms[22m[39m
+2026-10-04T15:00:07.3980514Z      [33m[2m✓[22m[39m restricts to square when asked for it explicitly[33m 353[2mms[22m[39m
+2026-10-04T15:00:07.4005999Z      [33m[2m✓[22m[39m applies NO orientation filter for 'all', including to a video that has none[33m 412[2mms[22m[39m
+2026-10-04T15:00:07.4052172Z      [33m[2m✓[22m[39m still requires real dimensions under 'all', which the player needs for layout[33m 354[2mms[22m[39m
+2026-10-04T15:00:07.4105219Z    [32m✓[39m the minimum-duration option [2m(3)[22m
+2026-10-04T15:00:07.4155058Z      [33m[2m✓[22m[39m keeps the public / published / non-boost base match under any override[33m 338[2mms[22m[39m
+2026-10-04T15:00:08.0522699Z  [32m✓[39m src/__tests__/db/moderationOutboxRepository.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 735[2mms[22m[39m
+2026-10-04T15:00:08.1370029Z  [32m✓[39m src/__tests__/connectors/activitypub/inboundEngagementNotifications.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 4512[2mms[22m[39m
+2026-10-04T15:00:08.1453316Z    [32m✓[39m handleLike — local owner like notification [2m(6)[22m
+2026-10-04T15:00:08.1552677Z      [33m[2m✓[22m[39m notifies the owner (type:"like") on a NEW inbound like, mirroring the native shape[33m 556[2mms[22m[39m
+2026-10-04T15:00:08.1716030Z      [33m[2m✓[22m[39m records the like but does NOT notify for a REMOTE-owned/mirrored target (no local inbox)[33m 357[2mms[22m[39m
+2026-10-04T15:00:08.1739394Z    [32m✓[39m handleAnnounce — local owner boost notification [2m(5)[22m
+2026-10-04T15:00:08.1830880Z      [33m[2m✓[22m[39m does NOT notify on a redelivered Announce (importAnnounce reports no new boost)[33m 335[2mms[22m[39m
+2026-10-04T15:00:08.1907936Z      [33m[2m✓[22m[39m does NOT notify when the owner has fediverse sharing off[33m 335[2mms[22m[39m
+2026-10-04T15:00:08.2091303Z      [33m[2m✓[22m[39m imports the boost but does NOT notify for a REMOTE-owned/mirrored target[33m 342[2mms[22m[39m
+2026-10-04T15:00:09.7252750Z  [32m✓[39m src/__tests__/routes/starterPacksMembership.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 1816[2mms[22m[39m
+2026-10-04T15:00:09.8684263Z  [32m✓[39m src/__tests__/connectors/activitypub/sharingCleanup.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 989[2mms[22m[39m
+2026-10-04T15:00:10.0101296Z  [32m✓[39m src/__tests__/connectors/atproto/bridge/repoReadService.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 862[2mms[22m[39m
+2026-10-04T15:00:11.2315310Z  [32m✓[39m src/__tests__/services/channelCascadeCoverage.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+2026-10-04T15:00:11.9635540Z  [32m✓[39m src/__tests__/services/commerce/mercariaHydration.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 242[2mms[22m[39m
+2026-10-04T15:00:12.4832096Z  [32m✓[39m src/__tests__/db/mtnNodeRepository.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 618[2mms[22m[39m
+2026-10-04T15:00:13.5959196Z  [32m✓[39m src/__tests__/routes/listAndPackTitleValidation.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 1529[2mms[22m[39m
+2026-10-04T15:00:13.8618950Z  [32m✓[39m src/__tests__/controllers/statisticsAccountSubject.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 2335[2mms[22m[39m
+2026-10-04T15:00:14.1404989Z  [32m✓[39m src/__tests__/scripts/reconcileMetaIdentityAndCrossposts.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 11236[2mms[22m[39m
+2026-10-04T15:00:14.1512552Z    [33m[2m✓[22m[39m remaps exactly one immutable source and its owner rows, idempotently[33m 483[2mms[22m[39m
+2026-10-04T15:00:14.1591150Z    [33m[2m✓[22m[39m dry-run projects counts but never resolves Oxy or writes Mention[33m 313[2mms[22m[39m
+2026-10-04T15:00:14.1642200Z    [33m[2m✓[22m[39m revocation restores only its source id and reveals every former cluster member[33m 372[2mms[22m[39m
+2026-10-04T15:00:14.1664083Z    [33m[2m✓[22m[39m scans native and AP actors in apply mode and records explicit refusals[33m 319[2mms[22m[39m
+2026-10-04T15:00:14.1792296Z    [33m[2m✓[22m[39m applies fresh registered authority and resolves only the missing exact source[33m 353[2mms[22m[39m
+2026-10-04T15:00:14.1952544Z    [33m[2m✓[22m[39m administrative apply rejects detect failures without reporting completion[33m 330[2mms[22m[39m
+2026-10-04T15:00:14.1954267Z    [33m[2m✓[22m[39m coalesces admin invalidations across batches, including lookup failure=false[33m 3793[2mms[22m[39m
+2026-10-04T15:00:14.1969244Z    [33m[2m✓[22m[39m coalesces admin invalidations across batches, including lookup failure=true[33m 2761[2mms[22m[39m
+2026-10-04T15:00:14.8362922Z  [32m✓[39m src/__tests__/services/postClassification.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 37908[2mms[22m[39m
+2026-10-04T15:00:14.8459065Z    [32m✓[39m PostClassificationService — category classification [2m(7)[22m
+2026-10-04T15:00:14.8609949Z      [33m[2m✓[22m[39m classifies positive product feedback[33m 1344[2mms[22m[39m
+2026-10-04T15:00:14.8681673Z      [33m[2m✓[22m[39m classifies neutral posts[33m 1418[2mms[22m[39m
+2026-10-04T15:00:14.8734321Z      [33m[2m✓[22m[39m classifies constructive mixed criticism with high constructiveness and low toxicity[33m 899[2mms[22m[39m
+2026-10-04T15:00:14.8882705Z      [33m[2m✓[22m[39m classifies toxic complaints with high toxicity and low constructiveness[33m 1031[2mms[22m[39m
+2026-10-04T15:00:14.8941274Z      [33m[2m✓[22m[39m classifies spammy posts with high spam score[33m 1058[2mms[22m[39m
+2026-10-04T15:00:14.9051759Z      [33m[2m✓[22m[39m classifies low-quality posts with low quality score[33m 1102[2mms[22m[39m
+2026-10-04T15:00:14.9182941Z      [33m[2m✓[22m[39m classifies a mixed batch of multiple posts by postIndex, not by arrival order[33m 1080[2mms[22m[39m
+2026-10-04T15:00:14.9221413Z    [32m✓[39m PostClassificationService — provider/model isolation [2m(2)[22m
+2026-10-04T15:00:14.9279570Z      [33m[2m✓[22m[39m never writes a provider/model string onto the post[33m 1138[2mms[22m[39m
+2026-10-04T15:00:14.9307821Z      [33m[2m✓[22m[39m does not read or write hashtags (classification is independent of hashtags)[33m 824[2mms[22m[39m
+2026-10-04T15:00:14.9365552Z    [32m✓[39m PostClassificationService — Stage-A baseline preservation [2m(1)[22m
+2026-10-04T15:00:14.9415653Z      [33m[2m✓[22m[39m preserves the Stage-A deterministic fields through AI enrichment[33m 1105[2mms[22m[39m
+2026-10-04T15:00:14.9477982Z    [32m✓[39m PostClassificationService — canonical topicRefs resolution [2m(6)[22m
+2026-10-04T15:00:14.9554028Z      [33m[2m✓[22m[39m resolves AI-refined topics into registry-linked topicRefs, in order[33m 805[2mms[22m[39m
+2026-10-04T15:00:14.9653316Z      [33m[2m✓[22m[39m falls back to name-only topicRefs when the registry resolves no id[33m 1134[2mms[22m[39m
+2026-10-04T15:00:14.9673636Z      [33m[2m✓[22m[39m stores name-only topicRefs when registry resolution throws (never drops the canonical list)[33m 889[2mms[22m[39m
+2026-10-04T15:00:14.9732264Z      [33m[2m✓[22m[39m CLEARS the existing topicRefs when enrichment returns no topics[33m 1041[2mms[22m[39m
+2026-10-04T15:00:14.9822518Z      [33m[2m✓[22m[39m REPLACES rather than appends, so a dropped topic is gone[33m 1009[2mms[22m[39m
+2026-10-04T15:00:14.9845559Z      [33m[2m✓[22m[39m stores no topicRefs row when the AI returns no topics[33m 695[2mms[22m[39m
+2026-10-04T15:00:14.9954529Z    [32m✓[39m PostClassificationService — failure and retry behavior [2m(5)[22m
+2026-10-04T15:00:15.0025150Z      [33m[2m✓[22m[39m leaves posts pending (retry) on AI network failure under the retry budget[33m 1150[2mms[22m[39m
+2026-10-04T15:00:15.0083118Z      [33m[2m✓[22m[39m flips to failed once the retry budget is exhausted[33m 734[2mms[22m[39m
+2026-10-04T15:00:15.0202781Z      [33m[2m✓[22m[39m marks posts for retry when the AI response fails schema validation[33m 741[2mms[22m[39m
+2026-10-04T15:00:15.0265019Z      [33m[2m✓[22m[39m counts an attempt for a post missing from the AI response[33m 1023[2mms[22m[39m
+2026-10-04T15:00:15.0342463Z      [33m[2m✓[22m[39m no-ops when inference is unavailable, leaving the queue exactly as it was[33m 658[2mms[22m[39m
+2026-10-04T15:00:15.0419639Z    [32m✓[39m PostClassificationService — the batch selector reads the body’s REAL home [2m(5)[22m
+2026-10-04T15:00:15.0499965Z      [33m[2m✓[22m[39m selects a post that HAS a rendition and skips one that does not[33m 929[2mms[22m[39m
+2026-10-04T15:00:15.0532300Z      [33m[2m✓[22m[39m sends the PRIMARY rendition’s body to the classifier, never a machine translation[33m 897[2mms[22m[39m
+2026-10-04T15:00:15.0586855Z      [33m[2m✓[22m[39m never queues a BOOST, even though a boost can carry a rendition[33m 707[2mms[22m[39m
+2026-10-04T15:00:15.0612619Z      [33m[2m✓[22m[39m never queues an unpublished post[33m 877[2mms[22m[39m
+2026-10-04T15:00:15.0716098Z      [33m[2m✓[22m[39m never re-queues a post that is already classified[33m 1025[2mms[22m[39m
+2026-10-04T15:00:15.0822723Z    [32m✓[39m PostClassificationService — imported posts never displace live work [2m(2)[22m
+2026-10-04T15:00:15.0865905Z      [33m[2m✓[22m[39m leaves an OLDER imported post pending while live posts fill the batch[33m 1283[2mms[22m[39m
+2026-10-04T15:00:15.0893265Z      [33m[2m✓[22m[39m classifies imported posts, in a small batch, once the live queue is empty[33m 1131[2mms[22m[39m
+2026-10-04T15:00:15.0954994Z    [32m✓[39m PostClassificationService — shadow fanout [2m(7)[22m
+2026-10-04T15:00:15.1013960Z      [33m[2m✓[22m[39m keeps the production gate closed even when a projection binding is supplied[33m 946[2mms[22m[39m
+2026-10-04T15:00:15.1052111Z      [33m[2m✓[22m[39m finishes canonical classification while a slow shadow evaluation is still pending[33m 1469[2mms[22m[39m
+2026-10-04T15:00:15.1053555Z      [33m[2m✓[22m[39m releases the worker after a hung evaluator and processes the next batch without retrying it[33m 2786[2mms[22m[39m
+2026-10-04T15:00:15.1054723Z      [33m[2m✓[22m[39m quarantines schema-invalid shadow output without using a legacy attempt[33m 1283[2mms[22m[39m
+2026-10-04T15:00:15.1055975Z      [33m[2m✓[22m[39m releases, never quarantines, a claim whose deadline ran out before any evaluator call[33m 1204[2mms[22m[39m
+2026-10-04T15:00:15.1057348Z      [33m[2m✓[22m[39m claims before synthetic inference, truncates only its input and never retries cost-uncertain work[33m 1273[2mms[22m[39m
+2026-10-04T15:00:15.2348606Z  [32m✓[39m src/__tests__/db/migrationReachability.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 174[2mms[22m[39m
+2026-10-04T15:00:16.0969720Z  [32m✓[39m src/__tests__/starterPackMemberDedupe.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 872[2mms[22m[39m
+2026-10-04T15:00:16.3022806Z  [32m✓[39m src/__tests__/services/postManagementAccess.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+2026-10-04T15:00:16.4532819Z  [32m✓[39m src/__tests__/feedPrivacyExclusions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+2026-10-04T15:00:16.8066677Z  [32m✓[39m src/__tests__/followerSnapshotJob.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 922[2mms[22m[39m
+2026-10-04T15:00:17.4333168Z  [32m✓[39m src/__tests__/routes/pokes.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 786[2mms[22m[39m
+2026-10-04T15:00:19.8622795Z  [32m✓[39m src/__tests__/feedOnlineMetrics.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 1207[2mms[22m[39m
+2026-10-04T15:00:19.8672941Z    [32m✓[39m recordReportSignal [2m(4)[22m
+2026-10-04T15:00:19.8793373Z      [33m[2m✓[22m[39m labels a report on a federated post as federated[33m 316[2mms[22m[39m
+2026-10-04T15:00:19.9572993Z  [32m✓[39m src/__tests__/connectors/activitypub/apProfileLinkMentions.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+2026-10-04T15:00:20.8198382Z  [32m✓[39m src/__tests__/connectors/atproto/bridge/routes.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 2826[2mms[22m[39m
+2026-10-04T15:00:20.8512786Z  [32m✓[39m src/__tests__/connectors/threadFederation.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+2026-10-04T15:00:21.1500657Z  [32m✓[39m src/__tests__/connectors/activitypub/federationBlockPolicy.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 251[2mms[22m[39m
+2026-10-04T15:00:21.6503281Z  [32m✓[39m src/__tests__/db/expiry.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 863[2mms[22m[39m
+2026-10-04T15:00:21.9614850Z  [32m✓[39m src/__tests__/jevOwnedPg.test.ts [2m([22m[2m52 tests[22m[2m)[22m[32m 196[2mms[22m[39m
+2026-10-04T15:00:22.0331961Z  [32m✓[39m src/__tests__/feedGeneratorFeed.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1644[2mms[22m[39m
+2026-10-04T15:00:22.0386977Z    [32m✓[39m FeedGeneratorFeed.fetch [2m(7)[22m
+2026-10-04T15:00:22.0467678Z      [33m[2m✓[22m[39m returns the imported posts in the generator ranking order, not the database order[33m 599[2mms[22m[39m
+2026-10-04T15:00:22.0524874Z      [33m[2m✓[22m[39m loads by federation.activityId — a post with no AP id is never matched[33m 404[2mms[22m[39m
+2026-10-04T15:00:22.1212734Z  [32m✓[39m src/__tests__/services/gifLibraryService.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 701[2mms[22m[39m
+2026-10-04T15:00:23.5600637Z  [32m✓[39m src/__tests__/controllers/channelPostManagementAuthority.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 3368[2mms[22m[39m
+2026-10-04T15:00:23.5716754Z    [32m✓[39m PUT /posts/:id (edit) [2m(3)[22m
+2026-10-04T15:00:23.5740348Z      [33m[2m✓[22m[39m refuses a writer the channel has removed[33m 396[2mms[22m[39m
+2026-10-04T15:00:23.5814309Z      [33m[2m✓[22m[39m allows the same writer while they are still a member[33m 368[2mms[22m[39m
+2026-10-04T15:00:24.3312554Z  [32m✓[39m src/__tests__/scripts/migrateThreadFanToChain.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 5692[2mms[22m[39m
+2026-10-04T15:00:24.3352038Z    [32m✓[39m migrateThreadFanToChain [2m(11)[22m
+2026-10-04T15:00:24.3422748Z      [33m[2m✓[22m[39m re-links a 3-continuation fan into a sequential chain, first keeping the root parent[33m 848[2mms[22m[39m
+2026-10-04T15:00:24.3424220Z      [33m[2m✓[22m[39m chains by CREATION TIME, not by id order[33m 489[2mms[22m[39m
+2026-10-04T15:00:24.3460234Z      [33m[2m✓[22m[39m is idempotent — a second run re-links nothing[33m 467[2mms[22m[39m
+2026-10-04T15:00:24.3464226Z      [33m[2m✓[22m[39m skips a MULTI-AUTHOR thread[33m 643[2mms[22m[39m
+2026-10-04T15:00:24.3465281Z      [33m[2m✓[22m[39m skips a thread whose root belongs to SOMEBODY ELSE (a reply tree)[33m 523[2mms[22m[39m
+2026-10-04T15:00:24.3466519Z      [33m[2m✓[22m[39m never re-links a FEDERATED member, and chains the native ones around it[33m 325[2mms[22m[39m
+2026-10-04T15:00:24.3467590Z      [33m[2m✓[22m[39m skips a thread whose ROOT is federated[33m 370[2mms[22m[39m
+2026-10-04T15:00:24.3468746Z      [33m[2m✓[22m[39m can no longer repair a fan whose root was already stamped with a threadId[33m 325[2mms[22m[39m
+2026-10-04T15:00:24.3469740Z      [33m[2m✓[22m[39m writes nothing in DRY_RUN mode[33m 698[2mms[22m[39m
+2026-10-04T15:00:24.9543139Z  [32m✓[39m src/__tests__/connectors/activitypub/outboxMentionSelfHeal.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1345[2mms[22m[39m
+2026-10-04T15:00:24.9571907Z    [32m✓[39m OutboxSyncService — @mention self-heal on re-sync [2m(3)[22m
+2026-10-04T15:00:24.9642125Z      [33m[2m✓[22m[39m heals an existing post with bare-text mentions from the in-hand note, with NO extra fetch[33m 761[2mms[22m[39m
+2026-10-04T15:00:26.2547122Z  [32m✓[39m src/__tests__/services/postHydrationStatementBudget.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3612[2mms[22m[39m
+2026-10-04T15:00:26.2657611Z    [32m✓[39m one hydration reads user_settings once [2m(4)[22m
+2026-10-04T15:00:26.2722299Z      [33m[2m✓[22m[39m reads it ONCE for a viewer who is not the author[33m 862[2mms[22m[39m
+2026-10-04T15:00:26.2840128Z      [33m[2m✓[22m[39m still hides an author-hidden like count from that ONE read[33m 373[2mms[22m[39m
+2026-10-04T15:00:26.3021588Z    [32m✓[39m the statement budget for one cold hydration [2m(1)[22m
+2026-10-04T15:00:26.3231513Z      [33m[2m✓[22m[39m costs eight round trips for one post, and the same for twenty[33m 1867[2mms[22m[39m
+2026-10-04T15:00:26.6632913Z  [32m✓[39m src/__tests__/channelAccountSchema.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1364[2mms[22m[39m
+2026-10-04T15:00:26.6802558Z    [32m✓[39m posts.written_by_oxy_user_id [2m(4)[22m
+2026-10-04T15:00:26.6839679Z      [33m[2m✓[22m[39m round-trips through the database[33m 327[2mms[22m[39m
+2026-10-04T15:00:27.4242740Z  [32m✓[39m src/__tests__/connectors/activitypub/replyFederation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 879[2mms[22m[39m
+2026-10-04T15:00:27.4302436Z    [32m✓[39m federateNewPost — reply to a FEDERATED parent [2m(2)[22m
+2026-10-04T15:00:27.4362351Z      [33m[2m✓[22m[39m emits a Create(Note) with inReplyTo = the parent activityId + a parent-author Mention[33m 366[2mms[22m[39m
+2026-10-04T15:00:29.1521238Z  [32m✓[39m src/__tests__/utils/ssrfGuard.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+2026-10-04T15:00:29.4474039Z  [32m✓[39m src/__tests__/connectors/instagram/instagramConnector.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 245[2mms[22m[39m
+2026-10-04T15:00:29.5894505Z  [32m✓[39m src/__tests__/services/federation/blockedDomainCanonicalAgreement.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 927[2mms[22m[39m
+2026-10-04T15:00:29.5995395Z    [32m✓[39m the canonicaliser is the engine’s, not a copy of it [2m(3)[22m
+2026-10-04T15:00:29.6049000Z      [33m[2m✓[22m[39m has no second implementation of the www. rule anywhere in the backend[33m 893[2mms[22m[39m
+2026-10-04T15:00:30.1751732Z  [32m✓[39m src/__tests__/controllers/boostUniqueness.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1248[2mms[22m[39m
+2026-10-04T15:00:30.1773684Z    [32m✓[39m boosting the same post twice at once [2m(3)[22m
+2026-10-04T15:00:30.1813477Z      [33m[2m✓[22m[39m leaves exactly one boost row, and tells the loser it already exists[33m 451[2mms[22m[39m
+2026-10-04T15:00:30.1814796Z      [33m[2m✓[22m[39m lets two DIFFERENT accounts boost the same post concurrently[33m 351[2mms[22m[39m
+2026-10-04T15:00:30.2198053Z  [32m✓[39m src/__tests__/connectors/activitypub/mentionFederation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 545[2mms[22m[39m
+2026-10-04T15:00:30.4313122Z  [32m✓[39m src/__tests__/backfillCustomFeedDefinitions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 809[2mms[22m[39m
+2026-10-04T15:00:30.6106386Z  [32m✓[39m src/__tests__/services/publishServerDraft.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1853[2mms[22m[39m
+2026-10-04T15:00:30.6127856Z    [32m✓[39m a server draft at creation [2m(1)[22m
+2026-10-04T15:00:30.6302436Z      [33m[2m✓[22m[39m notifies nobody, emits nothing and federates nothing[33m 570[2mms[22m[39m
+2026-10-04T15:00:31.7174087Z  [32m✓[39m src/__tests__/services/trendingExcerptBatch.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1862[2mms[22m[39m
+2026-10-04T15:00:31.7212677Z    [32m✓[39m loadExcerptsByTerm — the batch must be the per-term queries, exactly [2m(6)[22m
+2026-10-04T15:00:31.7312711Z      [33m[2m✓[22m[39m uses the preferred source only as trend-label evidence[33m 365[2mms[22m[39m
+2026-10-04T15:00:31.7402747Z      [33m[2m✓[22m[39m gives every term the same excerpts, in the same order, as querying it alone[33m 427[2mms[22m[39m
+2026-10-04T15:00:31.7452948Z      [33m[2m✓[22m[39m is ONE statement, whatever the batch size[33m 508[2mms[22m[39m
+2026-10-04T15:00:32.5618211Z  [32m✓[39m src/__tests__/docsFileReferences.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 181[2mms[22m[39m
+2026-10-04T15:00:32.6183467Z  [32m✓[39m src/__tests__/services/profileLinkMentionWrites.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 863[2mms[22m[39m
+2026-10-04T15:00:33.0592683Z  [32m✓[39m src/__tests__/trendSummary.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 366[2mms[22m[39m
+2026-10-04T15:00:33.1484145Z  [32m✓[39m src/__tests__/routes/channelDeletionRoutes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 236[2mms[22m[39m
+2026-10-04T15:00:33.8120255Z  [32m✓[39m src/__tests__/redisLifecycle.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 684[2mms[22m[39m
+2026-10-04T15:00:33.8126874Z    [32m✓[39m Redis singleton supervisor [2m(7)[22m
+2026-10-04T15:00:33.8172367Z      [33m[2m✓[22m[39m shares one client and one connection attempt across concurrent hot paths[33m 434[2mms[22m[39m
+2026-10-04T15:00:34.5759550Z  [32m✓[39m src/__tests__/runtime/presenceRegistry.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+2026-10-04T15:00:35.7741811Z  [32m✓[39m src/__tests__/controllers/channelReplyGateSites.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1563[2mms[22m[39m
+2026-10-04T15:00:35.7786795Z    [32m✓[39m site 1 — feed.controller.createReply [2m(4)[22m
+2026-10-04T15:00:35.7867576Z      [33m[2m✓[22m[39m CONTROL: an ordinary post still accepts a reply[33m 321[2mms[22m[39m
+2026-10-04T15:00:35.8839408Z  [32m✓[39m src/__tests__/connectors/activitypub/quoteFederation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1059[2mms[22m[39m
+2026-10-04T15:00:35.8935936Z    [32m✓[39m resolveQuoteContext — reuses resolveFederationTarget [2m(5)[22m
+2026-10-04T15:00:35.9000903Z      [33m[2m✓[22m[39m resolves a FEDERATED quoted post to its remote federation.activityId[33m 431[2mms[22m[39m
+2026-10-04T15:00:36.1845490Z  [32m✓[39m src/__tests__/routes/searchOxyCallBudget.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2630[2mms[22m[39m
+2026-10-04T15:00:36.1861550Z    [32m✓[39m GET /search Oxy call budget [2m(4)[22m
+2026-10-04T15:00:36.1961556Z      [33m[2m✓[22m[39m resolves each viewer-graph read exactly ONCE per request[33m 791[2mms[22m[39m
+2026-10-04T15:00:36.2034244Z  [32m✓[39m src/__tests__/connectors/identity.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 516[2mms[22m[39m
+2026-10-04T15:00:36.2713019Z  [32m✓[39m src/__tests__/mcp/mcpBundles.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 343[2mms[22m[39m
+2026-10-04T15:00:36.2840989Z  [32m✓[39m src/__tests__/services/moderation/deliveryUndeliverable.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 774[2mms[22m[39m
+2026-10-04T15:00:36.8332556Z  [32m✓[39m src/__tests__/queue/producers.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+2026-10-04T15:00:37.4803050Z  [32m✓[39m src/__tests__/utils/oxyMetrics.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 144[2mms[22m[39m
+2026-10-04T15:00:38.5202277Z  [32m✓[39m src/__tests__/viMockPathsResolve.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+2026-10-04T15:00:39.1532633Z  [32m✓[39m src/__tests__/routes/profileDesign.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1817[2mms[22m[39m
+2026-10-04T15:00:39.1562193Z    [32m✓[39m profile design public counts [2m(3)[22m
+2026-10-04T15:00:39.1653186Z      [33m[2m✓[22m[39m counts a collapsed cross-post once while retaining both source records[33m 653[2mms[22m[39m
+2026-10-04T15:00:39.1818570Z      [33m[2m✓[22m[39m counts only published public posts, boosts, and replies of THIS author[33m 593[2mms[22m[39m
+2026-10-04T15:00:39.1892753Z  [32m✓[39m src/__tests__/mcp/mcpAuthScope.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 255[2mms[22m[39m
+2026-10-04T15:00:39.2422733Z  [32m✓[39m src/__tests__/mtn/feedEnginePrivacyBudget.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1278[2mms[22m[39m
+2026-10-04T15:00:39.2532740Z    [32m✓[39m FeedEngine — viewer-privacy Oxy call budget [2m(3)[22m
+2026-10-04T15:00:39.2561922Z      [33m[2m✓[22m[39m threads the resolved privacy lists on the ranked path[33m 571[2mms[22m[39m
+2026-10-04T15:00:40.4216553Z  [32m✓[39m src/__tests__/mtn/forYouLanguageEndToEnd.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1767[2mms[22m[39m
+2026-10-04T15:00:40.4292696Z    [32m✓[39m anonymous For You — the reader language reaches the query [2m(4)[22m
+2026-10-04T15:00:40.4352379Z      [33m[2m✓[22m[39m excludes an off-language post for a reader whose browser declared es[33m 844[2mms[22m[39m
+2026-10-04T15:00:40.4461201Z      [33m[2m✓[22m[39m ADDS an explicit ?lang to the header languages rather than replacing them[33m 319[2mms[22m[39m
+2026-10-04T15:00:41.2964032Z  [32m✓[39m src/__tests__/routes/mediaProxySsrf.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 173[2mms[22m[39m
+2026-10-04T15:00:41.4802672Z  [32m✓[39m src/__tests__/controllers/profileLinkMentionEdit.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1012[2mms[22m[39m
+2026-10-04T15:00:41.4855459Z    [32m✓[39m updatePost — a profile link pasted while editing becomes a mention [2m(3)[22m
+2026-10-04T15:00:41.4887405Z      [33m[2m✓[22m[39m stores the id and rewrites the saved body to the placeholder[33m 498[2mms[22m[39m
+2026-10-04T15:00:41.8872731Z  [32m✓[39m src/__tests__/utils/mentionNotificationCap.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 221[2mms[22m[39m
+2026-10-04T15:00:42.6394827Z  [32m✓[39m src/__tests__/feedDiscoveryGateMetrics.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+2026-10-04T15:00:42.8438755Z  [32m✓[39m src/__tests__/connectors/connectorsRoutesLocalFollow.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 208[2mms[22m[39m
+2026-10-04T15:00:43.2553245Z  [32m✓[39m src/__tests__/services/oxyRankingClient.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-10-04T15:00:43.8242935Z  [32m✓[39m src/__tests__/services/accountErasureCoverage.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+2026-10-04T15:00:43.9382625Z  [32m✓[39m src/__tests__/appAssociation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 187[2mms[22m[39m
+2026-10-04T15:00:44.3427087Z  [32m✓[39m src/__tests__/routes/federationFollowsDisplayName.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 499[2mms[22m[39m
+2026-10-04T15:00:44.7603872Z  [32m✓[39m src/__tests__/connectors/inboundPostProvenanceShape.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 343[2mms[22m[39m
+2026-10-04T15:00:44.8177637Z  [32m✓[39m src/__tests__/services/getPostByIdAnonAcl.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1351[2mms[22m[39m
+2026-10-04T15:00:44.8196516Z    [32m✓[39m getPostById ACL — anonymous viewer cannot see non-public posts [2m(9)[22m
+2026-10-04T15:00:44.8243747Z      [33m[2m✓[22m[39m RETURNS a public+published post (public-profile author)[33m 383[2mms[22m[39m
+2026-10-04T15:00:45.0996721Z  [32m✓[39m src/__tests__/controllers/pollsBodyValidation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 292[2mms[22m[39m
+2026-10-04T15:00:45.5449714Z  [32m✓[39m src/__tests__/customFeedDefinition.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 355[2mms[22m[39m
+2026-10-04T15:00:45.6138233Z  [32m✓[39m src/__tests__/services/federation/blockedDomainPurgeCeilings.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+2026-10-04T15:00:45.8992910Z  [32m✓[39m src/__tests__/services/jevShadow.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 100[2mms[22m[39m
+2026-10-04T15:00:46.0714379Z  [32m✓[39m src/__tests__/capDiscoveryShare.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+2026-10-04T15:00:46.3901294Z  [32m✓[39m src/__tests__/db/jobStructuredLocationMigration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 272[2mms[22m[39m
+2026-10-04T15:00:46.4732597Z  [32m✓[39m src/__tests__/db/schemaInvariants.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 214[2mms[22m[39m
+2026-10-04T15:00:49.7823016Z  [32m✓[39m src/__tests__/db/postSearchWindows.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 3342[2mms[22m[39m
+2026-10-04T15:00:49.7942843Z    [32m✓[39m posts search time windows [2m(1)[22m
+2026-10-04T15:00:49.8032588Z      [33m[2m✓[22m[39m bounds the read of the renditions by the window[33m 3212[2mms[22m[39m
+2026-10-04T15:00:50.8842605Z  [32m✓[39m src/__tests__/services/postHydrationMentions.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+2026-10-04T15:00:50.9712969Z  [32m✓[39m src/__tests__/queue/workers.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+2026-10-04T15:00:51.4094581Z  [32m✓[39m src/__tests__/feedViewCounter.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1237[2mms[22m[39m
+2026-10-04T15:00:51.4095960Z    [32m✓[39m feedViewCounter [2m(7)[22m
+2026-10-04T15:00:51.4164642Z      [33m[2m✓[22m[39m treats private, followers-only, and draft posts as ineligible[33m 320[2mms[22m[39m
+2026-10-04T15:00:51.5667317Z  [32m✓[39m src/__tests__/connectors/activitypub/outboxMentionResolution.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+2026-10-04T15:00:51.9514635Z  [32m✓[39m src/__tests__/controllers/getScheduledPosts.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1354[2mms[22m[39m
+2026-10-04T15:00:51.9581850Z    [32m✓[39m getScheduledPosts [2m(5)[22m
+2026-10-04T15:00:51.9774117Z      [33m[2m✓[22m[39m reads ONLY the calling user's scheduled posts, soonest first[33m 736[2mms[22m[39m
+2026-10-04T15:00:52.0037727Z  [32m✓[39m src/__tests__/routes/profileSettingsReadMoreBio.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 731[2mms[22m[39m
+2026-10-04T15:00:52.0052132Z    [32m✓[39m PUT /profile/settings — postReadMoreAction + collapseLongBio [2m(6)[22m
+2026-10-04T15:00:52.0086437Z      [33m[2m✓[22m[39m persists a valid postReadMoreAction value[33m 301[2mms[22m[39m
+2026-10-04T15:00:52.0187501Z  [32m✓[39m src/__tests__/routes/reportsAcceptedTypes.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 236[2mms[22m[39m
+2026-10-04T15:00:53.1224423Z  [32m✓[39m src/__tests__/routes/oxyAccountEventsWebhook.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 549[2mms[22m[39m
+2026-10-04T15:00:54.0342909Z  [32m✓[39m src/__tests__/services/trendClustering.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 76[2mms[22m[39m
+2026-10-04T15:00:55.0418939Z  [32m✓[39m src/__tests__/controllers/crosspostControllerFeeds.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1523[2mms[22m[39m
+2026-10-04T15:00:55.0461689Z    [32m✓[39m the quotes feed [2m(1)[22m
+2026-10-04T15:00:55.0492137Z      [33m[2m✓[22m[39m shows a cross-posted quote once, and keeps both source posts stored[33m 762[2mms[22m[39m
+2026-10-04T15:00:55.0553911Z    [32m✓[39m the nearby-posts map [2m(1)[22m
+2026-10-04T15:00:55.0602929Z      [33m[2m✓[22m[39m drops one pin for a cross-post, not two[33m 301[2mms[22m[39m
+2026-10-04T15:00:55.0691776Z    [32m✓[39m the replies feed [2m(1)[22m
+2026-10-04T15:00:55.0696437Z      [33m[2m✓[22m[39m keeps both source replies to the same parent[33m 329[2mms[22m[39m
+2026-10-04T15:00:55.2182815Z  [32m✓[39m src/__tests__/services/searchOrchestrator.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 110[2mms[22m[39m
+2026-10-04T15:00:55.2203075Z  [32m✓[39m src/__tests__/laneVisibility.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+2026-10-04T15:00:55.8249280Z  [32m✓[39m src/__tests__/federatedReplyCounts.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2137[2mms[22m[39m
+2026-10-04T15:00:55.8303959Z    [32m✓[39m reply counts on the parent [2m(7)[22m
+2026-10-04T15:00:55.8372720Z      [33m[2m✓[22m[39m a created reply counts on its parent, whatever path created it[33m 540[2mms[22m[39m
+2026-10-04T15:00:55.8390231Z      [33m[2m✓[22m[39m counts each reply once[33m 426[2mms[22m[39m
+2026-10-04T15:00:56.2163570Z  [32m✓[39m src/__tests__/services/scheduledPostAcl.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 322[2mms[22m[39m
+2026-10-04T15:00:56.8532804Z  [32m✓[39m src/__tests__/services/postHydrationVariants.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+2026-10-04T15:00:56.9222797Z  [32m✓[39m src/__tests__/services/jevSdk.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+2026-10-04T15:00:57.9743733Z  [32m✓[39m src/__tests__/controllers/articlesController.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 645[2mms[22m[39m
+2026-10-04T15:00:58.8962964Z  [32m✓[39m src/__tests__/connectors/upstreamProfileUrlResolve.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 177[2mms[22m[39m
+2026-10-04T15:00:59.5473502Z  [32m✓[39m src/__tests__/services/threadSlicingParentPublication.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1493[2mms[22m[39m
+2026-10-04T15:00:59.5531972Z    [32m✓[39m ThreadSlicingService reply-context parent publication [2m(4)[22m
+2026-10-04T15:00:59.5534877Z      [33m[2m✓[22m[39m never emits a draft parent as reply context[33m 609[2mms[22m[39m
+2026-10-04T15:00:59.9975369Z  [32m✓[39m src/__tests__/controllers/updatePostDropsMachineVariants.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1901[2mms[22m[39m
+2026-10-04T15:01:00.0016299Z    [32m✓[39m machine translations do not survive a change to their source [2m(5)[22m
+2026-10-04T15:01:00.0063345Z      [33m[2m✓[22m[39m starts from a stored machine variant with localized ALT[33m 501[2mms[22m[39m
+2026-10-04T15:01:00.0122526Z      [33m[2m✓[22m[39m drops them, with their ALT rows, when only the media ALT text changes[33m 518[2mms[22m[39m
+2026-10-04T15:01:00.1863229Z  [32m✓[39m src/__tests__/utils/concurrency.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+2026-10-04T15:01:00.5742787Z  [32m✓[39m src/__tests__/routes/jobApplicationsPrivacy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 315[2mms[22m[39m
+2026-10-04T15:01:02.6379768Z  [32m✓[39m src/__tests__/webTelemetryRoutes.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 375[2mms[22m[39m
+2026-10-04T15:01:02.6984056Z  [32m✓[39m src/__tests__/connectors/activitypub/resolvePostIdFromObjectUri.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1089[2mms[22m[39m
+2026-10-04T15:01:02.7073197Z    [32m✓[39m resolvePostIdFromObjectUri [2m(5)[22m
+2026-10-04T15:01:02.7142193Z      [33m[2m✓[22m[39m resolves one of OUR OWN posts by its canonical AP note URI[33m 383[2mms[22m[39m
+2026-10-04T15:01:02.9393047Z  [32m✓[39m src/__tests__/controllers/updatePostHashtagValidation.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1928[2mms[22m[39m
+2026-10-04T15:01:02.9411215Z    [32m✓[39m hashtags on the edit path [2m(6)[22m
+2026-10-04T15:01:02.9495549Z      [33m[2m✓[22m[39m refuses a truthy non-array with a 400 rather than a TypeError, leaving the post as it was[33m 327[2mms[22m[39m
+2026-10-04T15:01:02.9524813Z      [33m[2m✓[22m[39m applies the SAME bounds `POST /posts` applies, which this path had none of[33m 357[2mms[22m[39m
+2026-10-04T15:01:02.9579168Z      [33m[2m✓[22m[39m still keeps the stored tags when the body changes and no tags are sent[33m 317[2mms[22m[39m
+2026-10-04T15:01:02.9934223Z  [32m✓[39m src/__tests__/services/mediaCachePolicy.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+2026-10-04T15:01:03.0417588Z  [32m✓[39m src/__tests__/connectors/activitypub/apMentionsBridgy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 367[2mms[22m[39m
+2026-10-04T15:01:03.6573264Z  [32m✓[39m src/__tests__/scripts/backfillHandleQualification.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+2026-10-04T15:01:04.4186996Z  [32m✓[39m src/__tests__/forYouFeedPipeline.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2401[2mms[22m[39m
+2026-10-04T15:01:04.4265552Z    [32m✓[39m popular source — SFW (default / anonymous) [2m(3)[22m
+2026-10-04T15:01:04.4363399Z      [33m[2m✓[22m[39m excludes every flavour of sensitive for the anonymous path[33m 723[2mms[22m[39m
+2026-10-04T15:01:04.4494666Z      [33m[2m✓[22m[39m defaults to SFW when showSensitiveContent is absent (authed never-blank)[33m 455[2mms[22m[39m
+2026-10-04T15:01:04.4561430Z    [32m✓[39m popular source — hard SFW (ignores showSensitiveContent) [2m(1)[22m
+2026-10-04T15:01:04.4627636Z      [33m[2m✓[22m[39m still excludes every flavour of sensitive when the viewer opted in[33m 494[2mms[22m[39m
+2026-10-04T15:01:04.4682513Z    [32m✓[39m popular source — the viewer never sees the same page twice [2m(1)[22m
+2026-10-04T15:01:04.4722335Z      [33m[2m✓[22m[39m excludes the ids the viewer has already been shown[33m 306[2mms[22m[39m
+2026-10-04T15:01:04.9781750Z  [32m✓[39m src/__tests__/feedControllerMutuals.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1771[2mms[22m[39m
+2026-10-04T15:01:04.9782714Z    [32m✓[39m MtnFeedController.getFeed → ctx.mutualIds [2m(5)[22m
+2026-10-04T15:01:04.9861613Z      [33m[2m✓[22m[39m builds mutualIds (Oxy ∪ federated) for a mutuals descriptor[33m 913[2mms[22m[39m
+2026-10-04T15:01:05.1266874Z  [32m✓[39m src/__tests__/services/postHydrationQuoteCounts.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2376[2mms[22m[39m
+2026-10-04T15:01:05.1422419Z    [32m✓[39m PostHydrationService — quote counts [2m(3)[22m
+2026-10-04T15:01:05.1442722Z      [33m[2m✓[22m[39m counts quotes per post in ONE query when the caller asks for them[33m 1542[2mms[22m[39m
+2026-10-04T15:01:05.1479390Z      [33m[2m✓[22m[39m reports zero for a post nothing quotes[33m 394[2mms[22m[39m
+2026-10-04T15:01:05.2378760Z  [32m✓[39m src/__tests__/runtime/backgroundWork.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+2026-10-04T15:01:05.5904311Z  [32m✓[39m src/__tests__/interstitialTelemetry.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+2026-10-04T15:01:05.6068652Z  [32m✓[39m src/__tests__/controllers/getPostsByTopicFilter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2398[2mms[22m[39m
+2026-10-04T15:01:05.6183917Z    [32m✓[39m buildPostsByTopicFilter — canonical topicRefs.name OR slug topics match [2m(2)[22m
+2026-10-04T15:01:05.6199138Z      [33m[2m✓[22m[39m matches BOTH the registry-linked topicRefs.name and the slug-only topics list[33m 759[2mms[22m[39m
+2026-10-04T15:01:05.6303027Z      [33m[2m✓[22m[39m never exposes a private or unpublished post on the topic page[33m 607[2mms[22m[39m
+2026-10-04T15:01:05.6305741Z    [32m✓[39m buildPostsByHashtagFilter — hashtag discovery visibility scope [2m(3)[22m
+2026-10-04T15:01:05.6383096Z      [33m[2m✓[22m[39m matches the normalized hashtag whatever case the caller supplies[33m 443[2mms[22m[39m
+2026-10-04T15:01:06.7914003Z  [32m✓[39m src/__tests__/mtn/forYouFollowGraphStatementBudget.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 396[2mms[22m[39m
+2026-10-04T15:01:06.8404833Z  [32m✓[39m src/__tests__/services/postEngagementBroadcast.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 280[2mms[22m[39m
+2026-10-04T15:01:06.9448848Z  [32m✓[39m src/__tests__/utils/videoPoster.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 227[2mms[22m[39m
+2026-10-04T15:01:07.0863335Z  [32m✓[39m src/__tests__/userSummaryCache.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+2026-10-04T15:01:07.7772702Z  [32m✓[39m src/__tests__/services/postHydrationViewerGraph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 331[2mms[22m[39m
+2026-10-04T15:01:07.7878787Z    [32m✓[39m PostHydrationService — viewer-graph threading [2m(2)[22m
+2026-10-04T15:01:07.7891905Z      [33m[2m✓[22m[39m skips the Oxy graph fetch when a viewerGraph is threaded in[33m 314[2mms[22m[39m
+2026-10-04T15:01:08.6012536Z  [32m✓[39m src/__tests__/utils/oxyInference.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-10-04T15:01:08.8633001Z  [32m✓[39m src/__tests__/connectors/activitypub/remoteJsonLimits.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 133[2mms[22m[39m
+2026-10-04T15:01:09.0565961Z  [32m✓[39m src/__tests__/runtimeConfig.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+2026-10-04T15:01:09.6790312Z  [32m✓[39m src/__tests__/services/botSignals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+2026-10-04T15:01:10.2913122Z  [32m✓[39m src/__tests__/services/trendStoryCache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 277[2mms[22m[39m
+2026-10-04T15:01:10.3572611Z  [32m✓[39m src/__tests__/middleware/socketRateLimit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+2026-10-04T15:01:10.3893210Z  [32m✓[39m src/__tests__/services/storyMembership.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 302[2mms[22m[39m
+2026-10-04T15:01:10.4539790Z  [32m✓[39m src/__tests__/utils/privacyHelpers.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+2026-10-04T15:01:10.6773906Z  [32m✓[39m src/__tests__/validateDefinition.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+2026-10-04T15:01:10.7648471Z  [32m✓[39m src/__tests__/middleware/requestObservabilityOxyCalls.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 172[2mms[22m[39m
+2026-10-04T15:01:11.2519336Z  [32m✓[39m src/__tests__/services/lowEffort.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+2026-10-04T15:01:11.6559213Z  [32m✓[39m src/__tests__/connectors/activitypub/blocklistSourceRegistry.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+2026-10-04T15:01:11.8304470Z  [32m✓[39m src/__tests__/collabPosts.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 621[2mms[22m[39m
+2026-10-04T15:01:11.8432961Z    [32m✓[39m collaborative posts integration [2m(4)[22m
+2026-10-04T15:01:11.8482498Z      [33m[2m✓[22m[39m matches an accepted collaborator and never a pending invitee[33m 487[2mms[22m[39m
+2026-10-04T15:01:12.2412796Z  [32m✓[39m src/__tests__/utils/apLanguage.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+2026-10-04T15:01:12.6192888Z  [32m✓[39m src/__tests__/utils/imageReencode.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+2026-10-04T15:01:12.7315898Z  [32m✓[39m src/__tests__/eraseOxyAccountScript.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1291[2mms[22m[39m
+2026-10-04T15:01:12.7361851Z    [32m✓[39m runOperatorErasure [2m(2)[22m
+2026-10-04T15:01:12.7388605Z      [33m[2m✓[22m[39m previews without writing, then erases through the ledger on a live run[33m 964[2mms[22m[39m
+2026-10-04T15:01:12.7713048Z  [32m✓[39m src/__tests__/db/migrateTargetDatabase.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 125[2mms[22m[39m
+2026-10-04T15:01:13.3354420Z  [32m✓[39m src/__tests__/scripts/stripRenderedQuoteMarkersRows.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1415[2mms[22m[39m
+2026-10-04T15:01:13.3412077Z    [32m✓[39m stripRenderedQuoteMarkers [2m(5)[22m
+2026-10-04T15:01:13.3442130Z      [33m[2m✓[22m[39m cleans a linked post whose marker names the quoted post by its WEB url[33m 345[2mms[22m[39m
+2026-10-04T15:01:13.3879487Z  [32m✓[39m src/__tests__/feedResponseBuilder.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+2026-10-04T15:01:13.7765520Z  [32m✓[39m src/__tests__/runtime/socketIoServer.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+2026-10-04T15:01:14.0967634Z  [32m✓[39m src/__tests__/utils/postAuthorship.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+2026-10-04T15:01:14.4123025Z  [32m✓[39m src/__tests__/connectors/activitypub/actorTombstone.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 419[2mms[22m[39m
+2026-10-04T15:01:14.8901809Z  [32m✓[39m src/__tests__/services/oxyMediaCdnUrl.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+2026-10-04T15:01:15.0859236Z  [32m✓[39m src/__tests__/presetsPhase2b.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+2026-10-04T15:01:15.6614100Z  [32m✓[39m src/__tests__/services/oxyAccountEvents.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+2026-10-04T15:01:15.7356033Z  [32m✓[39m src/__tests__/connectors/instagram/instagramSourceKeyPlan.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 180[2mms[22m[39m
+2026-10-04T15:01:15.9043414Z  [32m✓[39m src/__tests__/connectors/resolveOxyExternalUser.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+2026-10-04T15:01:16.2558719Z  [32m✓[39m src/__tests__/variantChronoSync.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 511[2mms[22m[39m
+2026-10-04T15:01:16.4713526Z  [32m✓[39m src/__tests__/db/migrationReadiness.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 148[2mms[22m[39m
+2026-10-04T15:01:16.6793687Z  [32m✓[39m src/__tests__/services/topicServiceResolveRefs.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+2026-10-04T15:01:16.6942745Z  [32m✓[39m src/__tests__/services/federation/blockedDomainPolicySource.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+2026-10-04T15:01:16.7352757Z  [32m✓[39m src/__tests__/utils/mentionAllowlistCeiling.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+2026-10-04T15:01:16.9042639Z  [32m✓[39m src/__tests__/feedRecencyFallback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+2026-10-04T15:01:17.2582921Z  [32m✓[39m src/__tests__/redisHelpers.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+2026-10-04T15:01:17.8302566Z  [32m✓[39m src/__tests__/presetFeeds.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+2026-10-04T15:01:17.8702982Z  [32m✓[39m src/__tests__/services/moderation/reportStatusMapping.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+2026-10-04T15:01:18.2482590Z  [32m✓[39m src/__tests__/cursorBuilder.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+2026-10-04T15:01:18.3143908Z  [32m✓[39m src/__tests__/services/postHydrationPodcast.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+2026-10-04T15:01:18.3803512Z  [32m✓[39m src/__tests__/connectors/activitypub/flattenedRetweet.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+2026-10-04T15:01:18.4923733Z  [32m✓[39m src/__tests__/feedModuleRegistry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+2026-10-04T15:01:18.8359424Z  [32m✓[39m src/__tests__/utils/mediaInput.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+2026-10-04T15:01:19.0742493Z  [32m✓[39m src/__tests__/utils/hlsSignature.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+2026-10-04T15:01:19.1071328Z  [32m✓[39m src/__tests__/routes/mediaProxyStatus.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+2026-10-04T15:01:19.1272792Z  [32m✓[39m src/__tests__/middleware/rateLimitStore.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+2026-10-04T15:01:19.6282427Z  [32m✓[39m src/__tests__/connectors/activitypub/renderedQuoteMarker.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+2026-10-04T15:01:19.6742793Z  [32m✓[39m src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+2026-10-04T15:01:19.7709934Z  [32m✓[39m src/__tests__/services/anonFeedCacheSingleFlight.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+2026-10-04T15:01:20.3142118Z  [32m✓[39m src/__tests__/services/nsfwBlocklist.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+2026-10-04T15:01:20.3412670Z  [32m✓[39m src/__tests__/mcp/mcpEffectReceiptService.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 275[2mms[22m[39m
+2026-10-04T15:01:20.6194716Z  [32m✓[39m src/__tests__/mcp/mentionCapabilityRateLimiter.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 761[2mms[22m[39m
+2026-10-04T15:01:20.6222107Z    [32m✓[39m Mention capability authorization rate limiting [2m(2)[22m
+2026-10-04T15:01:20.6252176Z      [33m[2m✓[22m[39m bounds capability tickets before authorization work[33m 734[2mms[22m[39m
+2026-10-04T15:01:20.7872714Z  [32m✓[39m src/__tests__/runtime/oxyServiceIdentity.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 192[2mms[22m[39m
+2026-10-04T15:01:20.8033013Z  [32m✓[39m src/__tests__/utils/socket.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-10-04T15:01:21.3425490Z  [32m✓[39m src/__tests__/utils/metrics.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+2026-10-04T15:01:21.4492176Z  [32m✓[39m src/__tests__/utils/postSearchMetadata.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 11[2mms[22m[39m
+2026-10-04T15:01:21.5062786Z  [32m✓[39m src/__tests__/mcp/mcpOAuthRegister.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+2026-10-04T15:01:22.0069692Z  [32m✓[39m src/__tests__/middleware/requestObservability.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+2026-10-04T15:01:22.0603517Z  [32m✓[39m src/__tests__/services/federationPublishedDate.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+2026-10-04T15:01:22.1363214Z  [32m✓[39m src/__tests__/db/federationActorAcctLookup.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+2026-10-04T15:01:22.1898086Z  [32m✓[39m src/__tests__/utils/pushPreview.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+2026-10-04T15:01:22.1912683Z  [32m✓[39m src/__tests__/connectors/activitypub/quotedPostImport.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+2026-10-04T15:01:23.0361593Z  [32m✓[39m src/__tests__/services/postCreationSubscriberNotifications.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+2026-10-04T15:01:24.8796776Z 
+2026-10-04T15:01:24.8797824Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-04T15:01:24.8798094Z 
+2026-10-04T15:01:24.8800604Z [41m[1m FAIL [22m[49m src/__tests__/services/channelDeletionService.test.ts[2m > [22mChannelDeletionService — what happens to real rows[2m > [22mscrubs an ENTRY out of somebody else's row without destroying the row
+2026-10-04T15:01:24.8804896Z [31m[1mTypeError[22m: Cannot read properties of undefined (reading 'actorIds')[39m
+2026-10-04T15:01:24.8805892Z [36m [2m❯[22m src/__tests__/services/channelDeletionService.test.ts:[2m309:27[22m[39m
+2026-10-04T15:01:24.8892233Z     [90m307|[39m       .from(trending)
+2026-10-04T15:01:24.8892649Z     [90m308|[39m       .where(eq(trending.id, trend.id));
+2026-10-04T15:01:24.8893318Z     [90m309|[39m     expect(survivingTrend.actorIds, 'the trend belongs to the term, no…
+2026-10-04T15:01:24.8893887Z     [90m   |[39m                           [31m^[39m
+2026-10-04T15:01:24.8894295Z     [90m310|[39m       STRANGER,
+2026-10-04T15:01:24.8894614Z     [90m311|[39m     ]);
+2026-10-04T15:01:24.8894783Z 
+2026-10-04T15:01:24.8895208Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-04T15:01:24.8895614Z 
+2026-10-04T15:01:24.8901319Z 
+2026-10-04T15:01:24.8921493Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m212 passed[39m[22m[90m (213)[39m
+2026-10-04T15:01:24.8932610Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2444 passed[39m[22m[90m (2445)[39m
+2026-10-04T15:01:24.8933283Z [2m   Start at [22m 14:59:28
+2026-10-04T15:01:24.8949632Z [2m   Duration [22m 116.68s[2m (import 53%, tests 28%, transform 12%, setup 5%, worker 2%)[22m
+2026-10-04T15:01:24.8956772Z 
+2026-10-04T15:01:24.8957727Z [2m     Import [22m [33m898 modules were evaluated 23617 times[39m[2m · 531.02s total, 53% of tracked time[22m
+2026-10-04T15:01:24.8959108Z [2m            [22m [2m~42.62s faster with [22m[33misolate: false[39m[2m — shared modules are evaluated once per worker instead of once per file[22m
+2026-10-04T15:01:24.8960311Z [2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-isolation[22m
+2026-10-04T15:01:24.8960677Z 
+2026-10-04T15:01:25.2175797Z blob report written to /home/runner/work/_temp/backend-blobs/blob-2-3.json
+2026-10-04T15:01:25.4748433Z error: script "test:coverage" exited with code 1
+2026-10-04T15:01:25.4769174Z ##[error]Process completed with exit code 1.
+2026-10-04T15:01:25.4831807Z ##[group]Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+2026-10-04T15:01:25.4832152Z with:
+2026-10-04T15:01:25.4832354Z   name: mention-backend-blob-2
+2026-10-04T15:01:25.4832609Z   path: /home/runner/work/_temp/backend-blobs/blob-2-3.json
+2026-10-04T15:01:25.4832886Z   if-no-files-found: error
+2026-10-04T15:01:25.4833075Z   overwrite: true
+2026-10-04T15:01:25.4833252Z   retention-days: 1
+2026-10-04T15:01:25.4833432Z   compression-level: 6
+2026-10-04T15:01:25.4833620Z   include-hidden-files: false
+2026-10-04T15:01:25.4833810Z   archive: true
+2026-10-04T15:01:25.4833974Z env:
+2026-10-04T15:01:25.4834129Z   BUN_VERSION: 1.3.14
+2026-10-04T15:01:25.4834308Z   NODE_VERSION: 24.21.0
+2026-10-04T15:01:25.4834499Z   CI_BASE_REVISION: origin/main
+2026-10-04T15:01:25.4835076Z   TEST_DATABASE_URL: ***127.0.0.1:5432/mention_ci
+2026-10-04T15:01:25.4835321Z ##[endgroup]
+2026-10-04T15:01:25.5964413Z With the provided path, there will be 1 file uploaded
+2026-10-04T15:01:25.7069369Z Artifact name is valid!
+2026-10-04T15:01:25.7069844Z Root directory input is valid!
+2026-10-04T15:01:25.8922816Z Uploading artifact: mention-backend-blob-2.zip
+2026-10-04T15:01:25.8956212Z Beginning upload of artifact content to blob storage
+2026-10-04T15:01:26.2902167Z Uploaded bytes 2346367
+2026-10-04T15:01:26.3016474Z Finished uploading artifact content to blob storage!
+2026-10-04T15:01:26.3017328Z SHA256 digest of uploaded artifact is 08ef910a0f35ed787da20a729f04c8a3c142afaf7c9873c20f8c9579eaa86dd1
+2026-10-04T15:01:26.3017956Z Finalizing artifact upload
+2026-10-04T15:01:26.5339002Z Artifact mention-backend-blob-2 successfully finalized. Artifact ID 11306891525
+2026-10-04T15:01:26.5339823Z Artifact mention-backend-blob-2 has been successfully uploaded! Final size is 2346367 bytes. Artifact ID is 11306891525
+2026-10-04T15:01:26.5342817Z Artifact download URL: https://github.com/OxyHQ/Mention/actions/runs/37211260333/artifacts/11306891525
+2026-10-04T15:01:26.5513241Z Post job cleanup.
+2026-10-04T15:01:26.6192290Z [command]/usr/bin/git version
+2026-10-04T15:01:26.6236310Z git version 2.55.0
+2026-10-04T15:01:26.6264307Z Temporarily overriding HOME='/home/runner/work/_temp/9d396110-2bf1-477d-9943-48b63c4cce96' before making global git config changes
+2026-10-04T15:01:26.6265440Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T15:01:26.6269116Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Mention/Mention
+2026-10-04T15:01:26.6297476Z Removing SSH command configuration
+2026-10-04T15:01:26.6303148Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T15:01:26.6335082Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T15:01:26.6546023Z Removing HTTP extra header
+2026-10-04T15:01:26.6551592Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T15:01:26.6582577Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T15:01:26.6803314Z Removing includeIf entries pointing to credentials config files
+2026-10-04T15:01:26.6810475Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T15:01:26.6834812Z includeif.gitdir:/home/runner/work/Mention/Mention/.git.path
+2026-10-04T15:01:26.6835677Z includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path
+2026-10-04T15:01:26.6836284Z includeif.gitdir:/github/workspace/.git.path
+2026-10-04T15:01:26.6836711Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T15:01:26.6843086Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Mention/Mention/.git.path
+2026-10-04T15:01:26.6865215Z /home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T15:01:26.6876133Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Mention/Mention/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-d1c28f95\-cbc9\-4bd5\-8bf0\-150fde74a3ad\.config
+2026-10-04T15:01:26.6913637Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path
+2026-10-04T15:01:26.6942519Z /home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T15:01:26.6949802Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Mention/Mention/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-d1c28f95\-cbc9\-4bd5\-8bf0\-150fde74a3ad\.config
+2026-10-04T15:01:26.6984926Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-04T15:01:26.7009498Z /github/runner_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T15:01:26.7017383Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-d1c28f95\-cbc9\-4bd5\-8bf0\-150fde74a3ad\.config
+2026-10-04T15:01:26.7053641Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T15:01:26.7079372Z /github/runner_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config
+2026-10-04T15:01:26.7087195Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-d1c28f95\-cbc9\-4bd5\-8bf0\-150fde74a3ad\.config
+2026-10-04T15:01:26.7121690Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T15:01:26.7318009Z Removing credentials config '/home/runner/work/_temp/git-credentials-d1c28f95-cbc9-4bd5-8bf0-150fde74a3ad.config'
+2026-10-04T15:01:26.7428669Z Print service container logs: fbc2cadaf1664d0583de98ee36a2153f_postgispostgis1735_63c692
+2026-10-04T15:01:26.7433154Z ##[command]/usr/bin/docker logs --details dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T15:01:26.7546729Z  The files belonging to this database system will be owned by user "postgres".
+2026-10-04T15:01:26.7548323Z  initdb: warning: enabling "trust" authentication for local connections
+2026-10-04T15:01:26.7549882Z  initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-10-04T15:01:26.7551245Z  2026-10-04 14:59:08.678 UTC [1] LOG:  starting PostgreSQL 17.5 (Debian 17.5-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+2026-10-04T15:01:26.7552123Z  2026-10-04 14:59:08.678 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-10-04T15:01:26.7552744Z  2026-10-04 14:59:08.678 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-10-04T15:01:26.7553368Z  2026-10-04 14:59:08.679 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-10-04T15:01:26.7554106Z  2026-10-04 14:59:08.681 UTC [72] LOG:  database system was shut down at 2026-10-04 14:59:08 UTC
+2026-10-04T15:01:26.7554514Z  2026-10-04 14:59:08.684 UTC [1] LOG:  database system is ready to accept connections
+2026-10-04T15:01:26.7555015Z  2026-10-04 14:59:33.437 UTC [122] ERROR:  duplicate key value violates unique constraint "mention_signed_records_oxy_user_id_seq_key"
+2026-10-04T15:01:26.7555622Z  2026-10-04 14:59:33.437 UTC [122] DETAIL:  Key (oxy_user_id, seq)=(oxy-mtn-7ba3a425-7bc6-45a2-9282-8c843c5af12a, 0) already exists.
+2026-10-04T15:01:26.7556613Z  2026-10-04 14:59:33.437 UTC [122] STATEMENT:  insert into "mention_signed_records" ("id", "subject_did", "oxy_user_id", "type", "envelope", "public_key", "verified", "seq", "prev", "record_id", "chain_status", "idempotency_key", "nsid", "rkey", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, default)
+2026-10-04T15:01:26.7557724Z  2026-10-04 14:59:33.466 UTC [122] ERROR:  duplicate key value violates unique constraint "mention_signed_records_record_id_key"
+2026-10-04T15:01:26.7558297Z  2026-10-04 14:59:33.466 UTC [122] DETAIL:  Key (record_id)=(store-e3917355-record-0) already exists.
+2026-10-04T15:01:26.7559221Z  2026-10-04 14:59:33.466 UTC [122] STATEMENT:  insert into "mention_signed_records" ("id", "subject_did", "oxy_user_id", "type", "envelope", "public_key", "verified", "seq", "prev", "record_id", "chain_status", "idempotency_key", "nsid", "rkey", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, default)
+2026-10-04T15:01:26.7560200Z  2026-10-04 14:59:33.520 UTC [122] ERROR:  duplicate key value violates unique constraint "mention_signed_records_idempotency_key"
+2026-10-04T15:01:26.7561093Z  2026-10-04 14:59:33.520 UTC [122] DETAIL:  Key (oxy_user_id, idempotency_key)=(oxy-mtn-244367c5-6a69-43bb-8a8d-0bf65e781ca6, engagement:post.like:relation-1:v1) already exists.
+2026-10-04T15:01:26.7562185Z  2026-10-04 14:59:33.520 UTC [122] STATEMENT:  insert into "mention_signed_records" ("id", "subject_did", "oxy_user_id", "type", "envelope", "public_key", "verified", "seq", "prev", "record_id", "chain_status", "idempotency_key", "nsid", "rkey", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, default)
+2026-10-04T15:01:26.7563171Z  2026-10-04 14:59:34.096 UTC [122] ERROR:  duplicate key value violates unique constraint "mention_signed_records_oxy_user_id_seq_key"
+2026-10-04T15:01:26.7563768Z  2026-10-04 14:59:34.096 UTC [122] DETAIL:  Key (oxy_user_id, seq)=(oxy-mtn-5227d74b-1db6-4f86-982d-744ac01461c6, 1) already exists.
+2026-10-04T15:01:26.7564913Z  2026-10-04 14:59:34.096 UTC [122] STATEMENT:  insert into "mention_signed_records" ("id", "subject_did", "oxy_user_id", "type", "envelope", "public_key", "verified", "seq", "prev", "record_id", "chain_status", "idempotency_key", "nsid", "rkey", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, default)
+2026-10-04T15:01:26.7565904Z  2026-10-04 14:59:37.764 UTC [145] ERROR:  new row for relation "posts" violates check constraint "posts_created_at_ms_precision_check"
+2026-10-04T15:01:26.7567579Z  2026-10-04 14:59:37.764 UTC [145] DETAIL:  Failing row contains (01a1076d-7a55-7019-a19a-a5b5353265d4, oxy-search-posts-author, text, public, published, f, f, null, null, null, {}, {}, {anyone}, f, f, null, null, null, null, null, 0, 0, 0, 0, 0, 0, 0, 0, f, f, f, f, f, f, f, f, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, neutral, other, 0, 0, 0, 0, 0, 0, 0, pending, 0, null, 2026-10-04 14:59:37.685527+00, 2026-10-04 14:59:37.685+00, f, f, f, null, null, null, 0, null, f).
+2026-10-04T15:01:26.7569199Z  2026-10-04 14:59:37.764 UTC [145] STATEMENT:  update "posts" set created_at = created_at + interval '527 microseconds' where id = $1
+2026-10-04T15:01:26.7570072Z  2026-10-04 14:59:46.203 UTC [183] ERROR:  channel deletion batch probe
+2026-10-04T15:01:26.7571035Z  2026-10-04 14:59:46.203 UTC [183] CONTEXT:  PL/pgSQL function channel_deletion_batch_failure_probe() line 4 at RAISE
+2026-10-04T15:01:26.7571787Z  2026-10-04 14:59:46.203 UTC [183] STATEMENT:  delete from "notifications" where ("notifications"."entity_type" in ($1, $2) and "notifications"."entity_id" in ($3))
+2026-10-04T15:01:26.7572339Z  2026-10-04 14:59:51.588 UTC [255] ERROR:  moderation outbox atomicity probe
+2026-10-04T15:01:26.7572768Z  2026-10-04 14:59:51.588 UTC [255] CONTEXT:  PL/pgSQL function moderation_outbox_atomicity_probe() line 8 at RAISE
+2026-10-04T15:01:26.7574038Z  2026-10-04 14:59:51.588 UTC [255] STATEMENT:  insert into "moderation_outbox" ("id", "kind", "payload_report_id", "payload_event_id", "payload_case_id", "payload_decision", "payload_urgency", "status", "attempts", "available_at", "lease_owner", "lease_until", "last_error", "processed_at", "expires_at", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default, default, default, default, $11, default, default) on conflict ("id") do nothing
+2026-10-04T15:01:26.7575300Z  2026-10-04 14:59:51.906 UTC [256] ERROR:  duplicate key value violates unique constraint "reports_reporter_reported_key"
+2026-10-04T15:01:26.7575985Z  2026-10-04 14:59:51.906 UTC [256] DETAIL:  Key (reporter, reported_id, reported_type)=(moderation:test-intake:reporter-4, moderation:test-intake:subject, post) already exists.
+2026-10-04T15:01:26.7578751Z  2026-10-04 14:59:51.906 UTC [256] STATEMENT:  insert into "reports" ("id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default) returning "id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at"
+2026-10-04T15:01:26.7581698Z  2026-10-04 14:59:52.190 UTC [256] ERROR:  duplicate key value violates unique constraint "reports_reporter_reported_key"
+2026-10-04T15:01:26.7582514Z  2026-10-04 14:59:52.190 UTC [256] DETAIL:  Key (reporter, reported_id, reported_type)=(moderation:test-intake:reporter-5, moderation:test-intake:room, room) already exists.
+2026-10-04T15:01:26.7585302Z  2026-10-04 14:59:52.190 UTC [256] STATEMENT:  insert into "reports" ("id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default) returning "id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at"
+2026-10-04T15:01:26.7588072Z  2026-10-04 14:59:52.267 UTC [256] ERROR:  duplicate key value violates unique constraint "reports_reporter_reported_key"
+2026-10-04T15:01:26.7588845Z  2026-10-04 14:59:52.267 UTC [256] DETAIL:  Key (reporter, reported_id, reported_type)=(moderation:test-intake:reporter-6, moderation:test-intake:subject, post) already exists.
+2026-10-04T15:01:26.7591725Z  2026-10-04 14:59:52.267 UTC [256] STATEMENT:  insert into "reports" ("id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default) returning "id", "reported_type", "reported_id", "reporter", "categories", "details", "status", "local_status", "local_status_reason", "crowd_source_report_id", "crowd_source_case_id", "crowd_source_merged", "submitted_at", "decision_id", "decision_revision", "decision_outcome", "decision_status", "decided_at", "enforced_action", "enforced_at", "content_snapshot_hash", "last_delivery_error", "created_at", "updated_at"
+2026-10-04T15:01:26.7594615Z  2026-10-04 14:59:53.926 UTC [153] ERROR:  new row for relation "post_classification_topic_refs" violates check constraint "post_classification_topic_refs_relevance_check"
+2026-10-04T15:01:26.7595446Z  2026-10-04 14:59:53.926 UTC [153] DETAIL:  Failing row contains (01a1076d-b9c3-7c41-bc7c-da06d14cdfce, 01a1076d-b9ae-77f1-ace3-2947d1853e43, overscored, topic:overscored, 90, null).
+2026-10-04T15:01:26.7596249Z  2026-10-04 14:59:53.926 UTC [153] STATEMENT:  insert into "post_classification_topic_refs" ("id", "post_id", "name", "topic_id", "relevance", "type") values ($1, $2, $3, $4, $5, $6)
+2026-10-04T15:01:26.7596902Z  2026-10-04 14:59:54.720 UTC [265] ERROR:  duplicate key value violates unique constraint "lanes_owner_name_lower_key"
+2026-10-04T15:01:26.7597399Z  2026-10-04 14:59:54.720 UTC [265] DETAIL:  Key (owner_id, name_lower)=(viewer-9cc5032b, dev) already exists.
+2026-10-04T15:01:26.7598231Z  2026-10-04 14:59:54.720 UTC [265] STATEMENT:  insert into "lanes" ("id", "owner_id", "name", "name_lower", "display_mode", "created_at", "updated_at") values ($1, $2, $3, $4, $5, default, default) returning "id", "owner_id", "name", "name_lower", "display_mode", "created_at", "updated_at"
+2026-10-04T15:01:26.7599067Z  2026-10-04 14:59:55.336 UTC [268] ERROR:  duplicate key value violates unique constraint "lanes_owner_name_lower_key"
+2026-10-04T15:01:26.7599667Z  2026-10-04 14:59:55.336 UTC [268] DETAIL:  Key (owner_id, name_lower)=(viewer-9cc5032b, taken) already exists.
+2026-10-04T15:01:26.7600372Z  2026-10-04 14:59:55.336 UTC [268] STATEMENT:  update "lanes" set "name" = $1, "name_lower" = $2, "updated_at" = $3 where "lanes"."id" = $4 returning "id", "owner_id", "name", "name_lower", "display_mode", "created_at", "updated_at"
+2026-10-04T15:01:26.7601270Z  2026-10-04 14:59:57.403 UTC [284] ERROR:  duplicate key value violates unique constraint "mention_signed_records_record_id_key"
+2026-10-04T15:01:26.7601751Z  2026-10-04 14:59:57.403 UTC [284] DETAIL:  Key (record_id)=(rid-1) already exists.
+2026-10-04T15:01:26.7602651Z  2026-10-04 14:59:57.403 UTC [284] STATEMENT:  insert into "mention_signed_records" ("id", "subject_did", "oxy_user_id", "type", "envelope", "public_key", "verified", "seq", "prev", "record_id", "chain_status", "idempotency_key", "nsid", "rkey", "created_at") values ($1, $2, $3, $4, $5, $6, $7, default, default, $8, $9, default, $10, $11, default)
+2026-10-04T15:01:26.7603559Z  2026-10-04 14:59:57.496 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7604005Z  2026-10-04 14:59:57.755 UTC [285] ERROR:  duplicate key value violates unique constraint "federated_actors_acct_key"
+2026-10-04T15:01:26.7604583Z  2026-10-04 14:59:57.755 UTC [285] DETAIL:  Key (acct)=(alice.bsky.social) already exists.
+2026-10-04T15:01:26.7612457Z  2026-10-04 14:59:57.755 UTC [285] STATEMENT:  insert into "federated_actors" ("id", "protocol", "uri", "username", "domain", "acct", "network_acct", "summary", "avatar_url", "header_url", "inbox_url", "outbox_url", "shared_inbox_url", "followers_url", "following_url", "public_key_pem", "public_key_id", "type", "manually_approves_followers", "discoverable", "memorial", "suspended", "featured_url", "featured_tags_url", "also_known_as", "remote_created_at", "followers_count", "following_count", "posts_count", "oxy_user_id", "last_fetched_at", "last_outbox_sync_at", "outbox_backfill_status", "outbox_backfill_outbox_url", "outbox_backfill_cursor_url", "outbox_backfill_cursor_item_offset", "outbox_backfill_processed_count", "outbox_backfill_imported_count", "outbox_backfill_existing_count", "outbox_backfill_page_count", "outbox_backfill_locked_until", "outbox_backfill_last_run_at", "outbox_backfill_completed_at", "outbox_backfill_last_error", "last_atproto_graph_sync_at", "atproto_graph_sync_started_at", "instagram_graph_synced_at", "instagram_graph_sync_started_at", "instagram_graph_last_result", "instagram_graph_user_id", "instagram_graph_history_depth", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, default, $30, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default, default) on conflict ("uri") do update set "protocol" = $31, "username" = $32, "domain" = $33, "acct" = $34, "network_acct" = $35, "summary" = $36, "avatar_url" = $37, "header_url" = $38, "inbox_url" = $39, "outbox_url" = $40, "shared_inbox_url" = $41, "followers_url" = $42, "following_url" = $43, "public_key_pem" = $44, "public_key_id" = $45, "type" = $46, "manually_approves_followers" = $47, "discoverable" = $48, "memorial" = $49, "suspended" = $50, "featured_url" = $51, "featured_tags_url" = $52, "also_known_as" = $53, "remote_created_at" = $54, "followers_count" = $55, "following_count" = $56, "posts_count" = $57, "last_fetched_at" = $58, "updated_at" = $59 returning "id", "protocol", "uri", "username", "domain", "acct", "network_acct", "summary", "avatar_url", "header_url", "inbox_url", "outbox_url", "shared_inbox_url", "followers_url", "following_url", "public_key_pem", "public_key_id", "type", "manually_approves_followers", "discoverable", "memorial", "suspended", "featured_url", "featured_tags_url", "also_known_as", "remote_created_at", "followers_count", "following_count", "posts_count", "oxy_user_id", "last_fetched_at", "last_outbox_sync_at", "outbox_backfill_status", "outbox_backfill_outbox_url", "outbox_backfill_cursor_url", "outbox_backfill_cursor_item_offset", "outbox_backfill_processed_count", "outbox_backfill_imported_count", "outbox_backfill_existing_count", "outbox_backfill_page_count", "outbox_backfill_locked_until", "outbox_backfill_last_run_at", "outbox_backfill_completed_at", "outbox_backfill_last_error", "last_atproto_graph_sync_at", "atproto_graph_sync_started_at", "instagram_graph_synced_at", "instagram_graph_sync_started_at", "instagram_graph_last_result", "instagram_graph_user_id", "instagram_graph_history_depth", "created_at", "updated_at"
+2026-10-04T15:01:26.7620376Z  2026-10-04 14:59:58.937 UTC [70] LOG:  checkpoint complete: wrote 8075 buffers (49.3%); 0 WAL file(s) added, 0 removed, 5 recycled; write=0.675 s, sync=0.718 s, total=1.441 s; sync files=3400, longest=0.087 s, average=0.001 s; distance=81444 kB, estimate=81444 kB; lsn=0/8889B00, redo lsn=0/8660670
+2026-10-04T15:01:26.7621405Z  2026-10-04 15:00:13.049 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7622196Z  2026-10-04 15:00:13.836 UTC [70] LOG:  checkpoint complete: wrote 5264 buffers (32.1%); 0 WAL file(s) added, 0 removed, 3 recycled; write=0.299 s, sync=0.482 s, total=0.788 s; sync files=2131, longest=0.072 s, average=0.001 s; distance=50189 kB, estimate=78318 kB; lsn=0/B9AF9A8, redo lsn=0/B763E00
+2026-10-04T15:01:26.7623107Z  2026-10-04 15:00:14.266 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7623879Z  2026-10-04 15:00:14.353 UTC [70] LOG:  checkpoint complete: wrote 278 buffers (1.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.080 s, total=0.088 s; sync files=289, longest=0.013 s, average=0.001 s; distance=2961 kB, estimate=70783 kB; lsn=0/BE867E8, redo lsn=0/BA48568
+2026-10-04T15:01:26.7624794Z  2026-10-04 15:00:15.912 UTC [391] ERROR:  duplicate key value violates unique constraint "starter_pack_members_pack_id_oxy_user_id_key"
+2026-10-04T15:01:26.7625513Z  2026-10-04 15:00:15.912 UTC [391] DETAIL:  Key (pack_id, oxy_user_id)=(01a1076e-0f95-7da1-b66d-01637b8f56c6, member-846997b5-fe2e-4600-9283-fdcc7c7b8dd3-0) already exists.
+2026-10-04T15:01:26.7626231Z  2026-10-04 15:00:15.912 UTC [391] STATEMENT:  insert into "starter_pack_members" ("id", "pack_id", "oxy_user_id", "position") values ($1, $2, $3, $4)
+2026-10-04T15:01:26.7626730Z  2026-10-04 15:00:16.196 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7627509Z  2026-10-04 15:00:16.525 UTC [70] LOG:  checkpoint complete: wrote 2379 buffers (14.5%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.100 s, sync=0.224 s, total=0.329 s; sync files=1007, longest=0.046 s, average=0.001 s; distance=18742 kB, estimate=65579 kB; lsn=0/CD4E7D8, redo lsn=0/CC95F90
+2026-10-04T15:01:26.7628289Z  2026-10-04 15:00:21.377 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7629052Z  2026-10-04 15:00:21.400 UTC [70] LOG:  checkpoint complete: wrote 293 buffers (1.8%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.014 s, sync=0.007 s, total=0.024 s; sync files=113, longest=0.004 s, average=0.001 s; distance=3967 kB, estimate=59417 kB; lsn=0/D087218, redo lsn=0/D075CB0
+2026-10-04T15:01:26.7629825Z  2026-10-04 15:00:23.888 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7630585Z  2026-10-04 15:00:24.071 UTC [70] LOG:  checkpoint complete: wrote 2141 buffers (13.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.152 s, sync=0.030 s, total=0.183 s; sync files=365, longest=0.018 s, average=0.001 s; distance=8491 kB, estimate=54325 kB; lsn=0/DEC6A10, redo lsn=0/D8C0AB8
+2026-10-04T15:01:26.7631643Z  2026-10-04 15:00:29.176 UTC [505] ERROR:  duplicate key value violates unique constraint "posts_one_boost_per_account_key"
+2026-10-04T15:01:26.7632351Z  2026-10-04 15:00:29.176 UTC [505] DETAIL:  Key (oxy_user_id, boost_of)=(oxy-boost-unique-5067c9aa-booster-a6bc7f94, 01a1076e-4210-7c73-afbf-d6e49087f61b) already exists.
+2026-10-04T15:01:26.7638971Z  2026-10-04 15:00:29.176 UTC [505] STATEMENT:  insert into "posts" ("id", "oxy_user_id", "written_by_oxy_user_id", "type", "visibility", "status", "has_links", "crosspost_collapsed", "is_edited", "language", "curated", "tags", "hashtags", "edit_history", "reply_permission", "review_replies", "quotes_disabled", "correction_count", "last_corrected_at", "boost_of", "quote_of", "lane_id", "parent_post_id", "is_reply", "thread_id", "scheduled_for", "stats_likes_count", "stats_downvotes_count", "stats_boosts_count", "stats_federated_boosts_count", "stats_comments_count", "stats_views_count", "stats_shares_count", "stats_saves_count", "metadata_is_sensitive", "metadata_is_pinned", "metadata_is_boosted", "metadata_is_commented", "metadata_is_following_author", "metadata_author_blocked", "metadata_author_muted", "metadata_hide_engagement_counts", "metadata_collab_federation_deferred", "metadata_federation_delivered", "federation_activity_id", "federation_actor_uri", "federation_in_reply_to", "federation_url", "federation_sensitive", "federation_spoiler_text", "content_poll_id", "content_article_id", "content_article_title", "content_article_excerpt", "content_event_id", "content_event_name", "content_event_date", "content_event_location", "content_event_description", "content_room_id", "content_room_title", "content_room_status", "content_room_topic", "content_room_host", "content_podcast_syra_id", "content_podcast_title", "content_podcast_author", "content_podcast_artwork_url", "content_podcast_show_url", "content_location_latitude", "content_location_longitude", "content_location_address", "location_latitude", "location_longitude", "location_address", "classification_topics", "classification_languages", "classification_region", "classification_hashtags_norm", "classification_trend_terms", "classification_sensitive", "classification_version", "classification_sentiment", "classification_intent", "classification_score_toxicity", "classification_score_constructiveness", "classification_score_spam", "classification_score_quality", "classification_score_controversy", "classification_score_negativity", "classification_confidence", "classification_status", "classification_attempts", "classification_classified_at", "created_at", "updated_at") values ($1, $2, $3, $4, $5, $6, $7, default, $8, $9, default, default, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, default, default, default, default, default, default, default, default, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $80, $81, $82, $83, default, default)
+2026-10-04T15:01:26.7645561Z  2026-10-04 15:00:30.070 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7646373Z  2026-10-04 15:00:30.112 UTC [70] LOG:  checkpoint complete: wrote 1134 buffers (6.9%); 0 WAL file(s) added, 0 removed, 1 recycled; write=0.035 s, sync=0.002 s, total=0.043 s; sync files=185, longest=0.001 s, average=0.001 s; distance=14473 kB, estimate=50340 kB; lsn=0/E6F0218, redo lsn=0/E6E2ED8
+2026-10-04T15:01:26.7647292Z  2026-10-04 15:00:32.837 UTC [527] ERROR:  duplicate key value violates unique constraint "trend_summaries_term_run_started_at_key"
+2026-10-04T15:01:26.7647867Z  2026-10-04 15:00:32.837 UTC [527] DETAIL:  Key (term, run_started_at)=(orioles-db29cc80, 2026-08-01 00:00:00+00) already exists.
+2026-10-04T15:01:26.7648498Z  2026-10-04 15:00:32.837 UTC [527] STATEMENT:  insert into "trend_summaries" ("id", "term", "run_started_at", "description", "generated_at") values ($1, $2, $3, $4, $5)
+2026-10-04T15:01:26.7649031Z  2026-10-04 15:01:12.622 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7649955Z  2026-10-04 15:01:12.927 UTC [70] LOG:  checkpoint complete: wrote 5612 buffers (34.3%); 0 WAL file(s) added, 0 removed, 5 recycled; write=0.208 s, sync=0.033 s, total=0.306 s; sync files=290, longest=0.015 s, average=0.001 s; distance=90284 kB, estimate=90284 kB; lsn=0/13F0E140, redo lsn=0/13F0E0E8
+2026-10-04T15:01:26.7650877Z  2026-10-04 15:01:25.241 UTC [70] LOG:  checkpoint starting: immediate force wait
+2026-10-04T15:01:26.7651678Z  2026-10-04 15:01:25.244 UTC [70] LOG:  checkpoint complete: wrote 2 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.004 s; sync files=2, longest=0.001 s, average=0.001 s; distance=186 kB, estimate=81274 kB; lsn=0/13F3CCA0, redo lsn=0/13F3CC48
+2026-10-04T15:01:26.7652437Z  This user must also own the server process.
+2026-10-04T15:01:26.7652669Z  
+2026-10-04T15:01:26.7652903Z  The database cluster will be initialized with locale "en_US.utf8".
+2026-10-04T15:01:26.7653259Z  The default database encoding has accordingly been set to "UTF8".
+2026-10-04T15:01:26.7653597Z  The default text search configuration will be set to "english".
+2026-10-04T15:01:26.7666121Z  
+2026-10-04T15:01:26.7666323Z  Data page checksums are disabled.
+2026-10-04T15:01:26.7666583Z  
+2026-10-04T15:01:26.7666846Z  fixing permissions on existing directory /var/lib/postgresql/data ... ok
+2026-10-04T15:01:26.7667202Z  creating subdirectories ... ok
+2026-10-04T15:01:26.7667711Z  selecting dynamic shared memory implementation ... posix
+2026-10-04T15:01:26.7668014Z  selecting default "max_connections" ... 100
+2026-10-04T15:01:26.7668269Z  selecting default "shared_buffers" ... 128MB
+2026-10-04T15:01:26.7668519Z  selecting default time zone ... Etc/UTC
+2026-10-04T15:01:26.7668756Z  creating configuration files ... ok
+2026-10-04T15:01:26.7669089Z  running bootstrap script ... ok
+2026-10-04T15:01:26.7669343Z  performing post-bootstrap initialization ... ok
+2026-10-04T15:01:26.7669606Z  syncing data to disk ... ok
+2026-10-04T15:01:26.7669796Z  
+2026-10-04T15:01:26.7669971Z  
+2026-10-04T15:01:26.7670166Z  Success. You can now start the database server using:
+2026-10-04T15:01:26.7670423Z  
+2026-10-04T15:01:26.7670621Z      pg_ctl -D /var/lib/postgresql/data -l logfile start
+2026-10-04T15:01:26.7671079Z  
+2026-10-04T15:01:26.7671650Z  waiting for server to start....2026-10-04 14:59:06.719 UTC [48] LOG:  starting PostgreSQL 17.5 (Debian 17.5-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+2026-10-04T15:01:26.7672402Z  2026-10-04 14:59:06.719 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-10-04T15:01:26.7672877Z  2026-10-04 14:59:06.722 UTC [51] LOG:  database system was shut down at 2026-10-04 14:59:06 UTC
+2026-10-04T15:01:26.7673304Z  2026-10-04 14:59:06.724 UTC [48] LOG:  database system is ready to accept connections
+2026-10-04T15:01:26.7673622Z   done
+2026-10-04T15:01:26.7673780Z  server started
+2026-10-04T15:01:26.7673962Z  CREATE DATABASE
+2026-10-04T15:01:26.7674129Z  
+2026-10-04T15:01:26.7674279Z  
+2026-10-04T15:01:26.7674575Z  /usr/local/bin/docker-entrypoint.sh: sourcing /docker-entrypoint-initdb.d/10_postgis.sh
+2026-10-04T15:01:26.7674927Z  CREATE DATABASE
+2026-10-04T15:01:26.7675140Z  Loading PostGIS extensions into template_postgis
+2026-10-04T15:01:26.7675388Z  CREATE EXTENSION
+2026-10-04T15:01:26.7675562Z  CREATE EXTENSION
+2026-10-04T15:01:26.7675816Z  You are now connected to database "template_postgis" as user "mention".
+2026-10-04T15:01:26.7676119Z  DO
+2026-10-04T15:01:26.7676289Z  Loading PostGIS extensions into mention_ci
+2026-10-04T15:01:26.7676518Z  CREATE EXTENSION
+2026-10-04T15:01:26.7676689Z  CREATE EXTENSION
+2026-10-04T15:01:26.7676925Z  You are now connected to database "mention_ci" as user "mention".
+2026-10-04T15:01:26.7677207Z  DO
+2026-10-04T15:01:26.7677349Z  
+2026-10-04T15:01:26.7677644Z  waiting for server to shut down...2026-10-04 14:59:08.158 UTC [48] LOG:  received fast shutdown request
+2026-10-04T15:01:26.7678083Z  .2026-10-04 14:59:08.159 UTC [48] LOG:  aborting any active transactions
+2026-10-04T15:01:26.7678562Z  2026-10-04 14:59:08.160 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+2026-10-04T15:01:26.7679138Z  2026-10-04 14:59:08.161 UTC [49] LOG:  shutting down
+2026-10-04T15:01:26.7679470Z  2026-10-04 14:59:08.162 UTC [49] LOG:  checkpoint starting: shutdown immediate
+2026-10-04T15:01:26.7680357Z  2026-10-04 14:59:08.572 UTC [49] LOG:  checkpoint complete: wrote 4453 buffers (27.2%); 0 WAL file(s) added, 0 removed, 2 recycled; write=0.278 s, sync=0.131 s, total=0.411 s; sync files=963, longest=0.057 s, average=0.001 s; distance=34775 kB, estimate=34775 kB; lsn=0/36D7588, redo lsn=0/36D7588
+2026-10-04T15:01:26.7681405Z  2026-10-04 14:59:08.583 UTC [48] LOG:  database system is shut down
+2026-10-04T15:01:26.7681678Z   done
+2026-10-04T15:01:26.7681846Z  server stopped
+2026-10-04T15:01:26.7682014Z  
+2026-10-04T15:01:26.7682215Z  PostgreSQL init process complete; ready for start up.
+2026-10-04T15:01:26.7682472Z  
+2026-10-04T15:01:26.7687890Z Stop and remove container: fbc2cadaf1664d0583de98ee36a2153f_postgispostgis1735_63c692
+2026-10-04T15:01:26.7692030Z ##[command]/usr/bin/docker rm --force dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T15:01:27.0439991Z dd7414c57e9cddfb3e24d267d0bcb07d50ca0675733620511aa608e746e45a94
+2026-10-04T15:01:27.0467365Z Remove container network: github_network_280530abc5c74fd4a81ba47c344361b1
+2026-10-04T15:01:27.0471706Z ##[command]/usr/bin/docker network rm github_network_280530abc5c74fd4a81ba47c344361b1
+2026-10-04T15:01:27.1302099Z github_network_280530abc5c74fd4a81ba47c344361b1
+2026-10-04T15:01:27.1368703Z Cleaning up orphan processes
+
