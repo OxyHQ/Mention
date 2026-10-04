@@ -1,0 +1,12 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1698984, /tmp/mention-jev-semantic-_7lqpu0e/data, socket /tmp/mention-jev-semantic-_7lqpu0e/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1698984, /tmp/mention-jev-semantic-_7lqpu0e/data, socket /tmp/mention-jev-semantic-_7lqpu0e/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=2" src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/services/postClassification.test.ts src/__tests__/db/postEvaluationRepository.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-production-factory-20261004/packages/backend
+
+
+ Test Files  4 passed (4)
+      Tests  134 passed (134)
+   Start at  19:15:33
+   Duration  9.77s (tests 69%, import 13%, transform 11%, setup 6%)
+

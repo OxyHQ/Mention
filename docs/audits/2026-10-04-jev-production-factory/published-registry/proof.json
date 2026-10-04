@@ -1,0 +1,74 @@
+{
+  "sourceHead": "aef834e25334bb14a1dd7ad0c54b04b00a720ffd",
+  "composedReceipt": "61e4b6183",
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "2e07444e5d0806ad6bf6df5811ce5e4f33f1cf0c62da8c563f2578dab404ca8f"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "e0c4097e16fad61c3ba7a13ba6597e23fa4f9ed98c6ad9b8aba17e4e9512a103"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "6b88752696ed58dabb1771c69fbd859f0b975720663145f5b83fa94bb384c461"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "36694ea7b82852e23ae6cde384a79a3e6616db22d471213c251320c520ea6162"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "d88db1a929f79f8b0658d39df6872a4c08532d5430ba07de6b05b201e714c7e8"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-build.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-checks-receipt.json",
+      "sha256": "45e0af043d13295228a7989cc7dd546995e3dc491588a1e700a804f24715a315"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-checks-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-checks-tests.log",
+      "sha256": "be15c06bd6f4c9c3f8d18a1ada2a382e63d0e5129e1901da984f6b9172cceedc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-install.log",
+      "sha256": "5e808d94e3442c7e925aaa21c1fa88a684deaab0a7dc20f4897e061eed35187c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-members.json",
+      "sha256": "6e84694eff194f62e6192a5b3f1bf9f26bdf389edd91b1f82f7a2e6f37341790"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    }
+  ],
+  "results": {
+    "bun": "1.3.14",
+    "frozenInstall": 0,
+    "build": 0,
+    "backendTypes": 0,
+    "tests": 134,
+    "suites": 4,
+    "registryMembers": 779
+  },
+  "limits": [
+    "Factory remains inert; no authority/funding/provider activation.",
+    "deploymentId approval field is metadata, not request or signed-receipt proof of deployment.",
+    "Retarget to main only after receipt PR1312 merges."
+  ]
+}
