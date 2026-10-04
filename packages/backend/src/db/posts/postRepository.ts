@@ -1458,7 +1458,7 @@ export async function updatePostAndContent(
   mentions: readonly string[],
   expectedUnpublishedStatus?: 'draft' | 'scheduled',
 ): Promise<boolean> {
-  return getDb().transaction(async tx => {
+  const written = await getDb().transaction(async tx => {
     await lockPostContent(tx, postId);
     const [current] = await tx.select({ status: posts.status }).from(posts)
       .where(eq(posts.id, postId)).for('update');
@@ -1469,6 +1469,9 @@ export async function updatePostAndContent(
     await replacePostContent(postId, content, mentions, tx);
     return true;
   });
+  // Nested writers invalidate too, but this eviction must happen after COMMIT.
+  if (written) await invalidatePostDetailCache(postId);
+  return written;
 }
 
 /**
