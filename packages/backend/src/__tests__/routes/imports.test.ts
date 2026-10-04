@@ -9,8 +9,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  * The gate is exercised with the REAL `oxy.middleware.auth()`: service tokens
  * are EdDSA-signed by a test key whose JWKS the middleware reads, so
- * `req.serviceApp` and the
- * internal-tier delegation are populated by the same code production runs —
+ * `req.serviceApp` and explicit delegation are populated by the real middleware.
+ * Only the Oxy grant lookup is a synthetic network boundary; internal tier
+ * alone never authorizes acting as a user —
  * the gate is then tested against what that middleware actually produces, not
  * against a hand-built request. A user SESSION cannot be minted offline (Oxy
  * validates sessions over HTTP), so it is simulated the way `requireAuth` sees
@@ -153,10 +154,18 @@ function buildApp() {
       (req as Request & { user?: { id: string } }).user?.id ? next() : oxyAuth(req, res, next),
     importsRouter,
   );
-  return app;
+  return { app, oxy };
 }
 
-const app = buildApp();
+const { app, oxy } = buildApp();
+const verifyActingAs = vi.spyOn(oxy, 'verifyActingAs');
+// The other app has an explicit test grant so its negative still reaches the
+// domain's Move-only gate. No Oxy database or production grant is written.
+const fixtureGrantPairs = new Set([
+  JSON.stringify([MOVE_APP_ID, ALICE]),
+  JSON.stringify([MOVE_APP_ID, BOB]),
+  JSON.stringify([OTHER_APP_ID, ALICE]),
+]);
 
 function asMove(req: request.Test, userId: string = ALICE): request.Test {
   return req.set('Authorization', `Bearer ${serviceToken(MOVE_APP_ID)}`).set('X-Oxy-User-Id', userId);
@@ -194,6 +203,17 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  verifyActingAs.mockReset().mockImplementation(async (appId, userId, options) => {
+    expect(options).toEqual({
+      cache: false,
+      credentialId: `${appId}-cred`,
+      ownerAccountId: `${appId}-owner`,
+      environment: 'production',
+    });
+    return fixtureGrantPairs.has(JSON.stringify([appId, userId]))
+      ? { authorized: true, scopes: ['user:read'], epoch: '1' }
+      : null;
+  });
   mocks.getUserById.mockResolvedValue({ id: ALICE, username: 'alice' });
   mocks.getServiceAssetMetadataByIds.mockResolvedValue([]);
   await clearServiceScope(scope);
@@ -214,6 +234,25 @@ describe('who may call the import API', () => {
     const res = await postBatch(body());
     expect(res.status).toBe(200);
     expect(res.body.results[0].status).toBe('created');
+    expect(verifyActingAs).toHaveBeenCalledWith(MOVE_APP_ID, ALICE, {
+      cache: false,
+      credentialId: `${MOVE_APP_ID}-cred`,
+      ownerAccountId: `${MOVE_APP_ID}-owner`,
+      environment: 'production',
+    });
+  });
+
+  it('refuses Move without an explicit grant before writing an import or post', async () => {
+    verifyActingAs.mockResolvedValueOnce(null);
+    const batch = body();
+    const res = await postBatch(batch);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('SERVICE_ACTING_AS_UNAUTHORIZED');
+    expect(verifyActingAs).toHaveBeenCalledOnce();
+    expect(await getDb().select({ postId: postImports.postId }).from(postImports)
+      .where(eq(postImports.importBatchId, batch.batchId))).toEqual([]);
+    expect(await getDb().select({ id: posts.id }).from(posts)
+      .where(eq(posts.oxyUserId, ALICE))).toEqual([]);
   });
 
   it('refuses a user session, even for the user it would import for', async () => {
