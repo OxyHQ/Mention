@@ -8,9 +8,8 @@ evidence storage. Every pre-existing snapshot table, including
 PR #1300, its migrations, or its post-link-preview changes.
 
 The normal dependency catalog currently pins public npm
-`@oxy.so/contracts@4.9.0` and `@oxy.so/core@4.2.0`; Bun generates the lockfile.
-Original-key receipt recovery requires the pending additive core release; its
-candidate validation does not count as published dependency adoption.
+`@oxy.so/contracts@4.9.1` and `@oxy.so/core@4.3.0`; Bun generates the lockfile.
+Original-key receipt recovery uses that published additive core method.
 `createJevShadowEvaluation` consumes the published `decide()` method with typed
 Noul propositions for overlapping topics, spam, internal repetition and each
 canonical language, plus an ordered five-level `feedScore`. The normalized
@@ -25,7 +24,7 @@ and `routingPolicy`, plus the returned typed `usage` quantities verbatim; decisi
 invented. The claim ID is only the SDK idempotency key, not the edge request ID.
 Usage quantities are not money or proof of financial settlement. Missing usage
 in synthetic domain fixtures is never treated as zero cost. Receipt recovery after
-ambiguous/late results remains blocked pending reconciliation review.
+ambiguous/late results uses only the original key, as described below.
 
 The production singleton now calls `createProductionJevEvaluation`, which uses
 the canonical `OxyInferenceClient` and existing Mention `serviceToken()` path.
@@ -97,8 +96,9 @@ permission to try again. A timeout, invalid result or uncertain write becomes
 `cost_uncertain`; this worker never retries it or creates a fresh request ID.
 Future receipt reconciliation must use the existing identity.
 
-The fingerprint includes author rendition IDs (so an edit away and back is a
-new revision), ordered tags/full bodies/article fields, canonical language
+The fingerprint excludes physical rendition IDs (so a semantic no-op or an edit
+away and back cannot create another paid claim), and includes ordered tags/full
+bodies/article fields, canonical language
 evidence and original actor identity. Machine translations are excluded: the
 inference input is the author primary and the canonical languages, so caching
 or replacing a translation neither cancels an in-flight result nor opens a
@@ -358,14 +358,13 @@ prove an exact deployment. Before activation, the matching Oxy policy must
 restrict the resolver to that reviewed deployment before provider dispatch.
 This factory cannot enforce or establish that condition by merely storing an ID.
 
-Fresh runtime 694 authority readback found Mention's effective invocation scope
+Historical runtime 694 authority readback found Mention's effective invocation scope
 missing and its billing account unprovisioned. The existing Alia internal-metered
 pilot does not transfer either authority or funding to Mention. Canonical
 operations available for a separately reviewed activation are the Oxy application
 scope update, existing workload binding scope update ([Oxy workload-binding CLI](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/scripts/bind-workload-identity.ts)),
-and the owning account's commercial billing provisioning and balance readback.
-[Oxy economic policy](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/src/config/inferenceEconomicPolicy.ts) currently exempts Alia only; no exemption is added
-here. The exact Jev deployment/privacy/ZDR and policy approval also remains
+and, for a commercial lane, the owning account's billing provisioning and balance readback.
+[Oxy economic policy](https://github.com/OxyHQ/oxy/blob/28d90e4f2c9143253843725aa361975ec951c6cd/packages/api/src/config/inferenceEconomicPolicy.ts) at that historical pin exempted Alia only. Mention's later independent bounded internal relationship must be separately reviewed; it is not supplied by this factory. The exact Jev deployment/privacy/ZDR and policy approval also remains
 required. Public provider availability is not this product approval.
 
 The factory is wired to the existing worker, not a second scheduler. A real
@@ -399,3 +398,55 @@ audience binding this exact key/input/principal and actual route/policy/card;
 the earlier Alia audience cannot authorize it. Native-only approval does not admit
 federated or imported content. No private post text, fake balance or user identity
 is created by selection preparation.
+
+### Bounded native factory admission
+
+The existing scheduler already starts the production singleton. A source-reviewed
+native approval can now admit its one selected operation without opening the
+broader shadow gate (which still includes federated provenance). Only evaluations
+created by the validated factory receive this in-process identity; copying a
+projection or setting an environment flag does not authorize it.
+
+The getter still returns `undefined`. A future source record must contain separate
+review evidence for the published SDK, exact private Oxy/Kaana route, Mention's
+own authority/economics, privacy/ZDR, and semantic identity/recovery. It must pin
+Mention app `6a2f851751b784a86fd0e916`, owner `69b2d3df5d12f58c9800d651`, and
+workload credential `wl_d61be5cd068abb658ed4d193` with production environment and
+no delegation. Public source identifiers and review references are not credentials,
+permissions or proof of live authority: Oxy must still enforce the independently
+approved private tuple, live binding/scopes, input/quote, daily/concurrency caps and
+revocation; Kaana must verify the signed own-Mention permit. Alia's approval
+cannot be substituted. No route, post, expiry, funding or review is supplied here.
+
+The worker admits only the factory's frozen selection through the existing locked
+claim, post/privacy recheck and exact request hash. Ordinary classification stays
+independent. Expiry stops new claims and sends; the admitted evaluator retains
+original-key receipt maintenance, including after expiry during its lifetime.
+Restart recovery is independent of source admission. New claims persist nullable
+`receiptAuthority.recovery` metadata in the existing JSON column: own owner,
+model/deployment/policy/evaluation version, provider/price, exact key/fingerprint,
+normalized input hash and source-approval digest. No DDL or invented backfill is
+needed. A separate GET-only reader selects only complete own lineage and bounded
+unresolved records. It does not load posts, inspect current private content,
+reconstruct decisions or create claims. Missing/expired source approval disables
+new inference but permits these existing own records to be read with the current
+Mention service credential; Oxy still enforces live `inference:usage:read`.
+
+Stored lineage is rechecked against the row before GET and under the final write
+lock. The public record verifies own app/credential/environment/delegation,
+resolved model, provider and price where returned. It does **not** expose deployment
+or source-approval attestation; those remain retained historical metadata, not a
+new claim of public receipt verification. NULL/unknown cost remains unknown.
+Foreign, malformed and old metadata-free rows are not automatically selected
+across restarts. A 403/404, mismatched receipt, deleted row, cancellation or deadline
+leaves the original unresolved and never causes another inference POST.
+
+The owner constant is a local selection restriction, not trusted authentication.
+Oxy's canonical `readGenerationReceiptByIdempotencyKey` requires current
+`inference:usage:read` and filters the settled row by verified
+`principal.ownerAccountId`, application, credential, environment and exact
+undelegated attribution. A changed/revoked binding cannot gain access from this
+stored metadata or configuration. Recovery writes only `post_evaluations` usage
+observation/state: no topics, ranking, post content or completed answer is applied.
+A private or changed post may retain original operation accounting; deletion's
+existing cascade removes the row and the final lock check prevents resurrection.

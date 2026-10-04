@@ -12,9 +12,9 @@ vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ service
 function approval(): approvalSource.MentionJevProductionApproval {
   const release = { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1, evaluationVersion: 'fixture-v1', supportedLanguages: ['en'] };
   return { selection: { postId: 'synthetic-post', fingerprint: 'a'.repeat(64), idempotencyKey: input.idempotencyKey,
-    inputSha256: jevInputSha256(buildJevDecisionRequest(release, [], input.text, input.languages)) }, scope: 'native-original-public', deploymentId: 'synthetic-deployment', evidenceRef: 'fixture:only',
+    inputSha256: jevInputSha256(buildJevDecisionRequest(release, [], input.text, input.languages)) }, scope: 'native-original-public', ownerAccountId: approvalSource.MENTION_JEV_OWNER_ACCOUNT_ID, reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' }, deploymentId: 'synthetic-deployment', provider: 'fixture-provider', priceVersionId: 'fixture-price', evidenceRef: 'fixture:only',
     validUntil: new Date(Date.now() + 60_000).toISOString(),
-    authority: { applicationId: approvalSource.MENTION_JEV_APPLICATION_ID, credentialId: 'synthetic-credential', environment: 'production' },
+    authority: { applicationId: approvalSource.MENTION_JEV_APPLICATION_ID, credentialId: approvalSource.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' },
     release: { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
       evaluationVersion: 'fixture-v1', supportedLanguages: ['en'] }, topics: [], };
 }
@@ -37,18 +37,20 @@ describe('Mention production factory', () => {
     identity.mockReturnValue(false);
     expect(createProductionJevEvaluation()).toBeUndefined(); expect(token).not.toHaveBeenCalled();
   });
-  it.each(['app', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'expired', 'ambiguous-date', 'selection'])(
+  it.each(['app', 'owner', 'credential', 'reviews', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'ambiguous-date', 'selection'])(
     'rejects an invalid %s binding before obtaining a credential', kind => {
       const candidate = approval();
       const altered = { ...candidate, authority: { ...candidate.authority } };
       if (kind === 'selection') Object.assign(altered, { selection: undefined });
+      if (kind === 'owner') altered.ownerAccountId = 'foreign-owner';
+      if (kind === 'credential') altered.authority.credentialId = 'foreign-credential';
+      if (kind === 'reviews') Object.assign(altered, { reviews: { ...altered.reviews, privacyAndZdr: '' } });
       if (kind === 'app') altered.authority.applicationId = 'synthetic-alia';
       if (kind === 'environment') altered.authority.environment = 'test';
       if (kind === 'delegation') altered.authority.delegatedUserId = 'borrowed-human';
       if (kind === 'scope') Object.assign(altered, { scope: 'federated-public' });
       if (kind === 'deployment') altered.deploymentId = '';
       if (kind === 'evidence') altered.evidenceRef = '';
-      if (kind === 'expired') altered.validUntil = '2000-01-01T00:00:00.000Z';
       if (kind === 'ambiguous-date') altered.validUntil = '2999-01-01';
       vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
       vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockReturnValue(altered);

@@ -1204,16 +1204,16 @@ describe('PostClassificationService — shadow fanout', () => {
     return selection;
   }
 
-  it('connects the production factory to the real native-only queue through the SDK', async () => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+  it('connects the reviewed native factory through the SDK while broader release gates remain closed', async () => {
+    expect(jevShadow.isJevShadowReleased()).toBe(false);
     const authority = { applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
-      credentialId: 'synthetic-mention-workload', environment: 'production' as const };
+      credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' as const };
     vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
     const token = vi.fn(async () => 'synthetic-only');
     vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
     const native = await seedSubject('Native eligible content', { classification: { languages: ['en'] } });
     vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-      selection: await selectionFor(native.id), scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      selection: await selectionFor(native.id), scope: 'native-original-public', ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID, reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' }, deploymentId: 'synthetic-only', provider: 'fixture-provider', priceVersionId: 'fixture-price', evidenceRef: 'fixture:only',
       validUntil: new Date(Date.now() + 60_000).toISOString(), authority, release, topics: [],
     });
     const federated = await seedSubject('Remote content remains excluded', { classification: { languages: ['en'] } });
@@ -1224,7 +1224,7 @@ describe('PostClassificationService — shadow fanout', () => {
       const key = new Headers(init?.headers).get('Idempotency-Key')!;
       expect(new Headers(init?.headers).get('X-Oxy-User-Id')).toBeNull();
       const [claimed] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, key));
-      expect(claimed).toMatchObject({ postId: native.id, state: 'claimed', receiptAuthority: authority });
+      expect(claimed).toMatchObject({ postId: native.id, state: 'claimed', receiptAuthority: expect.objectContaining(authority) });
       const request = JSON.parse(String(init?.body)) as DecisionRequest;
       expect(request.state).toContain('Native eligible content');
       return new Response(JSON.stringify({ schemaVersion: 1, requestId: 'owned-factory-request', model: request.model,
@@ -1234,7 +1234,8 @@ describe('PostClassificationService — shadow fanout', () => {
           : { id: q.id, kind: 'noul', probability: 0.1 }) }), { headers: { 'X-Oxy-Request-Id': 'owned-factory-request' } });
     });
     vi.stubGlobal('fetch', transport);
-    await createProductionPostClassificationService().processQueue();
+    const worker = createProductionPostClassificationService();
+    await worker.processQueue();
     expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBeenCalledTimes(1);
     expectBatchWasOurs();
     expect((await classificationOf(native.id)).status).toBe('classified');
@@ -1242,6 +1243,72 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, native.id)))
       .toEqual([expect.objectContaining({ state: 'completed' })]);
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, federated.id))).toEqual([]);
+    await worker.processQueue();
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['source-off', 'expired', 'foreign-provider', 'foreign-price', 'revoked'] as const)('recovers a durable own operation after restart with %s and zero new POST', async mode => {
+    expect(jevShadow.isJevShadowReleased()).toBe(false);
+    vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
+    const token = vi.fn(async () => 'synthetic-only');
+    vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
+    const post = await seedSubject('Synthetic unresolved native operation', { classification: { languages: ['en'] } });
+    const selection = await selectionFor(post.id);
+    const authority = { applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
+      credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' as const };
+    const candidate: productionApproval.MentionJevProductionApproval = {
+      selection, scope: 'native-original-public', ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID,
+      reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' },
+      deploymentId: 'synthetic-only', provider: 'fixture-provider', priceVersionId: 'fixture-price',
+      evidenceRef: 'fixture:only', validUntil: new Date(Date.now() + 60_000).toISOString(), authority, release, topics: [],
+    };
+    const source = vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue(candidate);
+    const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(selection.idempotencyKey);
+      if (init?.method === 'POST') throw new Error('Synthetic response loss after original send');
+      expect(init?.method).toBe('GET');
+      if (mode === 'revoked') return new Response('{}', { status: 403 });
+      return new Response(JSON.stringify({ data: { ...authority, schemaVersion: 2, kind: 'metered_usage',
+        meteredUsageId: 'owned-meter', requestId: 'owned-edge-request', economicTreatment: 'internal_metered',
+        economicPolicyVersion: 'fixture-economics', outcome: 'completed', usageSource: 'provider_reported',
+        units: [{ unit: 'requests', quantity: 1 }], resolvedModelReference: release.model,
+        servingProvider: mode === 'foreign-provider' ? 'foreign-provider' : 'fixture-provider', tariff: { status: 'quoted', amount: '0.0001', currency: 'USD', priceVersionId: mode === 'foreign-price' ? 'foreign-price' : 'fixture-price' },
+        customerCharge: { status: 'not_charged' }, settledAt: '2026-10-04T00:00:00.000Z' } }));
+    });
+    vi.stubGlobal('fetch', transport);
+    await padBatch(1); respondWith([]);
+    await createProductionPostClassificationService().processQueue();
+    expect(transport.mock.calls.map(call => call[1]?.method)).toEqual(['POST']);
+    const [original] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, selection.idempotencyKey));
+    expect(original.state).toBe('cost_uncertain');
+    expect(original.receiptAuthority?.recovery).toMatchObject({ ownerAccountId: candidate.ownerAccountId,
+      deploymentId: candidate.deploymentId, idempotencyKey: selection.idempotencyKey });
+    for (const [index, kind] of ['credential', 'owner', 'legacy', 'model', 'key', 'delegation'].entries()) {
+      const id = `${selection.idempotencyKey}-${kind}`; const fingerprint = String(index + 1).repeat(64);
+      const recovery = original.receiptAuthority!.recovery!;
+      await getDb().insert(postEvaluations).values({ ...original, id, fingerprint,
+        receiptAuthority: { ...authority, ...(kind === 'credential' ? { credentialId: 'foreign-credential' } : {}),
+          ...(kind === 'delegation' ? { delegatedUserId: 'foreign-user' } : {}),
+          ...(kind === 'legacy' ? {} : { recovery: { ...recovery, idempotencyKey: id, fingerprint,
+            ...(kind === 'owner' ? { ownerAccountId: 'foreign-owner' } : {}),
+            ...(kind === 'model' ? { model: 'foreign/model@v1' } : {}),
+            ...(kind === 'key' ? { idempotencyKey: 'foreign-key' } : {}) } }) },
+      });
+    }
+    await getDb().update(posts).set({ visibility: 'private' }).where(eq(posts.id, post.id));
+    const [privateBefore] = await getDb().select().from(posts).where(eq(posts.id, post.id));
+    source.mockReturnValue(mode === 'source-off' ? undefined : { ...candidate, validUntil: '2000-01-01T00:00:00.000Z' });
+    await createProductionPostClassificationService().processQueue();
+    expect(transport.mock.calls.map(call => call[1]?.method)).toEqual(['POST', 'GET']);
+    const rows = await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id));
+    const recovered = rows.find(row => row.id === selection.idempotencyKey)?.usageReconciliation;
+    if (mode === 'source-off' || mode === 'expired') expect(recovered).toMatchObject({
+      status: 'reconciled_result_missing', requestId: 'owned-edge-request', providerCost: 'unknown' });
+    else expect(recovered).toBeNull();
+    expect(rows.filter(row => row.id !== selection.idempotencyKey).every(row => row.usageReconciliation === null)).toBe(true);
+    expect(rows.every(row => row.state === 'cost_uncertain' && row.sdkReceipt === null)).toBe(true);
+    expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([privateBefore]);
+    expect((await classificationOf(post.id)).status).toBe('classified');
   });
 
   it('runs exactly the selected already-classified native revision without reclassifying it', async () => {
@@ -1265,7 +1332,7 @@ describe('PostClassificationService — shadow fanout', () => {
   });
 
   it.each(['before-cycle', 'during-claim'] as const)('does not quarantine unsent work when production approval expires %s', async phase => {
-    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    expect(jevShadow.isJevShadowReleased()).toBe(false);
     vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
     const token = vi.fn(async () => 'synthetic-only');
     vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
@@ -1273,9 +1340,9 @@ describe('PostClassificationService — shadow fanout', () => {
     await padBatch(1); respondWith([]);
     const expiresAt = Date.now() + 500;
     vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-      selection: await selectionFor(post.id), scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      selection: await selectionFor(post.id), scope: 'native-original-public', ownerAccountId: productionApproval.MENTION_JEV_OWNER_ACCOUNT_ID, reviews: { publishedSdk: 'fixture:sdk', exactPrivateRoute: 'fixture:route', ownAuthorityAndEconomics: 'fixture:authority', privacyAndZdr: 'fixture:privacy', semanticIdentityAndRecovery: 'fixture:recovery' }, deploymentId: 'synthetic-only', provider: 'fixture-provider', priceVersionId: 'fixture-price', evidenceRef: 'fixture:only',
       validUntil: new Date(expiresAt).toISOString(), release, topics: [], authority: {
-        applicationId: productionApproval.MENTION_JEV_APPLICATION_ID, credentialId: 'synthetic-mention-workload', environment: 'production',
+        applicationId: productionApproval.MENTION_JEV_APPLICATION_ID, credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production',
       },
     });
     const transport = vi.fn(() => { throw new Error('No transport is permitted after expiry'); });

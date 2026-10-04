@@ -1,5 +1,7 @@
+import { MENTION_JEV_OWNER_ACCOUNT_ID } from './contentClassification/jevProductionApproval';
+import type { ShadowReceiptReader } from './contentClassification/jevReceipt';
 import { JEV_MAX_TEXT_LENGTH } from './contentClassification/jevRequest';
-import { createProductionJevEvaluation } from './contentClassification/jevProduction';
+import { createProductionJevEvaluation, createProductionJevReceiptReader, isReviewedNativeJevEvaluation } from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -19,7 +21,7 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
 import { evaluateShadowWithDeadline, isJevShadowReleased, ShadowAdmissionClosedError, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
   claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
-  listUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
+  listUnreconciledPostEvaluations, listDurableUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
 
 /**
@@ -140,7 +142,7 @@ function importLedgerRow() {
 export class PostClassificationService {
   // No production binding until independent release reviews are complete.
   // The published typed SDK consumer is inert until then.
-  constructor(private readonly shadowEvaluation?: ShadowEvaluation) {}
+  constructor(private readonly shadowEvaluation?: ShadowEvaluation, private readonly durableReceiptReader?: ShadowReceiptReader) {}
 
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
@@ -425,19 +427,23 @@ export class PostClassificationService {
 
   private async reconcileShadowUsage(): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    if (!isJevShadowReleased() || !evaluation?.receiptReader) return;
+    const reader = this.durableReceiptReader ?? (evaluation && (isJevShadowReleased() || isReviewedNativeJevEvaluation(evaluation)) ? evaluation.receiptReader : undefined);
+    if (!reader) return;
     const deadline = Date.now() + config.inference.timeoutMs;
     await withShadowReceiptDatabase(deadline, undefined, async context => {
-      let ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, this.receiptCursor, context);
+      const select = (cursor?: string) => this.durableReceiptReader
+        ? listDurableUnreconciledPostEvaluations(reader.authority, MENTION_JEV_OWNER_ACCOUNT_ID, cursor, context)
+        : listUnreconciledPostEvaluations(evaluation!.release, reader.authority, cursor, context);
+      let ids = await select(this.receiptCursor);
       if (!ids.length && this.receiptCursor !== undefined) {
         this.receiptCursor = undefined;
-        ids = await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader!.authority, undefined, context);
+        ids = await select();
       }
       for (const id of ids) {
         context.check();
         this.receiptCursor = id; // An inaccessible old key must not starve newer claims.
         try {
-          await reconcilePostEvaluationUsage(id, evaluation.receiptReader!, context.signal, context);
+          await reconcilePostEvaluationUsage(id, reader, context.signal, context);
         } catch {
           // Unknown or inaccessible receipts remain quarantined, without inference.
           logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
@@ -448,7 +454,7 @@ export class PostClassificationService {
 
   private async enrichShadowBatch(queue: readonly Pick<QueueDoc, 'id'>[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    if (!isJevShadowReleased() || !evaluation) return;
+    if (!evaluation || (!isJevShadowReleased() && !isReviewedNativeJevEvaluation(evaluation))) return;
     const deadline = Date.now() + config.inference.timeoutMs;
     // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
     for (const post of queue) {
@@ -540,7 +546,7 @@ export class PostClassificationService {
 }
 
 export function createProductionPostClassificationService(): PostClassificationService {
-  return new PostClassificationService(createProductionJevEvaluation());
+  return new PostClassificationService(createProductionJevEvaluation(), createProductionJevReceiptReader());
 }
 
 export const postClassificationService = createProductionPostClassificationService();
