@@ -148,8 +148,8 @@ Lanes are managed for the active account only (the backend always owns a new lan
 ### Collaborative posts
 
 - Invite up to **5 local** co-authors on `create-post` or `update-post` via `collaboratorIds` or `collaboratorHandles` (@username). The **backend** resolves handles to user IDs (MCP passes them through unchanged).
-- A central connection acts only as its bound account. A collaborator accepts or declines through a separate connection authorized for that account.
-- Auto-acceptance across linked accounts exists only for already-issued legacy bundles during the fixed migration window.
+- A central connection acts as its active account. An invited collaborator already present in the connection's live Oxy-approved account set is accepted automatically; accounts outside that set must accept or decline through their own authorized connection.
+- Mention-issued legacy bundles are retired and cannot authorize collaboration or account switching.
 - Accepted collaborators can call `stop-collab-sharing`.
 - Threads do not support collaborators (backend returns 400).
 - Federation is deferred until all invites resolve.
