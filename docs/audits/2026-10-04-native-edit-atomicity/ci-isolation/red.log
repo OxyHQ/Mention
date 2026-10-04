@@ -1,0 +1,58 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1535852, /tmp/mention-jev-semantic-k3was2fr/data, socket /tmp/mention-jev-semantic-k3was2fr/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1535852, /tmp/mention-jev-semantic-k3was2fr/data, socket /tmp/mention-jev-semantic-k3was2fr/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=2" src/__tests__/isolatedDatabaseCoverage.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-atomic-edit-20261004/packages/backend
+
+ ❯ src/__tests__/isolatedDatabaseCoverage.test.ts (14 tests | 2 failed) 205ms
+   ❯ isolated-database file list (6)
+     × lists every test file that invokes an unscoped background job 6ms
+     × accounts for every caller found, so the two lists cannot drift apart 91ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/isolatedDatabaseCoverage.test.ts > isolated-database file list > lists every test file that invokes an unscoped background job
+AssertionError: src/__tests__/services/trendingBatchWrite.test.ts calls calculateTrending, which rewrites rows it does not own, but it is missing from ISOLATED_DATABASE_FILES — it will run against the shared database and corrupt other files' rows. Add it there.: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/__tests__/isolatedDatabaseCoverage.test.ts:235:11
+    233|           'but it is missing from ISOLATED_DATABASE_FILES — it will ru…
+    234|           "the shared database and corrupt other files' rows. Add it t…
+    235|         ).toBe(true);
+       |           ^
+    236|       }
+    237|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/__tests__/isolatedDatabaseCoverage.test.ts > isolated-database file list > accounts for every caller found, so the two lists cannot drift apart
+AssertionError: expected 35 to be 34 // Object.is equality
+
+- Expected
++ Received
+
+- 34
++ 35
+
+ ❯ src/__tests__/isolatedDatabaseCoverage.test.ts:265:26
+    263|   it('accounts for every caller found, so the two lists cannot drift a…
+    264|     const callers = new Set(JOB_ENTRY_POINTS.flatMap((entryPoint) => c…
+    265|     expect(callers.size).toBe(ISOLATED_DATABASE_FILES.length);
+       |                          ^
+    266|   });
+    267|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 12 passed (14)
+   Start at  18:08:45
+   Duration  923ms (tests 70%, transform 13%, import 10%, setup 5%, worker 1%)
+
+error: script "test" exited with code 1

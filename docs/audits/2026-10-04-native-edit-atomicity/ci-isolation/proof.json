@@ -1,0 +1,47 @@
+{
+  "sourceHead": "12674d270e6303644c6897bd84a1bea2947db7fd",
+  "sources": [
+    {
+      "path": "packages/backend/src/__tests__/isolatedDatabaseCoverage.test.ts",
+      "sha256": "cc4c0702541ccfdb36a00d5a2c5c173fb6e5add3456a051ed94445c5bd291d14"
+    },
+    {
+      "path": "packages/backend/src/__tests__/isolatedDatabaseFiles.ts",
+      "sha256": "06b30eaee51c365a438878b409d4e0a76a071cbfcca17d4a9b3ee44757c89e7d"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/ci-isolation/ci-failure.log",
+      "sha256": "64eb25267fdf5ba74ce0599854c2a8bdcd69e005eb3beeddfc2d69800566db2c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/ci-isolation/green-receipt.json",
+      "sha256": "29e36e56f993f4380d17350c7197f457b15aa7a7d225117123aae48340df1ed6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/ci-isolation/green.log",
+      "sha256": "13b91bb2da23fe14a034a56fad106639256050b417be4fe121a0835e5243ee8f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/ci-isolation/red-receipt.json",
+      "sha256": "867cd5866ecc80aa99da2eaa2aba3e6d8746ccdfd1bbea42d1157190fa2ad804"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/ci-isolation/red.log",
+      "sha256": "60626104f4d09fcf7ab43c279602890c909b7aa80f815202305d30ddf74f1e6a"
+    }
+  ],
+  "result": {
+    "guardBaselineFailed": 2,
+    "guardBaselinePassed": 12,
+    "finalTests": 66,
+    "finalSuites": 4,
+    "ownedPostgresStopped": true
+  },
+  "limits": [
+    "CI failed when a channel-deletion trend disappeared; no production change in this followup.",
+    "Global trending suite demonstrably lacked required database isolation. Timestamp-only cleanup can reach a concurrent row; exact deleting CI statement was not logged, so collision is not claimed as conclusively attributed.",
+    "Extended existing scanner to both global trending entry points. Same guard fails before membership addition; real SQL suites pass with dedicated database isolation."
+  ]
+}
