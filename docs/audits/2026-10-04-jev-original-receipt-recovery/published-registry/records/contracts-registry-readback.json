@@ -1,0 +1,25 @@
+{
+  "version": "4.9.1",
+  "dist": {
+    "shasum": "a31c9b9c9dbf133fcff82915874d2f94df60b161",
+    "tarball": "https://registry.npmjs.org/@oxy.so/contracts/-/contracts-4.9.1.tgz",
+    "fileCount": 198,
+    "integrity": "sha512-WtCC6dLYFaVoVwarSLO+mUVl6soTedIPyzVC2XReoThN1JKGICPOLEFZC6EpXsrN8OSfLLWz7TRY4CBOAirNJA==",
+    "signatures": [
+      {
+        "sig": "MEUCIQDmW4b3mX89Lp1yukr+GgADrlJOBCQSRzU1XSA8H0uMhQIgOt2jMBZbx1JvieH7k/W0MZhH2w0YSwlTERwujKXg/10=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "sig": "MEYCIQDQkDlB6sL6uyWp1p0u+7VXpQCBNuReXc8fq1XIHhFUuwIhAMN/Y2BjpNl2KthLMc8v0JX+iH1gKZzbPt5DvqI54gC9"
+      }
+    ],
+    "unpackedSize": 3680174
+  },
+  "metadataReadAttempts": 14,
+  "distTags": {
+    "latest": "4.9.1"
+  },
+  "downloadByteEqual": true
+}
