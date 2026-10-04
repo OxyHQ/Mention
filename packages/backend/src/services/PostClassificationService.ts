@@ -15,7 +15,8 @@ import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 import { evaluateShadowWithDeadline, isJevShadowReleased, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation, type ShadowClaim,
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
+  listUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
 
 /**
@@ -205,6 +206,7 @@ export class PostClassificationService {
     this.isClassifying = true;
 
     try {
+      await this.reconcileShadowUsage();
       await this.markEmptyPosts();
       await this.classifyBatch();
     } finally {
@@ -407,6 +409,22 @@ export class PostClassificationService {
     return byIndex;
   }
 
+  private async reconcileShadowUsage(): Promise<void> {
+    const evaluation = this.shadowEvaluation;
+    if (!isJevShadowReleased() || !evaluation?.receiptReader) return;
+    const deadline = Date.now() + config.inference.timeoutMs;
+    for (const id of await listUnreconciledPostEvaluations(evaluation.release, evaluation.receiptReader.authority)) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      try {
+        await reconcilePostEvaluationUsage(id, evaluation.receiptReader, AbortSignal.timeout(remaining));
+      } catch {
+        // Unknown or inaccessible receipts remain quarantined, without inference.
+        logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
+      }
+    }
+  }
+
   private async enrichShadowBatch(queue: QueueDoc[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
     if (!isJevShadowReleased() || !evaluation) return;
@@ -417,7 +435,8 @@ export class PostClassificationService {
       let claim: ShadowClaim | null = null;
       let sent = false;
       try {
-        claim = await claimPostEvaluation(post.id, evaluation.release);
+        claim = await claimPostEvaluation(post.id, evaluation.release, evaluation.receiptReader?.authority,
+          evaluation.receiptReader ? new Date(deadline) : undefined);
         if (!claim) continue;
         const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');

@@ -1,3 +1,4 @@
+import { createJevReceiptReader, type ShadowReceiptAuthority } from './jevReceipt';
 import {
   decisionAnswersMatch, decisionRequestSchema, decisionSuccessSchema,
   type DecisionRequest,
@@ -29,9 +30,10 @@ export const FEED_SCORE_LEVELS = Object.freeze([
  * is distinct from our claim/idempotency key; decisions do not return receiptId.
  */
 export function createJevShadowEvaluation(
-  client: Pick<OxyInferenceClient, 'decide'>,
+  client: Pick<OxyInferenceClient, 'decide'> & Partial<Pick<OxyInferenceClient, 'getGenerationRecordByIdempotencyKey'>>,
   releaseInput: ShadowRelease,
   topicInput: readonly ShadowTopic[],
+  receiptAuthority?: ShadowReceiptAuthority,
 ): ShadowEvaluation {
   validateShadowRelease(releaseInput);
   const release = Object.freeze({ ...releaseInput,
@@ -45,8 +47,12 @@ export function createJevShadowEvaluation(
     || release.supportedLanguages.some(language => language.length < 2 || language.length > 35)) {
     throw new Error('Invalid reviewed shadow question set');
   }
+  const readOriginal = client.getGenerationRecordByIdempotencyKey?.bind(client);
+  if (receiptAuthority !== undefined && !readOriginal) throw new Error('Canonical receipt reader is unavailable');
+  const receiptReader = receiptAuthority !== undefined && readOriginal
+    ? createJevReceiptReader({ getGenerationRecordByIdempotencyKey: readOriginal }, receiptAuthority) : undefined;
   return {
-    release,
+    release, ...(receiptReader === undefined ? {} : { receiptReader }),
     async evaluate({ text, languages, idempotencyKey, signal }) {
       if (!text.trim() || !languages.length || languages.length > 3
         || new Set(languages).size !== languages.length

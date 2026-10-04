@@ -1,3 +1,4 @@
+import type { ShadowReceiptReader } from './jevReceipt';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { requestIdSchema, routingPolicyReferenceSchema, usageQuantitySchema } from '@oxy.so/contracts';
@@ -111,6 +112,7 @@ export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
  */
 export interface ShadowEvaluation {
   readonly release: ShadowRelease;
+  readonly receiptReader?: ShadowReceiptReader;
   evaluate(input: {
     readonly text: string;
     readonly languages: readonly string[];

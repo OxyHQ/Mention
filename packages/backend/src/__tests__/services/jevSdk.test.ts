@@ -30,6 +30,13 @@ function fixture(mutate: (result: DecisionSuccess) => unknown = result => result
 }
 
 describe('published Jev SDK consumer', () => {
+  it('refuses a configured recovery authority without a canonical reader before any inference', () => {
+    const decide = vi.fn();
+    expect(() => createJevShadowEvaluation({ decide }, release, topics,
+      { applicationId: 'fixture', credentialId: 'fixture', environment: 'production' })).toThrow('Canonical receipt reader is unavailable');
+    expect(decide).not.toHaveBeenCalled();
+  });
+
   it('uses independent propositions, ordered score and actual SDK request/policy references', async () => {
     const { evaluation, transport } = fixture(result => ({ ...result, data: [...result.data].reverse() }));
     const result = await evaluation.evaluate(input);

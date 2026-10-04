@@ -287,3 +287,31 @@ new, still-untracked docs files; it clears once they are staged. The second was
 `isolatedDatabaseCoverage`, because `SCRIPT_SCOPE` had no entry for
 `lib/jevOwnedPg.mjs`; that entry is now declared. The full suite stays pending
 in CI until it reruns with both fixes.
+
+## Original-key usage reconciliation (candidate)
+
+The receipt-recovery followup uses the canonical core
+`getGenerationRecordByIdempotencyKey` method from Oxy PR1574. Its new SDK release
+is still required before adopting a final registry lock. Local tests use the
+exact candidate package; no production binding or activation is implied.
+
+Migration 0060 adds three nullable fields to the existing ledger: the original
+public authority tuple, the original request deadline, and independent usage
+reconciliation metadata. The authority and deadline are written before dispatch.
+The existing classifier cycle reads at most 25 matching unresolved claims through
+GET only. It never calls `decide` to recover a receipt. Claimed work is eligible
+only after its persisted deadline; old claims without proven authority/deadline
+are not guessed or reissued. A 401/404 or missing record remains unresolved.
+
+A recovered v1 customer charge retains its billed amount, currency and price
+version; a v2 internal record retains its separate tariff and `not_charged`
+status. Provider invoice cost remains unknown. Neither variant restores lost
+answers: `reconciled_result_missing` is separate from the original outcome, and
+no spam/topic/feed values are fabricated. Concurrent completion wins over a late
+recovery write; deletion cannot resurrect a row; privacy changes never export
+content through this metadata-only read. Aborted reads cannot later write.
+
+The production gate remains closed pending the exact Jev route/privacy review,
+SDK publication/adoption and the remaining semantic/language transition review.
+No production ledger backfill, funding mode, credential or provider approval is
+inferred from these fixtures.

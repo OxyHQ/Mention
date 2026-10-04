@@ -1,3 +1,4 @@
+import { claimPostEvaluation, markPostEvaluationUncertain } from '../../db/posts/postEvaluationRepository';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
 import { eq } from 'drizzle-orm';
@@ -1199,6 +1200,26 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(evaluate).not.toHaveBeenCalled();
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
     expect((await classificationOf(post.id)).status).toBe('classified');
+  });
+
+  it('recovers missing usage in the existing cycle without evaluating the original claim again', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const authority = { applicationId: 'worker-fixture-app', credentialId: 'worker-fixture-credential', environment: 'production' as const };
+    const post = await seedSubject('Synthetic recovery', { classification: { languages: ['en'], status: 'classified' } });
+    const claim = await claimPostEvaluation(post.id, release, authority);
+    if (!claim) throw new Error('Missing synthetic claim');
+    await markPostEvaluationUncertain(claim);
+    await padBatch(0); respondWith([]);
+    const readOriginal = vi.fn(async (_key: string, _model: string, _signal?: AbortSignal) => ({ status: 'reconciled_result_missing' as const, requestId: 'original-usage',
+      authority, model: release.model, provider: 'fixture', outcome: 'completed' as const, usageSource: 'provider_reported' as const,
+      units: [{ unit: 'input_tokens' as const, quantity: 17 }], settledAt: '2026-10-04T00:00:00.000Z', providerCost: 'unknown' as const,
+      economics: { kind: 'internal_usage' as const, customerCharge: 'not_charged' as const, tariff: { status: 'unpriced' as const, priceVersionId: null } } }));
+    await new PostClassificationService({ release, evaluate: vi.fn(), receiptReader: { authority, readOriginal } }).processQueue();
+    expect(readOriginal).toHaveBeenCalledTimes(1);
+    expect(readOriginal.mock.calls[0]?.[0]).toBe(claim.id);
+    const [row] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, claim.id));
+    expect(row.state).toBe('cost_uncertain'); expect(row.sdkReceipt).toBeNull();
+    expect(row.usageReconciliation?.status).toBe('reconciled_result_missing');
   });
 
   it('finishes canonical classification while a slow shadow evaluation is still pending', async () => {

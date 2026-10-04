@@ -1,9 +1,11 @@
+import { OxyInferenceClient } from '@oxy.so/core/inference';
+import { createJevReceiptReader } from '../../services/contentClassification/jevReceipt';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState,
+  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, originalActorFollowState, reconcilePostEvaluationUsage,
 } from '../../db/posts/postEvaluationRepository';
 import { replacePostContent, storeMachineVariant } from '../../db/posts/postRepository';
 import { postEvaluations, postEvaluationTopics } from '../../db/schema/postEvaluations';
@@ -452,5 +454,121 @@ describe('durable shadow evaluation ledger', () => {
       tag: 'es', source: 'author', body: 'Noticias científicas sintéticas.' });
     expect(await completePostEvaluation(claim, signals)).toBe(false);
     expect((await ledger(post.id))[0]?.state).toBe('cancelled');
+  });
+});
+
+describe('usage reconciliation keeps lost answers and original claims separate', () => {
+  const authority = { applicationId: 'fixture-app', credentialId: 'fixture-credential', environment: 'production' as const };
+  function wire(version = 2) {
+    const common = { requestId: 'original-request', ...authority, outcome: 'completed', usageSource: 'provider_reported',
+      units: [{ unit: 'input_tokens', quantity: 17 }], resolvedModelReference: release.model,
+      servingProvider: 'fixture-provider', settledAt: '2026-10-04T00:00:00.000Z' };
+    return version === 2 ? { ...common, schemaVersion: 2, kind: 'metered_usage', meteredUsageId: 'original-usage',
+      economicTreatment: 'internal_metered', economicPolicyVersion: 'fixture', customerCharge: { status: 'not_charged' },
+      tariff: { status: 'unpriced', priceVersionId: null } }
+      : { ...common, schemaVersion: 1, receiptId: 'original-receipt', billedAmount: '0.001000000000', currency: 'USD',
+        platformFeeOnly: false, priceSnapshot: { priceVersionId: 'original-price', currency: 'USD', unitPrices: [] } };
+  }
+  function reader(result: unknown = wire(), status = 200) {
+    const transport = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(String(url)).toBe('http://owned.invalid/v1/generations/by-idempotency-key');
+      expect(init?.method).toBe('GET'); expect(init?.body).toBeUndefined();
+      return new Response(JSON.stringify(status === 200 ? { data: result }
+        : { code: status === 401 ? 'authentication_failed' : 'model_not_found', requestId: 'lookup-only', retryable: false, message: 'Unknown' }), { status });
+    });
+    return { transport, value: createJevReceiptReader(new OxyInferenceClient({ credential: 'synthetic',
+      baseURL: 'http://owned.invalid', fetch: transport }), authority) };
+  }
+  async function uncertain() {
+    const post = await fixture(); const claim = await claimPostEvaluation(post.id, release, authority);
+    if (!claim) throw new Error('Expected original claim');
+    await markPostEvaluationUncertain(claim); return { post, claim };
+  }
+  it.each([1, 2])('records v%s evidence without restoring answers or permitting a paid retry', async version => {
+    const { post, claim } = await uncertain(); const before = (await ledger(post.id))[0]; const r = reader(wire(version));
+    expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(true);
+    const current = (await ledger(post.id))[0];
+    expect({ ...current, usageReconciliation: null }).toEqual(before);
+    expect(current.usageReconciliation).toMatchObject({ status: 'reconciled_result_missing', requestId: 'original-request',
+      providerCost: 'unknown', economics: { kind: version === 1 ? 'customer_charge' : 'internal_usage' } });
+    expect(current.state).toBe('cost_uncertain'); expect(current.sdkReceipt).toBeNull();
+    expect(await claimPostEvaluation(post.id, release, authority)).toBeNull();
+    expect(await completePostEvaluation(claim, signals)).toBe(false);
+    expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(true);
+    expect(r.transport).toHaveBeenCalledTimes(1);
+    expect(new Headers(r.transport.mock.calls[0][1]?.headers).get('Idempotency-Key')).toBe(claim.id);
+  });
+  it.each([401, 404])('leaves unavailable usage (%s) unchanged', async status => {
+    const { post, claim } = await uncertain(); const before = await ledger(post.id); const r = reader(undefined, status);
+    await expect(reconcilePostEvaluationUsage(claim.id, r.value)).rejects.toMatchObject({ status });
+    expect(await ledger(post.id)).toEqual(before); expect(r.transport).toHaveBeenCalledTimes(1);
+  });
+  it.each(['applicationId', 'credentialId', 'environment', 'resolvedModelReference'])('rejects foreign %s before writing', async field => {
+    const { post, claim } = await uncertain(); const before = await ledger(post.id); const r = reader({ ...wire(), [field]: 'foreign' });
+    await expect(reconcilePostEvaluationUsage(claim.id, r.value)).rejects.toThrow('original authority and model');
+    expect(await ledger(post.id)).toEqual(before);
+  });
+  it('does not invent attribution for old claims', async () => {
+    const post = await fixture(); const claim = await requiredClaim(post.id); await markPostEvaluationUncertain(claim);
+    const r = reader(); expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(false);
+    expect(r.transport).not.toHaveBeenCalled();
+  });
+  it('recovers abandoned work only after its persisted original deadline, never current policy', async () => {
+    const post = await fixture(); const future = new Date(Date.now() + 60_000);
+    const claim = await claimPostEvaluation(post.id, release, authority, future);
+    if (!claim) throw new Error('Expected claim'); const r = reader();
+    expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(false);
+    expect(r.transport).not.toHaveBeenCalled();
+    await getDb().update(postEvaluations).set({ requestDeadlineAt: new Date(Date.now() - 1000) }).where(eq(postEvaluations.id, claim.id));
+    const missing = reader(undefined, 404);
+    await expect(reconcilePostEvaluationUsage(claim.id, missing.value)).rejects.toMatchObject({ status: 404 });
+    expect((await ledger(post.id))[0].state).toBe('claimed');
+    expect(await reconcilePostEvaluationUsage(claim.id, r.value)).toBe(true);
+    expect((await ledger(post.id))[0]).toMatchObject({ state: 'cost_uncertain', sdkReceipt: null,
+      usageReconciliation: { status: 'reconciled_result_missing' } });
+    expect(await claimPostEvaluation(post.id, release, authority)).toBeNull();
+  });
+  it.each(['delete', 'private', 'completed'] as const)('does not resurrect output after concurrent %s', async action => {
+    const post = await fixture();
+    const claim = await claimPostEvaluation(post.id, release, authority, new Date(Date.now() - 1000));
+    if (!claim) throw new Error('Expected claim');
+    let finish!: () => void; const reached = barrier();
+    const delayed = { authority, readOriginal: async () => {
+      reached.open(); await new Promise<void>(resolve => { finish = resolve; });
+      return reader().value.readOriginal(claim.id, release.model);
+    } };
+    const pending = reconcilePostEvaluationUsage(claim.id, delayed); await reached.reached;
+    if (action === 'delete') await getDb().delete(posts).where(eq(posts.id, post.id));
+    if (action === 'private') await getDb().update(posts).set({ visibility: 'private' }).where(eq(posts.id, post.id));
+    if (action === 'completed') expect(await completePostEvaluation(claim, signals)).toBe(true);
+    finish(); expect(await pending).toBe(action === 'private');
+    const rows = await ledger(post.id);
+    if (action === 'delete') expect(rows).toEqual([]);
+    else if (action === 'completed') expect(rows[0]).toMatchObject({ state: 'completed', sdkReceipt: signals.sdkReceipt, usageReconciliation: null });
+    else {
+      expect(rows[0]).toMatchObject({ state: 'cost_uncertain', sdkReceipt: null });
+      const [current] = await getDb().select().from(posts).where(eq(posts.id, post.id));
+      expect(current.visibility).toBe('private');
+    }
+  });
+  it('bounds a held read and never writes its late result after abort', async () => {
+    const { post, claim } = await uncertain(); const before = await ledger(post.id); const control = new AbortController();
+    let releaseRead!: () => void; const started = barrier();
+    const delayed = { authority, readOriginal: async () => {
+      started.open(); await new Promise<void>(resolve => { releaseRead = resolve; });
+      return reader().value.readOriginal(claim.id, release.model);
+    } };
+    const pending = reconcilePostEvaluationUsage(claim.id, delayed, control.signal);
+    await started.reached;
+    const failure = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    control.abort(); await failure; releaseRead();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(await ledger(post.id)).toEqual(before);
+  });
+  it('serializes concurrent duplicate receipts without another claim', async () => {
+    const { post, claim } = await uncertain(); const r = reader();
+    expect(await Promise.all(Array.from({ length: 3 }, () => reconcilePostEvaluationUsage(claim.id, r.value)))).toEqual([true, true, true]);
+    expect(await ledger(post.id)).toHaveLength(1); expect((await ledger(post.id))[0].state).toBe('cost_uncertain');
+    expect(await claimPostEvaluation(post.id, release, authority)).toBeNull();
   });
 });
