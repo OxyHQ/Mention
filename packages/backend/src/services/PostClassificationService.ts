@@ -140,7 +140,7 @@ function importLedgerRow() {
 }
 
 export class PostClassificationService {
-  // No production binding until independent release reviews are complete.
+  // Production factories are wired; the source approval getter remains undefined until independent release reviews are complete.
   // The published typed SDK consumer is inert until then.
   constructor(private readonly shadowEvaluation?: ShadowEvaluation, private readonly durableReceiptReader?: ShadowReceiptReader) {}
 
@@ -431,9 +431,13 @@ export class PostClassificationService {
     if (!reader) return;
     const deadline = Date.now() + config.inference.timeoutMs;
     await withShadowReceiptDatabase(deadline, undefined, async context => {
-      const select = (cursor?: string) => this.durableReceiptReader
-        ? listDurableUnreconciledPostEvaluations(reader.authority, MENTION_JEV_OWNER_ACCOUNT_ID, cursor, context)
-        : listUnreconciledPostEvaluations(evaluation!.release, reader.authority, cursor, context);
+      const select = (cursor?: string) => {
+        if (this.durableReceiptReader) {
+          return listDurableUnreconciledPostEvaluations(reader.authority, MENTION_JEV_OWNER_ACCOUNT_ID, cursor, context);
+        }
+        if (!evaluation) return Promise.resolve([]);
+        return listUnreconciledPostEvaluations(evaluation.release, reader.authority, cursor, context);
+      };
       let ids = await select(this.receiptCursor);
       if (!ids.length && this.receiptCursor !== undefined) {
         this.receiptCursor = undefined;

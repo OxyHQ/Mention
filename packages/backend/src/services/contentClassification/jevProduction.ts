@@ -31,7 +31,7 @@ export function createProductionJevEvaluation(): ShadowEvaluation | undefined {
     || approval.authority.delegatedUserId !== undefined
     || !approval.deploymentId.trim() || !approval.provider.trim() || !approval.priceVersionId.trim() || !approval.evidenceRef.trim()
     || !Number.isFinite(expiresAt) || new Date(expiresAt).toISOString() !== approval.validUntil
-) {
+  ) {
     throw new Error('Mention Jev production approval is invalid or expired');
   }
   if (expiresAt <= Date.now()) return undefined;
