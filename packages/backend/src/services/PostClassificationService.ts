@@ -1,3 +1,4 @@
+import { createProductionJevEvaluation } from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -529,4 +530,8 @@ export class PostClassificationService {
   }
 }
 
-export const postClassificationService = new PostClassificationService();
+export function createProductionPostClassificationService(): PostClassificationService {
+  return new PostClassificationService(createProductionJevEvaluation());
+}
+
+export const postClassificationService = createProductionPostClassificationService();

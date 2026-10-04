@@ -3,7 +3,12 @@ import { claimPostEvaluation, markPostEvaluationUncertain } from '../../db/posts
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention/shared-types';
 import { eq, sql } from 'drizzle-orm';
+import * as productionApproval from '../../services/contentClassification/jevProductionApproval';
+import * as runtimeIdentity from '../../runtime/serviceIdentity';
+import * as oxyHelpers from '../../utils/oxyHelpers';
+import type { DecisionRequest } from '@oxy.so/contracts';
 import * as jevShadow from '../../services/contentClassification/jevShadow';
+import { posts } from '../../db/schema/posts';
 import { postEvaluations } from '../../db/schema/postEvaluations';
 
 /**
@@ -87,7 +92,7 @@ import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/
 import { insertPostRecord, lockPostContent, updatePostRecord } from '../../db/posts/postRepository';
 import { logger } from '../../utils/logger';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { PostClassificationService, postClassificationService } from '../../services/PostClassificationService';
+import { createProductionPostClassificationService, PostClassificationService, postClassificationService } from '../../services/PostClassificationService';
 import { config } from '../../config';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 
@@ -241,6 +246,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await clearServiceScope(scope);
 });
 
@@ -1191,6 +1197,46 @@ describe('PostClassificationService — shadow fanout', () => {
     model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
     evaluationVersion: 'shadow-v1', supportedLanguages: ['en'],
   };
+
+  it('connects the production factory to the real native-only queue through the SDK', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const authority = { applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
+      credentialId: 'synthetic-mention-workload', environment: 'production' as const };
+    vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
+      scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      validUntil: new Date(Date.now() + 60_000).toISOString(), authority, release, topics: [],
+    });
+    vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
+    const token = vi.fn(async () => 'synthetic-only');
+    vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
+    const native = await seedSubject('Native eligible content', { classification: { languages: ['en'] } });
+    const federated = await seedSubject('Remote content remains excluded', { classification: { languages: ['en'] } });
+    await getDb().update(posts).set({ federationActorUri: 'https://synthetic.invalid/actor', federationActivityId: 'https://synthetic.invalid/post' }).where(eq(posts.id, federated.id));
+    await padBatch(2); respondWith([]);
+    const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(init?.method).toBe('POST');
+      const key = new Headers(init?.headers).get('Idempotency-Key')!;
+      expect(new Headers(init?.headers).get('X-Oxy-User-Id')).toBeNull();
+      const [claimed] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, key));
+      expect(claimed).toMatchObject({ postId: native.id, state: 'claimed', receiptAuthority: authority });
+      const request = JSON.parse(String(init?.body)) as DecisionRequest;
+      expect(request.state).toContain('Native eligible content');
+      return new Response(JSON.stringify({ schemaVersion: 1, requestId: 'owned-factory-request', model: request.model,
+        routingPolicy: { routingPolicyId: release.policyRef, policyVersion: 1 }, usage: [{ unit: 'requests', quantity: 1 }],
+        data: request.questions.map(q => q.kind === 'score'
+          ? { id: q.id, kind: 'score', reply: 3, mean: 3, confidence: 0.5, distribution: [0, 0, 0, 1, 0] }
+          : { id: q.id, kind: 'noul', probability: 0.1 }) }), { headers: { 'X-Oxy-Request-Id': 'owned-factory-request' } });
+    });
+    vi.stubGlobal('fetch', transport);
+    await createProductionPostClassificationService().processQueue();
+    expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBeenCalledTimes(1);
+    expectBatchWasOurs();
+    expect((await classificationOf(native.id)).status).toBe('classified');
+    expect((await classificationOf(federated.id)).status).toBe('classified');
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, native.id)))
+      .toEqual([expect.objectContaining({ state: 'completed' })]);
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, federated.id))).toEqual([]);
+  });
 
   it('keeps the production gate closed even when a projection binding is supplied', async () => {
     const post = await seedSubject('Synthetic public news', { classification: { languages: ['en'] } });
