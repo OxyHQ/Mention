@@ -48,14 +48,15 @@ export interface ShadowSnapshot {
 
 export function shadowFingerprint(snapshot: ShadowSnapshot): string {
   // Explicit fields: timestamps/counters on posts are not content revisions.
-  // Rendition ids distinguish an edit away and back to identical text. Machine
-  // translations are never inference input (the author primary and canonical
-  // languages are), so caching or replacing one is not a new revision.
+  // Physical rendition ids are replaced even by a semantic no-op write. They
+  // must not authorize another paid request, including an edit away and back.
+  // Full author text/metadata and canonical language order remain the identity;
+  // machine translations are never inference input or a new revision.
   return createHash('sha256').update(JSON.stringify([
     snapshot.postId, snapshot.actorUri, snapshot.owner, snapshot.languages,
     snapshot.renditions.filter(rendition => rendition.source === 'author')
       .sort((left, right) => left.position - right.position).map(
-      rendition => [rendition.id, rendition.position, rendition.tag, rendition.source,
+      rendition => [rendition.position, rendition.tag, rendition.source,
         rendition.body, rendition.articleTitle, rendition.articleBody, rendition.articleExcerpt],
     ),
   ])).digest('hex');

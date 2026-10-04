@@ -171,16 +171,17 @@ publication. They are explicit hard blockers, not implied by `visibility=public`
   closed until ingestion stores durable listed provenance and real actor
   discoverability; only then can federated sources be reconsidered. Existing
   ingestion, follows, security checks and feed behavior are unchanged.
-- Author rendition identity intentionally remains conservative. A pass-through
-  content replacement (`replacePostContent` re-inserts every rendition with new
-  IDs) invalidates the snapshot, even if primary text is unchanged. Machine
-  translations no longer do (above). A public/private/public toggle cannot
-  acquire another claim for the same fingerprint. These states may have incurred
-  cost: `cancelled` never means refunded or free. Superseded successful results
-  log their existing evaluation ID for reconciliation. The
-  `semantic_revision_and_receipt_reconciliation` gate blocks release until
-  no-op rewrites, split content/language edits, privacy transitions and paid
-  receipt recovery are addressed without fresh inference IDs.
+- Author revision identity uses full semantic content and metadata, not physical
+  rendition IDs. A pass-through `replacePostContent` rewrite with identical
+  author content/language preserves the existing claim, including completed,
+  cancelled, claimed and cost-uncertain rows. Editing away and back cannot buy a
+  second request for the original semantic identity. Machine translations remain
+  outside that identity. The owned-PG regression demonstrates these cases with
+  five concurrent claimers and an unchanged durable ledger. This is a pre-release
+  identity correction: it does not rewrite older ledger fingerprints or enable
+  production classification. The `semantic_revision_and_receipt_reconciliation`
+  gate remains closed for paid/uncertain receipt recovery, split content/language
+  updates and independently reviewed activation; `cancelled` never means free.
 - Row locks are retained for atomic public/published/deletion checks. A key-share
   lock would allow non-key visibility/status updates; an unlocked re-read would
   reopen the check/write race. These short transactions contain no inference.
