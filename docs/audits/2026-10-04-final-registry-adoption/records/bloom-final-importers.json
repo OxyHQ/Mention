@@ -1,0 +1,19 @@
+{
+  "archiveSha256": "9e7796b206cded1acc8edf640591fa80f6f0b99f73d557c262ab55103a2a4df9",
+  "importers": [
+    {
+      "importer": "package.json",
+      "version": "7.1.2",
+      "root": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/bloom",
+      "files": 21941,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/frontend/package.json",
+      "version": "7.1.2",
+      "root": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/bloom",
+      "files": 21941,
+      "allFilesEqual": true
+    }
+  ]
+}

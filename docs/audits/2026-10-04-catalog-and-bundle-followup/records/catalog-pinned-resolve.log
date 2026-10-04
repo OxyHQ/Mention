@@ -1,0 +1,9 @@
+bun install v1.3.14 (0d9b296a)
+Resolving dependencies
+Resolved, downloaded and extracted [5]
+
+$ bun run build:shared-types
+$ bun run --cwd packages/shared-types build
+$ tsc
+
+6 packages installed [964.00ms]

@@ -1,0 +1,8 @@
+$ node ./scripts/typecheck.mjs
+Frontend type-check failed with the following errors:
+
+components/shell/PanelChrome.tsx(4,10): error TS2305: Module '"@oxy.so/bloom/page-header"' has no exported member 'EdgeScrim'.
+components/shell/PanelChrome.tsx(4,21): error TS2305: Module '"@oxy.so/bloom/page-header"' has no exported member 'SCRIM_TAIL_RATIO'.
+
+2 unexpected type error(s).
+error: script "typecheck" exited with code 1

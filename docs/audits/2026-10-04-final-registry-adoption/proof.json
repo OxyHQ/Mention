@@ -1,0 +1,190 @@
+{
+  "source": "4ec3f311c5f7bb7ba678c363ee041b6017c6f294",
+  "sources": [
+    {
+      "path": "bun.lock",
+      "sha256": "7a8198cf7b2ee677c3d4e1022d8382e46e63cee742ad5bfd3d270494c55a893b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "4c65a8195a0eb989dc84f43b44d5e6e227be0886ca2d50ce1e2bab0a77e3f9f7"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "e46d3ae9b515f12f22f3f9fa30e8486e2dbed72d951ab64cfb15b106d9db3c78"
+    },
+    {
+      "path": "packages/frontend/package.json",
+      "sha256": "da186e0565f456a7a5e37c1215dd09536b7a82a18f64e4e2d6d45d806de5f416"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Mention-frozen.log",
+      "sha256": "5523ace17a07428bea04b0a6bc1ed11e650d47c61b232a671201b27ea0495069",
+      "bytes": 241
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Mention-installed.json",
+      "sha256": "62db65c9e5b1bbdf7361138edf89126d47654eff9ba6f1e16ff7b322d68e8d69",
+      "bytes": 3312
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Mention-resolve.log",
+      "sha256": "d3a082be40f49a03c1eff734280af5f3ef941cf114fda1cc155c431ba7937678",
+      "bytes": 255
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/backend-focal.log",
+      "sha256": "71aff186161ce90517d9ab8b83e5bdec37b7491ea3d66e2f487a17cb72da9670",
+      "bytes": 1612
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/backend-mcp-build.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07",
+      "bytes": 167
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom-final-importers.json",
+      "sha256": "81a4237d9d22f1c63ec834cfabb8559ea3c021f5da92bacdf1416b9eb610d565",
+      "bytes": 589
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom712-compat.log",
+      "sha256": "489b26241e0dcb0d66f9dc17d51fda4edaec9b1e0fc14ef207c722fc5135bda4",
+      "bytes": 585
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom712-frontend-build.log",
+      "sha256": "82a4db0a351a31b076ec9e2588a7431d0da65484a5d33cd7edf00cc746d4a47f",
+      "bytes": 21618
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom712-frozen.log",
+      "sha256": "e82903273aadcdd095586267546cc66e280374e3366364e748d5f5514cba91d3",
+      "bytes": 241
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom712-resolve.log",
+      "sha256": "1849ed8d2c1be640f2278f030b095dd02621686e7591b39f293c184285b8fc88",
+      "bytes": 219
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom712-types.log",
+      "sha256": "ac57cca171ea4e8821b0a3e7711acdaf628ed7c23ee2e69975f03b3ade5faf4f",
+      "bytes": 73
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/contracts-registry.json",
+      "sha256": "fb1ded2797bdbd0ca31460f3cba087f078a86dc201365c923da9fcc23b07ed7b",
+      "bytes": 380
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/core-registry.json",
+      "sha256": "99b7f8a1cc87cf46ff54b3113a1911a938f39b4f086537e0a4138ee38dd035b7",
+      "bytes": 375
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/doctor-final.log",
+      "sha256": "744b29b0d36d1ea05e735c1d3152057e28b3a26934b4d79c763a5712648fb887",
+      "bytes": 106
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/failed.json",
+      "sha256": "e45a08861b705a4bd04a1ac5bec7dfdc902621991070d99debf9062f9e6cfe3d",
+      "bytes": 89
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/final-installed-after-bloom712.json",
+      "sha256": "a7ea66e548f1436272b4cbde7e0ffdec25319c98142b84d87fbabe22be0f758c",
+      "bytes": 3111
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/first-checks.json",
+      "sha256": "6cf1403bda9b01370ae759377b0caa9eddeee43a0755a49d3e8aa0bc1f36c5b6",
+      "bytes": 994
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/frontend-compat.log",
+      "sha256": "f655d98cc5adb5426a4441bc47fabb7ee94f7f3ccda1f4c327a89619b5313f08",
+      "bytes": 569
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/frontend-types.log",
+      "sha256": "f0a06592f593673f47b07f6da45d157c3c5a21b90f426791b9909daee57d9d65",
+      "bytes": 421
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/intent.json",
+      "sha256": "ebe5d41c5b8c67ad3d0b76581c267b2328a0d6cf87658ec319e22d3187efc5e2",
+      "bytes": 151
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-frozen.log",
+      "sha256": "01cd7295234c50502f2c3815b76a2969fc5ac22ba6a59b92ffe013a09c011c7a",
+      "bytes": 206
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-repair-intent.json",
+      "sha256": "71808192b745ed00df947ff6e4307891384f050cfce1b3920c0300cd33c1d0f8",
+      "bytes": 527
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/mcp-registry.json",
+      "sha256": "cc279f4f5b1ca68041f6f0d3583e4d9dc218bd7c0b77846207aa3b981086d7ac",
+      "bytes": 373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/mcp-tests.log",
+      "sha256": "d38f6fd09518544e92e503cc3c6401334a33219dd118932c75f3e8861a4efbc0",
+      "bytes": 12132
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/mcp-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/owned-pg.py",
+      "sha256": "8e545b26484f3b7af3a932d0e3ba38a582f3503bad21ea811c8274cf630708a9",
+      "bytes": 3203
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/preflight.json",
+      "sha256": "cbfaced0e4bfd4152c4bab14b0598b50f36de209d7f5cedd160996e3a63ed649",
+      "bytes": 252
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/protocol-registry.json",
+      "sha256": "cc0b427dca92d55ea5e1debe7e76580618a26f997b2c888b8484537b64b70bbd",
+      "bytes": 379
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/registry.json",
+      "sha256": "a39da224fafeec388f0ac27e08ea13cf666427a0177b67f7b077c65cadb59df0",
+      "bytes": 415373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/services-registry.json",
+      "sha256": "444599f0eb56d104d64c288ed3a6544163e54430c0f275c2feec219d5f624611",
+      "bytes": 381
+    }
+  ],
+  "validation": {
+    "backendSqlHttpTests": 16,
+    "mcpTests": 119,
+    "frontendCompatibilityTests": 3,
+    "backendMcpBuildTypes": "PASS",
+    "frontendTypesExport": "PASS",
+    "doctor": "PASS",
+    "sdkMemberComparisons": 5180,
+    "bloomImporters": 2,
+    "bloomFilesPerImporter": 21941
+  },
+  "limits": [
+    "First frozen install retained one stale same-version core directory. Preserved and canonical frozen reinstall; all importing SDK member checks passed again after final Bloom installation.",
+    "Bloom6.2.1 frontend types failed because current-main PanelChrome uses EdgeScrim/SCRIM_TAIL_RATIO. Published7.1.2 contains those APIs and is supported by final Services peer. No UI source, callbacks or props were changed; final712 types/export and singleton controls pass.",
+    "Own PostgreSQL process UID/executable/port/data verified; migrator/suites created and dropped their own database; final PG stopped/PID absent.",
+    "Synthetic authority/SQL fixture is local acceptance, not live deployment or a fabricated grant. Required CI/image/promotion pending."
+  ]
+}

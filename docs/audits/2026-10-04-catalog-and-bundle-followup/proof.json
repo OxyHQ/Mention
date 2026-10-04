@@ -1,0 +1,103 @@
+{
+  "source": "a96522c454c448ea03121d2f272776ff83e8cd42",
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "6efb9a305136fa99ba67c7430791858c4e934b7a8a466045bbc9a6675483930f"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "56414c79befa306f7b6ac393393c059c05e9e9e3b8599f4ff5331bd71725018e"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "95516a3b545f81e8d7d9c1779ca075212fdfb92d4c7205541700956f6ab79e5a"
+    },
+    {
+      "path": "scripts/validate-lockfile.mjs",
+      "sha256": "76d7e6d52806bd3812fec9a47944edda1c2a0479377567eed18703c8dc7a0bd4"
+    },
+    {
+      "path": "packages/frontend/bundle-budgets.json",
+      "sha256": "e1eec5bbe63d5bdb5b965165aa8e04e89f8d3c5a6b2b912d9dfc0ecf0f4cb93e"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/bundle-reviewed-budget.json",
+      "sha256": "9056f7d8668cc82a10e0f7499116a5d82f1b1c2527c44fa79fe80af9a9f7da6c",
+      "bytes": 105558
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/bundle-reviewed-budget.log",
+      "sha256": "d60eb858caba11c4b23da334f475df9dedccf79a3dfe8e334c7346c48d279021",
+      "bytes": 3618
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/bundle-source-census.json",
+      "sha256": "c8c81b6f2490200713a3777be5d14ebcc396350aaf0ba1e145355b720e09ec3c",
+      "bytes": 49023
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-bundle-export.log",
+      "sha256": "365c25dac857cba7f33f42f2816f9874e5d167458f8b5b3fff5dfdf6ff72cf6a",
+      "bytes": 39842
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-bundle-report.json",
+      "sha256": "555f1ac79fa1f33dd74ab049e09130d389eedf5c085f5cea4f2a6b784046e74d",
+      "bytes": 105677
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-bundle-report.log",
+      "sha256": "fe6092b465c8aee771ff14ce90e4b6c3e18a2e57537b455dfe39b0677d7a1593",
+      "bytes": 3657
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-byte-preservation.json",
+      "sha256": "03928dfcd994cbda3a3e46d64d6ee7d589ce25c41b482e22fff09ef967848d59",
+      "bytes": 3254
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-final-types.log",
+      "sha256": "60ef17d484e77b1ada2749cfdc97b1120be138d99954a7dd24d6d78fc40ee4a4",
+      "bytes": 185009
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-frozen.log",
+      "sha256": "6440cfb320923c6b81420f9aace9b62241369b048054d2d77e5095d7edb0e7f4",
+      "bytes": 241
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-resolve.log",
+      "sha256": "6ad18690b7b3200fdb09f6f21d347b98daf57636e0bf3dc9965d3fde214d2512",
+      "bytes": 206
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-workspace-final.log",
+      "sha256": "971c6ecd6bc4f33f35931ded58651c872741d2284e962833c0ae634d15ea9386",
+      "bytes": 18553
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-workspace.log",
+      "sha256": "828a5f274d732d67ce0819d753e64e0a5aa7b1e59d61075aebc11cc4c7718d9a",
+      "bytes": 18361
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-workspace.log",
+      "sha256": "d13522c3de418b8f779b11bae1470ac8aa4cf3b49fd091c700e796c5efa9b577",
+      "bytes": 17948
+    },
+    {
+      "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/ci-bundle-report.json",
+      "sha256": "694b244532f302cae2d870a9719e0184d9692da75ea3ccbeda56f83be8ae3efc",
+      "bytes": 108742
+    }
+  ],
+  "limits": [
+    "Remote CI pending",
+    "No runtime/browser/rollout acceptance",
+    "205 frontend lint warnings remain",
+    "Source attribution is isolated gzip and not additive bundle size"
+  ]
+}

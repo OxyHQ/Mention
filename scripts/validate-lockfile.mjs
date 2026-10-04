@@ -120,8 +120,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "@tailwindcss/node -> lightningcss@1.32.0":
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
-  "@oxy.so/mcp -> @oxy.so/contracts@^1.0.1":
-    "Contracts 2.0.0 only removes the never-deployed browserHub schemas; @oxy.so/mcp 1.0.0 imports none of them. One contracts copy keeps core, services and mcp on the same schemas.",
 };
 
 /**

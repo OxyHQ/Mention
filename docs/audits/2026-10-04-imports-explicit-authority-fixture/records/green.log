@@ -1,0 +1,35 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 261207, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-import-pg-unswlm48/data", "port": 5622, "liveAccess": false}
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/routes/imports.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/backend[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mrefuses Move without an explicit grant before writing an import or post
+[22m[39m2026-10-04T00:15:43.832Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:15:43.833Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+ [32m✓[39m src/__tests__/routes/imports.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 1419[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m   Start at [22m 03:15:41
+[2m   Duration [22m 3.92s[2m (tests 46%, transform 31%, import 23%, setup 1%)[22m
+
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-import-pg-unswlm48"}

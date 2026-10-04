@@ -1,0 +1,9 @@
+{
+  "name": "@oxy.so/mcp",
+  "version": "1.1.0",
+  "sha256": "db8e17f533f756574983532bcbb7c154ec618d6a476278132e31dd40adf78c27",
+  "integrity": "sha512-dVue2Ug50d7Zwl2wZv8x6yYBOAAWUXcdh2yz1Su2ufcST+ahv/ode6zVX887zWCyoADUWiWNhc2bYZwTsdBqjQ==",
+  "files": 41,
+  "candidateSha256": "2d60996b3b5b441c5f9b81d98102d0a5929ac44a7c9ab7904d25072b8a626e08",
+  "allFilesEqual": true
+}

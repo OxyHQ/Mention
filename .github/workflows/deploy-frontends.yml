@@ -1,6 +1,16 @@
 name: Deploy Frontends
 
 on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful push CI run for this exact main SHA
+        required: true
+        type: string
   # Two triggers, one release per commit. `release-provenance.sh` in the `scope`
   # job decides which of them owns a given SHA, and the answer is the same from
   # both sides, so exactly one of them deploys it:
@@ -36,7 +46,8 @@ env:
   # The commit under release: the pushed head on `push`, the tested head on
   # `workflow_run`. Both are commits on main; require-current-main.sh refuses
   # either the moment it stops being main's head.
-  DEPLOY_SHA: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
+  # workflow_run admission below binds this release to github.sha before checkout.
+  DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
   # The wrangler every leg runs on — the Pages preview and both Worker legs —
   # pinned to the version the Worker migration was verified against rather than
   # floating on `@4`. The preview leg used to run 4.81.0 inside
@@ -50,12 +61,15 @@ jobs:
   # group on purpose — see the deploy job.
   scope:
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      vars.OXY_1519_ROLLOUT_HOLD != 'true' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.head_sha == github.sha &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository &&
-       github.event.workflow_run.head_branch == 'main')
+       github.event.workflow_run.head_branch == 'main')))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `actions: read` to look up the SHA's merge_group CI run and its jobs. Job
@@ -68,18 +82,34 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.DEPLOY_SHA }}
+          ref: ${{ github.sha }}
           # The scope diff runs from the `deployed/frontend` marker to the
           # candidate, so this job needs the marker tags and the history that
           # connects them to the candidate.
           fetch-depth: 0
           fetch-tags: true
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
       - name: Decide which release path owns this commit
         id: provenance
         env:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-        run: bash .github/scripts/release-provenance.sh
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            # The preceding exact-main CI gate authorizes this explicit retry.
+            echo 'release=true' >> "$GITHUB_OUTPUT"
+          else
+            bash .github/scripts/release-provenance.sh
+          fi
       # Checked here as well as in the deploy job, and this one is what keeps
       # the release lane ordered: a run whose SHA main has already left never
       # reaches the concurrency group, so it cannot displace a newer release
@@ -98,7 +128,7 @@ jobs:
 
   deploy-frontend:
     needs: scope
-    if: needs.scope.outputs.deploy == 'true'
+    if: vars.OXY_1519_ROLLOUT_HOLD != 'true' && needs.scope.outputs.deploy == 'true'
     # On THIS job, not the workflow, since the workflow gained a second trigger.
     # Every commit now starts two runs of it (push, then CI's workflow_run ~10
     # minutes later), and one of the two always releases nothing. A
@@ -129,7 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.DEPLOY_SHA }}
+          ref: ${{ github.sha }}
           fetch-depth: 2
 
       - name: Verify current main before building
@@ -447,7 +477,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.DEPLOY_SHA }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Record the deployed frontend revision

@@ -1,0 +1,9 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [5]
+
+$ bun run build:shared-types
+$ bun run --cwd packages/shared-types build
+$ tsc
+
+Checked 2321 installs across 1806 packages (no changes) [545.00ms]

@@ -1,7 +1,7 @@
 {
   "name": "@mention/backend",
   "version": "1.0.0",
-  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention \u2014 the REST API, ActivityPub federation, and web shell",
+  "description": "Express 5 / Drizzle on PostgreSQL / Socket.io backend for Mention — the REST API, ActivityPub federation, and web shell",
   "license": "UNLICENSED",
   "author": "Mention Team",
   "private": true,
@@ -32,7 +32,7 @@
     "@oxy.so/db": "^1.0.0",
     "@oxy.so/federation": "^2.2.1",
     "@oxy.so/mcp": "catalog:",
-    "@oxy.so/protocol": "^1.2.0",
+    "@oxy.so/protocol": "catalog:",
     "@oxy.so/utils": "^1.0.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "catalog:",

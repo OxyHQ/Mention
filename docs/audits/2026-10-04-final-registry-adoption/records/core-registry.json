@@ -1,0 +1,9 @@
+{
+  "name": "@oxy.so/core",
+  "version": "4.2.0",
+  "sha256": "20fbd2e6fadd5d1e0a6ea9b6ad0ed9f65e77d5289600f6085ebfc16c224d5795",
+  "integrity": "sha512-FsSXwSTAPbkOVrwRXKFGYuylFcVwOlmlRMvmbgDV3RCnH2/rys/qv2SaXiZDXYaNNGI7yPQNYolgjdxUOZB0EQ==",
+  "files": 581,
+  "candidateSha256": "fa7e67d71f55cc7503af08e4de720ea0b7a7db2d429d80fe04a79d3060c9aaff",
+  "allFilesEqual": true
+}

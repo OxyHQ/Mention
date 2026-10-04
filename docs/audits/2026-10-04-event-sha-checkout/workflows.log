@@ -1,0 +1,3 @@
+$ bun ./scripts/validate-workflows.mjs
+Validated 20 GitHub Actions workflow file(s).
+13 publisher classification controls PASS; original deployment classification preserved

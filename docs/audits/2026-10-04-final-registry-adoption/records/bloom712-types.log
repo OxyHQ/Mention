@@ -1,0 +1,2 @@
+$ node ./scripts/typecheck.mjs
+Frontend type-check passed with 0 errors.

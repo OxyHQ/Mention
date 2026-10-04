@@ -1,0 +1,20 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/mcp/internalCatalogMcp.db.test.ts src/__tests__/services/oxyRankingForeground.http.test.ts src/__tests__/mcp/mcpAuthScope.test.ts src/__tests__/mcp/mcpPublicRouterAuth.test.ts src/__tests__/mcp/mcpOAuthRegister.test.ts src/__tests__/mcp/mcpBundles.test.ts src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/backend[39m
+
+ [32m✓[39m src/__tests__/mcp/resolveMcpAutoAcceptIds.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/mcp/mcpOAuthRegister.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 160[2mms[22m[39m
+ [32m✓[39m src/__tests__/mcp/mcpPublicRouterAuth.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 214[2mms[22m[39m
+ [32m✓[39m src/__tests__/services/oxyRankingForeground.http.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 562[2mms[22m[39m
+ [32m✓[39m src/__tests__/mcp/mcpAuthScope.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 770[2mms[22m[39m
+ [32m✓[39m src/__tests__/mcp/mcpBundles.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 799[2mms[22m[39m
+[90mstderr[2m | src/__tests__/mcp/internalCatalogMcp.db.test.ts[2m > [22m[2mMention internal common MCP with signed transport and SQL effects[2m > [22m[2mkeeps a committed write successful and replay-safe when audit delivery fails
+[22m[39m{"tool":"save-post","reason":"Error","timestamp":"2026-10-03T18:03:46.019Z","level":"warn","service":"mention-mcp","message":"Mention internal MCP audit delivery failed"}
+
+ [32m✓[39m src/__tests__/mcp/internalCatalogMcp.db.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 701[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m50 passed[39m[22m[90m (50)[39m
+[2m   Start at [22m 21:03:42
+[2m   Duration [22m 3.17s[2m (tests 44%, transform 27%, import 26%, setup 2%)[22m
+

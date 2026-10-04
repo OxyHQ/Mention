@@ -1,0 +1,144 @@
+name: Publish reviewed ARM images only
+'on':
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact reviewed full SHA currently on main
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-image-publication-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  mention:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'OxyHQ/Mention'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      AWS_REGION: us-west-2
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard reviewed main source
+        id: guard
+        run: python3 -B .github/scripts/publish-reviewed-image.py guard --recipe mention
+      - name: Authenticate existing publisher role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          role-session-name: image-only-${{ github.run_id }}
+          allowed-account-ids: '237343248947'
+      - name: Refuse existing source tag
+        run: python3 -B .github/scripts/publish-reviewed-image.py vacancy --recipe mention
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        with:
+          mask-password: true
+      - name: Setup native ARM builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Build and publish exact source image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: packages/backend/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention:${{ github.sha }}
+          labels: |-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/OxyHQ/Mention
+            io.oxy.source.tree=${{ steps.guard.outputs.source_tree }}
+            io.oxy.dockerfile.sha256=03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8
+          cache-from: type=gha,scope=mention-backend
+          cache-to: type=gha,mode=max,scope=mention-backend
+      - name: Verify authenticated ECR bytes
+        id: verify
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: python3 -B .github/scripts/publish-reviewed-image.py verify --recipe mention
+      - name: Retain source image proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-image-mention-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.verify.outputs.proof_path }}
+          if-no-files-found: error
+          retention-days: 14
+  mention-mcp:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'OxyHQ/Mention'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      AWS_REGION: us-west-2
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard reviewed main source
+        id: guard
+        run: python3 -B .github/scripts/publish-reviewed-image.py guard --recipe mention-mcp
+      - name: Authenticate existing publisher role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          role-session-name: image-only-${{ github.run_id }}
+          allowed-account-ids: '237343248947'
+      - name: Refuse existing source tag
+        run: python3 -B .github/scripts/publish-reviewed-image.py vacancy --recipe mention-mcp
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        with:
+          mask-password: true
+      - name: Setup native ARM builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Build and publish exact source image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: packages/mcp/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention-mcp:${{ github.sha }}
+          labels: |-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/OxyHQ/Mention
+            io.oxy.source.tree=${{ steps.guard.outputs.source_tree }}
+            io.oxy.dockerfile.sha256=e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae
+          cache-from: type=gha,scope=mention-mcp
+          cache-to: type=gha,mode=max,scope=mention-mcp
+      - name: Verify authenticated ECR bytes
+        id: verify
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: python3 -B .github/scripts/publish-reviewed-image.py verify --recipe mention-mcp
+      - name: Retain source image proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-image-mention-mcp-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.verify.outputs.proof_path }}
+          if-no-files-found: error
+          retention-days: 14

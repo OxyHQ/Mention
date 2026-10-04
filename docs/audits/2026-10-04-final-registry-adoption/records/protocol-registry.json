@@ -1,0 +1,9 @@
+{
+  "name": "@oxy.so/protocol",
+  "version": "1.2.2",
+  "sha256": "88498ab28c1aa373f6f725f1625662b47d61e50d8ae25a54c80bfb2ecb65b5db",
+  "integrity": "sha512-6PlaD/GwG0CKvA1kZ0HVB5xM8JMKBms0dYmgAngGIk5lkPRz8x6hu7JkpvGGFef1yAvcxv8F19wW2pf3+YrEoQ==",
+  "files": 145,
+  "candidateSha256": "325b20125f1cf5159c36ca7a75f32c83a4560cf41c55526828b1718595acc843",
+  "allFilesEqual": true
+}
