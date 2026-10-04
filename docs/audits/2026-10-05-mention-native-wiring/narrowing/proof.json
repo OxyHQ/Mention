@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "eb51d1d01a03f1b0a293fe8cf58fe91cbcbb188d",
+  "previousSource": "15bb219cea0a13ad84b132a5506908e6dedb7e7e",
+  "sources": [
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "010d2f6f6a47bafdd63d4436909d5d2424585e97a7d8aa7f70eae7b6ce1a20ff"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "b9f6c07c4e95da755e57fa07ddb4d19e1b99f30d931e651ac0d1a3a77b1ef141"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/narrowing/narrowing-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/narrowing/narrowing-worker.log",
+      "sha256": "53b35cfc4414aa46937fb40b151dacdb375069a424c1f98e8927bc33ad87143e"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/narrowing/narrowing-pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    }
+  ],
+  "validation": {
+    "worker": {
+      "passed": 54,
+      "failed": 0
+    },
+    "typesExit": 0,
+    "ownPostgresStopped": true
+  },
+  "scope": "Replace optional evaluation assertion with explicit guard; clarify wired factory/nil source approval comment and indentation. No authority, source approval, SQL or recovery metadata change."
+}
