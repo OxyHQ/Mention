@@ -96,7 +96,7 @@ def main():
     ci_head = run.get('head_sha', '')
     require(re.fullmatch('[a-f0-9]{40}', ci_head), 'CI source malformed')
     changed = git('diff', '--name-only', ci_head, 'HEAD').splitlines()
-    admitted = {'.github/workflows/publish-reviewed-images.yml', '.github/scripts/candidate-api-image.py', '.github/scripts/test-candidate-api-image.py', 'scripts/reviewed-image-publisher.mjs', 'scripts/test-reviewed-image-publisher.mjs'}
+    admitted = {'.github/workflows/ci.yml', '.github/scripts/candidate-api-image.py', '.github/scripts/test-candidate-api-image.py'}
     facts.update(ciHead=ci_head, ciSourceEquivalent=set(changed).issubset(admitted))
     receipt = validate(env, pr, main_ref, run, jobs, facts, datetime.now(timezone.utc))
     directory = Path(env['RUNNER_TEMP']) / 'mention-api-candidate'

@@ -19,6 +19,24 @@ on:
   # workflow never dispatched, and the merge sat undeployed with `main` green.
   # Without this, the only way to recover is to push another commit.
   workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact reviewed candidate SHA (candidate archive mode only)
+        required: false
+        type: string
+      api_recovery_candidate:
+        description: Build ONLY the PR1309 API recovery archive; no AWS publication or deployment
+        required: false
+        default: false
+        type: boolean
+      candidate_ci_run_id:
+        description: Exact completed PR CI run with backend/build/lockfile/bundle gates successful
+        required: false
+        type: string
+      expected_source_tree:
+        description: Exact reviewed candidate Git tree SHA (candidate mode only)
+        required: false
+        type: string
   # The merge queue. A queued pull request is tested as the exact commit main
   # will be fast-forwarded to — main + everything ahead of it in the queue + this
   # change — on a `gh-readonly-queue/main/...` branch, and it merges only once
@@ -1076,3 +1094,73 @@ jobs:
           fi
 
           echo 'Every CI job passed, or was skipped by the event type it does not apply to.'
+
+  mention-api-recovery-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.api_recovery_candidate == true && github.repository == 'OxyHQ/Mention' && github.ref != 'refs/heads/main' && github.actor == 'NateIsern'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      EXPECTED_SOURCE_TREE: ${{ inputs.expected_source_tree }}
+      CANDIDATE_CI_RUN_ID: ${{ inputs.candidate_ci_run_id }}
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - name: Checkout exact candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test closed candidate admission
+        run: python3 -B .github/scripts/test-candidate-api-image.py
+      - name: Guard owner-reviewed candidate and exact CI
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/candidate-api-image.py
+      - name: Setup native ARM archive builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Build only the API OCI archive
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: packages/backend/Dockerfile
+          platforms: linux/arm64
+          push: false
+          provenance: false
+          sbom: false
+          tags: mention-api-recovery-candidate:${{ github.sha }}
+          cache-from: type=gha,scope=mention-backend
+          outputs: type=oci,dest=${{ steps.guard.outputs.proof_path }}/image.tar
+          labels: |-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/OxyHQ/Mention
+            io.oxy.source.tree=${{ steps.guard.outputs.source_tree }}
+            io.oxy.dockerfile.sha256=03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8
+      - name: Preserve archive bytes and build metadata
+        env:
+          PROOF_PATH: ${{ steps.guard.outputs.proof_path }}
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: |
+          python3 -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          directory = Path(os.environ['PROOF_PATH'])
+          image = directory / 'image.tar'
+          digest = hashlib.file_digest(image.open('rb'), 'sha256').hexdigest()
+          (directory / 'archive.json').write_text(json.dumps({'archiveSha256': digest, 'size': image.stat().st_size, 'format': 'oci', 'sourceSha': os.environ['GITHUB_SHA']}, indent=2) + '\n')
+          (directory / 'build-metadata.json').write_text(json.dumps(json.loads(os.environ['BUILD_METADATA']), indent=2) + '\n')
+          PY
+      - name: Retain candidate archive for independent root inspection
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mention-api-recovery-candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.guard.outputs.proof_path }}
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7

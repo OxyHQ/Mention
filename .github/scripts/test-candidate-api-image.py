@@ -65,7 +65,7 @@ class CandidateTests(unittest.TestCase):
                     m.validate(**fixture)
 
     def test_workflow_is_archive_only_and_defaults_remain_closed(self):
-        workflow = Path('.github/workflows/publish-reviewed-images.yml').read_text()
+        workflow = Path('.github/workflows/ci.yml').read_text()
         job = workflow.split('  mention-api-recovery-candidate:\n', 1)[1]
         permissions = job.split('    permissions:\n', 1)[1].split('    env:\n', 1)[0]
         self.assertEqual(permissions, '      contents: read\n      actions: read\n      pull-requests: read\n')
@@ -75,8 +75,8 @@ class CandidateTests(unittest.TestCase):
         self.assertNotIn('aws-actions/', job)
         self.assertNotIn('id-token:', job)
         self.assertNotIn('aws ', job)
-        self.assertEqual(workflow.count("github.ref == 'refs/heads/main'"), 2)
-        self.assertEqual(workflow.count('inputs.api_recovery_candidate != true'), 2)
+        self.assertIn('  ci-complete:', workflow)
+        self.assertIn('    needs: [provenance, quality, lockfile, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]', workflow)
 
 
 
