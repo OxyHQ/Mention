@@ -18,12 +18,17 @@ for (const key of Object.keys(base).filter(key => !['id', 'prevId', 'tables'].in
   assert.deepEqual(current[key], base[key], `Existing schema metadata changed: ${key}`);
 }
 const journal = json('packages/backend/drizzle/meta/_journal.json').entries;
-assert.equal(journal.at(-1).tag, '0058_jev_shadow_ledger');
-assert.equal(journal.at(-1).idx, 58);
-assert.ok(journal.at(-1).when > journal.at(-2).when);
-assert.ok(journal.at(-2).tag.startsWith('0057_'));
+const ownedEntries = journal.filter(entry => entry.idx === 58 || entry.tag === '0058_jev_shadow_ledger');
+assert.equal(ownedEntries.length, 1, 'Owned migration must appear exactly once');
+const owned = ownedEntries[0];
+assert.equal(owned.tag, '0058_jev_shadow_ledger');
+assert.equal(owned.idx, 58);
+const previous = journal[journal.indexOf(owned) - 1];
+assert.equal(previous?.idx, 57);
+assert.ok(previous.tag.startsWith('0057_'));
+assert.ok(owned.when > previous.when);
 assert.deepEqual(readdirSync(new URL('../packages/backend/drizzle/', import.meta.url))
-  .filter(name => /^00(58|59|60|61)_.*\.sql$/.test(name)), ['0058_jev_shadow_ledger.sql']);
+  .filter(name => /^0058_.*\.sql$/.test(name)), ['0058_jev_shadow_ledger.sql']);
 const sql = read('packages/backend/drizzle/0058_jev_shadow_ledger.sql');
 assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 2);
 assert.equal((sql.match(/ON DELETE cascade/g) ?? []).length, 2);
@@ -33,15 +38,15 @@ assert.match(read('packages/backend/src/db/schema/protectedColumns.ts'), /ACTOR_
 const manifest = json('package.json');
 const lock = read('bun.lock');
 const packages = [
-  ['contracts', '4.7.0', 'sha512-/VS0Evw+YQ78B/JyoLCKHrFs/A5rY3E5+s8CvNP7QMfW4isT/VhPqIv+8lNVkJHzAJzOSrS5HHoOrM/DVx78qA=='],
-  ['core', '4.1.0', 'sha512-on4ir5Qx7KmJIZxYp8Y9GtJDdae4bAPARJIx8w+UXTs6Ygb+zHPESWzm9Mt4x+6Ey1EkDZq1s2OiXTInWs0Hhw=='],
+  ['contracts', '4.9.0', 'sha512-dDMZlTSCR1wOd0XlhM8fZ7frSzvUm7JxPsEVGXjb92OIsb3MTb7SKFGHD7/U61oI8IOxw6oVrzeIaZ5aOWh7nA=='],
+  ['core', '4.2.0', 'sha512-FsSXwSTAPbkOVrwRXKFGYuylFcVwOlmlRMvmbgDV3RCnH2/rys/qv2SaXiZDXYaNNGI7yPQNYolgjdxUOZB0EQ=='],
 ];
 for (const [name, version, hash] of packages) {
   assert.equal(manifest.workspaces.catalog[`@oxy.so/${name}`], version);
   const entry = lock.split('\n').find(line => line.includes(`"@oxy.so/${name}": ["@oxy.so/${name}@${version}"`));
   assert.ok(entry?.includes(hash), `Missing trusted published integrity for ${name}`);
 }
-assert.equal(manifest.overrides['@oxy.so/core'], '4.1.0');
+assert.equal(manifest.overrides['@oxy.so/core'], '4.2.0');
 const gate = read('packages/backend/src/services/contentClassification/jevShadow.ts');
 for (const blocker of ['published_decisions_sdk', 'reviewed_exact_model_and_oxy_policy',
   'internal_provider_eligibility', 'privacy_and_zdr', 'federated_public_visibility_provenance',
