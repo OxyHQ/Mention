@@ -1,0 +1,114 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1609166, /tmp/mention-jev-semantic-hj82h29z/data, socket /tmp/mention-jev-semantic-hj82h29z/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1609166, /tmp/mention-jev-semantic-hj82h29z/data, socket /tmp/mention-jev-semantic-hj82h29z/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/services/postClassification.test.ts -t "production approval expires"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-production-factory-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (48 tests | 2 failed | 46 skipped) 1008ms
+   ❯ PostClassificationService — shadow fanout (15)
+     × does not quarantine unsent work when production approval expires before-cycle 271ms
+     × does not quarantine unsent work when production approval expires during-claim 685ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > does not quarantine unsent work when production approval expires before-cycle
+AssertionError: expected [ { …(21) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "abstention": null,
++     "createdAt": 2026-10-04T15:36:40.263Z,
++     "evaluationVersion": "shadow-v1",
++     "feedValue": null,
++     "fingerprint": "fde16489108f5082f9ce11f65e2a97f2c72c74e0044edbb77cbf8e2b33c5b904",
++     "finishedAt": 2026-10-04T15:36:40.278Z,
++     "followState": "unknown",
++     "id": "01a1078f-6620-71c4-8373-08bf9e67914e",
++     "languageEvidence": null,
++     "languages": null,
++     "model": "synthetic/jev@fixture-v1",
++     "policyRef": "fixture-policy",
++     "policyVersion": 1,
++     "postId": "01a1078f-63ba-7a48-89b3-3ae8b43fe744",
++     "receiptAuthority": {
++       "applicationId": "6a2f851751b784a86fd0e916",
++       "credentialId": "synthetic-mention-workload",
++       "environment": "production",
++     },
++     "repetition": null,
++     "requestDeadlineAt": 2026-10-04T15:37:10.736Z,
++     "sdkReceipt": null,
++     "spam": null,
++     "state": "cost_uncertain",
++     "usageReconciliation": null,
++   },
++ ]
+
+ ❯ src/__tests__/services/postClassification.test.ts:1278:101
+    1276|     expect(transport).not.toHaveBeenCalled(); expect(token).not.toHave…
+    1277|     expect((await classificationOf(post.id)).status).toBe('classified'…
+    1278|     expect(await getDb().select().from(postEvaluations).where(eq(postE…
+       |                                                                                                     ^
+    1279|   });
+    1280|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > does not quarantine unsent work when production approval expires during-claim
+AssertionError: expected [ { …(21) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "abstention": null,
++     "createdAt": 2026-10-04T15:36:40.479Z,
++     "evaluationVersion": "shadow-v1",
++     "feedValue": null,
++     "fingerprint": "d7f4ab96472d57c0895c4359c1c2a9c9014117da23d91aba76af8976cd13ddf3",
++     "finishedAt": 2026-10-04T15:36:40.992Z,
++     "followState": "unknown",
++     "id": "01a1078f-671f-73d9-b9fc-c4bfcb705e54",
++     "languageEvidence": null,
++     "languages": null,
++     "model": "synthetic/jev@fixture-v1",
++     "policyRef": "fixture-policy",
++     "policyVersion": 1,
++     "postId": "01a1078f-64c3-7d37-86a8-08ee9a531b31",
++     "receiptAuthority": {
++       "applicationId": "6a2f851751b784a86fd0e916",
++       "credentialId": "synthetic-mention-workload",
++       "environment": "production",
++     },
++     "repetition": null,
++     "requestDeadlineAt": 2026-10-04T15:37:10.479Z,
++     "sdkReceipt": null,
++     "spam": null,
++     "state": "cost_uncertain",
++     "usageReconciliation": null,
++   },
++ ]
+
+ ❯ src/__tests__/services/postClassification.test.ts:1278:101
+    1276|     expect(transport).not.toHaveBeenCalled(); expect(token).not.toHave…
+    1277|     expect((await classificationOf(post.id)).status).toBe('classified'…
+    1278|     expect(await getDb().select().from(postEvaluations).where(eq(postE…
+       |                                                                                                     ^
+    1279|   });
+    1280|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 46 skipped (48)
+   Start at  18:36:36
+   Duration  4.19s (transform 30%, tests 29%, import 21%, setup 20%)
+
+error: script "test" exited with code 1
