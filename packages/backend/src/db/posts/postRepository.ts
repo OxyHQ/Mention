@@ -1447,6 +1447,34 @@ export async function updatePostRecord(
 }
 
 /**
+ * A native edit publishes scalar metadata and the content graph as one revision.
+ * Match the shadow/translation lock order: content advisory lock, then post row.
+ * The unpublished carve-out is checked under that same lock, not before waiting.
+ */
+export async function updatePostAndContent(
+  postId: string,
+  patch: PostRecordPatch,
+  content: StoredPostContent,
+  mentions: readonly string[],
+  expectedUnpublishedStatus?: 'draft' | 'scheduled',
+): Promise<boolean> {
+  const written = await getDb().transaction(async tx => {
+    await lockPostContent(tx, postId);
+    const [current] = await tx.select({ status: posts.status }).from(posts)
+      .where(eq(posts.id, postId)).for('update');
+    if (!current || (expectedUnpublishedStatus !== undefined && current.status !== expectedUnpublishedStatus)) {
+      return false;
+    }
+    await updatePostRecord(postId, patch, tx);
+    await replacePostContent(postId, content, mentions, tx);
+    return true;
+  });
+  // Nested writers invalidate too, but this eviction must happen after COMMIT.
+  if (written) await invalidatePostDetailCache(postId);
+  return written;
+}
+
+/**
  * Replace a post's classification topic refs wholesale.
  *
  * Delete-then-insert in ONE transaction, the same shape as

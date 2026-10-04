@@ -1,0 +1,118 @@
+{
+  "sourceHead": "75c89f116d4714e2d84b4bdbd54bbd3fe83df768",
+  "base": "f28ac665a245861ad94d8078d0e31228f93a2973",
+  "sources": [
+    {
+      "path": "docs/post-lifecycle.md",
+      "sha256": "8208e3c1b9c2b7136405435d4a86970fe36f7ca6ccee071e158ee74294d5f1d7"
+    },
+    {
+      "path": "packages/backend/src/__tests__/controllers/updatePostAtomicContent.test.ts",
+      "sha256": "d10bc25a980b19e77b0d929a1d1e80a3a1ad2f60c70bf9c41fd7d6518f6d37c7"
+    },
+    {
+      "path": "packages/backend/src/controllers/posts/updatePost.ts",
+      "sha256": "1b3967432457d511af0b77b131814ba0b26dec278b7076ae49c6438a53cb8da9"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postRepository.ts",
+      "sha256": "5cd39497e0bc6578c4bb92fae4a91a52b0816f1e1b030e1ef5ddcbe3d54bfb88"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-tests.log",
+      "sha256": "169b18067ba56bfb3f506ec42379fc9293d9abe3e404953f1ef28e0e90fee709"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-receipt.json",
+      "sha256": "d6594e82c365e21f20866902cda1fabfbfee9975205fadda7d224b2b9dc8018c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-corrected-tests.log",
+      "sha256": "dbe95a2338cebe57002d4772f565f8e734468b593ef17aee64a407f5355a8821"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-corrected-receipt.json",
+      "sha256": "23a54bf0380a78f14eb5714e887c1bb66d1ffea361f9da158e7e76eef505099b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/green-tests.log",
+      "sha256": "b886e14baef2251de0b6e8ad8638644b733e95b9b2e8d932706b65cbe5de8be7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/green-receipt.json",
+      "sha256": "af877a1dca970c3d0798a5dbc5bb939c42b1215dc076926ffd8edd56ca8feb06"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-final-fixture-tests.log",
+      "sha256": "9bef15c067f335d0439893d7970310c8007f5c2fa671b2be8a43057113310a1f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/red-final-fixture-receipt.json",
+      "sha256": "91c23475b3c1b4794ae4afb1a46d90ed3ff009e2704e06a8a9e54d36a6309b8e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/green-final-fixture-tests.log",
+      "sha256": "ad92e49dde2f49f8690067b03dc1a46dc3c7ff50da496b045c6d2ec4e9660c83"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/green-final-fixture-receipt.json",
+      "sha256": "0c0cb88d6581bc044aacbf5bc4b50473f7c4af8b295ebc483085a3f065c471c5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-expanded-tests.log",
+      "sha256": "9e40fc91bd8f3d642a84f79cf5d91b016ecfd97eb98d8284366b225d64ff4b0b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-expanded-receipt.json",
+      "sha256": "1260c44072b2195d57617347aa3a52764c20dc039ae2b560035229843a04e511"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-postcommit-tests.log",
+      "sha256": "3fa3d3ba4495e1ccfcb4115f5a9be8614157cbe4f8ea26ca62945c9616127272"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-postcommit-receipt.json",
+      "sha256": "31271d8706f3c303cd51e57c1660e5996673219f1faac47ef6d70c516b38fac1"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-regression.test.ts",
+      "sha256": "d10bc25a980b19e77b0d929a1d1e80a3a1ad2f60c70bf9c41fd7d6518f6d37c7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/run.py",
+      "sha256": "d17ef36c207286a25222fb33eb16afee6a3784651bf645543bed4ac6e1f539ad"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/tests.sh",
+      "sha256": "d473c6d1ed597480bc8b91b8aadff7ce6a36fcdc5a71e617153c13247f9d52f7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/backend-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/shared-build.log",
+      "sha256": "9896849eea153f9d9c4009077767db9b8fdefb4eff8b7571389fa8ef22051c5b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-native-edit-atomicity/records/final-postcommit-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    }
+  ],
+  "results": {
+    "sameFinalFixture": "3FAIL/24PASS baseline ->27PASS fixed",
+    "expanded": "110PASS/9suites",
+    "postCommitFinal": "110PASS/9suites",
+    "buildExit": 0,
+    "allOwnedPostgresStopped": true
+  },
+  "limits": [
+    "Actual controller/repository/SQL and advisory-lock waiters; hydration/collaboration/external emission are synthetic. No provider calls.",
+    "First trigger used NEW.text rather than physical NEW.body; corrected. First green reached a fixture assertion using snapshot.text instead of snapshot.body; corrected. Neither fixture error is counted as a product regression.",
+    "Final fixture bytes were rerun unchanged against original base source before the accepted GREEN.",
+    "Only native edit controller is moved to the atomic helper; unrelated federation/media repair callers retain existing paths.",
+    "No production migration or deployment; no Jev availability change."
+  ]
+}

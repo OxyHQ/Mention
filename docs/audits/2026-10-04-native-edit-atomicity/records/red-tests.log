@@ -1,0 +1,144 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1417279, /tmp/mention-jev-semantic-c3tz5zsz/data, socket /tmp/mention-jev-semantic-c3tz5zsz/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1417279, /tmp/mention-jev-semantic-c3tz5zsz/data, socket /tmp/mention-jev-semantic-c3tz5zsz/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=2" src/__tests__/controllers/updatePostAtomicContent.test.ts src/__tests__/controllers/updatePostDropsMachineVariants.test.ts src/__tests__/controllers/updatePostScheduledWindow.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-atomic-edit-20261004/packages/backend
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts (3 tests | 3 failed) 273ms
+   ❯ native author edit is one content revision (3)
+     × does not admit new languages with the previous body while an edit waits for the content lock 142ms
+     × rolls scalar language and classification back when the content insert fails 69ms
+     × rechecks an unpublished carve-out after acquiring the content lock 42ms
+ ❯ src/__tests__/controllers/updatePostScheduledWindow.test.ts (19 tests | 2 failed) 646ms
+   ❯ updatePost — the 30-minute window still binds a PUBLISHED post (4)
+     × cannot be talked out of the window by the request body 10ms
+   ❯ updatePost — a SCHEDULED post is exempt (7)
+     × ALLOWS an edit long past the window, because nobody has seen it 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > does not admit new languages with the previous body while an edit waits for the content lock
+AssertionError: expected [ 'fr' ] to deeply equal [ 'en' ]
+
+- Expected
++ Received
+
+  [
+-   "en",
++   "fr",
+  ]
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:105:41
+    103|     expect(status).toBe(200);
+    104|     expect(claimed).not.toBeNull();
+    105|     expect(claimed?.snapshot.languages).toEqual(['en']);
+       |                                         ^
+    106|     expect(claimed?.snapshot.renditions[0]?.text).toBe(oldText);
+    107|     const after = await readPost(id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > rolls scalar language and classification back when the content insert fails
+AssertionError: expected 'fr' to be 'en' // Object.is equality
+
+Expected: "en"
+Received: "fr"
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:125:29
+    123|     expect(status).toBe(500);
+    124|     const after = await readPost(id);
+    125|     expect(after?.language).toBe(before?.language);
+       |                             ^
+    126|     expect(after?.postClassification).toEqual(before?.postClassificati…
+    127|     expect(after?.content).toEqual(before?.content);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > rechecks an unpublished carve-out after acquiring the content lock
+AssertionError: expected 200 to be 409 // Object.is equality
+
+- Expected
++ Received
+
+- 409
++ 200
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:137:28
+    135|       await getDb().update(posts).set({ status: 'published' }).where(e…
+    136|     } finally { await unlock(); }
+    137|     expect(await updating).toBe(409);
+       |                            ^
+    138|     const after = await readPost(id);
+    139|     expect(after?.status).toBe('published');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/__tests__/controllers/updatePostScheduledWindow.test.ts > updatePost — the 30-minute window still binds a PUBLISHED post > cannot be talked out of the window by the request body
+Error: Failed query: insert into "post_content_variants" ("id", "post_id", "position", "tag", "source", "body", "article_title", "article_body", "article_excerpt", "variant_created_at", "post_created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select "posts"."created_at" from "posts" where "posts"."id" = $11))
+params: 01a1074e-245d-76bf-8ee9-ea0105a8dc35,01a1074e-245b-7cd7-ba18-5eadc5deaae9,0,en,author,original,,,,,01a1074e-245b-7cd7-ba18-5eadc5deaae9
+ ❯ PostgresJsPreparedQuery.queryWithCache ../../node_modules/src/pg-core/session.ts:73:11
+ ❯ insertChildRows src/db/posts/postRepository.ts:1076:5
+    1074|   if (variants.length > 0) {
+    1075|     const variantIds = variants.map(() => uuidv7());
+    1076|     await tx.insert(postContentVariants).values(
+       |     ^
+    1077|       variants.map((variant, position) => ({
+    1078|         id: variantIds[position],
+ ❯ write src/db/posts/postRepository.ts:1304:5
+ ❯ scope ../../node_modules/postgres/src/index.js:260:18
+ ❯ sql.begin ../../node_modules/postgres/src/index.js:243:14
+ ❯ writePostRecord src/db/posts/postRepository.ts:1337:5
+ ❯ insertPostRecord src/db/posts/postRepository.ts:1217:14
+ ❯ withDeadlockRetry src/__tests__/helpers/serviceFixtures.ts:74:14
+ ❯ Module.seedPost src/__tests__/helpers/serviceFixtures.ts:122:18
+
+Caused by: PostgresError: record "new" has no field "text"
+ ❯ ErrorResponse ../../node_modules/postgres/src/connection.js:815:30
+ ❯ handle ../../node_modules/postgres/src/connection.js:489:6
+ ❯ Socket.data ../../node_modules/postgres/src/connection.js:324:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { severity_local: 'ERROR', severity: 'ERROR', code: '42703', where: 'SQL expression "NEW.text = 'atomic-fixture-reject'"
+PL/pgSQL function atomic_edit_reject() line 2 at IF', file: 'pl_exec.c', routine: 'plpgsql_exec_get_datum_type_info', query: 'insert into "post_content_variants" ("id", "post_id", "position", "tag", "source", "body", "article_title", "article_body", "article_excerpt", "variant_created_at", "post_created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select "posts"."created_at" from "posts" where "posts"."id" = $11))', parameters: [ '01a1074e-245d-76bf-8ee9-ea0105a8dc35', '01a1074e-245b-7cd7-ba18-5eadc5deaae9', '0', 'en', 'author', 'original', null, null, null, null, '01a1074e-245b-7cd7-ba18-5eadc5deaae9' ], args: [ '01a1074e-245d-76bf-8ee9-ea0105a8dc35', '01a1074e-245b-7cd7-ba18-5eadc5deaae9', 0, 'en', 'author', 'original', null, null, null, null, '01a1074e-245b-7cd7-ba18-5eadc5deaae9' ], types: [ 25, 25, 23, 25, 25, 25, 25, 25, 25, 1184, 25 ] }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/__tests__/controllers/updatePostScheduledWindow.test.ts > updatePost — a SCHEDULED post is exempt > ALLOWS an edit long past the window, because nobody has seen it
+Error: Failed query: insert into "post_content_variants" ("id", "post_id", "position", "tag", "source", "body", "article_title", "article_body", "article_excerpt", "variant_created_at", "post_created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select "posts"."created_at" from "posts" where "posts"."id" = $11))
+params: 01a1074e-2468-71aa-a67b-1f43cf29927e,01a1074e-2466-7ab1-86e5-a04cd48e22cd,0,en,author,original,,,,,01a1074e-2466-7ab1-86e5-a04cd48e22cd
+ ❯ PostgresJsPreparedQuery.queryWithCache ../../node_modules/src/pg-core/session.ts:73:11
+ ❯ insertChildRows src/db/posts/postRepository.ts:1076:5
+    1074|   if (variants.length > 0) {
+    1075|     const variantIds = variants.map(() => uuidv7());
+    1076|     await tx.insert(postContentVariants).values(
+       |     ^
+    1077|       variants.map((variant, position) => ({
+    1078|         id: variantIds[position],
+ ❯ write src/db/posts/postRepository.ts:1304:5
+ ❯ scope ../../node_modules/postgres/src/index.js:260:18
+ ❯ sql.begin ../../node_modules/postgres/src/index.js:243:14
+ ❯ writePostRecord src/db/posts/postRepository.ts:1337:5
+ ❯ insertPostRecord src/db/posts/postRepository.ts:1217:14
+ ❯ withDeadlockRetry src/__tests__/helpers/serviceFixtures.ts:74:14
+ ❯ Module.seedPost src/__tests__/helpers/serviceFixtures.ts:122:18
+
+Caused by: PostgresError: record "new" has no field "text"
+ ❯ ErrorResponse ../../node_modules/postgres/src/connection.js:815:30
+ ❯ handle ../../node_modules/postgres/src/connection.js:489:6
+ ❯ Socket.data ../../node_modules/postgres/src/connection.js:324:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { severity_local: 'ERROR', severity: 'ERROR', code: '42703', where: 'SQL expression "NEW.text = 'atomic-fixture-reject'"
+PL/pgSQL function atomic_edit_reject() line 2 at IF', file: 'pl_exec.c', routine: 'plpgsql_exec_get_datum_type_info', query: 'insert into "post_content_variants" ("id", "post_id", "position", "tag", "source", "body", "article_title", "article_body", "article_excerpt", "variant_created_at", "post_created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select "posts"."created_at" from "posts" where "posts"."id" = $11))', parameters: [ '01a1074e-2468-71aa-a67b-1f43cf29927e', '01a1074e-2466-7ab1-86e5-a04cd48e22cd', '0', 'en', 'author', 'original', null, null, null, null, '01a1074e-2466-7ab1-86e5-a04cd48e22cd' ], args: [ '01a1074e-2468-71aa-a67b-1f43cf29927e', '01a1074e-2466-7ab1-86e5-a04cd48e22cd', 0, 'en', 'author', 'original', null, null, null, null, '01a1074e-2466-7ab1-86e5-a04cd48e22cd' ], types: [ 25, 25, 23, 25, 25, 25, 25, 25, 25, 1184, 25 ] }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  5 failed | 22 passed (27)
+   Start at  17:25:20
+   Duration  4.58s (transform 43%, import 38%, tests 18%, setup 1%)
+
+     Import  336 modules were evaluated 968 times · 2.55s total, 38% of tracked time
+             ~397ms faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+error: script "test" exited with code 1
