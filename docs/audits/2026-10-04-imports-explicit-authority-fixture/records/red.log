@@ -1,0 +1,1346 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 260248, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-import-pg-58319lcg/data", "port": 5622, "liveAccess": false}
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/routes/imports.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/backend[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2madmits Oxy Move acting for a user
+[22m[39m2026-10-04T00:13:31.820Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2madmits Oxy Move acting for a user
+[22m[39m2026-10-04T00:13:31.823Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.823Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mrefuses another INTERNAL service application acting for the same user
+[22m[39m2026-10-04T00:13:31.891Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-some-other-internal'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mrefuses another INTERNAL service application acting for the same user
+[22m[39m2026-10-04T00:13:31.892Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-some-other-internal'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.892Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-some-other-internal acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-some-other-internal acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mwrites nothing for a refused caller
+[22m[39m2026-10-04T00:13:31.932Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-some-other-internal'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mwrites nothing for a refused caller
+[22m[39m2026-10-04T00:13:31.933Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-some-other-internal'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.933Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-some-other-internal acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-some-other-internal acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mrejects a malformed batch with 400
+[22m[39m2026-10-04T00:13:31.953Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mwho may call the import API[2m > [22m[2mrejects a malformed batch with 400
+[22m[39m2026-10-04T00:13:31.954Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.954Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeeps the original created_at, to the millisecond
+[22m[39m2026-10-04T00:13:31.974Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeeps the original created_at, to the millisecond
+[22m[39m2026-10-04T00:13:31.975Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.975Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mwrites no notification and no mention, and never pushes federation
+[22m[39m2026-10-04T00:13:31.995Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mwrites no notification and no mention, and never pushes federation
+[22m[39m2026-10-04T00:13:31.995Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:31.995Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mis idempotent: a re-sent item answers `existing` with the same post
+[22m[39m2026-10-04T00:13:32.016Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mis idempotent: a re-sent item answers `existing` with the same post
+[22m[39m2026-10-04T00:13:32.016Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.016Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mis idempotent: a re-sent item answers `existing` with the same post
+[22m[39m2026-10-04T00:13:32.037Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mis idempotent: a re-sent item answers `existing` with the same post
+[22m[39m2026-10-04T00:13:32.037Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.037Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.057Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.057Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.058Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.078Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.078Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.078Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.095Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-bob'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mkeys idempotency by platform and by user, not by source id alone
+[22m[39m2026-10-04T00:13:32.096Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-bob'[39m
+}
+2026-10-04T00:13:32.096Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a reply and a quote to posts earlier in the same batch, as a thread
+[22m[39m2026-10-04T00:13:32.123Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a reply and a quote to posts earlier in the same batch, as a thread
+[22m[39m2026-10-04T00:13:32.123Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.123Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a parent imported by an EARLIER batch
+[22m[39m2026-10-04T00:13:32.137Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a parent imported by an EARLIER batch
+[22m[39m2026-10-04T00:13:32.137Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.137Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a parent imported by an EARLIER batch
+[22m[39m2026-10-04T00:13:32.158Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mresolves a parent imported by an EARLIER batch
+[22m[39m2026-10-04T00:13:32.158Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.158Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mdefers a reply or quote whose target is not imported, and writes nothing for it
+[22m[39m2026-10-04T00:13:32.179Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mdefers a reply or quote whose target is not imported, and writes nothing for it
+[22m[39m2026-10-04T00:13:32.179Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.180Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mnever resolves a parent imported by ANOTHER user
+[22m[39m2026-10-04T00:13:32.199Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-bob'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mnever resolves a parent imported by ANOTHER user
+[22m[39m2026-10-04T00:13:32.199Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-bob'[39m
+}
+2026-10-04T00:13:32.199Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mnever resolves a parent imported by ANOTHER user
+[22m[39m2026-10-04T00:13:32.219Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mnever resolves a parent imported by ANOTHER user
+[22m[39m2026-10-04T00:13:32.220Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.220Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mattaches media Oxy knows, typed from its MIME, and refuses media it does not
+[22m[39m2026-10-04T00:13:32.240Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mattaches media Oxy knows, typed from its MIME, and refuses media it does not
+[22m[39m2026-10-04T00:13:32.241Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.241Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mrefuses an asset that is not the acting user's, and one whose owner Oxy did not report
+[22m[39m2026-10-04T00:13:32.261Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mrefuses an asset that is not the acting user's, and one whose owner Oxy did not report
+[22m[39m2026-10-04T00:13:32.262Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.262Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mstores an article through the shared article helper
+[22m[39m2026-10-04T00:13:32.282Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mstores an article through the shared article helper
+[22m[39m2026-10-04T00:13:32.282Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.282Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mrefuses an empty item and a date in the future
+[22m[39m2026-10-04T00:13:32.303Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mPOST /imports/v1/posts:batch[2m > [22m[2mrefuses an empty item and a date in the future
+[22m[39m2026-10-04T00:13:32.303Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.303Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.324Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.324Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.324Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.345Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-bob'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.345Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-bob'[39m
+}
+2026-10-04T00:13:32.345Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.365Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.366Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.366Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.389Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mDELETE /imports/v1/batches/:batchId[2m > [22m[2mdeletes only the acting user's posts of that batch, each through the normal delete path
+[22m[39m2026-10-04T00:13:32.390Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.390Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/batches/content-imports-batch-23-1791072812307'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mmaps this user's imported source ids, and finds public federated copies by AS2 id
+[22m[39m2026-10-04T00:13:32.408Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mmaps this user's imported source ids, and finds public federated copies by AS2 id
+[22m[39m2026-10-04T00:13:32.409Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.409Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mmaps this user's imported source ids, and finds public federated copies by AS2 id
+[22m[39m2026-10-04T00:13:32.477Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mmaps this user's imported source ids, and finds public federated copies by AS2 id
+[22m[39m2026-10-04T00:13:32.477Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.477Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/lookup'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mkeeps an id that contains a comma whole
+[22m[39m2026-10-04T00:13:32.514Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mkeeps an id that contains a comma whole
+[22m[39m2026-10-04T00:13:32.515Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.515Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mkeeps an id that contains a comma whole
+[22m[39m2026-10-04T00:13:32.536Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mkeeps an id that contains a comma whole
+[22m[39m2026-10-04T00:13:32.536Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.536Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/lookup'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mnever reports another user's imports
+[22m[39m2026-10-04T00:13:32.557Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-bob'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mnever reports another user's imports
+[22m[39m2026-10-04T00:13:32.557Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-bob'[39m
+}
+2026-10-04T00:13:32.557Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-bob (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/posts:batch'[39m
+}
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mnever reports another user's imports
+[22m[39m2026-10-04T00:13:32.578Z WARN [oxy.auth] verifyActingAs lookup failed — not cached {
+  component: [32m'auth'[39m,
+  method: [32m'verifyActingAs'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  userId: [32m'oxy-content-imports-alice'[39m
+} Error: Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.
+    at OxyServer.serviceToken (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:281:13)
+    at OxyServer.lookupActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:534:39)
+    at OxyServer.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:406:25)
+    at Object.verifyActingAs (/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/OxyServer.ts:210:56)
+    at /home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/node_modules/[4m@oxy.so/core[24m/src/server/middleware.ts:696:38
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+
+[90mstderr[2m | src/__tests__/routes/imports.test.ts[2m > [22m[2mGET /imports/v1/lookup[2m > [22m[2mnever reports another user's imports
+[22m[39m2026-10-04T00:13:32.578Z WARN [oxy.auth] Service token rejected — no delegation grant {
+  component: [32m'auth'[39m,
+  method: [32m'auth.serviceToken'[39m,
+  appId: [32m'app-oxy-move'[39m,
+  attemptedUserId: [32m'oxy-content-imports-alice'[39m
+}
+2026-10-04T00:13:32.578Z WARN [oxy.auth] refused SERVICE_ACTING_AS_UNAUTHORIZED: No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check) {
+  component: [32m'auth'[39m,
+  method: [32m'auth'[39m,
+  code: [32m'SERVICE_ACTING_AS_UNAUTHORIZED'[39m,
+  stage: [32m'service-token'[39m,
+  reason: [32m'No delegation grant for app app-oxy-move acting as oxy-content-imports-alice (or this verifier could not reach the grant check)'[39m,
+  status: [33m403[39m,
+  optional: [33mfalse[39m,
+  path: [32m'/v1/lookup'[39m
+}
+
+ [31m❯[39m src/__tests__/routes/imports.test.ts [2m([22m[2m22 tests[22m[2m | [22m[31m19 failed[39m[2m)[22m[33m 804[2mms[22m[39m
+   [31m❯[39m who may call the import API [2m(6)[22m
+[31m     [31m×[31m admits Oxy Move acting for a user[39m[32m 35[2mms[22m[39m
+     [32m✓[39m refuses a user session, even for the user it would import for[32m 8[2mms[22m[39m
+[31m     [31m×[31m refuses another INTERNAL service application acting for the same user[39m[32m 56[2mms[22m[39m
+     [32m✓[39m refuses Move acting as itself, for nobody[32m 18[2mms[22m[39m
+     [32m✓[39m writes nothing for a refused caller[32m 24[2mms[22m[39m
+[31m     [31m×[31m rejects a malformed batch with 400[39m[32m 18[2mms[22m[39m
+   [31m❯[39m POST /imports/v1/posts:batch [2m(12)[22m
+[31m     [31m×[31m keeps the original created_at, to the millisecond[39m[32m 22[2mms[22m[39m
+[31m     [31m×[31m writes no notification and no mention, and never pushes federation[39m[32m 20[2mms[22m[39m
+[31m     [31m×[31m is idempotent: a re-sent item answers `existing` with the same post[39m[32m 41[2mms[22m[39m
+[31m     [31m×[31m keys idempotency by platform and by user, not by source id alone[39m[32m 69[2mms[22m[39m
+[31m     [31m×[31m resolves a reply and a quote to posts earlier in the same batch, as a thread[39m[32m 18[2mms[22m[39m
+[31m     [31m×[31m resolves a parent imported by an EARLIER batch[39m[32m 34[2mms[22m[39m
+[31m     [31m×[31m defers a reply or quote whose target is not imported, and writes nothing for it[39m[32m 22[2mms[22m[39m
+[31m     [31m×[31m never resolves a parent imported by ANOTHER user[39m[32m 39[2mms[22m[39m
+[31m     [31m×[31m attaches media Oxy knows, typed from its MIME, and refuses media it does not[39m[32m 21[2mms[22m[39m
+[31m     [31m×[31m refuses an asset that is not the acting user's, and one whose owner Oxy did not report[39m[32m 21[2mms[22m[39m
+[31m     [31m×[31m stores an article through the shared article helper[39m[32m 20[2mms[22m[39m
+[31m     [31m×[31m refuses an empty item and a date in the future[39m[32m 21[2mms[22m[39m
+   [31m❯[39m DELETE /imports/v1/batches/:batchId [2m(1)[22m
+[31m     [31m×[31m deletes only the acting user's posts of that batch, each through the normal delete path[39m[32m 87[2mms[22m[39m
+   [31m❯[39m GET /imports/v1/lookup [2m(3)[22m
+[31m     [31m×[31m maps this user's imported source ids, and finds public federated copies by AS2 id[39m[32m 115[2mms[22m[39m
+[31m     [31m×[31m keeps an id that contains a comma whole[39m[32m 32[2mms[22m[39m
+[31m     [31m×[31m never reports another user's imports[39m[32m 43[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 19 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mwho may call the import API[2m > [22madmits Oxy Move acting for a user
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m215:24[22m[39m
+    [90m213|[39m   it('admits Oxy Move acting for a user', async () => {
+    [90m214|[39m     const res = await postBatch(body());
+    [90m215|[39m     expect(res.status).toBe(200);
+    [90m   |[39m                        [31m^[39m
+    [90m216|[39m     expect(res.body.results[0].status).toBe('created');
+    [90m217|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mwho may call the import API[2m > [22mrefuses another INTERNAL service application acting for the same user
+[31m[1mAssertionError[22m: expected 'SERVICE_ACTING_AS_UNAUTHORIZED' to be 'IMPORT_CALLER_NOT_ALLOWED' // Object.is equality[39m
+
+Expected: [32m"[7mIMPORT_CALLER_NOT_ALLOW[27mED"[39m
+Received: [31m"[7mSERVICE_ACTING_AS_UNAUTHORIZ[27mED"[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m235:28[22m[39m
+    [90m233|[39m       .send(body());
+    [90m234|[39m     expect(res.status).toBe(403);
+    [90m235|[39m     expect(res.body.error).toBe('IMPORT_CALLER_NOT_ALLOWED');
+    [90m   |[39m                            [31m^[39m
+    [90m236|[39m   });
+    [90m237|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mwho may call the import API[2m > [22mrejects a malformed batch with 400
+[31m[1mAssertionError[22m: expected 403 to be 400 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 400[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m263:24[22m[39m
+    [90m261|[39m   it('rejects a malformed batch with 400', async () => {
+    [90m262|[39m     const res = await postBatch({ platform: 'myspace', batchId: newBat…
+    [90m263|[39m     expect(res.status).toBe(400);
+    [90m   |[39m                        [31m^[39m
+    [90m264|[39m     expect(res.body.error).toBe('INVALID_IMPORT_BATCH');
+    [90m265|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mkeeps the original created_at, to the millisecond
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m275:44[22m[39m
+    [90m273|[39m       items: [item('dated', { createdAt: '2019-03-04T05:06:07.123456+0…
+    [90m274|[39m     });
+    [90m275|[39m     const stored = await readPost(res.body.results[0].postId);
+    [90m   |[39m                                            [31m^[39m
+    [90m276|[39m     expect(stored?.createdAt.toISOString()).toBe('2019-03-04T05:06:07.…
+    [90m277|[39m     expect(stored?.status).toBe('published');
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mwrites no notification and no mention, and never pushes federation
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m291:29[22m[39m
+    [90m289|[39m       ],
+    [90m290|[39m     });
+    [90m291|[39m     const postId = res.body.results[0].postId as string;
+    [90m   |[39m                             [31m^[39m
+    [90m292|[39m     const stored = await readPost(postId);
+    [90m293|[39m     expect(stored?.mentions).toEqual([]);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mis idempotent: a re-sent item answers `existing` with the same post
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m307:24[22m[39m
+    [90m305|[39m     const first = await postBatch({ platform: 'mastodon', batchId, ite…
+    [90m306|[39m     const second = await postBatch({ platform: 'mastodon', batchId, it…
+    [90m307|[39m     expect(second.body.results[0]).toEqual({
+    [90m   |[39m                        [31m^[39m
+    [90m308|[39m       sourceId: 'again',
+    [90m309|[39m       status: 'existing',
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mkeys idempotency by platform and by user, not by source id alone
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m323:71[22m[39m
+    [90m321|[39m     const onBluesky = await postBatch({ platform: 'bluesky', batchId: …
+    [90m322|[39m     const forBob = await postBatch({ platform: 'mastodon', batchId: ne…
+    [90m323|[39m     const ids = [onMastodon, onBluesky, forBob].map((res) => res.body.…
+    [90m   |[39m                                                                       [31m^[39m
+    [90m324|[39m     expect(ids.map((result) => result.status)).toEqual(['created', 'cr…
+    [90m325|[39m     expect(new Set(ids.map((result) => result.postId)).size).toBe(3);
+[90m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m323:49[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mresolves a reply and a quote to posts earlier in the same batch, as a thread
+[31m[1mTypeError[22m: undefined is not iterable (cannot read property Symbol(Symbol.iterator))[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m338:34[22m[39m
+    [90m336|[39m       ],
+    [90m337|[39m     });
+    [90m338|[39m     const [root, reply, quote] = res.body.results as Array<{ postId: s…
+    [90m   |[39m                                  [31m^[39m
+    [90m339|[39m     expect([root.status, reply.status, quote.status]).toEqual(['create…
+    [90m340|[39m     const storedReply = await readPost(reply.postId);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mresolves a parent imported by an EARLIER batch
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m356:21[22m[39m
+    [90m354|[39m       items: [item('late-reply', { replyToSourceId: 'old-root' })],
+    [90m355|[39m     });
+    [90m356|[39m     expect(res.body.results[0].status).toBe('created');
+    [90m   |[39m                     [31m^[39m
+    [90m357|[39m   });
+    [90m358|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mdefers a reply or quote whose target is not imported, and writes nothing for it
+[31m[1mAssertionError[22m: expected undefined to deeply equal [ …(2) ][39m
+
+[32m- Expected:[39m
+[
+  {
+    "error": "parent_not_imported",
+    "sourceId": "orphan-reply",
+    "status": "deferred",
+  },
+  {
+    "error": "quote_not_imported",
+    "sourceId": "orphan-quote",
+    "status": "deferred",
+  },
+]
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m368:30[22m[39m
+    [90m366|[39m       ],
+    [90m367|[39m     });
+    [90m368|[39m     expect(res.body.results).toEqual([
+    [90m   |[39m                              [31m^[39m
+    [90m369|[39m       { sourceId: 'orphan-reply', status: 'deferred', error: 'parent_n…
+    [90m370|[39m       { sourceId: 'orphan-quote', status: 'deferred', error: 'quote_no…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mnever resolves a parent imported by ANOTHER user
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m383:21[22m[39m
+    [90m381|[39m       items: [item('alice-reply', { replyToSourceId: 'bobs-root' })],
+    [90m382|[39m     });
+    [90m383|[39m     expect(res.body.results[0].status).toBe('deferred');
+    [90m   |[39m                     [31m^[39m
+    [90m384|[39m   });
+    [90m385|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mattaches media Oxy knows, typed from its MIME, and refuses media it does not
+[31m[1mTypeError[22m: undefined is not iterable (cannot read property Symbol(Symbol.iterator))[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m400:36[22m[39m
+    [90m398|[39m       ],
+    [90m399|[39m     });
+    [90m400|[39m     const [ok, missing, trashed] = res.body.results;
+    [90m   |[39m                                    [31m^[39m
+    [90m401|[39m     expect(ok.status).toBe('created');
+    [90m402|[39m     expect(missing).toEqual({ sourceId: 'missing-media', status: 'fail…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mrefuses an asset that is not the acting user's, and one whose owner Oxy did not report
+[31m[1mTypeError[22m: undefined is not iterable (cannot read property Symbol(Symbol.iterator))[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m429:31[22m[39m
+    [90m427|[39m       ],
+    [90m428|[39m     });
+    [90m429|[39m     const [own, ...refused] = res.body.results;
+    [90m   |[39m                               [31m^[39m
+    [90m430|[39m     expect(own.status).toBe('created');
+    [90m431|[39m     expect(refused).toEqual([
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mstores an article through the shared article helper
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading '0')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m449:44[22m[39m
+    [90m447|[39m       items: [item('essay', { text: '', article: { title: '  My essay …
+    [90m448|[39m     });
+    [90m449|[39m     const stored = await readPost(res.body.results[0].postId);
+    [90m   |[39m                                            [31m^[39m
+    [90m450|[39m     expect(stored?.content.article?.title).toBe('My essay');
+    [90m451|[39m     expect(stored?.content.article?.articleId).toBeTruthy();
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mPOST /imports/v1/posts:batch[2m > [22mrefuses an empty item and a date in the future
+[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'map')[39m
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m463:29[22m[39m
+    [90m461|[39m       ],
+    [90m462|[39m     });
+    [90m463|[39m     expect(res.body.results.map((result: { error: string }) => result.…
+    [90m   |[39m                             [31m^[39m
+    [90m464|[39m       'empty',
+    [90m465|[39m       'created_at_in_future',
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mDELETE /imports/v1/batches/:batchId[2m > [22mdeletes only the acting user's posts of that batch, each through the normal delete path
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m486:24[22m[39m
+    [90m484|[39m
+    [90m485|[39m     const res = await asMove(request(app).delete(`/imports/v1/batches/…
+    [90m486|[39m     expect(res.status).toBe(200);
+    [90m   |[39m                        [31m^[39m
+    [90m487|[39m     expect(res.body).toEqual({ deleted: 2, failed: 0 });
+    [90m488|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mGET /imports/v1/lookup[2m > [22mmaps this user's imported source ids, and finds public federated copies by AS2 id
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m532:24[22m[39m
+    [90m530|[39m         .query({ platform: 'mastodon', sourceIds: ['looked-up', 'not-i…
+    [90m531|[39m     );
+    [90m532|[39m     expect(res.status).toBe(200);
+    [90m   |[39m                        [31m^[39m
+    [90m533|[39m     expect(res.body.imported).toEqual({ 'looked-up': imported.body.res…
+    [90m534|[39m     expect(res.body.federated).toEqual({
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mGET /imports/v1/lookup[2m > [22mkeeps an id that contains a comma whole
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m548:24[22m[39m
+    [90m546|[39m     const imported = await postBatch({ platform: 'mastodon', batchId: …
+    [90m547|[39m     const res = await asMove(request(app).get('/imports/v1/lookup').qu…
+    [90m548|[39m     expect(res.status).toBe(200);
+    [90m   |[39m                        [31m^[39m
+    [90m549|[39m     expect(res.body.imported).toEqual({ [sourceId]: imported.body.resu…
+    [90m550|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/routes/imports.test.ts[2m > [22mGET /imports/v1/lookup[2m > [22mnever reports another user's imports
+[31m[1mAssertionError[22m: expected undefined to deeply equal {}[39m
+
+[32m- Expected:[39m
+{}
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m src/__tests__/routes/imports.test.ts:[2m555:31[22m[39m
+    [90m553|[39m     await postBatch({ platform: 'mastodon', batchId: newBatchId(), ite…
+    [90m554|[39m     const res = await asMove(request(app).get('/imports/v1/lookup').qu…
+    [90m555|[39m     expect(res.body.imported).toEqual({});
+    [90m   |[39m                               [31m^[39m
+    [90m556|[39m   });
+    [90m557|[39m });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/19]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m19 failed[39m[22m[2m | [22m[1m[32m3 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 03:13:29
+[2m   Duration [22m 3.46s[2m (transform 39%, tests 31%, import 29%, setup 1%)[22m
+
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-import-pg-58319lcg"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-import-fixture-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-import-fixture-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', 'src/__tests__/routes/imports.test.ts'], cwd=ROOT / 'packages/backend')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-import-fixture-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', 'src/__tests__/routes/imports.test.ts']' returned non-zero exit status 1.

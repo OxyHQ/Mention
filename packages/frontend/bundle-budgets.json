@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "budgets": {
-    "totalBytes": 21495808,
+    "totalBytes": 21757952,
     "javascriptBytes": 17249075,
     "initialJavascriptBytes": 7235174,
     "initialJavascriptGzipBytes": 1866465,
