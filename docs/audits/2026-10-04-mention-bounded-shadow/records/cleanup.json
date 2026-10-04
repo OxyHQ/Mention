@@ -1,0 +1,7 @@
+{
+  "kind": "owned-postgres-stopped",
+  "dataDirectory": "/home/nate/Oxy/.agent-evidence/i04-mention-bounded-shadow-20261004/pg",
+  "port": 18643,
+  "postmasterPidFileAbsent": true,
+  "matchingPostgresPids": []
+}

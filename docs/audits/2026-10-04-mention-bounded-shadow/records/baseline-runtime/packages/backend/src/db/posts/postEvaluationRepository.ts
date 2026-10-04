@@ -111,7 +111,7 @@ export interface ShadowClaim {
 }
 
 /** A successful insert is the only authorization to infer. No lease takeover. */
-export async function claimPostEvaluation(postId: string, release: ShadowRelease, receiptAuthority?: ShadowReceiptAuthority, requestDeadlineAt?: Date, selectedOperation?: ShadowSelectedOperation): Promise<ShadowClaim | null> {
+export async function claimPostEvaluation(postId: string, release: ShadowRelease, receiptAuthority?: ShadowReceiptAuthority, requestDeadlineAt?: Date): Promise<ShadowClaim | null> {
   validateShadowRelease(release);
   const authority = receiptAuthority === undefined ? null : shadowReceiptAuthoritySchema.parse(receiptAuthority);
   if (requestDeadlineAt && (!authority || !Number.isFinite(requestDeadlineAt.getTime()))) {
@@ -122,17 +122,7 @@ export async function claimPostEvaluation(postId: string, release: ShadowRelease
     if (!snapshot) return null;
     const fingerprint = shadowFingerprint(snapshot);
     const abstention = shadowAbstention(snapshot, release);
-    if (selectedOperation) {
-      const parsed = shadowSelectionSchema.safeParse(selectedOperation.selection);
-      const expiresAt = Date.parse(selectedOperation.expiresAt);
-      if (!parsed.success || !Number.isFinite(expiresAt) || expiresAt <= Date.now()
-        || parsed.data.postId !== postId || parsed.data.fingerprint !== fingerprint || abstention) return null;
-      const primary = snapshot.renditions.find(rendition => rendition.position === 0);
-      if (!primary || jevInputSha256(buildJevDecisionRequest(release, selectedOperation.topics,
-        primary.body.slice(0, JEV_MAX_TEXT_LENGTH), snapshot.languages)) !== parsed.data.inputSha256) return null;
-    }
     const [claim] = await tx.insert(postEvaluations).values({
-      ...(selectedOperation ? { id: selectedOperation.selection.idempotencyKey } : {}),
       postId, fingerprint, model: release.model, receiptAuthority: authority, requestDeadlineAt, policyRef: release.policyRef,
       policyVersion: release.policyVersion, evaluationVersion: release.evaluationVersion,
       state: abstention ? 'abstained' : 'claimed', abstention,

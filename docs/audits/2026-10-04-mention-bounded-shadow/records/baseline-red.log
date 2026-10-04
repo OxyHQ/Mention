@@ -1,0 +1,267 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (49 tests | 1 failed) 11644ms
+   ❯ PostClassificationService — shadow fanout (16)
+     × runs exactly the selected already-classified native revision without reclassifying it 39ms
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts (62 tests | 5 failed) 3991ms
+   ❯ source-selected one-operation claim (11)
+     × uses the preassigned key once under concurrent claims, and never reclaims uncertain work 122ms
+     × rejects changed text after preparation without a claim 45ms
+     × rejects changed post after preparation without a claim 32ms
+     × rejects changed hash after preparation without a claim 32ms
+     × rejects changed expired after preparation without a claim 29ms
+ ❯ src/__tests__/services/jevProduction.test.ts (15 tests | 3 failed) 36ms
+   ❯ Mention production factory (15)
+     × rejects an invalid selection binding before obtaining a credential 5ms
+     × rejects changed selected key before credentials or HTTP 2ms
+     × rejects changed selected text before credentials or HTTP 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > uses the preassigned key once under concurrent claims, and never reclaims uncertain work
+AssertionError: expected '01a1087d-d18b-711f-95d2-da53524f6737' to be 'selected-01a1087d-d14d-7b56-a715-2963…' // Object.is equality
+
+Expected: "selected-01a1087d-d14d-7b56-a715-2963beb1393d"
+Received: "01a1087d-d18b-711f-95d2-da53524f6737"
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:114:23
+    112|     expect(claims.filter(Boolean)).toHaveLength(1);
+    113|     const winner = claims.find(c => c !== null)!;
+    114|     expect(winner.id).toBe(selected.selection.idempotencyKey);
+       |                       ^
+    115|     await markPostEvaluationUncertain(winner);
+    116|     expect(await selectedClaim(post.id, selected)).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed text after preparation without a claim
+AssertionError: expected { …(3) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "fingerprint": "eb778d99194d53147a5144aee4517ae00aea5a244cce13198308ce4e69cbeb6b",
+  "id": "01a1087d-d2bb-75ca-9071-b93cc11465e2",
+  "snapshot": {
+    "actorUri": null,
+    "languages": [
+      "en",
+    ],
+    "owner": "oxy-jev-shadow-ledger-author",
+    "postId": "01a1087d-d29c-79b6-be4c-88211ee59b45",
+    "renditions": [
+      {
+        "articleBody": null,
+        "articleExcerpt": null,
+        "articleTitle": null,
+        "body": "Changed after preparation",
+        "id": "01a1087d-d2b4-7d05-8456-6ccdcf2246af",
+        "position": 0,
+        "source": "author",
+        "tag": "en",
+      },
+    ],
+  },
+}
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:133:54
+    131|       if (kind === 'hash') selected.selection.inputSha256 = 'f'.repeat…
+    132|       if (kind === 'expired') Object.assign(selected, { expiresAt: new…
+    133|       expect(await selectedClaim(post.id, selected)).toBeNull();
+       |                                                      ^
+    134|       expect(await ledger(post.id)).toEqual([]);
+    135|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed post after preparation without a claim
+AssertionError: expected { …(3) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "fingerprint": "462406e321f30bbd73ba5b6ea3e01c6101ca0ec77d05cdab752c14e4ed029b4d",
+  "id": "01a1087d-d2dd-7deb-a275-d36ed4dac63d",
+  "snapshot": {
+    "actorUri": null,
+    "languages": [
+      "en",
+    ],
+    "owner": "oxy-jev-shadow-ledger-author",
+    "postId": "01a1087d-d2ca-70d3-8c3b-730d81356f79",
+    "renditions": [
+      {
+        "articleBody": null,
+        "articleExcerpt": null,
+        "articleTitle": null,
+        "body": "Synthetic science news.",
+        "id": "01a1087d-d2cd-713a-9f6a-7dba8dd25391",
+        "position": 0,
+        "source": "author",
+        "tag": "en",
+      },
+    ],
+  },
+}
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:133:54
+    131|       if (kind === 'hash') selected.selection.inputSha256 = 'f'.repeat…
+    132|       if (kind === 'expired') Object.assign(selected, { expiresAt: new…
+    133|       expect(await selectedClaim(post.id, selected)).toBeNull();
+       |                                                      ^
+    134|       expect(await ledger(post.id)).toEqual([]);
+    135|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed hash after preparation without a claim
+AssertionError: expected { …(3) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "fingerprint": "96fee68d0c0e27bee570271444831268d6439dffa5899337270f9e3f3fd7cb89",
+  "id": "01a1087d-d2fb-7417-b26d-926a6e9929b3",
+  "snapshot": {
+    "actorUri": null,
+    "languages": [
+      "en",
+    ],
+    "owner": "oxy-jev-shadow-ledger-author",
+    "postId": "01a1087d-d2ea-75fc-8f6b-9239abdfdb60",
+    "renditions": [
+      {
+        "articleBody": null,
+        "articleExcerpt": null,
+        "articleTitle": null,
+        "body": "Synthetic science news.",
+        "id": "01a1087d-d2ed-7580-8420-0ebd8a44b966",
+        "position": 0,
+        "source": "author",
+        "tag": "en",
+      },
+    ],
+  },
+}
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:133:54
+    131|       if (kind === 'hash') selected.selection.inputSha256 = 'f'.repeat…
+    132|       if (kind === 'expired') Object.assign(selected, { expiresAt: new…
+    133|       expect(await selectedClaim(post.id, selected)).toBeNull();
+       |                                                      ^
+    134|       expect(await ledger(post.id)).toEqual([]);
+    135|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed expired after preparation without a claim
+AssertionError: expected { …(3) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "fingerprint": "ca4b7e908bf7eda074d2074dee9b16e0155e9e2f8f2b7f02f25b9f8c4fdd23e8",
+  "id": "01a1087d-d31b-73ae-bdbd-13fb9cc5d31d",
+  "snapshot": {
+    "actorUri": null,
+    "languages": [
+      "en",
+    ],
+    "owner": "oxy-jev-shadow-ledger-author",
+    "postId": "01a1087d-d30a-7073-9ad0-c159c26df25f",
+    "renditions": [
+      {
+        "articleBody": null,
+        "articleExcerpt": null,
+        "articleTitle": null,
+        "body": "Synthetic science news.",
+        "id": "01a1087d-d30d-7fbd-87c4-0820b3470985",
+        "position": 0,
+        "source": "author",
+        "tag": "en",
+      },
+    ],
+  },
+}
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:133:54
+    131|       if (kind === 'hash') selected.selection.inputSha256 = 'f'.repeat…
+    132|       if (kind === 'expired') Object.assign(selected, { expiresAt: new…
+    133|       expect(await selectedClaim(post.id, selected)).toBeNull();
+       |                                                      ^
+    134|       expect(await ledger(post.id)).toEqual([]);
+    135|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid selection binding before obtaining a credential
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ src/__tests__/services/jevProduction.test.ts:55:53
+     53|       vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
+     54|       vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockRet…
+     55|       expect(() => createProductionJevEvaluation()).toThrow('approval …
+       |                                                     ^
+     56|       expect(token).not.toHaveBeenCalled(); expect(identity).not.toHav…
+     57|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects changed selected key before credentials or HTTP
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects changed selected text before credentials or HTTP
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array []
+
+
+Number of calls: 1
+
+ ❯ src/__tests__/services/jevProduction.test.ts:94:23
+     92|     if (kind === 'language') changed.languages = ['fr'];
+     93|     await expect(evaluation.evaluate(changed)).rejects.toThrow();
+     94|     expect(token).not.toHaveBeenCalled(); expect(transport).not.toHave…
+       |                       ^
+     95|   });
+     96|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > runs exactly the selected already-classified native revision without reclassifying it
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/__tests__/services/postClassification.test.ts:1260:22
+    1258|       selectedOperation: { selection, topics: [], expiresAt: new Date(…
+    1259|     await worker.processQueue(); await worker.processQueue();
+    1260|     expect(evaluate).toHaveBeenCalledTimes(1);
+       |                      ^
+    1261|     expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ idempotencyKey…
+    1262|     expect(await getDb().select().from(postEvaluations).where(eq(postE…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+
+ Test Files  3 failed | 1 passed (4)
+      Tests  9 failed | 141 passed (150)
+   Start at  22:56:50
+   Duration  20.09s (tests 82%, import 8%, transform 5%, setup 4%)
+
+error: script "test" exited with code 1

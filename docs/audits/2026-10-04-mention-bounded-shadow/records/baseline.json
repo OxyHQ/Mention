@@ -1,0 +1,22 @@
+{
+  "base": "dfb368638c6aed9985887f6abfe0736922c78ab0",
+  "note": "Old factory and worker byteexact; old claim function with helper rename only. Additive read-only preparation, pure request extraction and final fixtures retained; no production approval.",
+  "exitCode": 1,
+  "runtime": [
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "baselineSha256": "dbd6e83abebd11424d4432e48699ef1ff9db3c9d1b04c51459986a2ea8f165c4",
+      "finalSha256": "5f7b8f7546fc895cbbac15c90eb2945aaf5c31ef967400b889ed5d310fe22cff"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "baselineSha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd",
+      "finalSha256": "f65bb358e0f1dde062b02ebf35b4059907c48c3aa6124e153d77848614fadda2"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "baselineSha256": "6b88752696ed58dabb1771c69fbd859f0b975720663145f5b83fa94bb384c461",
+      "finalSha256": "2515c75ff8cc5272d56425e16a5d1edf060a8dafba1bd6a534de9370de91e1c0"
+    }
+  ]
+}

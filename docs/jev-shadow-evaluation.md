@@ -375,3 +375,27 @@ one POST, excludes a federated row, and preserves ordinary classification. The
 repository suite separately exercises imports, private sources, federated owners
 and privacy/deletion races. No real provider, production funding or human
 consent is claimed by these fixtures. All six release blockers remain intact.
+
+### A single reviewed native revision
+
+The production approval now requires a selected post ID, its full semantic
+fingerprint, a preassigned original idempotency key and the SHA-256 of the
+normalized decisions input. `preparePostEvaluationSelection` uses a repeatable
+read, read-only transaction and returns only these IDs/hashes; it creates no
+claim and grants no authority. The request builder is shared with the SDK path,
+including the existing 1,000-character primary-text limit. The fingerprint still
+covers the full author content and language ordering.
+
+At dispatch the claim transaction rechecks privacy, native provenance, content,
+expiry and input hash under the existing locks before inserting that exact key.
+Only the winning insert may invoke. An already-classified selected post can run
+through the same shadow path without reopening its ordinary classification.
+Other queued posts remain on the independent classifier. Unknown outcomes retain
+the original key and use receipt GET recovery; they never gain a new paid retry.
+
+This does not activate Jev: the production getter remains absent and the release
+blockers remain closed. Oxy and Kaana still need a separately reviewed **Mention**
+audience binding this exact key/input/principal and actual route/policy/card;
+the earlier Alia audience cannot authorize it. Native-only approval does not admit
+federated or imported content. No private post text, fake balance or user identity
+is created by selection preparation.

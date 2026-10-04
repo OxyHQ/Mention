@@ -1,3 +1,4 @@
+import { buildJevDecisionRequest, jevInputSha256 } from '../../services/contentClassification/jevRequest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DecisionRequest } from '@oxy.so/contracts';
 import * as approvalSource from '../../services/contentClassification/jevProductionApproval';
@@ -9,7 +10,9 @@ vi.mock('../../runtime/serviceIdentity', () => ({ canAuthenticateAsService: () =
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ serviceToken: token }) }));
 
 function approval(): approvalSource.MentionJevProductionApproval {
-  return { scope: 'native-original-public', deploymentId: 'synthetic-deployment', evidenceRef: 'fixture:only',
+  const release = { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1, evaluationVersion: 'fixture-v1', supportedLanguages: ['en'] };
+  return { selection: { postId: 'synthetic-post', fingerprint: 'a'.repeat(64), idempotencyKey: input.idempotencyKey,
+    inputSha256: jevInputSha256(buildJevDecisionRequest(release, [], input.text, input.languages)) }, scope: 'native-original-public', deploymentId: 'synthetic-deployment', evidenceRef: 'fixture:only',
     validUntil: new Date(Date.now() + 60_000).toISOString(),
     authority: { applicationId: approvalSource.MENTION_JEV_APPLICATION_ID, credentialId: 'synthetic-credential', environment: 'production' },
     release: { model: 'synthetic/jev@fixture-v1', policyRef: 'fixture-policy', policyVersion: 1,
@@ -34,10 +37,11 @@ describe('Mention production factory', () => {
     identity.mockReturnValue(false);
     expect(createProductionJevEvaluation()).toBeUndefined(); expect(token).not.toHaveBeenCalled();
   });
-  it.each(['app', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'expired', 'ambiguous-date'])(
+  it.each(['app', 'environment', 'delegation', 'scope', 'deployment', 'evidence', 'expired', 'ambiguous-date', 'selection'])(
     'rejects an invalid %s binding before obtaining a credential', kind => {
       const candidate = approval();
       const altered = { ...candidate, authority: { ...candidate.authority } };
+      if (kind === 'selection') Object.assign(altered, { selection: undefined });
       if (kind === 'app') altered.authority.applicationId = 'synthetic-alia';
       if (kind === 'environment') altered.authority.environment = 'test';
       if (kind === 'delegation') altered.authority.delegatedUserId = 'borrowed-human';
@@ -77,4 +81,17 @@ describe('Mention production factory', () => {
     await expect(evaluation.receiptReader!.readOriginal(input.idempotencyKey, candidate.release.model)).rejects.toThrow();
     expect(transport.mock.calls.map(call => call[1]?.method)).toEqual(['POST', 'GET']);
   });
+  it.each(['key', 'text', 'language'] as const)('rejects changed selected %s before credentials or HTTP', async kind => {
+    vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
+    vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockReturnValue(approval());
+    const transport = vi.fn(); vi.stubGlobal('fetch', transport);
+    const evaluation = createProductionJevEvaluation()!;
+    const changed = { ...input };
+    if (kind === 'key') changed.idempotencyKey = 'foreign-key';
+    if (kind === 'text') changed.text += ' changed';
+    if (kind === 'language') changed.languages = ['fr'];
+    await expect(evaluation.evaluate(changed)).rejects.toThrow();
+    expect(token).not.toHaveBeenCalled(); expect(transport).not.toHaveBeenCalled();
+  });
+
 });

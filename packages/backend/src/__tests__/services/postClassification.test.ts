@@ -1198,18 +1198,24 @@ describe('PostClassificationService — shadow fanout', () => {
     evaluationVersion: 'shadow-v1', supportedLanguages: ['en'],
   };
 
+  async function selectionFor(postId: string): Promise<jevShadow.ShadowSelection> {
+    const selection = await evaluationRepository.preparePostEvaluationSelection(postId, release, [], `selected-${postId}`);
+    if (!selection) throw new Error('Synthetic preparation failed');
+    return selection;
+  }
+
   it('connects the production factory to the real native-only queue through the SDK', async () => {
     vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
     const authority = { applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
       credentialId: 'synthetic-mention-workload', environment: 'production' as const };
-    vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-      scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
-      validUntil: new Date(Date.now() + 60_000).toISOString(), authority, release, topics: [],
-    });
     vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
     const token = vi.fn(async () => 'synthetic-only');
     vi.spyOn(oxyHelpers, 'getServiceOxyClient').mockReturnValue({ serviceToken: token } as ReturnType<typeof oxyHelpers.getServiceOxyClient>);
     const native = await seedSubject('Native eligible content', { classification: { languages: ['en'] } });
+    vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
+      selection: await selectionFor(native.id), scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      validUntil: new Date(Date.now() + 60_000).toISOString(), authority, release, topics: [],
+    });
     const federated = await seedSubject('Remote content remains excluded', { classification: { languages: ['en'] } });
     await getDb().update(posts).set({ federationActorUri: 'https://synthetic.invalid/actor', federationActivityId: 'https://synthetic.invalid/post' }).where(eq(posts.id, federated.id));
     await padBatch(2); respondWith([]);
@@ -1238,6 +1244,26 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, federated.id))).toEqual([]);
   });
 
+  it('runs exactly the selected already-classified native revision without reclassifying it', async () => {
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Already classified native content', { classification: { languages: ['en'] } });
+    const selection = await selectionFor(post.id);
+    await getDb().update(posts).set({ classificationStatus: 'classified' }).where(eq(posts.id, post.id));
+    const [before] = await getDb().select().from(posts).where(eq(posts.id, post.id));
+    // This worker's baseline is empty in the owned database; never reset the post.
+    const evaluate = vi.fn(async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({ topics: [], languages: ['en'],
+      languageEvidence: [{ language: 'en', probability: 1 }], spam: 0, repetition: 0, feedValue: 0.5,
+      sdkReceipt: { requestId: 'selected-request', routingPolicy: { routingPolicyId: release.policyRef, policyVersion: 1 } } }));
+    const worker = new PostClassificationService({ release, evaluate,
+      selectedOperation: { selection, topics: [], expiresAt: new Date(Date.now() + 60_000).toISOString() } });
+    await worker.processQueue(); await worker.processQueue();
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ idempotencyKey: selection.idempotencyKey });
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, selection.idempotencyKey)))
+      .toEqual([expect.objectContaining({ postId: post.id, state: 'completed' })]);
+    expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([before]);
+  });
+
   it.each(['before-cycle', 'during-claim'] as const)('does not quarantine unsent work when production approval expires %s', async phase => {
     vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
     vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
@@ -1247,7 +1273,7 @@ describe('PostClassificationService — shadow fanout', () => {
     await padBatch(1); respondWith([]);
     const expiresAt = Date.now() + 500;
     vi.spyOn(productionApproval, 'reviewedMentionJevProduction').mockReturnValue({
-      scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
+      selection: await selectionFor(post.id), scope: 'native-original-public', deploymentId: 'synthetic-only', evidenceRef: 'fixture:only',
       validUntil: new Date(expiresAt).toISOString(), release, topics: [], authority: {
         applicationId: productionApproval.MENTION_JEV_APPLICATION_ID, credentialId: 'synthetic-mention-workload', environment: 'production',
       },
@@ -1443,7 +1469,7 @@ describe('PostClassificationService — shadow fanout', () => {
     const post = await seedSubject('Synthetic invalid projection', { classification: { languages: ['en'] } });
     await padBatch(1);
     respondWith([]);
-    const evaluate = vi.fn(async () => ({ topics: [], languages: ['en'], languageEvidence: [{ language: 'en', probability: 0.9 }],
+    const evaluate = vi.fn(async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({ topics: [], languages: ['en'], languageEvidence: [{ language: 'en', probability: 0.9 }],
       sdkReceipt: { requestId: 'synthetic-request', routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 } }, spam: NaN, repetition: 0, feedValue: 0.5 }));
     await new PostClassificationService({ release, evaluate }).processQueue();
     expect((await classificationOf(post.id)).status).toBe('classified');
