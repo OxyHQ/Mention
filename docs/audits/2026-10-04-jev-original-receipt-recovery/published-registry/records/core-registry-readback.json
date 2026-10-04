@@ -1,0 +1,25 @@
+{
+  "version": "4.3.0",
+  "dist": {
+    "shasum": "f27ae73e9435020c22db97efa7f962501588d09a",
+    "tarball": "https://registry.npmjs.org/@oxy.so/core/-/core-4.3.0.tgz",
+    "fileCount": 581,
+    "integrity": "sha512-iC7GbhYxxn/vQBwxwmRONoyMR2qVw3CEU2MxjXXT9SbTQjHE550B+bKiYok3DB2FlkKsI7hZECFOYhG2GEdUHg==",
+    "signatures": [
+      {
+        "sig": "MEQCIAzwrc4KEBHy24a6ZKgLZgHSPEviGUs89g3Pjv7nG+uCAiBtlSoZSgOKa13W1GcLqSg5ksgqEPq8oS6uqDwGNY7Qcw==",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "sig": "MEQCIDmH4LqCj8PAagyUVtEhuJoWkJevHW/ly8lBJjUd9jUWAiBXSQ/taIn4O5Q1q2OKyuxYaRjVhF96CnvdAzPEkWTchg=="
+      }
+    ],
+    "unpackedSize": 6063182
+  },
+  "metadataReadAttempts": 26,
+  "distTags": {
+    "latest": "4.3.0"
+  },
+  "downloadByteEqual": true
+}

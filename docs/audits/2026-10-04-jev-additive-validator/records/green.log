@@ -1,0 +1,17 @@
+✔ current published SDK and additive migration remain valid after unrelated migrations (62.731334ms)
+✔ rejects a changed migration identity (45.801784ms)
+✔ rejects duplicate migration identity (43.177627ms)
+✔ rejects destructive changes to the owned migration (44.590389ms)
+✔ rejects mutation of an existing table in the additive snapshot (46.129881ms)
+✔ rejects catalogue version drift (55.740836ms)
+✔ rejects a changed published package integrity (55.599414ms)
+✔ rejects removal of an approval blocker (56.227453ms)
+✔ rejects an environment activation bypass (49.093769ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 519.641739

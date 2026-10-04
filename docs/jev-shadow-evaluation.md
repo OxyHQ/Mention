@@ -293,12 +293,14 @@ new, still-untracked docs files; it clears once they are staged. The second was
 `lib/jevOwnedPg.mjs`; that entry is now declared. The full suite stays pending
 in CI until it reruns with both fixes.
 
-## Original-key usage reconciliation (candidate)
+## Original-key usage reconciliation
 
 The receipt-recovery followup uses the canonical core
-`getGenerationRecordByIdempotencyKey` method from Oxy PR1574. Its new SDK release
-is still required before adopting a final registry lock. Local tests use the
-exact candidate package; no production binding or activation is implied.
+`getGenerationRecordByIdempotencyKey` method from published `@oxy.so/core`
+4.3.0, with `@oxy.so/contracts` 4.9.1. The committed registry lock and installed
+package members are verified against the published release archives. The
+combined receipt and atomic-edit tests pass; production binding and activation
+remain separate from this adoption.
 
 Migration 0060 adds three nullable fields to the existing ledger: the original
 public authority tuple, the original request deadline, and independent usage
@@ -317,7 +319,7 @@ recovery write; deletion cannot resurrect a row; privacy changes never export
 content through this metadata-only read. Aborted reads cannot later write.
 
 The production gate remains closed pending the exact Jev route/privacy review,
-SDK publication/adoption and the remaining semantic/language transition review.
+governed Mention authority/funding and the remaining release criteria.
 No production ledger backfill, funding mode, credential or provider approval is
 inferred from these fixtures.
 

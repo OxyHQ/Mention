@@ -1,0 +1,81 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1437237, /tmp/mention-jev-semantic-4cdkdmsu/data, socket /tmp/mention-jev-semantic-4cdkdmsu/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1437237, /tmp/mention-jev-semantic-4cdkdmsu/data, socket /tmp/mention-jev-semantic-4cdkdmsu/socket, TCP disabled
+$ node ../../node_modules/vitest/vitest.mjs run "--maxWorkers=1" src/__tests__/controllers/updatePostAtomicContent.test.ts src/__tests__/controllers/updatePostDropsMachineVariants.test.ts src/__tests__/controllers/updatePostScheduledWindow.test.ts
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/jev-atomic-edit-20261004/packages/backend
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts (3 tests | 3 failed) 285ms
+   ❯ native author edit is one content revision (3)
+     × does not admit new languages with the previous body while an edit waits for the content lock 145ms
+     × rolls scalar language and classification back when the content insert fails 75ms
+     × rechecks an unpublished carve-out after acquiring the content lock 45ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > does not admit new languages with the previous body while an edit waits for the content lock
+AssertionError: expected [ 'fr' ] to deeply equal [ 'en' ]
+
+- Expected
++ Received
+
+  [
+-   "en",
++   "fr",
+  ]
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:105:41
+    103|     expect(status).toBe(200);
+    104|     expect(claimed).not.toBeNull();
+    105|     expect(claimed?.snapshot.languages).toEqual(['en']);
+       |                                         ^
+    106|     expect(claimed?.snapshot.renditions[0]?.body).toBe(oldText);
+    107|     const after = await readPost(id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > rolls scalar language and classification back when the content insert fails
+AssertionError: expected 'fr' to be 'en' // Object.is equality
+
+Expected: "en"
+Received: "fr"
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:125:29
+    123|     expect(status).toBe(500);
+    124|     const after = await readPost(id);
+    125|     expect(after?.language).toBe(before?.language);
+       |                             ^
+    126|     expect(after?.postClassification).toEqual(before?.postClassificati…
+    127|     expect(after?.content).toEqual(before?.content);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/__tests__/controllers/updatePostAtomicContent.test.ts > native author edit is one content revision > rechecks an unpublished carve-out after acquiring the content lock
+AssertionError: expected 200 to be 409 // Object.is equality
+
+- Expected
++ Received
+
+- 409
++ 200
+
+ ❯ src/__tests__/controllers/updatePostAtomicContent.test.ts:137:28
+    135|       await getDb().update(posts).set({ status: 'published' }).where(e…
+    136|     } finally { await unlock(); }
+    137|     expect(await updating).toBe(409);
+       |                            ^
+    138|     const after = await readPost(id);
+    139|     expect(after?.status).toBe('published');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  3 failed | 24 passed (27)
+   Start at  17:34:13
+   Duration  6.77s (import 45%, transform 31%, tests 22%, setup 1%)
+
+     Import  336 modules were evaluated 938 times · 2.60s total, 45% of tracked time
+             ~1.67s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+error: script "test" exited with code 1

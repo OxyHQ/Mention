@@ -1,0 +1,104 @@
+{
+  "sourceHead": "f6e076b650c78942a385a2aa6ed11cb831fa570d",
+  "composedMain": "43fa02f0f8006c326db4a2fe43044efaaac4d8ec",
+  "packages": {
+    "core": "4.3.0",
+    "contracts": "4.9.1"
+  },
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "2e07444e5d0806ad6bf6df5811ce5e4f33f1cf0c62da8c563f2578dab404ca8f"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "e0c4097e16fad61c3ba7a13ba6597e23fa4f9ed98c6ad9b8aba17e4e9512a103"
+    },
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "2374238eaa82e53d2016b38a69857388defec4ee6ed267276817ba94d30ad88c"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevSdk.ts",
+      "sha256": "c53cb8caca00a054e24b4366200e8429ccf9709704ada9b3f7391e9769dfc2fb"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "3029a8a34e3ea6d83c3658543059355be4b600973688eac3944567655e2578fa"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "20050372f992a01a28c17ecd0d5abec4eab73baf05ca5d0d2ba1d8cfd0e603b9"
+    },
+    {
+      "path": "packages/backend/src/db/posts/shadowReceiptDatabase.ts",
+      "sha256": "a02e0ae80ae0126def8e91db5e962bd9514eaafa3a7fdd977b766d191a993a38"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/build-pinned.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/checks-pinned-receipt.json",
+      "sha256": "d9b4c97113986d8a30c89e22f5886c52c0bf8bea6fb91f39a8b45dc905308d83"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/checks-pinned-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/checks-pinned-tests.log",
+      "sha256": "fad4c63601ae052d8cec5ca3f72bd875b142c4d5f7bd149eee8d37fd183561dd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/contracts-registry-readback.json",
+      "sha256": "aea7f09d15d3b82883ee4c01d428cdd0a2a17cfb89fa702d351041406f8d5656"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/core-registry-readback.json",
+      "sha256": "94bc7fa6d4e40ffcc33d6d4289fc341e1893ad36adb1f40337f5d859c4e04456"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/frozen-pinned.log",
+      "sha256": "a07e208ddfc7f20bf73b125f1c526a1f5c9fda6186832178713fcab5955db148"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/install-pinned.log",
+      "sha256": "62681aff33a1f521c61d72f1822919694708a644ad4227511d937352929fba44"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/registry-members.json",
+      "sha256": "6e84694eff194f62e6192a5b3f1bf9f26bdf389edd91b1f82f7a2e6f37341790"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/setup-wrong-bun-workspace.log",
+      "sha256": "0a39130d62e22c243b07069e55ca77fd22996f798dedad4e6a253806c25a8b95"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/types-pinned.log",
+      "sha256": "b13c1d0fe0dc81de9900fab09c4ab28d6d2a44dc7385982f2fe6a69868f60720"
+    },
+    {
+      "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/workspace-pinned.log",
+      "sha256": "b557ae361ee5b06a94f21ca52ad1d8618dc91b2c185de5929330ec9977a5f580"
+    }
+  ],
+  "results": {
+    "bun": "1.3.14",
+    "frozenInstall": 0,
+    "workspace": 0,
+    "build": 0,
+    "types": 0,
+    "tests": 217,
+    "suites": 13,
+    "installedMembers": 779,
+    "ownedPostgresStopped": true
+  },
+  "limits": [
+    "No production activation, provider inference, scope grant or funding change.",
+    "Initial ambient Bun1.4.2 doctor rejection retained as setup failure; final lock and checks use required1.3.14.",
+    "Historical candidate and RED proofs remain separate and unchanged."
+  ]
+}

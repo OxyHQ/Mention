@@ -9,8 +9,7 @@ import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
 import {
   loadPostRecord,
-  replacePostContent,
-  updatePostRecord,
+  updatePostAndContent,
   type PostRecordPatch,
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
@@ -477,31 +476,6 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       Array.isArray(req.body.collaboratorHandles) ? req.body.collaboratorHandles : undefined,
     );
 
-    // An edit that started under the unpublished carve-out must not land on a
-    // post that went live while it was being assembled — the publisher sweeps
-    // every 60s, a draft can be published from another device, and the body
-    // above does its own I/O (article save, collaborator resolution). Re-read
-    // the STORED status as late as possible and refuse rather than write, so a
-    // just-published post cannot be edited without its
-    // 30-minute window. This narrows the window to the gap between this read and
-    // the two writes below; it does not close it, because the content graph is a
-    // second statement that no predicate on the first could cover. The residual
-    // exposure is bounded: `status` is not among the patched columns, so the
-    // write can never revert a publish, and the federation/MTN gates below
-    // re-read the status themselves.
-    if (editingUnpublishedPost) {
-      const [stillUnpublished] = await getDb()
-        .select({ id: postsTable.id })
-        .from(postsTable)
-        .where(and(eq(postsTable.id, post.id), eq(postsTable.status, loaded.status)))
-        .limit(1);
-      if (!stillUnpublished) {
-        return res.status(409).json({
-          message: 'This post published while you were editing it. Reload it to edit within the 30-minute window.',
-        });
-      }
-    }
-
     // A machine translation describes the exact source it was made from — the
     // primary body, the ALT text of the media it shows, and the article. The
     // body branch above already drops them; an edit that only touches ALT text
@@ -512,8 +486,16 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       content.variants = authorVariants(content);
     }
 
-    await updatePostRecord(post.id, patch);
-    await replacePostContent(post.id, content, nextMentions);
+    // The language/classification/privacy scalar state and the rendition graph
+    // become visible together. Check the unpublished carve-out AFTER taking the
+    // same content/row locks used by shadow claims and content writers.
+    const written = await updatePostAndContent(post.id, patch, content, nextMentions,
+      loaded.status === 'draft' || loaded.status === 'scheduled' ? loaded.status : undefined);
+    if (!written) {
+      return res.status(409).json({
+        message: 'This post changed while you were editing it. Reload it to edit within the current rules.',
+      });
+    }
 
     // The correction trail — the half of permanent editability that makes it
     // honest. Recorded AFTER the write, so an edit that failed leaves no claim
