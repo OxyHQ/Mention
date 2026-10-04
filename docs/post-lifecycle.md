@@ -7,6 +7,15 @@ post is classified and ranked once it exists.
 
 ## Post lifecycle
 
+- **A native edit commits one scalar/content revision.** `updatePostAndContent`
+  takes the canonical content advisory lock and then the post row lock before
+  writing scalar language/classification and replacing the rendition graph in
+  the same transaction. Shadow claims cannot admit a new language with an old
+  body, and a failed content insert rolls back scalar changes. Draft/scheduled
+  edit eligibility is rechecked under those locks, so publishing while an edit
+  waits causes a409 rather than using its former unpublished carve-out. External
+  federation/repair callers of `replacePostContent` retain their existing paths.
+
 - **A cascade delete filter naming a field the schema lacks is a silent
   no-op that reports success.** `deletePost` passes the deleted post
   DOCUMENT to `cascadeDeletedPost` (`services/PostDeletionCascade.ts`),
