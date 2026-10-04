@@ -1,0 +1,29 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (50 tests | 1 failed) 11865ms
+   ❯ PostClassificationService — shadow fanout (17)
+     × keeps native original-key recovery after expiry without opening broader admission or sending again 797ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > keeps native original-key recovery after expiry without opening broader admission or sending again
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/__tests__/services/postClassification.test.ts:1279:23
+    1277|     await padBatch(0); respondWith([]);
+    1278|     await worker.processQueue();
+    1279|     expect(transport).toHaveBeenCalledTimes(1);
+       |                       ^
+    1280|     const [after] = await getDb().select().from(postEvaluations).where…
+    1281|     expect(after.state).toBe('cost_uncertain'); expect(after.usageReco…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 49 passed (50)
+   Start at  00:26:50
+   Duration  14.81s (tests 85%, transform 6%, setup 5%, import 4%)
+
+error: script "test" exited with code 1

@@ -1,0 +1,139 @@
+{
+  "kind": "mention-native-source-and-durable-recovery",
+  "sourceCommit": "15bb219cea0a13ad84b132a5506908e6dedb7e7e",
+  "base": "fbc6663a474795660b227d28b961854a0be6aea6",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "f92b5be7e125db6c2391a1f92bd2365efd66a249735f01fb148e71b39a316029"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "7a7f4e66da9ec9fb0a4ae326db671e8401eb39d08c288e89ba9d9df0097e9218"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "29509c017a1af5ade64483e56419ad622e02273975973cef774ec20b7dc160fe"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "1231e97c2669c14f48ee0803469a9e82dfef7052408dcc7c487f9bc0e1de76c0"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "b9ccd5a06686703486ec032c5217a2804b3818cad844febc5e6d2d755d2e0d05"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "dd2c7afcbe7d24a5890cc7b4cbbe29b54e491a9f4d984fb74753332a44d8936a"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "7c1041bbb8952b593a8daa4b67ca2aea9bc77815ae57391a1a5a866284c329c5"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevReceipt.ts",
+      "sha256": "1d9ba35ee0065b9e601253546df6ef534fda1c9c8b18414724b2b368a3c7d78d"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/install.log",
+      "sha256": "161fe9b4266a3bc5d5a10ae5ae172e65aad3cc89ec87a143f70401172969cf23"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/shared-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/baseline-red.log",
+      "sha256": "b6235de6ec64726ab7cdd8f7ff7fa2ec43d51d1265a87dc4c5d21f59608c686f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/baseline-result.json",
+      "sha256": "34ed42b0a329c3b994ab779c21c58ebf9e8a7655a3917179685947af2cb766eb"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/final-tests-2.log",
+      "sha256": "bc659b52c22279fed0cf05c6288fb1aed29befe0a6d59455df867cab4a3371a4"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/recovery-worker-tests.log",
+      "sha256": "f0f0e226dfbcc0f3c9e54fafebc3d6b1e9adf7248c4d27843f7c55a02dadd31f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/types-recovery.log",
+      "sha256": "da907f0898c42cb2efa1e760291cd7e52038175cd27ca353430f479162ed0f55"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/restart-tests.log",
+      "sha256": "3c8da167ee43271a9cd87bd0df6a4ffe133728e74b7f19b936c3ff5e0993a599"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/freeze-tests.log",
+      "sha256": "44f0a0bd6223c793f0c3e1af4f5691c5d06d23d377883daf5f2748640debaa30"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/freeze-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/freeze-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/private-recovery-final.log",
+      "sha256": "8fb323b09c5ca919d9469a129931aba6c7a8b14ece0e414379ef816f3851df2b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/private-final-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/pg-final-databases.log",
+      "sha256": "4267836511e69117de5e003446eccca7470e11f21d34de1cea45f9a4ba88afb7"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/frozen-fixtures/packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "9338d7c414254dfc356bc568e3a0b66f8f001511cbf55971929c166dfa24287f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/frozen-fixtures/packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "00839182fc6b71d8da20e70f4b2e3b5fa7a6e6fd57d930b888470852bf3488e0"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/final-runtime/packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "765057e16b523251a2683dd8e4581632ecf1dab8f3f72ac01b5e4519c9cf53cf"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-wiring/records/final-runtime/packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "c1288aee3025c363340833c8b6f9d05b481f4461e90c468281f9fff51154e48e"
+    }
+  ],
+  "compiled": [],
+  "validation": {
+    "focusedSuites": 4,
+    "focusedPass": 157,
+    "finalWorkerPass": 54,
+    "types": 0,
+    "build": 0,
+    "ownedPgStopped": true
+  },
+  "inactive": true,
+  "getter": "undefined",
+  "noAws": true,
+  "noProviderCalls": true,
+  "noPush": true
+}

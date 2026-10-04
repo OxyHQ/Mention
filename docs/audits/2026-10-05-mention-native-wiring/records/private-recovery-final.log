@@ -1,0 +1,10 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/packages/backend
+
+
+ Test Files  1 passed (1)
+      Tests  54 passed (54)
+   Start at  00:36:52
+   Duration  15.13s (tests 85%, transform 5%, setup 5%, import 4%)
+

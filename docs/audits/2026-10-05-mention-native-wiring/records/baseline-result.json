@@ -1,0 +1,1 @@
+{"exitCode": 1, "baseline": "fbc6663a", "replacementPaths": ["packages/backend/src/services/PostClassificationService.ts", "packages/backend/src/services/contentClassification/jevProduction.ts"], "note": "New fixture and additive approval metadata retained; factory and worker exact baseline."}
