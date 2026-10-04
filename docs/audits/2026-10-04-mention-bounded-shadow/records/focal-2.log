@@ -1,0 +1,10 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004/packages/backend
+
+
+ Test Files  4 passed (4)
+      Tests  150 passed (150)
+   Start at  22:53:11
+   Duration  32.32s (tests 64%, transform 14%, setup 12%, import 10%)
+

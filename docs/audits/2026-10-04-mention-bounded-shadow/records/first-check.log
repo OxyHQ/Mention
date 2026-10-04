@@ -1,0 +1,40 @@
+$ bun run --parallel test:shared-types test:backend test:mcp test:frontend src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+test:shared-types                                 | $ bun test
+test:mcp                                          | $ bun test
+test:backend                                      | $ node ../../node_modules/vitest/vitest.mjs run
+src/__tests__/services/jevProduction.test.ts      | error: Module not found "src/__tests__/services/jevProduction.test.ts"
+test:frontend                                     | $ node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand
+src/__tests__/services/jevSdk.test.ts             | error: Module not found "src/__tests__/services/jevSdk.test.ts"
+src/__tests__/services/jevProduction.test.ts      | Exited with code 1
+--maxWorkers=1                                    | /usr/bin/bash: --: invalid option
+--maxWorkers=1                                    | Usage:	/usr/bin/bash [GNU long option] [option] ...
+--maxWorkers=1                                    | 	/usr/bin/bash [GNU long option] [option] script-file ...
+--maxWorkers=1                                    | GNU long options:
+--maxWorkers=1                                    | 	--debug
+--maxWorkers=1                                    | 	--debugger
+--maxWorkers=1                                    | 	--dump-po-strings
+--maxWorkers=1                                    | 	--dump-strings
+--maxWorkers=1                                    | 	--help
+--maxWorkers=1                                    | 	--init-file
+--maxWorkers=1                                    | 	--login
+--maxWorkers=1                                    | 	--noediting
+--maxWorkers=1                                    | 	--noprofile
+--maxWorkers=1                                    | 	--norc
+--maxWorkers=1                                    | 	--posix
+--maxWorkers=1                                    | 	--pretty-print
+--maxWorkers=1                                    | 	--rcfile
+--maxWorkers=1                                    | 	--restricted
+--maxWorkers=1                                    | 	--verbose
+--maxWorkers=1                                    | 	--version
+--maxWorkers=1                                    | Shell options:
+--maxWorkers=1                                    | 	-ilrsD or -c command or -O shopt_option		(invocation only)
+--maxWorkers=1                                    | 	-abefhkmnptuvxBCEHPT or -o option
+src/__tests__/services/jevSdk.test.ts             | Exited with code 1
+--maxWorkers=1                                    | Exited with code 2
+src/__tests__/db/postEvaluationRepository.test.ts | Signaled: SIGINT
+src/__tests__/services/postClassification.test.ts | Signaled: SIGINT
+test:frontend                                     | Signaled: SIGINT
+test:shared-types                                 | Signaled: SIGINT
+test:backend                                      | Signaled: SIGINT
+test:mcp                                          | Signaled: SIGINT
+error: script "test" exited with code 130

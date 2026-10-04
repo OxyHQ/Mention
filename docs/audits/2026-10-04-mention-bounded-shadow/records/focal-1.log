@@ -1,0 +1,262 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/jevProduction.test.ts src/__tests__/services/jevSdk.test.ts src/__tests__/db/postEvaluationRepository.test.ts src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004/packages/backend
+
+ ❯ src/__tests__/services/postClassification.test.ts (49 tests | 4 failed) 9153ms
+   ❯ PostClassificationService — shadow fanout (16)
+     × connects the production factory to the real native-only queue through the SDK 126ms
+     × runs exactly the selected already-classified native revision without reclassifying it 51ms
+     × does not quarantine unsent work when production approval expires before-cycle 93ms
+     × does not quarantine unsent work when production approval expires during-claim 94ms
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts (62 tests | 6 failed) 4223ms
+   ❯ source-selected one-operation claim (11)
+     × uses the preassigned key once under concurrent claims, and never reclaims uncertain work 87ms
+     × rejects changed imported after preparation without a claim 43ms
+     × rejects changed text after preparation without a claim 50ms
+     × rejects changed post after preparation without a claim 41ms
+     × rejects changed hash after preparation without a claim 48ms
+     × rejects changed expired after preparation without a claim 39ms
+ ❯ src/__tests__/services/jevSdk.test.ts (24 tests | 1 failed) 48ms
+   ❯ published Jev SDK consumer (24)
+     × uses independent propositions, ordered score and actual SDK request/policy references 4ms
+ ❯ src/__tests__/services/jevProduction.test.ts (15 tests | 14 failed) 20ms
+   ❯ Mention production factory (15)
+     × does not create a client without the existing workload identity 4ms
+     × rejects an invalid app binding before obtaining a credential 4ms
+     × rejects an invalid environment binding before obtaining a credential 1ms
+     × rejects an invalid delegation binding before obtaining a credential 1ms
+     × rejects an invalid scope binding before obtaining a credential 1ms
+     × rejects an invalid deployment binding before obtaining a credential 1ms
+     × rejects an invalid evidence binding before obtaining a credential 1ms
+     × rejects an invalid expired binding before obtaining a credential 1ms
+     × rejects an invalid ambiguous-date binding before obtaining a credential 1ms
+     × rejects an invalid selection binding before obtaining a credential 1ms
+     × uses the actual SDK once and leaves receipt GET available when admission expires 1ms
+     × rejects changed selected key before credentials or HTTP 1ms
+     × rejects changed selected text before credentials or HTTP 0ms
+     × rejects changed selected language before credentials or HTTP 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 25 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > uses the preassigned key once under concurrent claims, and never reclaims uncertain work
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Internals.wrapped ../../../jev-production-factory-20261004/node_modules/zod/v4/core/memoizer.cjs:269:32
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ src/db/posts/postEvaluationRepository.ts:100:44
+     98|     const abstention = shadowAbstention(snapshot, release);
+     99|     if (selectedOperation) {
+    100|       const parsed = shadowSelectionSchema.safeParse(selectedOperation…
+       |                                            ^
+    101|       const expiresAt = Date.parse(selectedOperation.expiresAt);
+    102|       if (!parsed.success || !Number.isFinite(expiresAt) || expiresAt …
+ ❯ scope ../../../jev-production-factory-20261004/node_modules/postgres/src/index.js:260:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/25]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed imported after preparation without a claim
+Error: Failed query: insert into "post_imports" ("post_id", "oxy_user_id", "platform", "source_id", "source_url", "content_warning", "import_batch_id", "imported_at") values ($1, default, default, $2, $3, default, $4, default)
+params: 01a10879-24a6-753b-b5af-61da15e1a553,selected-import,https://synthetic.invalid/import,synthetic-selected
+ ❯ PostgresJsPreparedQuery.queryWithCache ../../../jev-production-factory-20261004/node_modules/src/pg-core/session.ts:73:11
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:129:32
+    127|       if (kind === 'profile') await setProfile('private');
+    128|       if (kind === 'deleted') await getDb().delete(posts).where(eq(pos…
+    129|       if (kind === 'imported') await getDb().insert(postImports).value…
+       |                                ^
+    130|         source: 'mastodon', sourceId: 'selected-import', sourceUrl: 'h…
+    131|       if (kind === 'federated') await getDb().update(posts).set({ fede…
+
+Caused by: PostgresError: null value in column "oxy_user_id" of relation "post_imports" violates not-null constraint
+ ❯ ErrorResponse ../../../jev-production-factory-20261004/node_modules/postgres/src/connection.js:815:30
+ ❯ handle ../../../jev-production-factory-20261004/node_modules/postgres/src/connection.js:489:6
+ ❯ Socket.data ../../../jev-production-factory-20261004/node_modules/postgres/src/connection.js:324:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { severity_local: 'ERROR', severity: 'ERROR', code: '23502', detail: 'Failing row contains (01a10879-24a6-753b-b5af-61da15e1a553, null, null, selected-import, https://synthetic.invalid/import, null, synthetic-selected, 2026-10-04 22:51:59.426827+03).', schema_name: 'public', table_name: 'post_imports', column_name: 'oxy_user_id', file: 'execMain.c', routine: 'ExecConstraints', query: 'insert into "post_imports" ("post_id", "oxy_user_id", "platform", "source_id", "source_url", "content_warning", "import_batch_id", "imported_at") values ($1, default, default, $2, $3, default, $4, default)', parameters: [ '01a10879-24a6-753b-b5af-61da15e1a553', 'selected-import', 'https://synthetic.invalid/import', 'synthetic-selected' ], args: [ '01a10879-24a6-753b-b5af-61da15e1a553', 'selected-import', 'https://synthetic.invalid/import', 'synthetic-selected' ], types: [ 25, 25, 25, 25 ] }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/25]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed text after preparation without a claim
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed post after preparation without a claim
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed hash after preparation without a claim
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > source-selected one-operation claim > rejects changed expired after preparation without a claim
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ src/db/posts/postEvaluationRepository.ts:100:44
+     98|     const abstention = shadowAbstention(snapshot, release);
+     99|     if (selectedOperation) {
+    100|       const parsed = shadowSelectionSchema.safeParse(selectedOperation…
+       |                                            ^
+    101|       const expiresAt = Date.parse(selectedOperation.expiresAt);
+    102|       if (!parsed.success || !Number.isFinite(expiresAt) || expiresAt …
+ ❯ scope ../../../jev-production-factory-20261004/node_modules/postgres/src/index.js:260:18
+ ❯ sql.begin ../../../jev-production-factory-20261004/node_modules/postgres/src/index.js:243:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/25]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > does not create a client without the existing workload identity
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Internals.wrapped ../../../jev-production-factory-20261004/node_modules/zod/v4/core/memoizer.js:239:32
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ Module.createProductionJevEvaluation src/services/contentClassification/jevProduction.ts:16:30
+     14|   if (!approval) return undefined;
+     15|   const expiresAt = Date.parse(approval.validUntil);
+     16|   if (!shadowSelectionSchema.safeParse(approval.selection).success
+       |                              ^
+     17|     || approval.scope !== 'native-original-public'
+     18|     || approval.authority.applicationId !== MENTION_JEV_APPLICATION_ID
+ ❯ src/__tests__/services/jevProduction.test.ts:38:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/25]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid app binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid environment binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid delegation binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid scope binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid deployment binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid evidence binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid expired binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid ambiguous-date binding before obtaining a credential
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects an invalid selection binding before obtaining a credential
+AssertionError: expected [Function] to throw error including 'approval is invalid' but got 'Invalid element at key "idempotencyKe…'
+
+Expected: "approval is invalid"
+Received: "Invalid element at key "idempotencyKey": expected a Zod schema"
+
+ ❯ src/__tests__/services/jevProduction.test.ts:55:53
+     53|       vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
+     54|       vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockRet…
+     55|       expect(() => createProductionJevEvaluation()).toThrow('approval …
+       |                                                     ^
+     56|       expect(token).not.toHaveBeenCalled(); expect(identity).not.toHav…
+     57|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/25]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > uses the actual SDK once and leaves receipt GET available when admission expires
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ Module.createProductionJevEvaluation src/services/contentClassification/jevProduction.ts:16:30
+     14|   if (!approval) return undefined;
+     15|   const expiresAt = Date.parse(approval.validUntil);
+     16|   if (!shadowSelectionSchema.safeParse(approval.selection).success
+       |                              ^
+     17|     || approval.scope !== 'native-original-public'
+     18|     || approval.authority.applicationId !== MENTION_JEV_APPLICATION_ID
+ ❯ src/__tests__/services/jevProduction.test.ts:77:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/25]⎯
+
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects changed selected key before credentials or HTTP
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects changed selected text before credentials or HTTP
+ FAIL  src/__tests__/services/jevProduction.test.ts > Mention production factory > rejects changed selected language before credentials or HTTP
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ Module.createProductionJevEvaluation src/services/contentClassification/jevProduction.ts:16:30
+     14|   if (!approval) return undefined;
+     15|   const expiresAt = Date.parse(approval.validUntil);
+     16|   if (!shadowSelectionSchema.safeParse(approval.selection).success
+       |                              ^
+     17|     || approval.scope !== 'native-original-public'
+     18|     || approval.authority.applicationId !== MENTION_JEV_APPLICATION_ID
+ ❯ src/__tests__/services/jevProduction.test.ts:88:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/25]⎯
+
+ FAIL  src/__tests__/services/jevSdk.test.ts > published Jev SDK consumer > uses independent propositions, ordered score and actual SDK request/policy references
+ReferenceError: FEED_SCORE_LEVELS is not defined
+ ❯ Object.evaluate src/services/contentClassification/jevSdk.ts:75:34
+     73|         languageEvidence: languages.map((language, index) => ({ langua…
+     74|         spam: probability('spam'), repetition: probability('repetition…
+     75|         feedValue: score.mean / (FEED_SCORE_LEVELS.length - 1),
+       |                                  ^
+     76|         sdkReceipt: { requestId: result.requestId, routingPolicy: resu…
+     77|       });
+ ❯ src/__tests__/services/jevSdk.test.ts:69:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/25]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > connects the production factory to the real native-only queue through the SDK
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Internals.wrapped ../../../jev-production-factory-20261004/node_modules/zod/v4/core/memoizer.cjs:269:32
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ createProductionJevEvaluation src/services/contentClassification/jevProduction.ts:16:30
+     14|   if (!approval) return undefined;
+     15|   const expiresAt = Date.parse(approval.validUntil);
+     16|   if (!shadowSelectionSchema.safeParse(approval.selection).success
+       |                              ^
+     17|     || approval.scope !== 'native-original-public'
+     18|     || approval.authority.applicationId !== MENTION_JEV_APPLICATION_ID
+ ❯ Module.createProductionPostClassificationService src/services/PostClassificationService.ts:543:40
+ ❯ src/__tests__/services/postClassification.test.ts:1241:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/25]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > runs exactly the selected already-classified native revision without reclassifying it
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/__tests__/services/postClassification.test.ts:1264:22
+    1262|       selectedOperation: { selection, topics: [], expiresAt: new Date(…
+    1263|     await worker.processQueue(); await worker.processQueue();
+    1264|     expect(evaluate).toHaveBeenCalledTimes(1);
+       |                      ^
+    1265|     expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ idempotencyKey…
+    1266|     expect(await getDb().select().from(postEvaluations).where(eq(postE…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/25]⎯
+
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > does not quarantine unsent work when production approval expires before-cycle
+ FAIL  src/__tests__/services/postClassification.test.ts > PostClassificationService — shadow fanout > does not quarantine unsent work when production approval expires during-claim
+Error: Invalid element at key "idempotencyKey": expected a Zod schema
+ ❯ normalizeDef ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:909:19
+ ❯ ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1062:43
+ ❯ Cached.get value [as value] ../../../jev-production-factory-20261004/node_modules/zod/v4/core/util.js:41:27
+ ❯ Internals.inst._zod.parse ../../../jev-production-factory-20261004/node_modules/zod/v4/core/schemas.js:1172:39
+ ❯ Module.<anonymous> ../../../jev-production-factory-20261004/node_modules/zod/v4/core/parse.js:43:32
+ ❯ _.safeParse ../../../jev-production-factory-20261004/node_modules/zod/v4/classic/schemas.js:141:22
+ ❯ createProductionJevEvaluation src/services/contentClassification/jevProduction.ts:16:30
+     14|   if (!approval) return undefined;
+     15|   const expiresAt = Date.parse(approval.validUntil);
+     16|   if (!shadowSelectionSchema.safeParse(approval.selection).success
+       |                              ^
+     17|     || approval.scope !== 'native-original-public'
+     18|     || approval.authority.applicationId !== MENTION_JEV_APPLICATION_ID
+ ❯ Module.createProductionPostClassificationService src/services/PostClassificationService.ts:543:40
+ ❯ src/__tests__/services/postClassification.test.ts:1287:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/25]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  25 failed | 125 passed (150)
+   Start at  22:51:46
+   Duration  18.02s (tests 79%, import 10%, transform 6%, setup 5%)
+
+error: script "test" exited with code 1

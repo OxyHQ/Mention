@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "kind": "mention-bounded-native-shadow-source",
+  "sourceCommit": "f3a5417685e5f5bcfadf90b0aa7560c7bcb75f78",
+  "baseCommit": "dfb368638c6aed9985887f6abfe0736922c78ab0",
+  "observedAt": "2026-10-04T20:00:28.057732+00:00",
+  "sources": [
+    {
+      "path": "docs/jev-shadow-evaluation.md",
+      "sha256": "078f6a527efcfbbb058f802167829b3d6179dab7b37d4d5527a54760be7c3f3b"
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "36e9a9a5983240fe628296f72ef7c4732deedfe906ea06c30136b08ac8a97190"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "5776afe02916ed7a11d295f67c1316349178f16be7d22dc9b2ca93b64b8671d2"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "cec3040b787fb38503cdd48d1162781397e6b2048ba7a7429dccf9377c9f8c70"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "5f7b8f7546fc895cbbac15c90eb2945aaf5c31ef967400b889ed5d310fe22cff"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "f65bb358e0f1dde062b02ebf35b4059907c48c3aa6124e153d77848614fadda2"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "2515c75ff8cc5272d56425e16a5d1edf060a8dafba1bd6a534de9370de91e1c0"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "2292846abc56a60371888e522fef4b35bb2b5b41e831e503fac15405492599c4"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevRequest.ts",
+      "sha256": "060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevSdk.ts",
+      "sha256": "7e21cc70b258f65e6aabc19a2bade583386e15058589974dae2f6a2ff49c5ab2"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "50f97aa62998b203b8436fe211ed849423b7fd01a924faac0342f322f71732e7"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-red.log",
+      "sha256": "8d79fc0c35edf3cdb63e648e46f3809d3fe694ed47a60beabb98f8326a7035b2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline.json",
+      "sha256": "931a6d1c0ea40c4acb2c2555c0bf25d47a113d18389662992fa1db8b654ca49f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/focal-final.log",
+      "sha256": "37642071b7a1edf5e63e30f3da98cf0d4a33e43c0083c4fe3fcbdc8247d84a00"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/types-3.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/shared-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/first-check.log",
+      "sha256": "2a3a4ec5e68f56bbc2337e61689c2ed5b0c755618d1d3cdc86cf64a91cef4941"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/focal-1.log",
+      "sha256": "a266a2f53bff6cd89249e558a41b3de58166dac2054c02bc3afeaba531d2f9f5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/focal-2.log",
+      "sha256": "91a72f7e58da4ad802413f5fb1eb6e4079a8e975a88c4b62c5c449dfab548e78"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/focal-3.log",
+      "sha256": "8aa9d423c69bd516b425d952b72b0d9deca3c028e04644a68dd0c7c9f4d56f4b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/types-1.log",
+      "sha256": "d2e567b8b6121014c5b1850d071ccaea8328abf6a2402cb2d3d4bc0d04e603f4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/types-2.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/run-baseline.py",
+      "sha256": "9951e2d317afb447e36989c0c6be68317ac2efd32abea2072611e3af6f7419b6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-runtime/packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-runtime/packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "dbd6e83abebd11424d4432e48699ef1ff9db3c9d1b04c51459986a2ea8f165c4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-runtime/packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "6b88752696ed58dabb1771c69fbd859f0b975720663145f5b83fa94bb384c461"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/final-runtime/packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "f65bb358e0f1dde062b02ebf35b4059907c48c3aa6124e153d77848614fadda2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/final-runtime/packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "5f7b8f7546fc895cbbac15c90eb2945aaf5c31ef967400b889ed5d310fe22cff"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/final-runtime/packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "2515c75ff8cc5272d56425e16a5d1edf060a8dafba1bd6a534de9370de91e1c0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/cleanup.json",
+      "sha256": "ab0a5b97854154d6126c3e6cbfbd9f18dff3c7164d828041c19e4bef85d528a3"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "5776afe02916ed7a11d295f67c1316349178f16be7d22dc9b2ca93b64b8671d2",
+      "unchangedBetweenControlledBaselineAndFinal": true
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevSdk.test.ts",
+      "sha256": "40129da5b19709c6df904fe7282902e8bfd49e9c096f4e078151d0f5e465dfe8",
+      "unchangedBetweenControlledBaselineAndFinal": true
+    },
+    {
+      "path": "packages/backend/src/__tests__/db/postEvaluationRepository.test.ts",
+      "sha256": "36e9a9a5983240fe628296f72ef7c4732deedfe906ea06c30136b08ac8a97190",
+      "unchangedBetweenControlledBaselineAndFinal": true
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "cec3040b787fb38503cdd48d1162781397e6b2048ba7a7429dccf9377c9f8c70",
+      "unchangedBetweenControlledBaselineAndFinal": true
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/backend/dist/src/db/posts/postEvaluationRepository.js",
+      "sha256": "79c3d8aa908fc36d16b3c794dedc7633354eba7d1d00693341cd19c321b854e4"
+    },
+    {
+      "path": "packages/backend/dist/src/services/PostClassificationService.js",
+      "sha256": "540913053fc409a805a93604657b043be3cc3544b7c5f267b88f7d19a998cc55"
+    },
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevProduction.js",
+      "sha256": "606cd7b551287c5b7b0e9bce7b72a57a09a9aa2b4de49e360f5e7b4b0e4eddc1"
+    },
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevProductionApproval.js",
+      "sha256": "a013d419b4466573c58ffbe824728bef94fe4fb92b2563d60314767693588ba6"
+    },
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevRequest.js",
+      "sha256": "3d5edf987b8c44c44bda3133045dc4aae3c814df173bb535cdb56f700e897c1b"
+    },
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevSdk.js",
+      "sha256": "e42f3ff9f39b18f825e0f70f4e42f1f1e71ce62eb97dbe5243c5d87d064cff1c"
+    },
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevShadow.js",
+      "sha256": "f4cf56759ae63c5359d5e9133811e1df9d4f63c3de135abeb89410e4b67d198a"
+    }
+  ],
+  "validation": {
+    "controlledBaseline": {
+      "pass": 141,
+      "fail": 9,
+      "total": 150,
+      "description": "Old worker/factory byteexact and old claim function with helper rename only; additive read-only preparation and pure request builder retained. No source activation."
+    },
+    "final": {
+      "suites": 4,
+      "pass": 150,
+      "fail": 0
+    },
+    "backendTypesExitCode": 0,
+    "backendBuildExitCode": 0,
+    "sharedBuildExitCode": 0,
+    "ownPostgresStopped": true
+  },
+  "limitations": [
+    "No provider, AWS, product live post or authority mutation",
+    "Production approval getter undefined and release blockers unchanged",
+    "No actual Oxy/Kaana combined signed-protocol acceptance here; integration owns that separate fixture",
+    "Read-only node_modules reused from accepted factory worktree; manifests and lock unchanged; no new registry adoption claim",
+    "Initial setup/root-command and local extraction/fixture errors retained separately; not counted as baseline product RED"
+  ]
+}
