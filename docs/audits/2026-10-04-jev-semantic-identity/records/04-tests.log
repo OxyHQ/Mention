@@ -1,0 +1,15 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1270651, /tmp/mention-jev-semantic-6wnxzxyr/data, socket /tmp/mention-jev-semantic-6wnxzxyr/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1270651, /tmp/mention-jev-semantic-6wnxzxyr/data, socket /tmp/mention-jev-semantic-6wnxzxyr/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/full-cut-capability-20261004/packages/backend
+
+
+ Test Files  14 passed (14)
+      Tests  353 passed (353)
+   Start at  16:25:28
+   Duration  18.62s (tests 54%, import 27%, transform 14%, setup 5%)
+
+     Import  411 modules were evaluated 1608 times · 9.06s total, 27% of tracked time
+             ~2.64s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+

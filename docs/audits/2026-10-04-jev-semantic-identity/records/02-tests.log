@@ -1,0 +1,298 @@
+Owned PostgreSQL verified for mention_semantic_owned: postmaster 1269166, /tmp/mention-jev-semantic-uj13q7rv/data, socket /tmp/mention-jev-semantic-uj13q7rv/socket, TCP disabled
+Owned PostgreSQL verified for postgres: postmaster 1269166, /tmp/mention-jev-semantic-uj13q7rv/data, socket /tmp/mention-jev-semantic-uj13q7rv/socket, TCP disabled
+
+ RUN  v5.0.1 /home/nate/Oxy/Mention/.worktrees/full-cut-capability-20261004/packages/backend
+
+ ❯ src/__tests__/services/jevShadow.test.ts (10 tests | 1 failed) 29ms
+   ❯ Jev shadow policy (8)
+     × ignores physical rendition replacement but distinguishes changed actor/language 8ms
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts (33 tests | 6 failed) 2541ms
+   ❯ durable shadow evaluation ledger (33)
+     × keeps an in-flight result across a semantic no-op rewrite without another claim 109ms
+     × does not spend again after a no-op rewrite of a claimed claim 125ms
+     × does not spend again after a no-op rewrite of a cost_uncertain claim 100ms
+     × does not spend again after a no-op rewrite of a cancelled claim 90ms
+     × does not spend again after a no-op rewrite of a completed claim 105ms
+     × cancels a real semantic edit and never spends twice after editing back 112ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > keeps an in-flight result across a semantic no-op rewrite without another claim
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:122:58
+    120|     const claim = await requiredClaim(post.id);
+    121|     await replacePostContent(post.id, post.content, []);
+    122|     expect(await completePostEvaluation(claim, signals)).toBe(true);
+       |                                                          ^
+    123|     expect(await claimPostEvaluation(post.id, release)).toBeNull();
+    124|     expect(await ledger(post.id)).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > does not spend again after a no-op rewrite of a claimed claim
+AssertionError: expected [ { …(3) }, null, null, null, null ] to deeply equal [ null, null, null, null, null ]
+
+- Expected
++ Received
+
+  [
+-   null,
++   {
++     "fingerprint": "748aaa1084bf7d2ebbfff838323f0eea7454d71b9aaba7d67a5352bfca473a12",
++     "id": "01a10716-8028-7a13-a8af-ba7bd4a3c1ee",
++     "snapshot": {
++       "actorUri": null,
++       "languages": [
++         "en",
++       ],
++       "owner": "oxy-jev-shadow-ledger-author",
++       "postId": "01a10716-7ffd-7359-b78f-87d8c90d8ade",
++       "renditions": [
++         {
++           "articleBody": null,
++           "articleExcerpt": null,
++           "articleTitle": null,
++           "body": "Synthetic science news.",
++           "id": "01a10716-801a-70ac-8bcd-ed34f946cfcc",
++           "position": 0,
++           "source": "author",
++           "tag": "en",
++         },
++       ],
++     },
++   },
+    null,
+    null,
+    null,
+    null,
+  ]
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:141:23
+    139|       await replacePostContent(post.id, post.content, []);
+    140|       const retries = await Promise.all(Array.from({ length: 5 }, () =…
+    141|       expect(retries).toEqual([null, null, null, null, null]);
+       |                       ^
+    142|       expect(await ledger(post.id)).toEqual(before);
+    143|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > does not spend again after a no-op rewrite of a cost_uncertain claim
+AssertionError: expected [ null, null, null, { …(3) }, null ] to deeply equal [ null, null, null, null, null ]
+
+- Expected
++ Received
+
+  [
+    null,
+    null,
+    null,
+-   null,
++   {
++     "fingerprint": "02756a9cd55d05bb47ed7a2b544d895504d11461cbcc87cd4d0c9416ac7d9b24",
++     "id": "01a10716-80b7-74f6-9817-d64c8dc09ca2",
++     "snapshot": {
++       "actorUri": null,
++       "languages": [
++         "en",
++       ],
++       "owner": "oxy-jev-shadow-ledger-author",
++       "postId": "01a10716-807a-75e6-9f75-3aae57807dfb",
++       "renditions": [
++         {
++           "articleBody": null,
++           "articleExcerpt": null,
++           "articleTitle": null,
++           "body": "Synthetic science news.",
++           "id": "01a10716-80aa-7eb7-a704-6c3890428080",
++           "position": 0,
++           "source": "author",
++           "tag": "en",
++         },
++       ],
++     },
++   },
+    null,
+  ]
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:141:23
+    139|       await replacePostContent(post.id, post.content, []);
+    140|       const retries = await Promise.all(Array.from({ length: 5 }, () =…
+    141|       expect(retries).toEqual([null, null, null, null, null]);
+       |                       ^
+    142|       expect(await ledger(post.id)).toEqual(before);
+    143|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > does not spend again after a no-op rewrite of a cancelled claim
+AssertionError: expected [ { …(3) }, null, null, null, null ] to deeply equal [ null, null, null, null, null ]
+
+- Expected
++ Received
+
+  [
+-   null,
++   {
++     "fingerprint": "c6c7dcecb8bc2eb5ad3ae835f69af6991e9fde60e453138de1c9c61140d7eb88",
++     "id": "01a10716-810f-74be-8247-a3ade79f1a82",
++     "snapshot": {
++       "actorUri": null,
++       "languages": [
++         "en",
++       ],
++       "owner": "oxy-jev-shadow-ledger-author",
++       "postId": "01a10716-80de-7a42-95a5-2af940512571",
++       "renditions": [
++         {
++           "articleBody": null,
++           "articleExcerpt": null,
++           "articleTitle": null,
++           "body": "Synthetic science news.",
++           "id": "01a10716-8104-7696-8ece-450e30ab026e",
++           "position": 0,
++           "source": "author",
++           "tag": "en",
++         },
++       ],
++     },
++   },
+    null,
+    null,
+    null,
+    null,
+  ]
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:141:23
+    139|       await replacePostContent(post.id, post.content, []);
+    140|       const retries = await Promise.all(Array.from({ length: 5 }, () =…
+    141|       expect(retries).toEqual([null, null, null, null, null]);
+       |                       ^
+    142|       expect(await ledger(post.id)).toEqual(before);
+    143|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > does not spend again after a no-op rewrite of a completed claim
+AssertionError: expected [ null, { …(3) }, null, null, null ] to deeply equal [ null, null, null, null, null ]
+
+- Expected
++ Received
+
+  [
+    null,
+-   null,
++   {
++     "fingerprint": "71da60dce792c1018f12435bd660f092e288a00e6fd4c56f6f3c16f82eb712c1",
++     "id": "01a10716-816e-743f-918c-ae11ba14a380",
++     "snapshot": {
++       "actorUri": null,
++       "languages": [
++         "en",
++       ],
++       "owner": "oxy-jev-shadow-ledger-author",
++       "postId": "01a10716-8138-704d-bf10-e87b971c7b05",
++       "renditions": [
++         {
++           "articleBody": null,
++           "articleExcerpt": null,
++           "articleTitle": null,
++           "body": "Synthetic science news.",
++           "id": "01a10716-8165-7b00-9666-1cd03bd9b223",
++           "position": 0,
++           "source": "author",
++           "tag": "en",
++         },
++       ],
++     },
++   },
+    null,
+    null,
+    null,
+  ]
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:141:23
+    139|       await replacePostContent(post.id, post.content, []);
+    140|       const retries = await Promise.all(Array.from({ length: 5 }, () =…
+    141|       expect(retries).toEqual([null, null, null, null, null]);
+       |                       ^
+    142|       expect(await ledger(post.id)).toEqual(before);
+    143|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  src/__tests__/db/postEvaluationRepository.test.ts > durable shadow evaluation ledger > cancels a real semantic edit and never spends twice after editing back
+AssertionError: expected { …(3) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "fingerprint": "bf42d2f685cd3c387a0a063334fbd26c39e0388977127c7f6954877102ef786e",
+  "id": "01a10716-81f8-7434-a730-19f9150e08ec",
+  "snapshot": {
+    "actorUri": null,
+    "languages": [
+      "en",
+    ],
+    "owner": "oxy-jev-shadow-ledger-author",
+    "postId": "01a10716-81a1-7371-9e0a-df2c2fb3a1f1",
+    "renditions": [
+      {
+        "articleBody": null,
+        "articleExcerpt": null,
+        "articleTitle": null,
+        "body": "Synthetic science news.",
+        "id": "01a10716-81e7-7f30-adb8-46b198cb0c7e",
+        "position": 0,
+        "source": "author",
+        "tag": "en",
+      },
+    ],
+  },
+}
+
+ ❯ src/__tests__/db/postEvaluationRepository.test.ts:155:57
+    153|     await replacePostContent(post.id, post.content, []);
+    154|     expect(await completePostEvaluation(changed, signals)).toBe(false);
+    155|     expect(await claimPostEvaluation(post.id, release)).toBeNull();
+       |                                                         ^
+    156|     expect(await ledger(post.id)).toHaveLength(2);
+    157|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  src/__tests__/services/jevShadow.test.ts > Jev shadow policy > ignores physical rendition replacement but distinguishes changed actor/language
+AssertionError: expected '8252e43de4c945af6236363cb946539fb8ccb…' to be '5ac4cf17a49ff278a984937360d5a6325a985…' // Object.is equality
+
+Expected: "5ac4cf17a49ff278a984937360d5a6325a9852f6bfb0100326ad53fe5c391e61"
+Received: "8252e43de4c945af6236363cb946539fb8ccb834e602526067eb01e7760f3421"
+
+ ❯ src/__tests__/services/jevShadow.test.ts:38:8
+     36|   it('ignores physical rendition replacement but distinguishes changed…
+     37|     expect(shadowFingerprint({ ...snapshot, renditions: snapshot.rendi…
+     38|       .toBe(shadowFingerprint(snapshot));
+       |        ^
+     39|     expect(shadowFingerprint({ ...snapshot, actorUri: 'did:plc:other' …
+     40|     expect(shadowFingerprint({ ...snapshot, languages: ['es'] })).not.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed | 12 passed (14)
+      Tests  7 failed | 346 passed (353)
+   Start at  16:24:30
+   Duration  25.60s (tests 50%, import 29%, transform 16%, setup 4%)
+
+     Import  411 modules were evaluated 1592 times · 13.30s total, 29% of tracked time
+             ~3.92s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
