@@ -1,0 +1,3 @@
+$ tsc --noEmit
+src/db/schema/postEvaluations.ts(13,14): error TS2883: The inferred type of 'postEvaluations' cannot be named without a reference to 'BRAND' from '@oxy.so/contracts/node_modules/zod'. This is likely not portable. A type annotation is necessary.
+src/services/contentClassification/jevReceipt.ts(15,14): error TS2883: The inferred type of 'shadowUsageReconciliationSchema' cannot be named without a reference to 'BRAND' from '@oxy.so/contracts/node_modules/zod'. This is likely not portable. A type annotation is necessary.

@@ -1,0 +1,37 @@
+{
+  "existingSchemaUnchanged": true,
+  "addedNullableColumns": {
+    "receipt_authority": {
+      "name": "receipt_authority",
+      "type": "jsonb",
+      "primaryKey": false,
+      "notNull": false
+    },
+    "request_deadline_at": {
+      "name": "request_deadline_at",
+      "type": "timestamp with time zone",
+      "primaryKey": false,
+      "notNull": false
+    },
+    "usage_reconciliation": {
+      "name": "usage_reconciliation",
+      "type": "jsonb",
+      "primaryKey": false,
+      "notNull": false
+    }
+  },
+  "journalEntry": {
+    "idx": 60,
+    "version": "7",
+    "when": 1791122979406,
+    "tag": "0060_jev_usage_reconciliation",
+    "breakpoints": true
+  },
+  "prior": {
+    "idx": 59,
+    "version": "7",
+    "when": 1790990359352,
+    "tag": "0059_search_engine_indexing_opt_out",
+    "breakpoints": true
+  }
+}
