@@ -115,7 +115,7 @@
     "metro-transform-plugins": "0.84.5",
     "metro-transform-worker": "0.84.5",
     "ob1": "0.84.5",
-    "@oxy.so/bloom": "7.1.2",
+    "@oxy.so/bloom": "catalog:",
     "@oxy.so/core": "4.2.0",
     "@oxy.so/services": "11.1.0",
     "fast-uri": "3.1.8",
@@ -135,11 +135,11 @@
     "@tanstack/query-persist-client-core": "5.103.2",
     "@tanstack/query-async-storage-persister": "5.103.2",
     "@tanstack/react-query-persist-client": "5.103.2",
-    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/contracts": "catalog:",
     "@grpc/grpc-js": "1.14.5",
     "@fastify/busboy": "3.2.2",
-    "@oxy.so/protocol": "1.2.2",
-    "@oxy.so/mcp": "1.1.0"
+    "@oxy.so/protocol": "catalog:",
+    "@oxy.so/mcp": "catalog:"
   },
   "patchedDependencies": {
     "expo-router@57.0.23": "patches/expo-router@57.0.23.patch",
