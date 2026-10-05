@@ -54,7 +54,8 @@ import { postEvaluations } from '../../db/schema/postEvaluations';
  * another file's rows out from under it.
  */
 
-const { inferenceJSON, isInferenceEnabled, resolveTopicRefs } = vi.hoisted(() => ({
+const { inferenceJSON, isInferenceEnabled, resolveTopicRefs, classificationEnabled } = vi.hoisted(() => ({
+  classificationEnabled: { value: true },
   inferenceJSON: vi.fn(),
   isInferenceEnabled: vi.fn().mockReturnValue(true),
   resolveTopicRefs: vi.fn(),
@@ -68,7 +69,7 @@ vi.mock('../../config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config')>();
   return {
     ...actual,
-    config: { ...actual.config, classification: { ...actual.config.classification, enabled: true } },
+    config: { ...actual.config, classification: { ...actual.config.classification, get enabled() { return classificationEnabled.value; } } },
   };
 });
 
@@ -235,6 +236,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  classificationEnabled.value = true;
   await clearServiceScope(scope);
   seedClock = 0;
   isInferenceEnabled.mockReturnValue(true);
@@ -1204,7 +1206,8 @@ describe('PostClassificationService — shadow fanout', () => {
     return selection;
   }
 
-  it('connects the reviewed native factory through the SDK while broader release gates remain closed', async () => {
+  it.each([true, false])('connects the reviewed native factory with baseline enabled=%s while broader release gates remain closed', async baselineEnabled => {
+    classificationEnabled.value = baselineEnabled;
     expect(jevShadow.isJevShadowReleased()).toBe(false);
     const authority = { applicationId: productionApproval.MENTION_JEV_APPLICATION_ID,
       credentialId: productionApproval.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' as const };
@@ -1234,20 +1237,29 @@ describe('PostClassificationService — shadow fanout', () => {
           : { id: q.id, kind: 'noul', probability: 0.1 }) }), { headers: { 'X-Oxy-Request-Id': 'owned-factory-request' } });
     });
     vi.stubGlobal('fetch', transport);
+    const empty = await seedSubject('An unrelated text-less post');
+    await getDb().execute(sql`DELETE FROM post_content_variants WHERE post_id=${empty.id}`);
     const worker = createProductionPostClassificationService();
     await worker.processQueue();
+    expect((await classificationOf(empty.id)).status).toBe(baselineEnabled ? 'classified' : 'pending');
     expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBeenCalledTimes(1);
-    expectBatchWasOurs();
-    expect((await classificationOf(native.id)).status).toBe('classified');
-    expect((await classificationOf(federated.id)).status).toBe('classified');
+    if (baselineEnabled) expectBatchWasOurs();
+    else expect(inferenceJSON).not.toHaveBeenCalled();
+    expect((await classificationOf(native.id)).status).toBe(baselineEnabled ? 'classified' : 'pending');
+    expect((await classificationOf(federated.id)).status).toBe(baselineEnabled ? 'classified' : 'pending');
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, native.id)))
       .toEqual([expect.objectContaining({ state: 'completed' })]);
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, federated.id))).toEqual([]);
     await worker.processQueue();
     expect(transport).toHaveBeenCalledTimes(1);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    const cycle = vi.spyOn(worker, 'processQueue').mockResolvedValue();
+    try { worker.start(); await vi.advanceTimersByTimeAsync(30_000); expect(cycle).toHaveBeenCalledTimes(1); }
+    finally { worker.stop(); cycle.mockRestore(); vi.useRealTimers(); }
   });
 
   it.each(['source-off', 'expired', 'foreign-provider', 'foreign-price', 'revoked'] as const)('recovers a durable own operation after restart with %s and zero new POST', async mode => {
+    classificationEnabled.value = false;
     expect(jevShadow.isJevShadowReleased()).toBe(false);
     vi.spyOn(runtimeIdentity, 'canAuthenticateAsService').mockReturnValue(true);
     const token = vi.fn(async () => 'synthetic-only');
@@ -1308,7 +1320,8 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(rows.filter(row => row.id !== selection.idempotencyKey).every(row => row.usageReconciliation === null)).toBe(true);
     expect(rows.every(row => row.state === 'cost_uncertain' && row.sdkReceipt === null)).toBe(true);
     expect(await getDb().select().from(posts).where(eq(posts.id, post.id))).toEqual([privateBefore]);
-    expect((await classificationOf(post.id)).status).toBe('classified');
+    expect((await classificationOf(post.id)).status).toBe('pending');
+    expect(inferenceJSON).not.toHaveBeenCalled();
   });
 
   it('runs exactly the selected already-classified native revision without reclassifying it', async () => {
@@ -1369,6 +1382,18 @@ describe('PostClassificationService — shadow fanout', () => {
     expect(transport).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
     expect((await classificationOf(post.id)).status).toBe('classified');
     expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+  });
+
+  it('does not let an injected shadow binding enable the disabled baseline or selected admission', async () => {
+    classificationEnabled.value = false;
+    vi.spyOn(jevShadow, 'isJevShadowReleased').mockReturnValue(true);
+    const post = await seedSubject('Unreviewed selected native content', { classification: { languages: ['en'] } });
+    const evaluate = vi.fn();
+    const selectedOperation = { selection: await selectionFor(post.id), topics: [], expiresAt: new Date(Date.now() + 60_000).toISOString() };
+    await new PostClassificationService({ release, evaluate, selectedOperation }).processQueue();
+    expect(evaluate).not.toHaveBeenCalled(); expect(inferenceJSON).not.toHaveBeenCalled();
+    expect(await getDb().select().from(postEvaluations).where(eq(postEvaluations.postId, post.id))).toEqual([]);
+    expect((await classificationOf(post.id)).status).toBe('pending');
   });
 
   it('keeps the production gate closed even when a projection binding is supplied', async () => {
