@@ -1,3 +1,4 @@
+import { USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts';
 import {
   colorViewerForUser,
   APP_DEFAULT_COLOR_PRESET,
@@ -6,9 +7,9 @@ import {
 } from '@/lib/colorEntitlement';
 
 /**
- * Two gates, and they are not interchangeable: `oxy` and `faircoin` belong to
- * those accounts and cannot be bought, while `mono` is what a subscription buys.
- * Everything else is everyone's.
+ * Two gates, and they are not interchangeable: `oxy` belongs to its account and cannot be bought; unsupported
+ * `faircoin` is unavailable, while `mono` is what a subscription buys.
+ * Supported free presets are everyone's.
  *
  * The preset table is MOCKED so these cases state the rule directly instead of
  * restating whatever Bloom currently ships (which is asserted in Bloom's own
@@ -18,7 +19,7 @@ import {
  * viewer clears it.
  */
 jest.mock('@oxy.so/bloom/theme', () => ({
-  FREE_COLOR_NAMES: ['teal', 'blue', 'red'],
+  FREE_COLOR_NAMES: ['teal', 'blue', 'red', 'unsupported-free'],
   HANDLE_COLOR_NAMES: ['oxy', 'faircoin'],
   PREMIUM_COLOR_NAMES: ['mono'],
 }));
@@ -46,7 +47,18 @@ describe('colour entitlement', () => {
   });
 
   it('matches the handle regardless of case or padding', () => {
-    expect(isColorEntitled('faircoin', { username: '  FairCoin ', mentionMono: false })).toBe(true);
+    expect(isColorEntitled('oxy', { username: '  Oxy ', mentionMono: false })).toBe(true);
+    expect(isColorEntitled('faircoin', { username: '  FairCoin ', mentionMono: true })).toBe(false);
+  });
+
+  it('offers only canonical Oxy presets for all viewers and rejects unsupported free colors', () => {
+    for (const username of [undefined, 'oxy', 'faircoin', 'someone']) {
+      for (const mentionMono of [false, true]) {
+        expect(entitledColorNames({ username, mentionMono }).every(name =>
+          (USER_PROFILE_COLOR_PRESETS as readonly string[]).includes(name))).toBe(true);
+      }
+    }
+    expect(entitledColorNames(NOBODY)).not.toContain('unsupported-free');
   });
 
   it('withholds the sold preset from a viewer who is not paying', () => {

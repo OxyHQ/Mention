@@ -6,7 +6,9 @@ subscriptions and configured, product-specific capability grants. Generic
 `premium.isPremium` is not a Mention entitlement. Missing authority denies mono.
 
 `mono` is Bloom's canonical monochrome preset identity. It is not an alias for
-`monochrome`. `oxy` and `faircoin` remain handle-owned, regardless of payment.
+`monochrome`. `oxy` remains handle-owned, regardless of payment. All picker presets intersect
+Oxy’s canonical `USER_PROFILE_COLOR_PRESETS`; Bloom-only `faircoin` is unavailable,
+even to a matching handle, and a stored unsupported preset falls back to blue.
 
 The private capability read uses SDK `users.me({cache:false})`, is keyed by current
 account and session, is not persisted, checks returned subject identity, refreshes

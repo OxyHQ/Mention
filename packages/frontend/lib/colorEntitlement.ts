@@ -1,3 +1,4 @@
+import { USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts';
 import {
   FREE_COLOR_NAMES,
   HANDLE_COLOR_NAMES,
@@ -39,17 +40,18 @@ export const APP_DEFAULT_COLOR_PRESET: AppColorName = 'blue';
 
 /**
  * A handle-gated preset is owned by the account whose handle matches its NAME —
- * `oxy` belongs to @oxy, `faircoin` to @faircoin. Deriving the owner from the
- * name rather than listing pairs means a new reserved colour is gated the moment
- * Bloom declares it, with nothing to update here.
+ * `oxy` belongs to @oxy. Bloom presets must also belong to Oxy’s canonical
+ * portable profile contract; an unsupported handle color cannot be saved even
+ * when its handle matches.
  */
 export function entitledColorNames(viewer: ColorViewer): readonly AppColorName[] {
   const handle = viewer.username?.trim().toLowerCase();
+  const supported = new Set<string>(USER_PROFILE_COLOR_PRESETS);
   return [
     ...FREE_COLOR_NAMES,
     ...HANDLE_COLOR_NAMES.filter((name) => name === handle),
     ...(viewer.mentionMono ? PREMIUM_COLOR_NAMES.filter(name => name === 'mono') : []),
-  ];
+  ].filter(name => supported.has(name));
 }
 
 export function isColorEntitled(name: AppColorName, viewer: ColorViewer): boolean {
