@@ -36,23 +36,23 @@ const REVIEWED_NATIVE_APPROVAL = {
   "scope": "native-original-public",
   "ownerAccountId": "69b2d3df5d12f58c9800d651",
   "reviews": {
-    "publishedSdk": "sha256:0ee091d3a02e11062089573a187dc018479d6e037c3ec090bf6d4ec1eb883d2d",
-    "exactPrivateRoute": "sha256:167e3679110b73e1c7ed6a07e74d9ac8f41e2e6a8d2d5fd26ab0709249506d58",
-    "ownAuthorityAndEconomics": "sha256:480cbac3c098517f50ebeb19616bd7c6f3681be323219e76e4ab38792f04c7f6",
-    "privacyAndZdr": "sha256:dfa07321d19941a7d1fdb39d7bce78f143103afa1b3b3a77fd1975ec43670822",
-    "semanticIdentityAndRecovery": "sha256:a5750feaf69b6819b953b681d7892f0a641b873e14054a5c8f8a48bf407447d1"
+    "publishedSdk": "sha256:3fd42da244ee12af5d9017629f0c8eb75796e8ce04de735597cf8d01f7b51a2c",
+    "exactPrivateRoute": "sha256:6f42d4dc5781eef5e21921ea97ff104baefe0605f6642038ce3a7d16769e9c6f",
+    "ownAuthorityAndEconomics": "sha256:af2c5aabe1e316b5b1e4ffbdb92a01498dc43f59e5acaaba522de5a9faf7b35d",
+    "privacyAndZdr": "sha256:54ed54b431a55cb678e8f4d47af6c15f648a8c98f5d22f5ab3fc81e76c76861a",
+    "semanticIdentityAndRecovery": "sha256:6cbcbc7f98cba69ef614daf3595e27b3bcec0b3c2d0a6a0b3a18bd4fe65b73fe"
   },
   "selection": {
-    "postId": "019fd378-8d12-70da-83ef-b2d39f86e192",
-    "fingerprint": "454831da03d69cfbfd312779c426078ff97b39f42f2a17466bd3f46ae04b121b",
-    "inputSha256": "207a9c8fa2847e7263d6e8d525a951bca72d82bfb762aeb37cf546ca8762966a",
-    "idempotencyKey": "mention_jev_native_en_d5c4e4815e9bfb2b998af67bb7677011"
+    "postId": "019fd378-8ea7-7b4f-acd0-1c83361e0413",
+    "fingerprint": "b6118a879b0961cf1c25c040ea501ef7e4557228bea5f4f82dac2efa2e684222",
+    "inputSha256": "0c12c43c70a269a40ca0e856af98c48db8d20573b2e1b7d75f9bd6f9468a73da",
+    "idempotencyKey": "mention_jev_native_en_9aebfe5269e8fbe9e8c3961a93ef71d3"
   },
-  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_third_2026_10_05",
   "provider": "openrouter",
   "priceVersionId": "jev_scoped_price_20261004_01",
-  "evidenceRef": "sha256:801905abc8267496404b1ce23578f56ff5b8f0cc24fa6502d1f19cd3d2eba62c",
-  "validUntil": "2026-10-05T05:21:15.000Z",
+  "evidenceRef": "sha256:ea34cfaf7bc7e3b7743dcc6509d15f421b741de4e496269f913009b41b89b998",
+  "validUntil": "2026-10-05T07:09:12.000Z",
   "release": {
     "model": "typesafe/jev-1.13@2026-09-17",
     "policyRef": "platform-internal-default",

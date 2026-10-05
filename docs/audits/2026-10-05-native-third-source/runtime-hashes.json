@@ -1,0 +1,12 @@
+{
+  "sourceApprovalSha256": "68284d54587fe7be70c6c20330c395fa8bacd65a0143aba32606a1dee905dfba",
+  "compiledGetterSha256": "7de33f9633b9d15737e1fd3f1dda1b4a7e7c38d5dcaa6122ffad2f2790ded922",
+  "validUntil": "2026-10-05T07:09:12.000Z",
+  "selection": {
+    "postId": "019fd378-8ea7-7b4f-acd0-1c83361e0413",
+    "fingerprint": "b6118a879b0961cf1c25c040ea501ef7e4557228bea5f4f82dac2efa2e684222",
+    "inputSha256": "0c12c43c70a269a40ca0e856af98c48db8d20573b2e1b7d75f9bd6f9468a73da",
+    "idempotencyKey": "mention_jev_native_en_9aebfe5269e8fbe9e8c3961a93ef71d3"
+  },
+  "evaluationVersion": "mention-native-en-onepost/2026-10-05.1"
+}
