@@ -1,0 +1,42 @@
+{
+  "baseline": {
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ]
+    ]
+  },
+  "current": {
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "jevProduction.test.ts"
+      ]
+    ]
+  }
+}

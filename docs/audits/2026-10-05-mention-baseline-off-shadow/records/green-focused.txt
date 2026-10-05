@@ -1,0 +1,19 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1572-native-source-approval-20261005/packages/backend[39m
+
+ [32m✓[39m src/__tests__/services/postClassification.test.ts [2m([22m[2m56 tests[22m[2m)[22m[33m 13942[2mms[22m[39m
+   [32m✓[39m PostClassificationService — shadow fanout [2m(23)[22m
+     [33m[2m✓[22m[39m does not quarantine unsent work when production approval expires during-claim[33m 625[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL selector waiting and continues the baseline without late receipt writes[33m 475[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL row waiting and continues the baseline without late receipt writes[33m 459[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers missing usage in the existing cycle without evaluating the original claim again[33m 329[2mms[22m[39m
+     [33m[2m✓[22m[39m finishes canonical classification while a slow shadow evaluation is still pending[33m 346[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the worker after a hung evaluator and processes the next batch without retrying it[33m 1378[2mms[22m[39m
+     [33m[2m✓[22m[39m releases, never quarantines, a claim whose deadline ran out before any evaluator call[33m 549[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m56 passed[39m[22m[90m (56)[39m
+[2m   Start at [22m 04:48:17
+[2m   Duration [22m 17.04s[2m (tests 86%, transform 5%, setup 5%, import 4%)[22m
+

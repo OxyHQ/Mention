@@ -1,0 +1,61 @@
+$ bun src/db/migrate.ts "--target-database=oxy_rehearsal_1519_f04638d7fd7ac7dc"
+[01:45:59] [32mINFO[39m: [36mApplying 61 Postgres migration(s)[39m
+    [35mpending[39m: [
+      "0000_furry_shocker",
+      "0001_posts_reply_discriminator",
+      "0002_post_cursor_ms_precision",
+      "0003_notifications_chrono_keyset",
+      "0004_one_native_boost_per_account",
+      "0005_post_trend_terms",
+      "0006_trend_labels_and_bridged_identity",
+      "0007_left_brother_voodoo",
+      "0008_warm_outlaw_kid",
+      "0009_sleepy_pestilence",
+      "0010_blocklist_source_outcome_vocabulary",
+      "0011_channels_lanes_trend_graphs",
+      "0012_channel_posts_survive_their_channel",
+      "0013_channel_account_writer",
+      "0014_post_type_affinity_is_a_weight",
+      "0015_preference_interaction_count_is_a_weight",
+      "0016_backfill_bookkeeping_tables",
+      "0017_a_channel_is_an_account",
+      "0018_swift_ravenous",
+      "0019_atproto_graph_sync_lease",
+      "[Truncated]"
+    ]
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"blocklist_proposal_observations_proposal_id_blocklist_proposals_id_fk\" will be truncated to \"blocklist_proposal_observations_proposal_id_blocklist_proposals\""
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"blocklist_proposal_run_sources_run_row_id_blocklist_proposal_runs_id_fk\" will be truncated to \"blocklist_proposal_run_sources_run_row_id_blocklist_proposal_ru\""
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"federated_identity_link_evidence_link_id_federated_identity_links_id_fk\" will be truncated to \"federated_identity_link_evidence_link_id_federated_identity_lin\""
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"post_equivalence_members_cluster_id_post_equivalence_clusters_id_fk\" will be truncated to \"post_equivalence_members_cluster_id_post_equivalence_clusters_i\""
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"mention_job_application_answers_application_id_mention_job_applications_id_fk\" will be truncated to \"mention_job_application_answers_application_id_mention_job_appl\""
+[01:46:00] [34mDEBUG[39m: [36mPostgres notice[39m
+    [35mnotice[39m: "identifier \"mention_job_application_notes_application_id_mention_job_applications_id_fk\" will be truncated to \"mention_job_application_notes_application_id_mention_job_applic\""
+[01:46:00] [32mINFO[39m: [36mApplied 61 Postgres migration(s)[39m
+    [35mapplied[39m: [
+      "0000_furry_shocker",
+      "0001_posts_reply_discriminator",
+      "0002_post_cursor_ms_precision",
+      "0003_notifications_chrono_keyset",
+      "0004_one_native_boost_per_account",
+      "0005_post_trend_terms",
+      "0006_trend_labels_and_bridged_identity",
+      "0007_left_brother_voodoo",
+      "0008_warm_outlaw_kid",
+      "0009_sleepy_pestilence",
+      "0010_blocklist_source_outcome_vocabulary",
+      "0011_channels_lanes_trend_graphs",
+      "0012_channel_posts_survive_their_channel",
+      "0013_channel_account_writer",
+      "0014_post_type_affinity_is_a_weight",
+      "0015_preference_interaction_count_is_a_weight",
+      "0016_backfill_bookkeeping_tables",
+      "0017_a_channel_is_an_account",
+      "0018_swift_ravenous",
+      "0019_atproto_graph_sync_lease",
+      "[Truncated]"
+    ]

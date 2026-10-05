@@ -1,0 +1,70 @@
+{
+  "reviewer": "coverage independent source/evidence review for root acceptance",
+  "preparedAt": "2026-10-05T01:30:14.153029+00:00",
+  "status": "root_ready_evidence_not_runtime_activation",
+  "audienceRef": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/audience.json",
+    "sha256": "de3a2286515004f548b4d0f3927c2f0a8aff3216a90d81d28a2244588d4e1437"
+  },
+  "reviewExpiry": "2026-10-05T03:14:23Z",
+  "rootDecisionRequired": true,
+  "kind": "mention-published-sdk-review-v1",
+  "reviewKey": "publishedSdk",
+  "packages": [
+    {
+      "name": "@oxy.so/core",
+      "version": "4.3.0",
+      "shippingFiles": 581,
+      "archiveSha256": "047de6526c13678ff319fa519b8de5a4649178a43d93d37305e5c8fa37d47bd5"
+    },
+    {
+      "name": "@oxy.so/contracts",
+      "version": "4.9.1",
+      "shippingFiles": 198,
+      "archiveSha256": "03aa57e531542289bcd993109493419a9d9b3d4cf8cc70e5e6ae085a57680d1d"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/receipt-sdk-release/accepted-release.json",
+      "sha256": "f99bb864e69088fb03dd97d526e3ebbb4f9c26b1c255c8156e50c7f32c3285ba"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-04-jev-production-factory/published-registry/proof.json",
+      "sha256": "aa849529d3b424dfdd521ae9ed1e99ac44873649aed40368616bd19eebf05499"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/proof.json",
+      "sha256": "e66a678518e94af1f8802504cad9ddd12fc974b1b7ee41b6318695110142a375"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-04-jev-production-factory/published-registry/records/registry-members.json",
+      "sha256": "6e84694eff194f62e6192a5b3f1bf9f26bdf389edd91b1f82f7a2e6f37341790"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-native-recovery-promotion/accepted.json",
+      "sha256": "49628af2efe8e87ffde2e72149334e59de620c88c477bce5916358f679135220"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/compiled-binding.json",
+      "sha256": "56f8d06fcc6a999de24bca28d02371b074f5af04a348c295d0d8b00eeb16b9fe"
+    }
+  ],
+  "sourceBinding": {
+    "source": "c527a137eda1f5419179af452467262a23e79ab2",
+    "imageDigest": "sha256:7e8b9fd7eaf770c8187bef3142aa45b233c208c93eac818ff393b9789617931a",
+    "coreManifest": "4.3.0",
+    "contractsManifest": "4.9.1",
+    "packageJsonUnchanged": true,
+    "bunLockUnchanged": true
+  },
+  "findings": [
+    "Published core4.3.0/contracts4.9.1 registry archive identity and779 shipping member comparisons accepted; four Mention importer resolver records present. Canonical factory/receipt tests134/4 and217/13 plus builds/types recorded, not rerun here.",
+    "Mention source c527 retains exact manifests/lock and reviewed SDK decide/original-key generation GET integration. Decisions3.6 uses this published compatible API; private3.7 wire belongs to Oxy/Kaana and requires no Mention SDK update."
+  ],
+  "limits": [
+    "Versions4.4/4.10 are not attributed to Mention492.",
+    "Source-to-serving-index and six compiled runtime pins are authenticated root evidence. The extractor did not inventory every node_modules file; this review does not claim that separate image census.",
+    "Final Mention getter source/image must preserve SDK pins, factory and receipt methods; provider acceptance remains pending."
+  ]
+}

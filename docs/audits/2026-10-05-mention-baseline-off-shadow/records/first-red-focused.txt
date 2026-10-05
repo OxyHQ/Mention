@@ -1,0 +1,132 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts "--maxWorkers=1"
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1572-native-source-approval-20261005/packages/backend[39m
+
+ [31m❯[39m src/__tests__/services/postClassification.test.ts [2m([22m[2m55 tests[22m[2m | [22m[31m7 failed[39m[2m)[22m[33m 13657[2mms[22m[39m
+   [32m✓[39m PostClassificationService — category classification [2m(7)[22m
+     [32m✓[39m classifies positive product feedback[32m 183[2mms[22m[39m
+     [32m✓[39m classifies neutral posts[32m 132[2mms[22m[39m
+     [32m✓[39m classifies constructive mixed criticism with high constructiveness and low toxicity[32m 128[2mms[22m[39m
+     [32m✓[39m classifies toxic complaints with high toxicity and low constructiveness[32m 127[2mms[22m[39m
+     [32m✓[39m classifies spammy posts with high spam score[32m 123[2mms[22m[39m
+     [32m✓[39m classifies low-quality posts with low quality score[32m 122[2mms[22m[39m
+     [32m✓[39m classifies a mixed batch of multiple posts by postIndex, not by arrival order[32m 155[2mms[22m[39m
+   [32m✓[39m PostClassificationService — provider/model isolation [2m(2)[22m
+     [32m✓[39m never writes a provider/model string onto the post[32m 129[2mms[22m[39m
+     [32m✓[39m does not read or write hashtags (classification is independent of hashtags)[32m 133[2mms[22m[39m
+   [32m✓[39m PostClassificationService — Stage-A baseline preservation [2m(1)[22m
+     [32m✓[39m preserves the Stage-A deterministic fields through AI enrichment[32m 130[2mms[22m[39m
+   [31m❯[39m PostClassificationService — canonical topicRefs resolution [2m(6)[22m
+     [32m✓[39m resolves AI-refined topics into registry-linked topicRefs, in order[32m 118[2mms[22m[39m
+     [32m✓[39m falls back to name-only topicRefs when the registry resolves no id[32m 119[2mms[22m[39m
+     [32m✓[39m stores name-only topicRefs when registry resolution throws (never drops the canonical list)[32m 121[2mms[22m[39m
+[31m     [31m×[31m CLEARS the existing topicRefs when enrichment returns no topics[39m[32m 139[2mms[22m[39m
+     [32m✓[39m REPLACES rather than appends, so a dropped topic is gone[32m 123[2mms[22m[39m
+     [32m✓[39m stores no topicRefs row when the AI returns no topics[32m 123[2mms[22m[39m
+   [32m✓[39m PostClassificationService — the topicRefs write and read order it relies on [2m(5)[22m
+     [32m✓[39m writes topicRefs from a patch that carries NO scalar values[32m 26[2mms[22m[39m
+     [32m✓[39m leaves existing topicRefs untouched when the patch omits them[32m 26[2mms[22m[39m
+     [32m✓[39m reads topicRefs back by RELEVANCE, with the name only as a tie-break[32m 24[2mms[22m[39m
+     [32m✓[39m sorts a ref with NO relevance last, whatever its name[32m 25[2mms[22m[39m
+     [32m✓[39m refuses a relevance outside the 1..10 scale rather than truncating it[32m 10[2mms[22m[39m
+   [32m✓[39m PostClassificationService — failure and retry behavior [2m(5)[22m
+     [32m✓[39m leaves posts pending (retry) on AI network failure under the retry budget[32m 106[2mms[22m[39m
+     [32m✓[39m flips to failed once the retry budget is exhausted[32m 113[2mms[22m[39m
+     [32m✓[39m marks posts for retry when the AI response fails schema validation[32m 122[2mms[22m[39m
+     [32m✓[39m counts an attempt for a post missing from the AI response[32m 133[2mms[22m[39m
+     [32m✓[39m no-ops when inference is unavailable, leaving the queue exactly as it was[32m 86[2mms[22m[39m
+   [32m✓[39m PostClassificationService — the batch selector reads the body’s REAL home [2m(5)[22m
+     [32m✓[39m selects a post that HAS a rendition and skips one that does not[32m 130[2mms[22m[39m
+     [32m✓[39m sends the PRIMARY rendition’s body to the classifier, never a machine translation[32m 113[2mms[22m[39m
+     [32m✓[39m never queues a BOOST, even though a boost can carry a rendition[32m 123[2mms[22m[39m
+     [32m✓[39m never queues an unpublished post[32m 127[2mms[22m[39m
+     [32m✓[39m never re-queues a post that is already classified[32m 131[2mms[22m[39m
+   [32m✓[39m PostClassificationService — imported posts never displace live work [2m(2)[22m
+     [32m✓[39m leaves an OLDER imported post pending while live posts fill the batch[32m 146[2mms[22m[39m
+     [32m✓[39m classifies imported posts, in a small batch, once the live queue is empty[32m 189[2mms[22m[39m
+   [31m❯[39m PostClassificationService — shadow fanout [2m(22)[22m
+     [32m✓[39m connects the reviewed native factory with baseline enabled=true while broader release gates remain closed[32m 220[2mms[22m[39m
+[31m     [31m×[31m connects the reviewed native factory with baseline enabled=false while broader release gates remain closed[39m[32m 128[2mms[22m[39m
+[31m     [31m×[31m recovers a durable own operation after restart with source-off and zero new POST[39m[32m 95[2mms[22m[39m
+[31m     [31m×[31m recovers a durable own operation after restart with expired and zero new POST[39m[32m 107[2mms[22m[39m
+[31m     [31m×[31m recovers a durable own operation after restart with foreign-provider and zero new POST[39m[32m 99[2mms[22m[39m
+[31m     [31m×[31m recovers a durable own operation after restart with foreign-price and zero new POST[39m[32m 93[2mms[22m[39m
+[31m     [31m×[31m recovers a durable own operation after restart with revoked and zero new POST[39m[32m 91[2mms[22m[39m
+     [32m✓[39m runs exactly the selected already-classified native revision without reclassifying it[32m 59[2mms[22m[39m
+     [32m✓[39m does not quarantine unsent work when production approval expires before-cycle[32m 132[2mms[22m[39m
+     [33m[2m✓[22m[39m does not quarantine unsent work when production approval expires during-claim[33m 639[2mms[22m[39m
+     [32m✓[39m keeps the production gate closed even when a projection binding is supplied[32m 133[2mms[22m[39m
+     [33m[2m✓[22m[39m continues the ordinary classifier when optional receipt selection fails[33m 302[2mms[22m[39m
+     [32m✓[39m does not suppress an ordinary classifier failure while containing receipt maintenance[32m 7[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL selector waiting and continues the baseline without late receipt writes[33m 481[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL row waiting and continues the baseline without late receipt writes[33m 468[2mms[22m[39m
+     [32m✓[39m recovers missing usage in the existing cycle without evaluating the original claim again[32m 282[2mms[22m[39m
+     [32m✓[39m finishes canonical classification while a slow shadow evaluation is still pending[32m 291[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the worker after a hung evaluator and processes the next batch without retrying it[33m 1345[2mms[22m[39m
+     [32m✓[39m quarantines schema-invalid shadow output without using a legacy attempt[32m 279[2mms[22m[39m
+     [33m[2m✓[22m[39m releases, never quarantines, a claim whose deadline ran out before any evaluator call[33m 543[2mms[22m[39m
+     [32m✓[39m never sends an imported post to shadow evaluation, even from the imported lane[32m 34[2mms[22m[39m
+     [32m✓[39m claims before synthetic inference, truncates only its input and never retries cost-uncertain work[32m 300[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 7 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — canonical topicRefs resolution[2m > [22mCLEARS the existing topicRefs when enrichment returns no topics
+[31m[1mAssertionError[22m: expected 'classified' to be 'pending' // Object.is equality[39m
+
+Expected: [32m"pending"[39m
+Received: [31m"classified"[39m
+
+[36m [2m❯[22m src/__tests__/services/postClassification.test.ts:[2m657:54[22m[39m
+    [90m655|[39m     // An empty list clears the rows; the reload reports `undefined`, …
+    [90m656|[39m     expect((await classificationOf(post.id)).topicRefs).toBeUndefined(…
+    [90m657|[39m     expect((await classificationOf(post.id)).status).toBe('pending');
+    [90m   |[39m                                                      [31m^[39m
+    [90m658|[39m     expect(inferenceJSON).not.toHaveBeenCalled();
+    [90m659|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mconnects the reviewed native factory with baseline enabled=false while broader release gates remain closed
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called 1 times, but got 0 times[39m
+[36m [2m❯[22m src/__tests__/services/postClassification.test.ts:[2m1243:23[22m[39m
+    [90m1241|[39m     const worker = createProductionPostClassificationService();
+    [90m1242|[39m     await worker.processQueue();
+    [90m1243|[39m     expect(transport).toHaveBeenCalledTimes(1); expect(token).toHaveBe…
+    [90m   |[39m                       [31m^[39m
+    [90m1244|[39m     if (baselineEnabled) expectBatchWasOurs();
+    [90m1245|[39m     else expect(inferenceJSON).not.toHaveBeenCalled();
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mrecovers a durable own operation after restart with source-off and zero new POST
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mrecovers a durable own operation after restart with expired and zero new POST
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mrecovers a durable own operation after restart with foreign-provider and zero new POST
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mrecovers a durable own operation after restart with foreign-price and zero new POST
+[41m[1m FAIL [22m[49m src/__tests__/services/postClassification.test.ts[2m > [22mPostClassificationService — shadow fanout[2m > [22mrecovers a durable own operation after restart with revoked and zero new POST
+[31m[1mAssertionError[22m: expected [] to deeply equal [ 'POST' ][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [[39m
+[32m-   "POST",[39m
+[32m- ][39m
+[31m+ [][39m
+
+[36m [2m❯[22m src/__tests__/services/postClassification.test.ts:[2m1291:63[22m[39m
+    [90m1289|[39m     await padBatch(1); respondWith([]);
+    [90m1290|[39m     await createProductionPostClassificationService().processQueue();
+    [90m1291|[39m     expect(transport.mock.calls.map(call => call[1]?.method)).toEqual(…
+    [90m   |[39m                                                               [31m^[39m
+    [90m1292|[39m     const [original] = await getDb().select().from(postEvaluations).wh…
+    [90m1293|[39m     expect(original.state).toBe('cost_uncertain');
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m48 passed[39m[22m[90m (55)[39m
+[2m   Start at [22m 04:46:00
+[2m   Duration [22m 17.05s[2m (tests 85%, transform 6%, setup 5%, import 5%)[22m
+
+error: script "test" exited with code 1

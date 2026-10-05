@@ -1,0 +1,185 @@
+{
+  "sourceCommit": "149f69dd6494a13e06dcf1f2cbee04dd1fe8bf9c",
+  "previousWorkerProofCommit": "37596a00dd76d9d948089fd779da2d666594c6cf",
+  "sources": [
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "3805a1bb9f28c6667cafe3d8193c8e23d468c2370097541fe31f55065e3022a2"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "05092379136a60d2abf9e5eaa0f83314007f0598946104a576622ac66b8537ee"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "ee2dc37b917a343c219aab115c84877f1c6889b577bda1987221eed8b2bce634"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "b9f6c07c4e95da755e57fa07ddb4d19e1b99f30d931e651ac0d1a3a77b1ef141"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "1231e97c2669c14f48ee0803469a9e82dfef7052408dcc7c487f9bc0e1de76c0"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevRequest.ts",
+      "sha256": "060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d"
+    },
+    {
+      "path": "packages/backend/src/runtime/schedulers.ts",
+      "sha256": "80411611fd9799c69bbec8679dba0a0b5a25fb2c47b0d335348f048cf1816711"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/baseline-lint.json",
+      "sha256": "360a34d879a4762ff34a67775bf45354fc6e01fd7d5b1e94e87ce461bbbf667a"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/current-lint.json",
+      "sha256": "1547756c9071ece306adbe9c800c302c9bae80fc994b9b720beeedf79d50cb3e"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/exactPrivateRoute.json",
+      "sha256": "86460b564dfef98a6c8965909bfdbcaa298cd4507528d30e8da253308de65036"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/five-source-review-refs.json",
+      "sha256": "9f684f1d18a17e53e546792be8b23bf6d277344fd4371f221af35dd72e3e3dda"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/focused.txt",
+      "sha256": "d757fd8891c666ea4e17328991e87929c8c30f4051916ce390ea2f2644f37640"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/lint-equivalence.json",
+      "sha256": "909ca8326904ea7b5ba967fd6223efd34b7732be0e95c166461e53dd2c6a467b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/migrate-fresh.txt",
+      "sha256": "d59681eff8b5be23b1630f13b0580c655fa9e05e8f25b42643a5a5f0c97b4867"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/migrate-repeat.txt",
+      "sha256": "5702609fc86d9dbf8271a6202d20fadfde433a9e510b101273160b13df963da6"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/ownAuthorityAndEconomics.json",
+      "sha256": "722179c399f4158895d2c962455351f9c19c132345c7294267c465b99ad19698"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/owned-pg.py",
+      "sha256": "865383a7294de1056aadc16aaa69f021dcb61b682e30b2781b70806b74aa6de1"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/pg-absence.json",
+      "sha256": "090e9d09a33abb9e999284946ecc20008477f66d3e588f9d2c30399b375feaa9"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/privacyAndZdr.json",
+      "sha256": "32e67e4deb997f12f443fd6e4275f1fa2f51cad4cf852b2ace648ce51565eb4f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/publishedSdk.json",
+      "sha256": "cfa11edd130945038782aa0098d90118a606e3f7473e03a2b39c9043deb83980"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/root-five-refs-acceptance.json",
+      "sha256": "8243ca4466c02364a66e518aa223edfca6f195baf2fe6592005be4b7d15f7260"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/root-v2-frozen.json",
+      "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/semanticIdentityAndRecovery.json",
+      "sha256": "88f733e67a332becc586602d5b32c0094cf44f5463553bd3cdf790cb262d6ec7"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-native-source-activation/records/worker-factory.log",
+      "sha256": "b4b99e885f191d5050ee957f6935af6eb9ec1659feb10a2f1b977a9ac06b1914"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/backend/dist/src/services/contentClassification/jevProductionApproval.js",
+      "sha256": "da5120702c04e45397bdddd7e8b8627e164d1f48a5b5d444987209a27f6414a0"
+    },
+    {
+      "path": "packages/backend/dist/src/services/PostClassificationService.js",
+      "sha256": "eaeb269a97a5075cf71ecf0e6f38a2217bdf9e8ee05510ce9eb942d1f0f1b52e"
+    }
+  ],
+  "acceptedExternalInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/publishedSdk.json",
+      "sha256": "cfa11edd130945038782aa0098d90118a606e3f7473e03a2b39c9043deb83980"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/exactPrivateRoute.json",
+      "sha256": "86460b564dfef98a6c8965909bfdbcaa298cd4507528d30e8da253308de65036"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/ownAuthorityAndEconomics.json",
+      "sha256": "722179c399f4158895d2c962455351f9c19c132345c7294267c465b99ad19698"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/privacyAndZdr.json",
+      "sha256": "32e67e4deb997f12f443fd6e4275f1fa2f51cad4cf852b2ace648ce51565eb4f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/semanticIdentityAndRecovery-v2.json",
+      "sha256": "88f733e67a332becc586602d5b32c0094cf44f5463553bd3cdf790cb262d6ec7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/five-source-review-refs.json",
+      "sha256": "9f684f1d18a17e53e546792be8b23bf6d277344fd4371f221af35dd72e3e3dda"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-five-refs-root-acceptance.json",
+      "sha256": "8243ca4466c02364a66e518aa223edfca6f195baf2fe6592005be4b7d15f7260"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",
+      "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+    }
+  ],
+  "validation": {
+    "actualFactoryTests": 18,
+    "ownedSqlWorkerTests": 56,
+    "totalPassed": 74,
+    "failed": 0,
+    "typesExit": 0,
+    "buildExit": 0,
+    "historicalLintDiagnosticsUnchanged": 3,
+    "ownPostgresPidAbsent": 2414855
+  },
+  "scope": {
+    "oneNativePublicEnglishPost": "019fd378-8626-7df7-90ce-5c0629498e97",
+    "originalKey": "mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231",
+    "expiresAt": "2026-10-05T03:14:23.000Z",
+    "topics": [],
+    "baselineClassificationEnabled": false,
+    "rootOnlyDeployment": true,
+    "localProviderCalls": 0
+  },
+  "limits": [
+    "Source activation prepared and locally tested, not runtime deployment acceptance. Root owns merge/deploy and original-key observation.",
+    "Metadata receipts do not attest exact deployment by themselves; accepted fifth reference binds canonical private resolver/legal route.",
+    "Existing fixture lint diagnostics retained without new diagnostics; no unrelated cleanup.",
+    "Actual post text was never read by these tests. Synthetic SDK responses/owned SQL only; no AWS, provider or production calls."
+  ]
+}

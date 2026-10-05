@@ -1,0 +1,52 @@
+{
+  "baseline": {
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/useNumberNamespace",
+        "Use Number.NaN instead of the equivalent global.",
+        "postClassification.test.ts"
+      ]
+    ]
+  },
+  "current": {
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/noNonNullAssertion",
+        "Forbidden non-null assertion.",
+        "postClassification.test.ts"
+      ],
+      [
+        "lint/style/useNumberNamespace",
+        "Use Number.NaN instead of the equivalent global.",
+        "postClassification.test.ts"
+      ]
+    ]
+  }
+}

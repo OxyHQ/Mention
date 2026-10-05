@@ -1,0 +1,75 @@
+packages/backend/src/__tests__/services/postClassification.test.ts:1227:19 lint/style/noNonNullAssertion ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    1225 │     const transport = vi.fn(async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    1226 │       expect(init?.method).toBe('POST');
+  > 1227 │       const key = new Headers(init?.headers).get('Idempotency-Key')!;
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1228 │       expect(new Headers(init?.headers).get('X-Oxy-User-Id')).toBeNull();
+    1229 │       const [claimed] = await getDb().select().from(postEvaluations).where(eq(postEvaluations.id, key));
+  
+
+packages/backend/src/__tests__/services/postClassification.test.ts:1300:24 lint/style/noNonNullAssertion ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    1298 │     for (const [index, kind] of ['credential', 'owner', 'legacy', 'model', 'key', 'delegation'].entries()) {
+    1299 │       const id = `${selection.idempotencyKey}-${kind}`; const fingerprint = String(index + 1).repeat(64);
+  > 1300 │       const recovery = original.receiptAuthority!.recovery!;
+         │                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1301 │       await getDb().insert(postEvaluations).values({ ...original, id, fingerprint,
+    1302 │         receiptAuthority: { ...authority, ...(kind === 'credential' ? { credentialId: 'foreign-credential' } : {}),
+  
+
+packages/backend/src/__tests__/services/postClassification.test.ts:1300:24 lint/style/noNonNullAssertion  FIXABLE  ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    1298 │     for (const [index, kind] of ['credential', 'owner', 'legacy', 'model', 'key', 'delegation'].entries()) {
+    1299 │       const id = `${selection.idempotencyKey}-${kind}`; const fingerprint = String(index + 1).repeat(64);
+  > 1300 │       const recovery = original.receiptAuthority!.recovery!;
+         │                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1301 │       await getDb().insert(postEvaluations).values({ ...original, id, fingerprint,
+    1302 │         receiptAuthority: { ...authority, ...(kind === 'credential' ? { credentialId: 'foreign-credential' } : {}),
+  
+  i Unsafe fix: Replace with optional chain operator ?. This operator includes runtime checks, so it is safer than the compile-only non-null assertion operator
+  
+    1298 1298 │       for (const [index, kind] of ['credential', 'owner', 'legacy', 'model', 'key', 'delegation'].entries()) {
+    1299 1299 │         const id = `${selection.idempotencyKey}-${kind}`; const fingerprint = String(index + 1).repeat(64);
+    1300      │ - ······const·recovery·=·original.receiptAuthority!.recovery!;
+         1300 │ + ······const·recovery·=·original.receiptAuthority?.recovery!;
+    1301 1301 │         await getDb().insert(postEvaluations).values({ ...original, id, fingerprint,
+    1302 1302 │           receiptAuthority: { ...authority, ...(kind === 'credential' ? { credentialId: 'foreign-credential' } : {}),
+  
+
+packages/backend/src/__tests__/services/postClassification.test.ts:1565:133 lint/style/useNumberNamespace  FIXABLE  ━━━━━━━━━━
+
+  × Use Number.NaN instead of the equivalent global.
+  
+    1563 │     respondWith([]);
+    1564 │     const evaluate = vi.fn(async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({ topics: [], languages: ['en'], languageEvidence: [{ language: 'en', probability: 0.9 }],
+  > 1565 │       sdkReceipt: { requestId: 'synthetic-request', routingPolicy: { routingPolicyId: 'fixture-policy', policyVersion: 1 } }, spam: NaN, repetition: 0, feedValue: 0.5 }));
+         │                                                                                                                                     ^^^
+    1566 │     await new PostClassificationService({ release, evaluate }).processQueue();
+    1567 │     expect((await classificationOf(post.id)).status).toBe('classified');
+  
+  i ES2015 moved some globals into the Number namespace for consistency.
+  
+  i Safe fix: Use Number.NaN instead.
+  
+    1563 1563 │       respondWith([]);
+    1564 1564 │       const evaluate = vi.fn(async (_input: Parameters<jevShadow.ShadowEvaluation['evaluate']>[0]) => ({ topics: [], languages: ['en'], languageEvidence: [{ language: 'en', probability: 0.9 }],
+    1565      │ - ······sdkReceipt:·{·requestId:·'synthetic-request',·routingPolicy:·{·routingPolicyId:·'fixture-policy',·policyVersion:·1·}·},·spam:·NaN,·repetition:·0,·feedValue:·0.5·}));
+         1565 │ + ······sdkReceipt:·{·requestId:·'synthetic-request',·routingPolicy:·{·routingPolicyId:·'fixture-policy',·policyVersion:·1·}·},·spam:·Number.NaN,·repetition:·0,·feedValue:·0.5·}));
+    1566 1566 │       await new PostClassificationService({ release, evaluate }).processQueue();
+    1567 1567 │       expect((await classificationOf(post.id)).status).toBe('classified');
+  
+
+Checked 2 files in 16ms. No fixes applied.
+Found 4 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

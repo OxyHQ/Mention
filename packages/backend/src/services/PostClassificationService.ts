@@ -163,9 +163,20 @@ export class PostClassificationService {
   private readonly AI_TEMPERATURE = 0.2;
   private readonly AI_MAX_TOKENS = 4000;
 
+  /** Only the production factory may admit the source-selected native operation. */
+  private selectedNativeShadow(): ShadowEvaluation | undefined {
+    const evaluation = this.shadowEvaluation;
+    return evaluation?.selectedOperation && isReviewedNativeJevEvaluation(evaluation) ? evaluation : undefined;
+  }
+
+  /** Original receipt recovery never grants admission or opens the baseline queue. */
+  private hasBoundedShadowWork(): boolean {
+    return this.selectedNativeShadow() !== undefined || this.durableReceiptReader !== undefined;
+  }
+
   public start(): void {
-    if (!config.classification.enabled) {
-      logger.info('[PostClassification] Disabled (POST_CLASSIFICATION_ENABLED not set) — service not started');
+    if (!config.classification.enabled && !this.hasBoundedShadowWork()) {
+      logger.info('[PostClassification] Baseline disabled and no bounded shadow/recovery work — service not started');
       return;
     }
 
@@ -208,7 +219,7 @@ export class PostClassificationService {
    */
   public async processQueue(): Promise<void> {
     if (this.isClassifying) return;
-    if (!config.classification.enabled || !isInferenceEnabled()) return;
+    if ((!config.classification.enabled && !this.hasBoundedShadowWork()) || !isInferenceEnabled()) return;
     this.isClassifying = true;
 
     try {
@@ -219,8 +230,15 @@ export class PostClassificationService {
         // Do not log query details or widen this catch to baseline inference.
         logger.info('[PostClassification] Original usage maintenance unavailable');
       }
-      await this.markEmptyPosts();
-      await this.classifyBatch();
+      if (config.classification.enabled) {
+        await this.markEmptyPosts();
+        await this.classifyBatch();
+      } else {
+        // The global classification opt-in stays off. Never enumerate ordinary
+        // posts or mark text-less rows while this single native shadow runs.
+        const selected = this.selectedNativeShadow()?.selectedOperation;
+        if (selected) await this.enrichShadowBatch([{ id: selected.selection.postId }]);
+      }
     } finally {
       this.isClassifying = false;
     }

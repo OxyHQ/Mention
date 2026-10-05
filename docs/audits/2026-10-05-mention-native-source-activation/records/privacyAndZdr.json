@@ -1,0 +1,67 @@
+{
+  "reviewer": "coverage independent source/evidence review for root acceptance",
+  "preparedAt": "2026-10-05T01:30:14.153029+00:00",
+  "status": "root_ready_evidence_not_runtime_activation",
+  "audienceRef": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/audience.json",
+    "sha256": "de3a2286515004f548b4d0f3927c2f0a8aff3216a90d81d28a2244588d4e1437"
+  },
+  "reviewExpiry": "2026-10-05T03:14:23Z",
+  "rootDecisionRequired": true,
+  "kind": "mention-own-native-privacy-zdr-review-v2",
+  "reviewKey": "privacyAndZdr",
+  "rootApplicability": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/root-review.json",
+    "sha256": "613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba"
+  },
+  "evidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-primary-revalidation-review-20261005/review.json",
+      "sha256": "578feb934c4e02923a7d20393a313707a3a90662d4366492d6802c712df5ac1c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-primary-revalidation/manifest.json",
+      "sha256": "abb35c80cfb94c3176b30b8cfbeb43c48cf3543e6439d4a3bd15c327c0bbbf8d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-primary-revalidation-review-20261005/zdr-jev-exact-comparison.json",
+      "sha256": "adce3d8b01063908fb7708fc9023c1639c9429f318806686144f6da7a12d244a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/provider-card.json",
+      "sha256": "621db5dcf8d73810f30e2004c6e4022a2d7577ea4b3c0492c1e00b1b1f2fb310"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/provider/openaicompat/decisions.go",
+      "sha256": "82c83f7cc4d9d82caccfb2d81ec34df6f34c798eaa9d427c0f0b3c30d092d62f"
+    }
+  ],
+  "purpose": "One selected original native public English Mention post from public owner, four canonical decisions, shadow-only. Existing user task authority and exact root review; no synthetic no-customer-input rationale copied.",
+  "facts": {
+    "exactEndpoint": "TypeSafe | typesafe/jev-1.13-20260917",
+    "endpointRawSha256": "556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
+    "exactFreshZdrRowUnchanged": true,
+    "inputUsdPerToken": "0.000000042",
+    "outputUsdPerToken": "0",
+    "implicitCaching": false,
+    "regions": []
+  },
+  "requiredRuntimeConstraints": {
+    "only": [
+      "TypeSafe"
+    ],
+    "order": [
+      "TypeSafe"
+    ],
+    "allow_fallbacks": false,
+    "data_collection": "deny",
+    "zdr": true,
+    "require_parameters": true,
+    "actualMaxPrice": "Root-reviewed immutable card, no inferred allowance"
+  },
+  "limits": [
+    "General website privacy is not proof of zero payload retention; endpoint-specific ZDR membership and enforced routing constrain this inference. No locality or zero metadata claim.",
+    "OpenRouter model/use terms continue to apply; no blanket commercial model approval or new provider contract is invented.",
+    "Current route/import/legal/config and actual provider compliance remain separate evidence; no real provider operation is claimed here."
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "kind": "mention-exact-private-route-source-review-v2",
+  "preparedAt": "2026-10-05T02:27:16.690677+00:00",
+  "acceptedForSourceReview": true,
+  "runtimeDeliveryAccepted": false,
+  "observedAt": "2026-10-05 02:21:43.4727+00",
+  "route": {
+    "id": "01a10943-71e4-7ba2-9bff-27b11523452b",
+    "internal_route_id": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+    "model_revision_id": "01a10943-71c3-7b45-b4b6-fb5da6916ec1",
+    "model_id": "typesafe/jev-1.13",
+    "revision": "2026-09-17",
+    "provider_slug": "openrouter",
+    "price_version_id": "jev_scoped_price_20261004_01",
+    "availability_scope": "platform_internal",
+    "commercial_permission": "standard_application_use",
+    "permission_state": "pending_review",
+    "status": "disabled",
+    "auto_approval_policy_id": null,
+    "legal_review_status": "approved",
+    "legal_review_evidence_ref": "sha256:613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba",
+    "legal_reviewed_by_user_id": "6981c9178fcdefaf81988ffb",
+    "legal_reviewed_at": "2026-10-05 02:19:54.715+00",
+    "retains_payloads": false,
+    "retention_days": 0,
+    "trains_on_customer_data": false,
+    "zero_data_retention_available": true,
+    "regions": [],
+    "scoped_execution": {
+      "keyId": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
+      "policy": {
+        "policyVersion": 1,
+        "routingPolicyId": "platform-internal-default"
+      },
+      "permitId": "jev-mention-native-en-onepost-20261005-01",
+      "provider": "openrouter",
+      "expiresAt": "2026-10-05T03:14:23Z",
+      "principal": {
+        "accountId": "69b2d3df5d12f58c9800d651",
+        "environment": "production",
+        "credentialId": "wl_d61be5cd068abb658ed4d193",
+        "applicationId": "6a2f851751b784a86fd0e916"
+      },
+      "maxCostUsd": "0.01",
+      "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+      "fixtureSha256": "a962e5ed49a962db7934684c62834dd25b04aba94162ad9d07140c9a2abeb3b2",
+      "idempotencyKey": "mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231",
+      "modelReference": "typesafe/jev-1.13@2026-09-17",
+      "priceVersionId": "jev_scoped_price_20261004_01",
+      "upstreamModelId": "typesafe/jev-1.13-20260917",
+      "providerSourceVersion": "openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
+      "providerRateCardVersionId": "rc_openrouter_jev_mention_native_20261005_01"
+    }
+  },
+  "price": {
+    "id": "jev_scoped_price_20261004_01",
+    "status": "active",
+    "model_reference": "typesafe/jev-1.13@2026-09-17",
+    "provider": "openrouter",
+    "currency": "USD",
+    "effective_from": "2026-10-04 23:32:54.009+00",
+    "effective_until": null
+  },
+  "unitPrices": [
+    {
+      "price_version_id": "jev_scoped_price_20261004_01",
+      "unit": "cached_input_tokens",
+      "amount": "0.042000000000",
+      "per": "1000000"
+    },
+    {
+      "price_version_id": "jev_scoped_price_20261004_01",
+      "unit": "input_tokens",
+      "amount": "0.042000000000",
+      "per": "1000000"
+    },
+    {
+      "price_version_id": "jev_scoped_price_20261004_01",
+      "unit": "output_tokens",
+      "amount": "0.000000000000",
+      "per": "1000000"
+    },
+    {
+      "price_version_id": "jev_scoped_price_20261004_01",
+      "unit": "reasoning_tokens",
+      "amount": "0.000000000000",
+      "per": "1000000"
+    },
+    {
+      "price_version_id": "jev_scoped_price_20261004_01",
+      "unit": "requests",
+      "amount": "0.000000000000",
+      "per": "1"
+    }
+  ],
+  "sourceAudience": {
+    "permitId": "jev-mention-native-en-onepost-20261005-01",
+    "idempotencyKey": "mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231",
+    "fixtureSha256": "a962e5ed49a962db7934684c62834dd25b04aba94162ad9d07140c9a2abeb3b2",
+    "expiresAt": "2026-10-05T03:14:23Z",
+    "principal": {
+      "accountId": "69b2d3df5d12f58c9800d651",
+      "applicationId": "6a2f851751b784a86fd0e916",
+      "credentialId": "wl_d61be5cd068abb658ed4d193",
+      "environment": "production"
+    },
+    "policy": {
+      "routingPolicyId": "platform-internal-default",
+      "policyVersion": 1
+    },
+    "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+    "provider": "openrouter",
+    "keyId": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
+    "modelReference": "typesafe/jev-1.13@2026-09-17",
+    "upstreamModelId": "typesafe/jev-1.13-20260917",
+    "priceVersionId": "jev_scoped_price_20261004_01",
+    "providerRateCardVersionId": "rc_openrouter_jev_mention_native_20261005_01",
+    "providerSourceVersion": "openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
+    "maxCostUsd": "0.01"
+  },
+  "sourceAudienceMatches": true,
+  "legalApply": {
+    "kind": "scoped-legal-review-v1",
+    "planSha256": "8ccfacb00e749f4141673784ed307e4128747746b7da13d5a41bde63eceb2542",
+    "applied": true,
+    "deploymentRowId": "01a10943-71e4-7ba2-9bff-27b11523452b",
+    "permissionState": "pending_review",
+    "deploymentStatus": "disabled",
+    "publicServingApproved": false,
+    "inferenceAuthorized": false
+  },
+  "afterReadback": {
+    "readOnly": true,
+    "isolation": "repeatable read",
+    "meteredRows": 0,
+    "attemptRows": 0,
+    "applicationCredentialBindingAuthorityEqualPreLegal": true,
+    "moneyTablesEqualPreLegal": true
+  },
+  "scope": "Exact source-scoped Mention native one-post route and canonical legal review proven. Ordinary/public permission remains pending_review and deployment disabled; those are not relabeled. Source/renderer activation and real delivery are separate.",
+  "limitations": [
+    "No provider request, liveness, claim, classification receipt or provider invoice proven by these reads.",
+    "Fixed V2 expiry remains2026-10-05T03:14:23Z; original failed synthetic Alia permit remains separate and unrenewed.",
+    "No region/locality assertion from regions[].",
+    "Original apply/reader failures are preserved. After-legal result recovered from the exact known original task; no replacement dispatch or repeated legal apply."
+  ],
+  "evidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-legal710-apply-run/accepted.json",
+      "sha256": "d9ebf357ec7b4e6506e4518b914ae568fbf3a61d08142a0f881000b5e840ba18"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-legal710-apply-run/result.private.json",
+      "sha256": "5228f9d710a87769aa8e03a821fe6f02d444185b1944a928ca4a246c96d392c1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-legal710-apply-run/independent-cleanup.json",
+      "sha256": "79278856e3ea66dfbc10a613b77b984348ea8038ec432c6ac66d812190f549d1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/accepted.json",
+      "sha256": "a2173f7098f55c24f44d20f9bdc2f57567936607e83b5c1a859e065bdaa63881"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/result.private.json",
+      "sha256": "debe8fc14e197603634d373e55ed62f6912a53b3d64f0150fe1b4db1eb180939"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/independent-cleanup.json",
+      "sha256": "973689c0bf55f3ca25121ea21983dc19a657176ca415c0c5a9aa2e26dfe5aef4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-sync710-run/accepted.json",
+      "sha256": "6d6e8eaff4eaaa79a8653ae95bb46480f2c1b041074af7edbb7616f140060c14"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-sync710-run/result.private.json",
+      "sha256": "fab5993c82edb6d69cbdd4b55a54737390b6dd0d9f8857c36068e19d1695f661"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/root-review.json",
+      "sha256": "613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/audience.json",
+      "sha256": "de3a2286515004f548b4d0f3927c2f0a8aff3216a90d81d28a2244588d4e1437"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/economics.json",
+      "sha256": "ecc5ceaec246f44aa7eaf25f8d8dd4c4ed822089276e3cf988fbee9ea23e7dd3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",
+      "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/separated-catalogue-promotion/accepted.json",
+      "sha256": "e9da84f55fea8004b8ee29fd9cf16112f30194704d096ffb14a5663d11857042"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/oxy710-composed-image/compiled-binding.json",
+      "sha256": "5d2bc708dada78e2bc2ebf385638177df34929ed98f236566cff36f6ce4b2330"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-kaana-promotion/accepted.json",
+      "sha256": "c17451bedfef001226b2b059f48060ce7ca516922f0c0f2c206e1868dff8de02"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/kaana91-composed-image/compiled-binding.json",
+      "sha256": "3b7d5cbd7faac9b5bb3842064b57b7e4a8aa795819d3b4da1a52e7f1532ccb58"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-kaana-before-run/accepted.json",
+      "sha256": "16764f439bb7e71324644012150de3a7e38281d49d0736d1d5171c1c6ffdd9a6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-kaana-before-run/result.private.json",
+      "sha256": "81a3bb0db039c3ace949ef81b04e16f889713d35b057a29fb4e33f931a48c5e0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/failure.json",
+      "sha256": "138bc721933d3846443ccc8079fe59f85c8171791bcf78174b5ddeb39445df9f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/recovery-independent-task.json",
+      "sha256": "d97be829e72a0f6d12a3d4b34a8c049340521ce8b78a7899d0e885cb68bdc2cd"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-after-legal710-run/recovery-independent-definition.json",
+      "sha256": "601ae96dbd25d2b7804c005ced786223885c55af40e69ecb7bd3fd616e607719"
+    }
+  ]
+}

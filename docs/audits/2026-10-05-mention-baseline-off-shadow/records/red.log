@@ -1,0 +1,45 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"stage": "fresh", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/migrate-fresh.txt"}
+{"stage": "repeat", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/migrate-repeat.txt"}
+{"newLocalServerPid": 2370149, "dataDirectory": "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/data", "database": "oxy_rehearsal_1519_f04638d7fd7ac7dc", "command": ["bun", "--no-env-file", "run", "test", "src/__tests__/services/postClassification.test.ts", "--maxWorkers=1"], "exitCode": 1, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/pg1519-l38jkmsv/focused.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/owned-pg.py", line 107, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-shadow-baseline-off-20261005/owned-pg.py", line 99, in main
+    result.check_returncode()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/subprocess.py", line 508, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['bun', '--no-env-file', 'run', 'test', 'src/__tests__/services/postClassification.test.ts', '--maxWorkers=1']' returned non-zero exit status 1.
