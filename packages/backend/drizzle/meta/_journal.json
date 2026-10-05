@@ -428,6 +428,27 @@
       "when": 1791122979406,
       "tag": "0060_jev_usage_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791171565122,
+      "tag": "0061_drop_plaintext_actor_private_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791171567122,
+      "tag": "0062_federated_actor_moved_to",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791171569122,
+      "tag": "0063_post_link_previews",
+      "breakpoints": true
     }
   ]
 }

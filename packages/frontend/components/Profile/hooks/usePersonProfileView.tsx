@@ -29,6 +29,7 @@ import UserName from '@/components/UserName';
 import { profileTabsOffset } from '../ProfilePageHeader';
 import { AccountCategoryLine } from '../AccountCategoryLine';
 import { PrivateBadge } from '../PrivateBadge';
+import { ProfileMovedNotice } from '../ProfileMovedNotice';
 import { ProfileContent } from '../ProfileContent';
 import { ProfileHeader } from '../ProfileHeader';
 import { profileBasePath } from '../profileRoute';
@@ -449,6 +450,7 @@ export function usePersonProfileView({
               so this renders nothing for the overwhelming majority of
               profiles. */}
           <AccountCategoryLine accountCategories={profileData.accountCategories} align="start" />
+          {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
           {isPrivate && (
             <View className="flex-row items-center gap-2 flex-wrap">
               <PrivateBadge privacySettings={profileData.privacy} />

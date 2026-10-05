@@ -4,6 +4,81 @@ Deep detail behind the rules in `AGENTS.md` § Federation rules. Read
 `docs/fediverse.mdx` first for the protocol surface and connector contract —
 this file is the accumulated edge-case knowledge on top of it.
 
+## Protocol support at a glance
+
+What Mention speaks, compared with Mastodon 4.7. "Oxy" means the work belongs
+to oxy-api or `@oxy.so/federation`, and Mention adapts once it ships.
+
+| Feature | Status | Where |
+|---|---|---|
+| HTTP signatures, draft-cavage `rsa-sha256` | Supported | `@oxy.so/federation`, signing in oxy-api |
+| HTTP signatures, RFC 9421 | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
+| FEP-521a keys (Ed25519 / ML-DSA-44) | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
+| FEP-8b32 Object Integrity Proofs | Not yet (Oxy) | [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
+| FEP-e232 quote `Link` tag, FEP-044f `quote` | Supported, in and out | `extractApQuoteUri`, `buildCreateNoteActivity` |
+| FEP-8967 link previews, inbound | Card text kept as a fallback | `apLinkPreview.ts`, `post_link_previews` |
+| FEP-8967 link previews, outbound | Not yet (Clarity) | [OxyHQ/Clarity#74](https://github.com/OxyHQ/Clarity/issues/74) |
+| `Move` to a local account | Supported (Oxy applies it) | `move.service.ts` |
+| `Move` between two remote servers | Recorded and shown; follows not moved (Oxy) | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
+| Remote handle changes | Supported | `freeStaleHandle` in `actor.service.ts` |
+| Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0059 |
+
+## A handle that changed hands
+
+`federated_actors.acct` and `(domain, username)` are unique. A remote account
+can rename (a new `preferredUsername` on the same URI). Its old handle can then
+be taken by another account, or a deleted account's handle can be reused. Either
+way, the cache still has the OLD holder under that handle, and the new owner's
+upsert collides.
+
+On that collision, `upsertActorFreeingStaleHandle` (`actor.service.ts`)
+re-fetches the stale holder and retries the upsert once:
+
+- **It renamed**: the refresh moves it onto its new handle.
+- **It is gone** (410, tombstoned): `releaseGoneActorHandle` moves its handle to
+  `<name>~gone-<id>@<domain>`, a spelling no WebFinger handle can have. The row
+  and everything keyed on its URI stay.
+- **It still claims the handle, or is only unreachable** (404, timeout): the
+  write is refused as before. Taking a handle a live actor holds would let one
+  server hijack another's identity, which is what the constraints exist to stop.
+
+## A remote account that moved to another server
+
+A `Move` whose target is another server cannot be applied by Oxy today. Oxy only
+moves accounts onto local ones. Before forwarding the Move to Oxy,
+`recordRemoteMove` (`move.service.ts`) makes the same bilateral check Mastodon
+makes. The engine has already verified that the old actor signed the Move, and
+the target, fetched fresh, must list the old actor in `alsoKnownAs`. If both
+hold, it writes `federated_actors.moved_to`. The profile-design DTO carries it
+as `remote.movedTo { handle, actorUri }`, and the profile shows "This account
+has moved to @handle" (`ProfileMovedNotice`). The actor resolver cannot see
+`movedTo`, so a profile refresh leaves the recorded move in place. Local follows
+are not moved; that is OxyHQ/oxy#1502.
+
+## A federated post's own link card (FEP-8967)
+
+A server implementing FEP-8967 attaches each previewed link as `{ type: 'Link',
+href, preview: { name, summary, image, … } }`. `extractApLinkPreviews` keeps only
+the card's text, from https links, as plain text, capped and deduplicated. All
+three ingest paths store it in `post_link_previews` with
+`storeRemoteLinkPreviews`, best-effort:
+
+- the inbox `Create`;
+- the inbox `Update`, which replaces the cards;
+- the outbox backfill, for inserted rows only.
+
+Hydration (`buildClarityDocumentMap`) shows a stored card only for a link
+Clarity has NO document for, whether pending or given up on, and only on the
+post that carried it. Two rules keep it safe:
+
+- **No image.** A remote image URL would send every reader's request to a host
+  the author chose.
+- **Keyed by post, not URL.** Otherwise one server could rewrite the card of a
+  link on everyone else's posts.
+
+Seeding Clarity from these cards, and emitting `preview` on our own Notes, needs
+Clarity: OxyHQ/Clarity#74.
+
 ## A reposted post: whether we can rebuild it depends on what arrived
 
 Three shapes reach us and they are NOT interchangeable. The rule is the same

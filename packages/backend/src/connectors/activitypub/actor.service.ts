@@ -12,9 +12,12 @@ import {
 } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
 import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
+import { isUniqueViolation } from '@oxy.so/db';
 import {
   findActorByPublicKeyId,
   findActorByUri,
+  findOtherActorHoldingHandle,
+  releaseGoneActorHandle,
   tombstoneActor,
   upsertActor,
 } from '../../db/federation/actorRepository';
@@ -48,6 +51,59 @@ import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileS
 const WEBFINGER_TIMEOUT_MS = 10000;
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 
+/** The two unique constraints a remote rename can collide with. */
+const HANDLE_CONSTRAINTS = ['federated_actors_acct_key', 'federated_actors_domain_username_key'] as const;
+
+/** Stale holders being re-checked right now, so a handle SWAP cannot recurse forever. */
+const handlesBeingFreed = new Set<string>();
+
+/**
+ * Try to free a handle a DIFFERENT row still holds, so the actor that owns it
+ * now can be stored.
+ *
+ * Remote accounts rename (a new `preferredUsername` on the same URI), and a
+ * handle a deleted or renamed account gave up can be taken by a new one. The
+ * cache still has the old holder under that handle, so the new owner's upsert
+ * hit the unique constraint and the actor never resolved. The holder is
+ * re-fetched instead of trusted:
+ *
+ * - it now has another handle: the refresh wrote it, and the handle is free;
+ * - it is gone (410, tombstoned): its handle is released
+ *   ({@link releaseGoneActorHandle});
+ * - it still claims the handle: refused, exactly as before. Silently taking a
+ *   handle a live actor holds would let one server hijack another's identity.
+ */
+async function freeStaleHandle(uri: string, handle: { acct: string; domain: string; username: string }): Promise<boolean> {
+  const holder = await findOtherActorHoldingHandle(handle, uri);
+  if (!holder || handlesBeingFreed.has(holder.uri)) return false;
+  handlesBeingFreed.add(holder.uri);
+  try {
+    await actorService.fetchRemoteActor(holder.uri);
+  } finally {
+    handlesBeingFreed.delete(holder.uri);
+  }
+  const stillHeld = await findOtherActorHoldingHandle(handle, uri);
+  if (!stillHeld) return true;
+  if (stillHeld.id === holder.id && stillHeld.suspended) return releaseGoneActorHandle(holder.id);
+  return false;
+}
+
+/** {@link upsertActor}, retried once after {@link freeStaleHandle} clears a stale holder. */
+async function upsertActorFreeingStaleHandle(
+  ...args: Parameters<typeof upsertActor>
+): ReturnType<typeof upsertActor> {
+  const [uri, columns] = args;
+  try {
+    return await upsertActor(...args);
+  } catch (error) {
+    if (!HANDLE_CONSTRAINTS.some((constraint) => isUniqueViolation(error, constraint))) throw error;
+    const freed = await freeStaleHandle(uri, columns);
+    logger.info('[FedSync] handle held by another actor', { uri, acct: columns.acct, freed });
+    if (!freed) throw error;
+    return upsertActor(...args);
+  }
+}
+
 /**
  * Mention's actor CACHE store: the AP-specific `federated_actors` rows stay in
  * Mention's Postgres, reached through this adapter. Every query lives in
@@ -66,7 +122,7 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     const { fields, uri: _uri, ...columns } = update;
     const resolved = await resolveOxyIdentity({ actorUri: uri, transportAcct: update.acct, protocol: 'activitypub' });
     if (resolved.externalIdentity.actorUri !== uri) throw new Error('Oxy resolved a different source actor');
-    const row = await upsertActor(uri, {
+    const row = await upsertActorFreeingStaleHandle(uri, {
       ...columns,
       // The engine parses `published` with a bare `new Date(...)`; an unparseable
       // one must not fail the refresh it rides on. See `trustedRemoteCreatedAt`.

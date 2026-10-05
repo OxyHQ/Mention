@@ -13,6 +13,7 @@ import { normalizePostHashtags } from '../../utils/textProcessing';
 import type { PostRecordFederation } from '../../db/posts/postRecord';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
+import { extractApLinkPreviews, type RemoteLinkPreview } from './apLinkPreview';
 import { extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { metrics } from '../../utils/metrics';
@@ -91,6 +92,11 @@ export interface BuiltFederatedNoteContent {
   hashtags: string[];
   /** Content-warning summary (AP `summary`), when present and non-empty. */
   summary: string | undefined;
+  /**
+   * FEP-8967 link cards the Note carried (`apLinkPreview.ts`). Stored beside
+   * the post by the ingest paths, never inside its content.
+   */
+  linkPreviews: RemoteLinkPreview[];
   /** AP `sensitive` flag, normalized to a strict boolean. */
   sensitive: boolean;
   /**
@@ -532,6 +538,7 @@ async function assembleFederatedNoteContent(
     attachments,
     hashtags,
     summary,
+    linkPreviews: extractApLinkPreviews(object),
     sensitive,
     variants,
     customEmojiRemoved,

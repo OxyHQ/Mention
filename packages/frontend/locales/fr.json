@@ -201,6 +201,7 @@
   "profile.editProfile": "Modifier le profil",
   "profile.chat": "Discussion",
   "profile.followsYou": "S'abonne à toi",
+  "profile.movedTo": "Ce compte a déménagé vers @{{handle}}",
   "profile.tabs.posts": "Posts",
   "profile.tabs.replies": "Réponses",
   "profile.tabs.media": "Médias",

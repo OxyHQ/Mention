@@ -201,6 +201,7 @@
   "profile.editProfile": "প্রোফাইল সম্পাদনা",
   "profile.chat": "চ্যাট",
   "profile.followsYou": "আপনাকে ফলো করেন",
+  "profile.movedTo": "এই অ্যাকাউন্টটি @{{handle}}-এ সরানো হয়েছে",
   "profile.tabs.posts": "পোস্ট",
   "profile.tabs.replies": "উত্তর",
   "profile.tabs.media": "মিডিয়া",

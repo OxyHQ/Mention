@@ -36,6 +36,7 @@ import {
 import { PostType } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { storeRemoteLinkPreviews } from './apLinkPreview';
 import { pollVoteService } from '../../services/PollVoteService';
 import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
@@ -592,7 +593,7 @@ export class InboxProcessingService {
       });
       return;
     }
-    const { media, attachments, hashtags, summary, sensitive, variants } = built;
+    const { media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
 
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
@@ -716,6 +717,9 @@ export class InboxProcessingService {
       skipFederationDelivery: true,
       ...(originalCreatedAt ? { createdAt: originalCreatedAt, updatedAt: originalCreatedAt } : {}),
     });
+
+    // FEP-8967 cards: the fallback for a link Clarity has not described yet.
+    if (linkPreviews.length > 0) await storeRemoteLinkPreviews(createdPost.id, linkPreviews);
 
     // A federated reply to a LOCAL post notifies the parent owner exactly like a
     // native reply (`type:'reply'`, entityId = the new reply post). Only reached
@@ -1084,6 +1088,9 @@ export class InboxProcessingService {
         },
         mentionResult.ids,
       );
+      // The edit's cards replace the old ones — an edit that dropped a link, or
+      // its card, takes the card with it.
+      await storeRemoteLinkPreviews(existingPost.id, built.linkPreviews);
       // An edit can add links the original never had; warm their cards like any
       // newly-stored body, so the next reader is not the one who asks first.
       enrichIngestedPosts([{
