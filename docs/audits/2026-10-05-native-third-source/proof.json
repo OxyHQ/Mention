@@ -1,0 +1,167 @@
+{
+  "kind": "mention-third-native-source-approval-v1",
+  "createdAt": "2026-10-05T06:10:17.311628+00:00",
+  "sourceCommit": "4dbfc8bc57e5dc330c3a5537a111b4145d0b1b1e",
+  "sourceTree": "8c1c99d6181532db917fd716367808634c7e4b93",
+  "baseCommit": "58d72a1adc9157ecb5dfd3871e9bf7d834175dd4",
+  "inputs": [
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "f17d46ee10d927a8b9c397c847844e89614e6e213a7d66e7866e4d090e907e91",
+      "gitBlob": "32da92d1b2d353e895a18fbff07c5e792e09d4b8"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "884553dab326964f8760f10b664267d0d9dd158445a5af6ad7ce822629e835ad",
+      "gitBlob": "d9c647aa2721ba7bb75d06a0d1ca5a772c696627"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "b9f6c07c4e95da755e57fa07ddb4d19e1b99f30d931e651ac0d1a3a77b1ef141",
+      "gitBlob": "0ad88b3831b16ff3cd335e973b774dc37731313d"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "50f97aa62998b203b8436fe211ed849423b7fd01a924faac0342f322f71732e7",
+      "gitBlob": "a7b8839828f9dc800dab1f23a2b6289dfb703fd2"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevReceipt.ts",
+      "sha256": "1d9ba35ee0065b9e601253546df6ef534fda1c9c8b18414724b2b368a3c7d78d",
+      "gitBlob": "a4f0b141e0b405154b5dba31b6553bd2489f5fda"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevRequest.ts",
+      "sha256": "060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d",
+      "gitBlob": "b9f6a45bcd260487a3a2493d5db3f4c1f4581eef"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "ee2dc37b917a343c219aab115c84877f1c6889b577bda1987221eed8b2bce634",
+      "gitBlob": "da59a1f215ccf3c692d02583ea822ac11fe3b3e1"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73",
+      "gitBlob": "96e391181e119e82fad804ad82261699bcb2436f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/build.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/types.log",
+      "sha256": "5002b2bd735e33506f3bcfed575eb183dc521a28aff85bdb2d0745aef59f8950"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/install.log",
+      "sha256": "20a6ab05eaa520a5798e71d5de05b069c7cb7640677c1c8d8d51748f1a14626d"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/owned-pg.log",
+      "sha256": "b86c0d3b307ec43224368e3731780f44324d810587e812ac93e571820f79519e"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/factory-worker.log",
+      "sha256": "8ce5633e1c9af4471f89305703d3330f1aed8f9146334f98fad865dc6aa858ea"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/migrate-fresh.log",
+      "sha256": "86fdea5c55374891bd58979c89c240ba131904e49cb4fc29e15cc82e04a92546"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/migrate-repeat.log",
+      "sha256": "af899c23502ce4c0ce495011750ea42c0cfa315673f4808cb1ecb98250a3649c"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/renderer-offline.log",
+      "sha256": "bf116f93f15819897fc4cbc2850cc8b641f63e6f1cae6f9999d2a15b8f9bfe6f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-third-source/runtime-hashes.json",
+      "sha256": "77efb5bcbe91d2a72a852bfc555aa5c2b561e9561d452abd2457d8b0480999f3"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-third-source-20261005/packages/backend/dist/src/services/contentClassification/jevProductionApproval.js",
+      "sha256": "7de33f9633b9d15737e1fd3f1dda1b4a7e7c38d5dcaa6122ffad2f2790ded922"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-third-source-20261005/packages/backend/dist/src/services/contentClassification/jevProduction.js",
+      "sha256": "35011b7af638ca5b3cbe48cbd034d65a8e82630719efd87fc292f82e5e48b7ed"
+    }
+  ],
+  "externalReviews": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-source-renderer-20261005/prepare.py",
+      "sha256": "c675e749dbe29317fa3440bbba2482cf27b4231c3932aa0de7cdac95b67fdec9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-source-renderer-20261005/proof.json",
+      "sha256": "3eb4de8f13f087dcf47a94089432d08281e2b3599f3ff6f614c7ab1a947f799e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-five-refs-root-acceptance.json",
+      "sha256": "609252d6cbd086d154097838da5d32b298551c84c9d2ce581632e5030e944b9c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/frozen.json",
+      "sha256": "72be09e28debddcc7df18577c6ffafe3d13f8b8be7b35d91cd596c3b80c5aaf1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-source-renderer-20261005/reviewed-getter.ts",
+      "sha256": "f17d46ee10d927a8b9c397c847844e89614e6e213a7d66e7866e4d090e907e91"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-production-review-refs-20261005/publishedSdk.json",
+      "sha256": "3fd42da244ee12af5d9017629f0c8eb75796e8ce04de735597cf8d01f7b51a2c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-final-components/exactPrivateRoute.json",
+      "sha256": "6f42d4dc5781eef5e21921ea97ff104baefe0605f6642038ce3a7d16769e9c6f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-final-components/ownAuthorityAndEconomics.json",
+      "sha256": "af2c5aabe1e316b5b1e4ffbdb92a01498dc43f59e5acaaba522de5a9faf7b35d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-production-review-refs-20261005/privacyAndZdr.json",
+      "sha256": "54ed54b431a55cb678e8f4d47af6c15f648a8c98f5d22f5ab3fc81e76c76861a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-production-review-refs-20261005/semanticIdentityAndRecovery.json",
+      "sha256": "6cbcbc7f98cba69ef614daf3595e27b3bcec0b3c2d0a6a0b3a18bd4fe65b73fe"
+    }
+  ],
+  "sourceApprovalSha256": "68284d54587fe7be70c6c20330c395fa8bacd65a0143aba32606a1dee905dfba",
+  "compiledGetterSha256": "7de33f9633b9d15737e1fd3f1dda1b4a7e7c38d5dcaa6122ffad2f2790ded922",
+  "validUntil": "2026-10-05T07:09:12.000Z",
+  "selection": {
+    "postId": "019fd378-8ea7-7b4f-acd0-1c83361e0413",
+    "fingerprint": "b6118a879b0961cf1c25c040ea501ef7e4557228bea5f4f82dac2efa2e684222",
+    "inputSha256": "0c12c43c70a269a40ca0e856af98c48db8d20573b2e1b7d75f9bd6f9468a73da",
+    "idempotencyKey": "mention_jev_native_en_9aebfe5269e8fbe9e8c3961a93ef71d3"
+  },
+  "evaluationVersion": "mention-native-en-onepost/2026-10-05.1",
+  "validation": {
+    "factory": 18,
+    "worker": 56,
+    "freshMigration": 0,
+    "repeatMigration": 0,
+    "build": 0,
+    "wholeWorkspaceTypes": 0,
+    "ownedPgPid": 2829428,
+    "ownedPgAbsent": true
+  },
+  "limits": [
+    "Actual natural worker/provider outcome remains pending deployment and independent readback.",
+    "No provider/AWS/production writes performed by this source work.",
+    "Both previous failed paid operations remain consumed; no original key/permit/semantic-version replay.",
+    "Stable Oxy relationship cumulative total3 includes both failed admissions; this getter resets no budget.",
+    "Global classification flag, worker implementation, SDK versions and Auto3.7 are unchanged.",
+    "Whole-workspace types exits0 including frontend lint205 warnings/0errors, not warning-free frontend."
+  ]
+}

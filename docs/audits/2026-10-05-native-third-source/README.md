@@ -1,0 +1,11 @@
+# Third native Mention shadow approval
+
+Source `4dbfc8bc57e5dc330c3a5537a111b4145d0b1b1e` binds exactly one distinct existing native public English post to the root-reviewed third audience. All five actual evidence components were accepted before rendering. Fixed deadline `2026-10-05T07:09:12Z`; evaluationVersion remains `.1`, four canonical questions, topics empty, own Mention workload authority and existing shared price.
+
+Only the approval literal and its exact selection/deadline/isolation test change. Existing source-gated natural worker remains the only trigger with global classification off; no manual processQueue/provider call. Both earlier paid failures stay consumed, separately reconciled, and included in the Oxy stable relationship cumulative daily total3. This is no retry or extension of either earlier permit. Kaana Score normalization correction is independently deployed; it does not prove the lost historical payloads.
+
+Validation: real owned PostgreSQL fresh/repeat migrations; factory18 + worker56 =74PASS; whole build and workspace types exit0. Owned PID2829428 stopped and absent. Existing frontend lint205 warnings/0errors retained. The source guard rejects exactly at expiry and returns a clone; tests pin all five references, own identity, new selection and both excluded consumed keys. Frozen install Bun1.3.14 left package manifests/lock unchanged.
+
+Actual `JSON.stringify` of the compiled getter value yields sourceApprovalSha256 `68284d54587fe7be70c6c20330c395fa8bacd65a0143aba32606a1dee905dfba`; compiled getter SHA256 `7de33f9633b9d15737e1fd3f1dda1b4a7e7c38d5dcaa6122ffad2f2790ded922`. This preserves JavaScript property order rather than using sorted JSON. Source literal file SHA256 `f17d46ee10d927a8b9c397c847844e89614e6e213a7d66e7866e4d090e907e91` equals the reviewed renderer.
+
+[Proof](./proof.json) retains source/blob hashes, raw local validation logs, compiled module hashes and accepted external references. Private production task/SQL/provider records remain local and are not copied into this audit. Successful typed results/cost reconciliation are still runtime work owned by the release operator. Tracking: [Oxy1572](https://github.com/OxyHQ/oxy/issues/1572).
