@@ -1,0 +1,14 @@
+Reviewed second native shadow operation
+=======================================
+
+This source update selects one different native public English post under the already reviewed worker and own Mention authority. The original failed operation remains consumed and reconciled; it is not replayed. The global classifier flag, SDK versions, baseline classifier and durable GET-only recovery code are unchanged.
+
+The root accepted all five exact source-review references (`17053e961f3a2f030eedcef971892473877ff2845c0524485a9b241202b982ed`) after the new private route's canonical import/legal readback and current own economics acceptance. The getter fixes expiry at `2026-10-05T05:21:15Z`, English, no topics, four canonical questions, and the original semantic evaluation version `mention-native-en-onepost/2026-10-05.1`. The stable Oxy relationship allows a cumulative total of two operations today, including the already failed first operation; this product source cannot reset that budget.
+
+The new source approval hash is `f562dd81f53c45b54e477867cfb645a6ecac369678a7d26785b120e9c72fcde2`, computed with the shipping factory's `JSON.stringify` order. The full source file SHA256 is `32931d509aaea43b9a6f0d08656d04950b110bd8c0a464ba1603892e930b8dc0`. The getter is byte-exact with the pure renderer using the five accepted refs. It keeps a cloned return value and rejects admission at the exact deadline; existing operation recovery remains separate.
+
+Validation: pinned Bun1.3.14 frozen install; 18 factory and 56 real-SQL worker tests passed; fresh and repeat migrations, whole workspace build and type checks passed. The new PostgreSQL process was independently verified local/owned and stopped. Tests include the exact new selection/hash/reviews, deadline boundary and clone isolation; existing worker cases cover baseline-off selected admission and source-off original GET-only recovery. The whole-workspace type command also runs frontend lint: 205 warnings, zero errors, retained in the log; this is not a warning-free frontend claim. No provider call or production mutation was performed by this change.
+
+GitHub CLI/SSH authentication was unavailable. Source was published through the authorized GitHub connector using a tree exactly equal to the local frozen source tree: `4973bee0d05f5a5787d6c700152bc80c7281a579`. Remote source commit `8f889c1fc8841622b6a6ca5c2fdb716ea559f92f` and local source commit `038a8dd54a6a1dcc3b6de96e83c8639c26367728` differ only in commit metadata. Proof inputs include the exact Git blob IDs and bytes. Runtime acceptance follows root-controlled deployment and independent before/after readbacks; this document does not claim a successful second provider result.
+
+Tracking: [Oxy #1572](https://github.com/OxyHQ/oxy/issues/1572), [Oxy #1571](https://github.com/OxyHQ/oxy/issues/1571). See [proof.json](proof.json) for source, validation records, compiled modules and external accepted-review hashes.

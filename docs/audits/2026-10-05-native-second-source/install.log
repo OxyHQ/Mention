@@ -1,0 +1,15 @@
+bun install v1.3.14 (0d9b296a)
+Resolving dependencies
+Resolved, downloaded and extracted [5]
+
+$ bun run build:shared-types
+$ bun run --cwd packages/shared-types build
+$ tsc
+
++ @oxy.so/doctor@1.1.0
++ @types/node@26.6.2
++ semver@7.8.5
++ typescript@6.0.3
++ yaml@2.9.1
+
+1626 packages installed [5.28s]

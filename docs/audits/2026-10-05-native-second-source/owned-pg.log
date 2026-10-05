@@ -1,0 +1,34 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"stage": "fresh", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/migrate-fresh.txt"}
+{"stage": "repeat", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/migrate-repeat.txt"}
+{"newLocalServerPid": 2691414, "dataDirectory": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/data", "database": "oxy_rehearsal_1519_1431ae60af1f7dbc", "command": ["bun", "--no-env-file", "run", "test", "src/__tests__/services/postClassification.test.ts", "src/__tests__/services/jevProduction.test.ts", "--maxWorkers=1"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/pg1519-mbo6c8wz/focused.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+

@@ -1,0 +1,153 @@
+{
+  "kind": "mention-second-native-source-approval-v1",
+  "createdAt": "2026-10-05T04:18:56.791840+00:00",
+  "sourceCommit": "8f889c1fc8841622b6a6ca5c2fdb716ea559f92f",
+  "localSourceCommit": "038a8dd54a6a1dcc3b6de96e83c8639c26367728",
+  "sourceTree": "4973bee0d05f5a5787d6c700152bc80c7281a579",
+  "transport": "GitHub connector created exact local source tree; commit metadata differs from local commit",
+  "baseCommit": "d2476ab3f5c063de5bf059f65f1c4598f47fca93",
+  "inputs": [
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "32931d509aaea43b9a6f0d08656d04950b110bd8c0a464ba1603892e930b8dc0",
+      "gitBlob": "f94d8100d6d17eaeb3b13722f3aca018336cfe4e"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/jevProduction.test.ts",
+      "sha256": "71d10716c0bbf2618988d476ba41cfbc5b34a36e91a0e339093c1aa927fe50ef",
+      "gitBlob": "046c0641dfa960d64a952df2ea87b7f3139b1959"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "b9f6c07c4e95da755e57fa07ddb4d19e1b99f30d931e651ac0d1a3a77b1ef141",
+      "gitBlob": "0ad88b3831b16ff3cd335e973b774dc37731313d"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevShadow.ts",
+      "sha256": "50f97aa62998b203b8436fe211ed849423b7fd01a924faac0342f322f71732e7",
+      "gitBlob": "a7b8839828f9dc800dab1f23a2b6289dfb703fd2"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevReceipt.ts",
+      "sha256": "1d9ba35ee0065b9e601253546df6ef534fda1c9c8b18414724b2b368a3c7d78d",
+      "gitBlob": "a4f0b141e0b405154b5dba31b6553bd2489f5fda"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevRequest.ts",
+      "sha256": "060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d",
+      "gitBlob": "b9f6a45bcd260487a3a2493d5db3f4c1f4581eef"
+    },
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "ee2dc37b917a343c219aab115c84877f1c6889b577bda1987221eed8b2bce634",
+      "gitBlob": "da59a1f215ccf3c692d02583ea822ac11fe3b3e1"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73",
+      "gitBlob": "96e391181e119e82fad804ad82261699bcb2436f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/build.log",
+      "sha256": "00513bd8af5000dd69c91f548737c31f455ad5fef62572b2c84066b6716f7e07"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/factory-worker.log",
+      "sha256": "23f61990b633cb47a37495465a0f77d1b9f693f568b65eea6fa0b74b823767ed"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/install.log",
+      "sha256": "e566980a30cdd45db1dc16e8328fb5758b2faace7de3883b528a20520b88820c"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/migrate-fresh.log",
+      "sha256": "167f9cd8be1c78b469a24610487ea1ffb8cf13100fad303e37429a757cc5fdd4"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/migrate-repeat.log",
+      "sha256": "b980430196b7738b4d63626dc589d80fd2c49b06fc1696419b655c538c9617c7"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/owned-pg.log",
+      "sha256": "f874f2f4c775fbeaa3d5813ef4906b293f17f1c62d67580a6741226bcaed4f45"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/renderer-offline.log",
+      "sha256": "3b9c8c1df25fb0426cb08352e2697a1177f237c09148e32284d4b3223358bd31"
+    },
+    {
+      "path": "docs/audits/2026-10-05-native-second-source/types.log",
+      "sha256": "4df7c26ac845a3610f6878dca2c2d33322fcaa32909d5ca312c60e060055e2ee"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-second-source-20261005/packages/backend/dist/src/services/contentClassification/jevProductionApproval.js",
+      "sha256": "8bbc45ace1d17d7431d9404d66f6736ea1dc827c454765b5e1bc2b9fc45222ec"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-second-source-20261005/packages/backend/dist/src/services/contentClassification/jevProduction.js",
+      "sha256": "35011b7af638ca5b3cbe48cbd034d65a8e82630719efd87fc292f82e5e48b7ed"
+    }
+  ],
+  "externalReviews": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/prepare.py",
+      "sha256": "357d98f207de9dc2b49f0232d1ad8189ca7bb17ed29ca2ee338e10f840a070b8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-second-source-renderer-20261005/proof.json",
+      "sha256": "34a14bdebc503b322a1fe7add7a7bbb5db04c2368fb295ee34d7249ee0e4caaf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/five-review-inputs.json",
+      "sha256": "17053e961f3a2f030eedcef971892473877ff2845c0524485a9b241202b982ed"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-five-refs-root-acceptance.json",
+      "sha256": "16e1f90390fc87aa93e8a137ec8d1bdbbaaf007a7ef377e54f6dd583bdb9f325"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/publishedSdk.json",
+      "sha256": "0ee091d3a02e11062089573a187dc018479d6e037c3ec090bf6d4ec1eb883d2d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/privacyAndZdr.json",
+      "sha256": "dfa07321d19941a7d1fdb39d7bce78f143103afa1b3b3a77fd1975ec43670822"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/semanticIdentityAndRecovery.json",
+      "sha256": "a5750feaf69b6819b953b681d7892f0a641b873e14054a5c8f8a48bf407447d1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/ownAuthorityAndEconomics.json",
+      "sha256": "480cbac3c098517f50ebeb19616bd7c6f3681be323219e76e4ab38792f04c7f6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-second-production-review-refs-20261005/exactPrivateRoute.json",
+      "sha256": "167e3679110b73e1c7ed6a07e74d9ac8f41e2e6a8d2d5fd26ab0709249506d58"
+    }
+  ],
+  "sourceApprovalSha256": "f562dd81f53c45b54e477867cfb645a6ecac369678a7d26785b120e9c72fcde2",
+  "validUntil": "2026-10-05T05:21:15.000Z",
+  "evaluationVersion": "mention-native-en-onepost/2026-10-05.1",
+  "validation": {
+    "factory": 18,
+    "worker": 56,
+    "freshMigration": 0,
+    "repeatMigration": 0,
+    "build": 0,
+    "wholeWorkspaceTypes": 0,
+    "ownedPgPid": 2691414,
+    "ownedPgAbsent": true
+  },
+  "limits": [
+    "Actual worker/provider outcome remains pending deployment and readback.",
+    "No provider calls or production writes in this work.",
+    "Original failed operation remains consumed and was not replayed; second distinct selection only.",
+    "Daily budget is cumulative2 under the same Oxy relationship, implemented and accepted separately; this getter adds no budget reset.",
+    "Whole-workspace check:types exits0 and includes existing frontend lint205 warnings/0errors; no warning-free frontend claim."
+  ]
+}
