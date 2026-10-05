@@ -1,7 +1,7 @@
 /**
  * `actor_key_pairs.private_key_pem` is gone from a fully-migrated database, and
  * the columns the local-actor marker still needs are not. Same instrument as
- * `identityAuthorityDropped`: a positive control, then the ledger proving 0059
+ * `identityAuthorityDropped`: a positive control, then the ledger proving 0061
  * ran.
  */
 
@@ -41,7 +41,7 @@ describe('actor_key_pairs', () => {
     expect(columns.has('key_id')).toBe(true);
   });
 
-  it('had its private keys dropped by 0059 on this database', async () => {
+  it('had its private keys dropped by 0061 on this database', async () => {
     const entry = readJournal().find((candidate) => candidate.tag === DROP_TAG);
     expect(entry).toBeDefined();
     const rows = await db.execute<{ created_at: string }>(sql`

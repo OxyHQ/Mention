@@ -72,11 +72,6 @@ import { linkPreviewKey } from '../connectors/activitypub/apLinkPreview';
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
 /**
- * The link cards of a hydrated batch: each post's documents in text order, and
- * the posts with a link Clarity is still indexing (reported to the client as
- * `documentsPending`, so it can ask `POST /posts/documents` again).
- */
-/**
  * A federated post's own card for `url`, in the shape the app renders. Marked as
  * the remote server's (`id`), with no image: see `post_link_previews`.
  */
@@ -94,6 +89,11 @@ function remoteCardDocument(url: string, card: StoredLinkPreview): ClarityDocume
   };
 }
 
+/**
+ * The link cards of a hydrated batch: each post's documents in text order, and
+ * the posts with a link Clarity is still indexing (reported to the client as
+ * `documentsPending`, so it can ask `POST /posts/documents` again).
+ */
 interface ClarityDocumentMap {
   documents: Map<string, ClarityDocument[]>;
   pending: Set<string>;

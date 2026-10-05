@@ -337,7 +337,7 @@ Four parts, and the third is the one a convention could not give you:
    select.
 
 The registry is EMPTY because Mention holds no secret at rest: the one it had,
-`actor_key_pairs.private_key_pem`, was dropped by migration 0059 once signing
+`actor_key_pairs.private_key_pem`, was dropped by migration 0061 once signing
 moved to oxy-api. **Do not store a secret you can avoid**; when one is
 unavoidable, register it here before the first query touches it. The value is
 the SCAN, which fails a bare `select()` anywhere in `src/` against a registered

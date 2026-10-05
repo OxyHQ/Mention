@@ -4,7 +4,7 @@
  *
  * Nothing in the request path reads this table any more: signing is custodial in
  * oxy-api (`connectors/activitypub/crypto.ts` calls `signViaOxy`, and the private
- * key never enters Mention — migration 0059 dropped the plaintext copy). What
+ * key never enters Mention — migration 0061 dropped the plaintext copy). What
  * remains is the local-actor marker and account lifecycle — the deletion
  * preflight has to SEE a leftover row before it lets an account be removed, and
  * the purge script has to remove it — so the operations here are exactly those.

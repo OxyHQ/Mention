@@ -8,7 +8,7 @@
  * The table used to carry `private_key_pem`, the secret half of the key that
  * signed a user's outbound ActivityPub requests, as plaintext. Signing moved to
  * oxy-api (`connectors/activitypub/crypto.ts` calls `signViaOxy`) and nothing
- * read the column afterwards, so migration 0059 dropped it: a key Mention does
+ * read the column afterwards, so migration 0061 dropped it: a key Mention does
  * not use is only something a database dump or backup could leak.
  *
  * ## The schema does not normalize text, and that is deliberate

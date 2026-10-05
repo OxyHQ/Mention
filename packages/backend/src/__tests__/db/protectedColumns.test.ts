@@ -62,7 +62,7 @@ describe('the registry', () => {
 
 describe('publicColumns', () => {
   it('returns every column of a table with nothing protected', () => {
-    // `actor_key_pairs` lost its only secret in 0059; the helper must stay usable.
+    // `actor_key_pairs` lost its only secret in 0061; the helper must stay usable.
     const selection = publicColumns(actorKeyPairs);
     expect(Object.keys(selection).sort()).toEqual(Object.keys(getTableColumns(actorKeyPairs)).sort());
   });

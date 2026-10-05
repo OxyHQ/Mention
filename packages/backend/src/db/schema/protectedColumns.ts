@@ -9,7 +9,7 @@
  * process.
  *
  * The registry is EMPTY today because Mention holds no secret at rest: the one
- * it had, `actor_key_pairs.private_key_pem`, was dropped by migration 0059 once
+ * it had, `actor_key_pairs.private_key_pem`, was dropped by migration 0061 once
  * signing moved to oxy-api. The mechanism stays so the next secret column is
  * registered here rather than protected by convention. Its value is
  * `__tests__/db/protectedColumns.test.ts`, which scans `src/` for the two shapes

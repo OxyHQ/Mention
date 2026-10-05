@@ -21,7 +21,7 @@ to oxy-api or `@oxy.so/federation`, and Mention adapts once it ships.
 | `Move` to a local account | Supported (Oxy applies it) | `move.service.ts` |
 | `Move` between two remote servers | Recorded and shown; follows not moved (Oxy) | `recordRemoteMove`, [OxyHQ/oxy#1502](https://github.com/OxyHQ/oxy/issues/1502) |
 | Remote handle changes | Supported | `freeStaleHandle` in `actor.service.ts` |
-| Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0059 |
+| Private signing keys at rest | None stored in Mention (custody in oxy-api) | migration 0061 |
 
 ## A handle that changed hands
 
