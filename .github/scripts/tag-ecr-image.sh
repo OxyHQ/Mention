@@ -6,10 +6,8 @@
 #
 # The release step tags the image it is about to roll out `deployed-<sha>`
 # (plus the commit tag, and `latest` where a repository still moves it). The
-# ECR lifecycle policy keeps the last ten `deployed-*` images and expires
-# merge-queue images (`mq-*`) three days after their push; its rule order means
-# a `deployed-` image is never expired by the `mq-` rule even though it
-# carries both (oxy-infra terraform-uswest2/ecr.tf).
+# ECR lifecycle policy keeps the last ten `deployed-*` images for rollback
+# (oxy-infra terraform-uswest2/ecr.tf).
 #
 # The manifest is read back from ECR and written with --image-digest, so ECR
 # itself refuses the write unless the bytes still hash to the digest given: a

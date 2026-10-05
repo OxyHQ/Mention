@@ -43,7 +43,6 @@ for path in "${changed_paths[@]}"; do
     backend:packages/backend/* | \
     backend:packages/shared-types/* | \
     backend:.github/scripts/deploy-ecs-image.sh | \
-    backend:.github/scripts/resolve-queue-image.sh | \
     backend:.github/scripts/tag-ecr-image.sh | \
     backend:.github/scripts/audit-runtime-image.sh | \
     backend:.github/scripts/require-current-main.sh | \
@@ -54,7 +53,6 @@ for path in "${changed_paths[@]}"; do
     mcp:packages/mcp/* | \
     mcp:packages/shared-types/* | \
     mcp:.github/scripts/deploy-ecs-image.sh | \
-    mcp:.github/scripts/resolve-queue-image.sh | \
     mcp:.github/scripts/tag-ecr-image.sh | \
     mcp:.github/scripts/audit-runtime-image.sh | \
     mcp:.github/scripts/require-current-main.sh | \

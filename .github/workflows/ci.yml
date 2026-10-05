@@ -200,7 +200,6 @@ jobs:
           bash .github/scripts/test-require-current-main.sh
           bash .github/scripts/test-release-provenance.sh
           bash .github/scripts/test-deploy-ecs-image.sh
-          bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-optional-task-bindings.sh
           bash .github/scripts/test-source-identity-reconciliation.sh
           bash .github/scripts/test-instagram-one-shot.sh

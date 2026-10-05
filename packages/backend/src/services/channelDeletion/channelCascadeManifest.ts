@@ -337,6 +337,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'The network-level source key of a destroyed post (Instagram shortcode). `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_link_previews',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'FEP-8967 link cards a destroyed federated post arrived with. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'post_sources',
     column: 'postId',
     scope: 'channel-posts',

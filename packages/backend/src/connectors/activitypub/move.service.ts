@@ -18,6 +18,11 @@
  *    `moved_to_mismatch`, …): logged with its code and dropped.
  * Oxy is idempotent on the activity id, and every step after it is idempotent
  * too, so a retry (or the same Move delivered to several inboxes) is safe.
+ *
+ * A move to ANOTHER server (remote → remote) is not Oxy's to apply today, but it
+ * is still worth remembering: {@link recordRemoteMove} stores the target on the
+ * old actor's row so its profile can say where the account went. That half is
+ * Mention's alone and runs before the Oxy call, whatever Oxy answers.
  */
 
 import type { InboundMove } from '@oxy.so/federation/node';
@@ -28,6 +33,9 @@ import { deleteFollow, findFollows } from '../../db/federation/followRepository'
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { collapseImportedCopies } from '../../services/PostEquivalenceService';
 import { deliveryService } from './delivery.service';
+import { actorService } from './actor.service';
+import { OWN_DOMAINS } from './ownDomain';
+import { findActorByUri, setActorMovedTo } from '../../db/federation/actorRepository';
 
 /** The fields of Oxy's `POST /federation/move` answer this reads. */
 interface FederationMoveOutcome {
@@ -83,8 +91,54 @@ async function unfollowMovedActor(oldActorUri: string): Promise<{ unfollowed: nu
   return { unfollowed: resolved.length, unresolved: follows.length - resolved.length };
 }
 
+function isOwnActorUri(uri: string): boolean {
+  let host: string;
+  try {
+    host = new URL(uri).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return OWN_DOMAINS.some((own) => own.toLowerCase() === host);
+}
+
+/** Why {@link recordRemoteMove} did or did not record the move. */
+export type RemoteMoveOutcome = 'recorded' | 'local_target' | 'unknown_old_actor' | 'target_unresolved' | 'alias_missing';
+
+/**
+ * Remember a remote → remote move on the old actor's row.
+ *
+ * The same bilateral check Mastodon makes before it trusts a `Move`: the engine
+ * has already verified that the OLD actor signed it, and the TARGET must list the
+ * old actor in its `alsoKnownAs`, read fresh because an alias is usually added
+ * moments before the move. Without that second half any account could announce
+ * that it "moved" onto somebody else's profile.
+ *
+ * Only the move is recorded. Moving this server's follows to the new actor needs
+ * Oxy, which owns the follow graph, and is not done here.
+ */
+export async function recordRemoteMove(move: InboundMove): Promise<RemoteMoveOutcome> {
+  if (isOwnActorUri(move.targetActorUri)) return 'local_target';
+  const oldActor = await findActorByUri(move.oldActorUri);
+  if (!oldActor) return 'unknown_old_actor';
+  const target = await actorService.fetchRemoteActor(move.targetActorUri);
+  if (!target) return 'target_unresolved';
+  if (!(target.alsoKnownAs ?? []).includes(move.oldActorUri)) return 'alias_missing';
+  await setActorMovedTo(move.oldActorUri, target.uri);
+  return 'recorded';
+}
+
 /** Forward a shape-verified Move to Oxy and, once Oxy applies it, adopt the old account here. */
 export async function applyInboundMove(move: InboundMove): Promise<void> {
+  const remote = await recordRemoteMove(move);
+  if (remote !== 'local_target') {
+    logger.info('[Federation] Remote move', {
+      outcome: remote,
+      activityId: move.activityId,
+      oldActorUri: move.oldActorUri,
+      targetActorUri: move.targetActorUri,
+    });
+  }
+
   let outcome: FederationMoveOutcome;
   try {
     outcome = await getServiceOxyClient().serviceRequest<FederationMoveOutcome>('POST', '/federation/move', {

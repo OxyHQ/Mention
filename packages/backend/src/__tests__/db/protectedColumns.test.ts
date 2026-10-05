@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 import { getTableColumns } from 'drizzle-orm';
 import { actorKeyPairs } from '../../db/schema/federation';
 import {
-  ACTOR_KEY_PAIRS_PROTECTED_COLUMNS,
   PROTECTED_COLUMNS,
   PROTECTED_COLUMNS_BY_TABLE,
   publicColumns,
@@ -37,10 +36,9 @@ function sourceFiles(directory: string = SOURCE_ROOT): string[] {
 }
 
 describe('the registry', () => {
-  it('protects the ActivityPub signing key', () => {
-    const properties = PROTECTED_COLUMNS_BY_TABLE.get('actor_key_pairs');
-    expect(properties).toBeDefined();
-    expect([...(properties ?? [])].sort()).toEqual([...ACTOR_KEY_PAIRS_PROTECTED_COLUMNS].sort());
+  it('agrees with its machine-readable form', () => {
+    const fromMap = [...PROTECTED_COLUMNS_BY_TABLE.values()].reduce((count, set) => count + set.size, 0);
+    expect(fromMap).toBe(PROTECTED_COLUMNS.length);
   });
 
   it('gives every entry a reason', () => {
@@ -63,19 +61,10 @@ describe('the registry', () => {
 });
 
 describe('publicColumns', () => {
-  it('omits every protected column at runtime', () => {
+  it('returns every column of a table with nothing protected', () => {
+    // `actor_key_pairs` lost its only secret in 0061; the helper must stay usable.
     const selection = publicColumns(actorKeyPairs);
-    expect(Object.keys(selection)).not.toContain('privateKeyPem');
-    // And keeps the rest, so the helper is usable rather than merely safe.
-    expect(Object.keys(selection)).toContain('publicKeyPem');
-    expect(Object.keys(selection)).toContain('keyId');
-  });
-
-  it('omits it at the TYPE level, which is the part a convention cannot give', () => {
-    const selection = publicColumns(actorKeyPairs);
-    // @ts-expect-error `privateKeyPem` is excluded from the returned type, so a
-    // serializer that reads it fails `tsc` rather than shipping the key.
-    void selection.privateKeyPem;
+    expect(Object.keys(selection).sort()).toEqual(Object.keys(getTableColumns(actorKeyPairs)).sort());
   });
 });
 

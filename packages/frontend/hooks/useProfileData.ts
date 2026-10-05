@@ -7,6 +7,7 @@ import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/st
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxy.so/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
+import type { RemoteProfileMove } from '@mention/shared-types/profile';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
@@ -93,6 +94,11 @@ export interface ProfileData {
     actorUri?: string;
     domain?: string;
   };
+  /**
+   * Where a federated account moved, when it announced a verified `Move` to
+   * another server. Off the profile-design DTO's `remote`, like the counts.
+   */
+  movedTo?: RemoteProfileMove;
   design: ProfileDesign;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -343,6 +349,7 @@ export function useProfileData(username?: string): {
       createdAt,
       followersCount,
       followingCount,
+      movedTo: isFederatedProfile ? appearance?.remote?.movedTo : undefined,
       design,
       privacy: appearance?.privacy,
     };

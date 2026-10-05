@@ -545,6 +545,37 @@ export const postAttachments = pgTable(
   ]
 );
 
+/**
+ * `post_link_previews` — the link cards a FEDERATED post arrived with (FEP-8967),
+ * in attachment order: the text of the card the author's server rendered for a
+ * link in the body. Written by the ActivityPub ingest only
+ * (`connectors/activitypub/apLinkPreview.ts`).
+ *
+ * A fallback, never the source: hydration shows one only while Clarity has no
+ * document for that link, and only on this post. Keyed by post, not by URL, so
+ * one server's card for a link never reaches anyone else's post that carries it.
+ * No image column on purpose — a remote image URL would send every reader's
+ * request to a host the author chose.
+ */
+export const postLinkPreviews = pgTable(
+  'post_link_previews',
+  {
+    id: generatedId(),
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    url: text().notNull(),
+    title: text(),
+    description: text(),
+  },
+  (t) => [
+    check('post_link_previews_position_check', sql`${t.position} >= 0`),
+    check('post_link_previews_card_check', sql`${t.title} is not null or ${t.description} is not null`),
+    unique('post_link_previews_post_id_position_key').on(t.postId, t.position),
+  ]
+);
+
 /** `post_sources` — external sources cited in the post, in author order. */
 export const postSources = pgTable(
   'post_sources',

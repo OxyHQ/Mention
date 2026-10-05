@@ -1,14 +1,23 @@
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { findActorByOxyUserId } from '../../db/federation/actorRepository';
+import { findActorByOxyUserId, findActorByUri } from '../../db/federation/actorRepository';
 
 /**
  * The origin figures for the account behind `oxyUserId`, or `undefined` for a
  * local account — one with no cached actor row, which costs one indexed miss.
+ * A moved account costs one more lookup, for the new account's handle.
  */
 export async function loadRemoteProfileStats(oxyUserId: string): Promise<RemoteProfileStats | undefined> {
   const actor = await findActorByOxyUserId(oxyUserId);
-  return actor ? remoteProfileStats(actor) : undefined;
+  if (!actor) return undefined;
+  const stats = remoteProfileStats(actor);
+  if (actor.movedTo) {
+    // `recordRemoteMove` resolved the target before writing, so its row exists;
+    // a target purged since then simply leaves the move unstated.
+    const target = await findActorByUri(actor.movedTo);
+    if (target) stats.movedTo = { handle: target.acct, actorUri: target.uri };
+  }
+  return stats;
 }
 
 /**

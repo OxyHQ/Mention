@@ -106,6 +106,7 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     featuredUrl: optional(row.featuredUrl),
     featuredTagsUrl: optional(row.featuredTagsUrl),
     alsoKnownAs: optional(row.alsoKnownAs),
+    movedTo: optional(row.movedTo),
     remoteCreatedAt: optional(row.remoteCreatedAt),
     followersCount: row.followersCount,
     followingCount: row.followingCount,
@@ -279,6 +280,54 @@ export async function findActorByAcct(
     .where(eq(federatedActors.acct, acct))
     .limit(1);
   return row ? assembleActorRecord(row) : null;
+}
+
+/**
+ * The row holding a handle under EITHER unique constraint a rename can collide
+ * with: `acct`, or `(domain, username)`. Other than `exceptUri`, which is the
+ * actor trying to take the handle.
+ */
+export async function findOtherActorHoldingHandle(
+  handle: { acct: string; domain: string; username: string },
+  exceptUri: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FederatedActorRecord | null> {
+  const [row] = await db
+    .select()
+    .from(federatedActors)
+    .where(and(
+      or(
+        eq(federatedActors.acct, handle.acct),
+        and(eq(federatedActors.domain, handle.domain), eq(federatedActors.username, handle.username)),
+      ),
+      ne(federatedActors.uri, exceptUri),
+    ))
+    .limit(1);
+  return row ? assembleActorRecord(row) : null;
+}
+
+/**
+ * Give up a gone actor's handle so a live actor can take it.
+ *
+ * The row keeps its URI (and everything keyed on it); only `username` and
+ * `acct` move to a spelling no WebFinger handle can have, derived from the row
+ * id so it is unique. Refused unless the row is tombstoned: a live actor's
+ * handle is never released here.
+ */
+export async function releaseGoneActorHandle(
+  actorId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const rows = await db
+    .update(federatedActors)
+    .set({
+      username: sql`${federatedActors.username} || '~gone-' || ${federatedActors.id}`,
+      acct: sql`${federatedActors.username} || '~gone-' || ${federatedActors.id} || '@' || ${federatedActors.domain}`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(federatedActors.id, actorId), eq(federatedActors.suspended, true)))
+    .returning({ id: federatedActors.id });
+  return rows.length > 0;
 }
 
 /** What a maintenance sweep narrows its scan to. Every field is ANDed. */
@@ -591,6 +640,23 @@ export async function setActorOxyUserId(
     .update(federatedActors)
     .set({ oxyUserId, updatedAt: new Date() })
     .where(eq(federatedActors.id, actorId));
+}
+
+/**
+ * Record that the actor at `uri` moved to `movedTo`. Idempotent; returns whether
+ * a row matched. The caller verifies the move first — see `recordRemoteMove`.
+ */
+export async function setActorMovedTo(
+  uri: string,
+  movedTo: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const rows = await db
+    .update(federatedActors)
+    .set({ movedTo, updatedAt: new Date() })
+    .where(eq(federatedActors.uri, uri))
+    .returning({ id: federatedActors.id });
+  return rows.length > 0;
 }
 
 /**
