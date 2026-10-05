@@ -1,0 +1,136 @@
+{
+  "reviewer": "coverage independent source/evidence review for root acceptance",
+  "preparedAt": "2026-10-05T01:57:12.084050+00:00",
+  "status": "root_ready_evidence_not_runtime_activation",
+  "audienceRef": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/audience.json",
+    "sha256": "de3a2286515004f548b4d0f3927c2f0a8aff3216a90d81d28a2244588d4e1437"
+  },
+  "reviewExpiry": "2026-10-05T03:14:23Z",
+  "rootDecisionRequired": true,
+  "kind": "mention-native-semantic-identity-recovery-review-v1",
+  "reviewKey": "semanticIdentityAndRecovery",
+  "evidence": [
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-05-mention-native-wiring/proof.json",
+      "sha256": "d28d6db0a9100b1aa06bebb4cd8d24f37741e45a98f91e95422130e1d1b98b3d"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-05-mention-native-wiring/narrowing/proof.json",
+      "sha256": "0139991c92451bae2ff0fa8685b1f0fb8b1ece8f650ea44b33d0724860f37a9c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mention-native-en-selection-20261005/run/accepted.json",
+      "sha256": "cce1874f8e2303bd75681a759b5266fcb77b7cb04cd587b2d4968c9d98817462"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-native-recovery-promotion/accepted.json",
+      "sha256": "49628af2efe8e87ffde2e72149334e59de620c88c477bce5916358f679135220"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-native-recovery-promotion/source-image.json",
+      "sha256": "d64b493fe5fe347f7020ba99f48804b1675863edc2a6e82e6e6ae660a467a15e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-native-recovery-promotion/health.json",
+      "sha256": "6791cb21e266d39804652d4e1b7f84d3c49494f4b5605a86f661f207514fcd22"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/compiled-binding.json",
+      "sha256": "56f8d06fcc6a999de24bca28d02371b074f5af04a348c295d0d8b00eeb16b9fe"
+    }
+  ],
+  "compiledRuntimePins": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/db/posts/postEvaluationRepository.js",
+      "sha256": "ac5c6bfea6cd09a6e9b986cfb9508e918c152c4dc94f9defea9f49b64cc55bac"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/services/PostClassificationService.js",
+      "sha256": "bbaae2ce1ec41776317434e276bc6818fdc67e8b1da96abdcc2ffa14019bacdf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/services/contentClassification/jevProduction.js",
+      "sha256": "35011b7af638ca5b3cbe48cbd034d65a8e82630719efd87fc292f82e5e48b7ed"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/services/contentClassification/jevProductionApproval.js",
+      "sha256": "5ad4edf88a1b43932fd97bad17332d99433be9bbd5e6122055db62b39d766cf8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/services/contentClassification/jevReceipt.js",
+      "sha256": "30c8716e07daf15af3673bc5044f96edd51f7a597486962ce89857fafa6bb82d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention492-final-image-v2/selected-files/app/packages/backend/dist/src/services/contentClassification/jevSdk.js",
+      "sha256": "e42f3ff9f39b18f825e0f70f4e42f1f1e71ce62eb97dbe5243c5d87d064cff1c"
+    }
+  ],
+  "sourceBinding": {
+    "source": "c527a137eda1f5419179af452467262a23e79ab2",
+    "imageDigest": "sha256:7e8b9fd7eaf770c8187bef3142aa45b233c208c93eac818ff393b9789617931a",
+    "sourceViaAcceptedEcrIndex": true,
+    "baseRevisionLabelIsNotSource": true
+  },
+  "validation": {
+    "originalOwnedPgFocused": 157,
+    "suites": 4,
+    "finalRecoveryWorker": 54,
+    "narrowingWorker": 54,
+    "typesAndBuild": "PASS retained records",
+    "sourceAndRecordHashesVerified": 34,
+    "noTestsRepeated": true
+  },
+  "findings": [
+    "Factory routes the exact native selected original revision through SDK; public/private/owner/fingerprint conditions rechecked under SQL locks, semantic no-op identity not a second spend. Federation/imported/private/deleted subjects remain excluded.",
+    "Exactly selected idempotency identity persists with own model/policy/authority/recovery lineage; ambiguous/late receipt recovery uses same-key GET and rejects foreign authority/policy/model/receipt. No fresh POST during source-off/expiry/restart recovery.",
+    "Unsent work may release only before evaluator handoff; sent uncertain claim remains quarantined. Recovery never resurrects deleted claims or applies signals to newly private/edited post.",
+    "Selection evidence is read-only and made no claim/provider invocation. V2 root retains same original key/input/post; runtime must still recheck before first dispatch."
+  ],
+  "limits": [
+    "SQL/factory/provider-fake tests demonstrate implementation, not real Jev qualification or quality.",
+    "Current Mention492 approval getter remains nil until all five refs and root-reviewed source composition; these three refs do not enable it.",
+    "No actual route/legal/refusal facts invented; original unsupported-effort synthetic failure remains historical and cannot be resubmitted."
+  ],
+  "priorSemanticRef": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/semanticIdentityAndRecovery.json",
+    "sha256": "0f5557bc3b81db6a37b94ecda404a3d0ffb632e4e9a9070107b3485ae77b9c13"
+  },
+  "baselineOffSelectedShadowAddendum": {
+    "sourceCommit": "f1fb265eee0febb5e0e90fb1afd839073a7d39aa",
+    "proofRef": {
+      "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-source-approval-20261005/docs/audits/2026-10-05-mention-baseline-off-shadow/proof.json",
+      "sha256": "e749cc2037887f18ec82abe93d1e0b5b3940331867d597ac2168624b6181d9c4"
+    },
+    "independentReview": {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-baseline-off-independent-review-20261005/review.json",
+      "sha256": "22919f77fb16e35e5fa903fff73fb87a7560ccee114826cc809ed5259accec27"
+    },
+    "sourceReviewAccepted": true,
+    "deployedInMention492": false,
+    "actualServingNewImagePending": true,
+    "runtimeBehavior": "With global classification disabled, only actual factory-bound selected original native shadow may POST; durable own original-key receipt GET recovery remains independently available. No baseline enumeration/markEmpty/canonical classification.",
+    "sameFrozenWorkerRedGreen": {
+      "baselineFailed": 6,
+      "baselinePassed": 50,
+      "finalPassed": 56
+    },
+    "getterStillUndefined": true,
+    "beforeActivationOriginalKeyBaselinesRequired": true,
+    "manualSecondWorkerOrProviderRetryForbidden": true,
+    "checksAndScope": [
+      "Only factory WeakSet-bound selected operation may admit while global classification remains disabled.",
+      "Baseline-disabled branch never invokes markEmptyPosts, selectQueue or classifyCanonicalBatch; it enriches only the source-selected original post.",
+      "Durable own receipt recovery is independent of source admission; constructor-injected unreviewed evaluation does not admit selected POST.",
+      "Identity, privacy/fingerprint, expiry, durable original-id claim and no-repeat/recovery paths are unchanged.",
+      "Actual production factory/published SDK/owned SQL fixture is byte-identical corrected RED6/50 to GREEN56; enabled/disabled baselines, scheduling and GET-only source-off/expired/foreign/revoked controls read.",
+      "Historical initial fixture/type failures and four identical pre-existing test lint diagnostics retained.",
+      "Getter remains undefined; three owned PG PIDs independently absent."
+    ]
+  },
+  "runtimeAcceptanceStillRequired": [
+    "New combined getter/source build and actual serving image acceptance.",
+    "Root must capture original-key Mention/Oxy/Kaana baseline before getter runtime starts its30s cycle; avoid separate/manual second dispatch.",
+    "Actual private route/legal/price and source reviews before provider admission."
+  ]
+}

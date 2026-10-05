@@ -1,0 +1,147 @@
+{
+  "reviewer": "coverage independent source/evidence review for root acceptance",
+  "preparedAt": "2026-10-05T01:53:25.620925+00:00",
+  "status": "root_ready_evidence_not_runtime_activation",
+  "audienceRef": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/audience.json",
+    "sha256": "de3a2286515004f548b4d0f3927c2f0a8aff3216a90d81d28a2244588d4e1437"
+  },
+  "reviewExpiry": "2026-10-05T03:14:23Z",
+  "rootDecisionRequired": true,
+  "kind": "mention-production-own-authority-economics-review-v1",
+  "reviewKey": "ownAuthorityAndEconomics",
+  "evidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-scopes-runtime/accepted-scope-writes.json",
+      "sha256": "af220b34b107d19515a04b5f84bc6893185a75464a86b4d0695f8059987be571"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-scopes-runtime/binding-apply-run/result.private.json",
+      "sha256": "2458d02305c6792cf9938a002a42c5d41d10f5c9c34bb9fd2aedf20bc605b114"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-scopes-runtime/seed-apply-run/result.private.json",
+      "sha256": "8abab96865e40c714ccdb8975d15ecacd219cb035cd8dcde1dbd13299f2cd47e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/economics.json",
+      "sha256": "ecc5ceaec246f44aa7eaf25f8d8dd4c4ed822089276e3cf988fbee9ea23e7dd3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/root-review.json",
+      "sha256": "613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-workload-auth-run/accepted.json",
+      "sha256": "3978448ab69081ae274d8d68b9067f1a58237d905541203a0055d6b6a5cf6b0c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-workload-auth-run/result.private.json",
+      "sha256": "ea99a9b83d0d54f800085864ed5efe1b3dfd2335e3215d34964d24d755415fa9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-workload-auth-run/independent-cleanup.json",
+      "sha256": "74cd45c6fb9b1968b02168c9cf35300ef35dcd3625749ad54f32d1e5549ac552"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-workload-auth-run/image-identity-accepted.json",
+      "sha256": "28194bdd138d1f03ef44cb5bb77dbc1a32ab2277423bf3282c5f1200aea138d1"
+    }
+  ],
+  "authority": {
+    "applicationId": "6a2f851751b784a86fd0e916",
+    "ownerAccountId": "69b2d3df5d12f58c9800d651",
+    "credentialId": "wl_d61be5cd068abb658ed4d193",
+    "isInternal": false,
+    "bindingId": "01a0b40a-9739-7703-a154-428dd51d15bb",
+    "subject": "arn:aws:iam::237343248947:role/oxy-mention-task",
+    "scopeCount": 14,
+    "scopes": [
+      "capabilities:read",
+      "capability-audit:write",
+      "capability-tickets:issue",
+      "catalogs:write",
+      "clarity:index",
+      "clarity:search",
+      "clarity:sites:manage",
+      "federation:write",
+      "files:read",
+      "files:write",
+      "inference:invoke",
+      "inference:usage:read",
+      "signals:write",
+      "user:read"
+    ],
+    "mcpScopeCountUnchanged": 11,
+    "seedAddedOnly": [
+      "inference:invoke",
+      "inference:usage:read"
+    ]
+  },
+  "economicPolicy": {
+    "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1",
+    "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba",
+    "expiresAt": "2026-10-05T03:14:23Z",
+    "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+    "modelReference": "typesafe/jev-1.13@2026-09-17",
+    "provider": "openrouter",
+    "priceVersionId": "jev_scoped_price_20261004_01",
+    "routingPolicyId": "platform-internal-default",
+    "routingPolicyVersion": 1
+  },
+  "pending": [
+    "Current actual Mention private route/legal/price/policy and source-to-runtime readbacks before admission.",
+    "Updated selected-shadow source/factory proof and deployed approved getter before claiming product delivery."
+  ],
+  "noInferredGrantOrWallet": true,
+  "actualCanonicalFactoryJwt": {
+    "rootAccepted": true,
+    "factory": "getServiceOxyClient().serviceToken()",
+    "identity": {
+      "scopesCount": 14,
+      "appId": "6a2f851751b784a86fd0e916",
+      "ownerAccountId": "69b2d3df5d12f58c9800d651",
+      "credentialId": "wl_d61be5cd068abb658ed4d193",
+      "environment": "production",
+      "signatureVerified": true,
+      "lifetime": 300,
+      "scopes": {
+        "invoke": true,
+        "usageRead": true
+      }
+    },
+    "counts": {
+      "challenge": 1,
+      "mint": 1,
+      "metadata": 1,
+      "jwks": 1
+    },
+    "signatureAlgorithm": "Ed25519/EdDSA",
+    "delegatedUser": false,
+    "tokenPrinted": false,
+    "scopeArrayExactlyVerifiedByPinnedOperator": true,
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/caa3ed38db3241bd8190ddeefb8c57d7",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mention-workload-auth:1",
+    "taskStoppedExit0": true,
+    "definitionInactive": true,
+    "taskRoleArn": "arn:aws:iam::237343248947:role/oxy-mention-task",
+    "imageIndexDigest": "sha256:7e8b9fd7eaf770c8187bef3142aa45b233c208c93eac818ff393b9789617931a",
+    "ecsReportsIndexDigest": true,
+    "acceptedArmManifestSha256": "60d1a52f541c5d1d0e50f03346ea6d2e49aac166d50ea2732342e81617446376",
+    "taskPlatform": {
+      "cpuArchitecture": "ARM64",
+      "operatingSystemFamily": "LINUX"
+    },
+    "noProviderRequest": true
+  },
+  "limits": {
+    "maxPricePerRequestUsd": "0.01",
+    "maxControlledInputBudget": 8192,
+    "maxDailyRequests": 1,
+    "maxConcurrentRequests": 1,
+    "sameOriginalOperationAndFixture": true,
+    "expiryNotExtended": true,
+    "policyAppliesOnlyExactNativeSelection": true,
+    "notACommercialWalletOrPublicModelApproval": true
+  }
+}
