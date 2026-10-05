@@ -1,8 +1,8 @@
 # Weekly: rebuild the backend and MCP production images from scratch, into
 # the cache.
 #
-# The deploys' builds and the merge-queue image build (merge-queue-image.yml)
-# read the `type=gha` cache scopes `mention-backend` and `mention-mcp`. A cached
+# The deploys' builds read the `type=gha` cache scopes `mention-backend` and
+# `mention-mcp`. A cached
 # layer is reused for as long as its inputs do not change, and the inputs of an
 # OS-package layer (`apt-get update`, `apk upgrade`) are the command text and
 # the base image, not the package index: once cached, such a layer never picks
@@ -11,7 +11,7 @@
 #
 # So once a week this rebuilds with `no-cache` and `pull` and writes every
 # fresh layer to the same scopes. It runs on main (the default branch), whose
-# caches every later run can read, including the merge queue's. The images are
+# caches every later production build can read. The images are
 # built and discarded (`type=cacheonly`): nothing is pushed, nothing is
 # deployed, and the job holds no AWS credentials. The next release picks the
 # fresh layers up through the cache.

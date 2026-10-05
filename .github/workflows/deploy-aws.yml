@@ -119,12 +119,9 @@ jobs:
       # succeeds (neutral), so success alone must not move the marker.
       released: ${{ steps.current_release.outputs.current }}
     runs-on: ubuntu-24.04-arm
-    # `actions: read` for resolve-queue-image.sh, which reads this commit's
-    # merge-queue image run. Job level, so no other job gains it.
     permissions:
       id-token: write
       contents: read
-      actions: read
     # Includes image build, migrations, rollout, smoke checks and a full
     # rollback window if the production smoke check fails.
     timeout-minutes: 90
@@ -151,28 +148,12 @@ jobs:
         if: steps.current_build.outputs.current == 'true'
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
-      # The merge queue already built this commit's image
-      # (merge-queue-image.yml pushes `oxy/<app>:mq-<sha>` in parallel with CI,
-      # and the queue's tested commit IS the commit on main). Reuse it by digest
-      # when the queue run for exactly this SHA succeeded; wait for that run if
-      # it is still going. Anything else — a commit that did not come through
-      # the queue, a failed or skipped queue build, an API error — comes back
-      # empty and the build below runs exactly as before.
-      - name: Find the image the merge queue built
-        if: steps.current_build.outputs.current == 'true'
-        id: queue_image
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: oxy/${{ env.APP }}
-          SHA: ${{ env.DEPLOY_SHA }}
-        run: bash .github/scripts/resolve-queue-image.sh
-
       - name: Set up Docker Buildx
-        if: steps.current_build.outputs.current == 'true' && steps.queue_image.outputs.digest == ''
+        if: steps.current_build.outputs.current == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build and push immutable backend image
-        if: steps.current_build.outputs.current == 'true' && steps.queue_image.outputs.digest == ''
+        if: steps.current_build.outputs.current == 'true'
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -186,27 +167,10 @@ jobs:
           provenance: true
           sbom: true
 
-      # One digest from here on, whichever step produced it.
-      - name: Select the backend image
-        if: steps.current_build.outputs.current == 'true'
-        id: image
-        env:
-          QUEUE_DIGEST: ${{ steps.queue_image.outputs.digest }}
-          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          set -euo pipefail
-          DIGEST="${QUEUE_DIGEST:-$BUILT_DIGEST}"
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::no image digest (queue: ${QUEUE_DIGEST:-<none>}, build: ${BUILT_DIGEST:-<none>})"
-            exit 1
-          fi
-          echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
-          echo "oxy/$APP@$DIGEST ($([[ -n "$QUEUE_DIGEST" ]] && echo 'built in the merge queue' || echo 'built here'))" | tee -a "$GITHUB_STEP_SUMMARY"
-
       - name: Audit final backend runtime image
         if: steps.current_build.outputs.current == 'true'
         env:
-          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
           EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types'
         run: bash .github/scripts/audit-runtime-image.sh
@@ -328,20 +292,17 @@ jobs:
           STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
-      # `<sha>` is the commit tag every release has always had (a queue image
-      # only has `mq-<sha>`); `deployed-<sha>` is what the ECR lifecycle policy
-      # keeps (the last ten): the running image and its rollback targets. A
-      # queue image without it expires three days after its push. A re-tag by
-      # digest, never a push: ECR refuses the write unless the manifest still
-      # hashes to this digest.
+      # Keep the running image and rollback targets under the lifecycle-managed
+      # `deployed-<sha>` tags. Re-tag by digest so ECR refuses the write unless
+      # the manifest still hashes to the image built by this trusted deploy.
       - name: Tag the released image
         if: steps.current_release.outputs.current == 'true'
-        run: bash .github/scripts/tag-ecr-image.sh "oxy/$APP" "${{ steps.image.outputs.digest }}" "$DEPLOY_SHA" "deployed-$DEPLOY_SHA"
+        run: bash .github/scripts/tag-ecr-image.sh "oxy/$APP" "${{ steps.build.outputs.digest }}" "$DEPLOY_SHA" "deployed-$DEPLOY_SHA"
 
       - name: Register immutable task definition and deploy
         if: steps.current_release.outputs.current == 'true'
         env:
-          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
           INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
           # Normally EMPTY, and empty is the safe value: the deploy then refuses
