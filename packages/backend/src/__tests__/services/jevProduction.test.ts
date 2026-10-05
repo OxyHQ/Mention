@@ -33,7 +33,7 @@ describe('Mention production factory', () => {
     expect(identity).not.toHaveBeenCalled();
   });
   it('returns only the reviewed own native selection until the exact source deadline and isolates caller mutations', () => {
-    const deadline = Date.parse('2026-10-05T03:14:23.000Z');
+    const deadline = Date.parse('2026-10-05T05:21:15.000Z');
     const clock = vi.spyOn(Date, 'now').mockReturnValue(deadline - 1);
     const reviewed = approvalSource.reviewedMentionJevProduction();
     if (!reviewed) throw new Error('reviewed native source unexpectedly absent');
@@ -41,15 +41,27 @@ describe('Mention production factory', () => {
       credentialId: approvalSource.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' });
     expect(reviewed.ownerAccountId).toBe(approvalSource.MENTION_JEV_OWNER_ACCOUNT_ID);
     expect(reviewed.scope).toBe('native-original-public');
-    expect(reviewed.selection.idempotencyKey).toBe('mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231');
-    expect(reviewed.selection.postId).toBe('019fd378-8626-7df7-90ce-5c0629498e97');
+    expect(reviewed.selection.idempotencyKey).toBe('mention_jev_native_en_d5c4e4815e9bfb2b998af67bb7677011');
+    expect(reviewed.selection.postId).toBe('019fd378-8d12-70da-83ef-b2d39f86e192');
     expect(reviewed.release.supportedLanguages).toEqual(['en']); expect(reviewed.topics).toEqual([]);
+    expect(reviewed.selection.fingerprint).toBe('454831da03d69cfbfd312779c426078ff97b39f42f2a17466bd3f46ae04b121b');
+    expect(reviewed.selection.inputSha256).toBe('207a9c8fa2847e7263d6e8d525a951bca72d82bfb762aeb37cf546ca8762966a');
+    expect(reviewed.deploymentId).toBe('dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05');
+    expect(reviewed.priceVersionId).toBe('jev_scoped_price_20261004_01');
+    expect(reviewed.release.evaluationVersion).toBe('mention-native-en-onepost/2026-10-05.1');
+    expect(reviewed.reviews).toEqual({
+      "publishedSdk": "sha256:0ee091d3a02e11062089573a187dc018479d6e037c3ec090bf6d4ec1eb883d2d",
+      "privacyAndZdr": "sha256:dfa07321d19941a7d1fdb39d7bce78f143103afa1b3b3a77fd1975ec43670822",
+      "semanticIdentityAndRecovery": "sha256:a5750feaf69b6819b953b681d7892f0a641b873e14054a5c8f8a48bf407447d1",
+      "ownAuthorityAndEconomics": "sha256:480cbac3c098517f50ebeb19616bd7c6f3681be323219e76e4ab38792f04c7f6",
+      "exactPrivateRoute": "sha256:167e3679110b73e1c7ed6a07e74d9ac8f41e2e6a8d2d5fd26ab0709249506d58"
+});
     expect(Object.keys(reviewed.reviews).sort()).toEqual([...approvalSource.MENTION_NATIVE_JEV_CONTROLS].sort());
     expect(Object.values(reviewed.reviews).every(ref => /^sha256:[a-f0-9]{64}$/.test(ref))).toBe(true);
     expect(createProductionJevEvaluation()?.selectedOperation?.selection).toEqual(reviewed.selection);
     Object.assign(reviewed.selection, { postId: 'foreign-post', idempotencyKey: 'foreign-key' });
     Object.assign(reviewed.authority, { applicationId: 'borrowed-alia' });
-    expect(approvalSource.reviewedMentionJevProduction()?.selection.postId).toBe('019fd378-8626-7df7-90ce-5c0629498e97');
+    expect(approvalSource.reviewedMentionJevProduction()?.selection.postId).toBe('019fd378-8d12-70da-83ef-b2d39f86e192');
     expect(approvalSource.reviewedMentionJevProduction()?.authority.applicationId).toBe(approvalSource.MENTION_JEV_APPLICATION_ID);
     clock.mockReturnValue(deadline);
     expect(approvalSource.reviewedMentionJevProduction()).toBeUndefined();

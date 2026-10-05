@@ -1,0 +1,30 @@
+$ node ../../node_modules/vitest/vitest.mjs run src/__tests__/services/postClassification.test.ts src/__tests__/services/jevProduction.test.ts "--maxWorkers=1"
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/nate/Oxy/Mention/.worktrees/1572-native-second-source-20261005/packages/backend[39m
+
+ [32m✓[39m src/__tests__/services/postClassification.test.ts [2m([22m[2m56 tests[22m[2m)[22m[33m 21301[2mms[22m[39m
+   [32m✓[39m PostClassificationService — category classification [2m(7)[22m
+     [33m[2m✓[22m[39m classifies positive product feedback[33m 320[2mms[22m[39m
+   [32m✓[39m PostClassificationService — shadow fanout [2m(23)[22m
+     [33m[2m✓[22m[39m connects the reviewed native factory with baseline enabled=true while broader release gates remain closed[33m 354[2mms[22m[39m
+     [33m[2m✓[22m[39m connects the reviewed native factory with baseline enabled=false while broader release gates remain closed[33m 310[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers a durable own operation after restart with expired and zero new POST[33m 327[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers a durable own operation after restart with foreign-provider and zero new POST[33m 306[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers a durable own operation after restart with foreign-price and zero new POST[33m 302[2mms[22m[39m
+     [33m[2m✓[22m[39m does not quarantine unsent work when production approval expires during-claim[33m 723[2mms[22m[39m
+     [33m[2m✓[22m[39m continues the ordinary classifier when optional receipt selection fails[33m 554[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL selector waiting and continues the baseline without late receipt writes[33m 578[2mms[22m[39m
+     [33m[2m✓[22m[39m bounds real SQL row waiting and continues the baseline without late receipt writes[33m 540[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers missing usage in the existing cycle without evaluating the original claim again[33m 587[2mms[22m[39m
+     [33m[2m✓[22m[39m finishes canonical classification while a slow shadow evaluation is still pending[33m 464[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the worker after a hung evaluator and processes the next batch without retrying it[33m 1581[2mms[22m[39m
+     [33m[2m✓[22m[39m quarantines schema-invalid shadow output without using a legacy attempt[33m 461[2mms[22m[39m
+     [33m[2m✓[22m[39m releases, never quarantines, a claim whose deadline ran out before any evaluator call[33m 611[2mms[22m[39m
+     [33m[2m✓[22m[39m claims before synthetic inference, truncates only its input and never retries cost-uncertain work[33m 489[2mms[22m[39m
+ [32m✓[39m src/__tests__/services/jevProduction.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m74 passed[39m[22m[90m (74)[39m
+[2m   Start at [22m 07:16:22
+[2m   Duration [22m 28.29s[2m (tests 81%, setup 7%, transform 7%, import 5%)[22m
+
