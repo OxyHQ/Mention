@@ -23,13 +23,40 @@ beforeEach(() => { identity.mockReturnValue(true); token.mockResolvedValue('synt
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe('Mention production factory', () => {
-  it('has no production approval and never creates authority from environment or Alia', () => {
+  it('never creates authority from environment or Alia when source admission is absent', () => {
+    vi.spyOn(approvalSource, 'reviewedMentionJevProduction').mockReturnValue(undefined);
     expect(approvalSource.reviewedMentionJevProduction()).toBeUndefined();
     expect(createProductionJevEvaluation()).toBeUndefined();
     expect(identity).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
     vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
     expect(createProductionJevEvaluation()).toBeUndefined();
     expect(identity).not.toHaveBeenCalled();
+  });
+  it('returns only the reviewed own native selection until the exact source deadline and isolates caller mutations', () => {
+    const deadline = Date.parse('2026-10-05T03:14:23.000Z');
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(deadline - 1);
+    const reviewed = approvalSource.reviewedMentionJevProduction();
+    if (!reviewed) throw new Error('reviewed native source unexpectedly absent');
+    expect(reviewed.authority).toEqual({ applicationId: approvalSource.MENTION_JEV_APPLICATION_ID,
+      credentialId: approvalSource.MENTION_JEV_WORKLOAD_CREDENTIAL_ID, environment: 'production' });
+    expect(reviewed.ownerAccountId).toBe(approvalSource.MENTION_JEV_OWNER_ACCOUNT_ID);
+    expect(reviewed.scope).toBe('native-original-public');
+    expect(reviewed.selection.idempotencyKey).toBe('mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231');
+    expect(reviewed.selection.postId).toBe('019fd378-8626-7df7-90ce-5c0629498e97');
+    expect(reviewed.release.supportedLanguages).toEqual(['en']); expect(reviewed.topics).toEqual([]);
+    expect(Object.keys(reviewed.reviews).sort()).toEqual([...approvalSource.MENTION_NATIVE_JEV_CONTROLS].sort());
+    expect(Object.values(reviewed.reviews).every(ref => /^sha256:[a-f0-9]{64}$/.test(ref))).toBe(true);
+    expect(createProductionJevEvaluation()?.selectedOperation?.selection).toEqual(reviewed.selection);
+    Object.assign(reviewed.selection, { postId: 'foreign-post', idempotencyKey: 'foreign-key' });
+    Object.assign(reviewed.authority, { applicationId: 'borrowed-alia' });
+    expect(approvalSource.reviewedMentionJevProduction()?.selection.postId).toBe('019fd378-8626-7df7-90ce-5c0629498e97');
+    expect(approvalSource.reviewedMentionJevProduction()?.authority.applicationId).toBe(approvalSource.MENTION_JEV_APPLICATION_ID);
+    clock.mockReturnValue(deadline);
+    expect(approvalSource.reviewedMentionJevProduction()).toBeUndefined();
+    expect(createProductionJevEvaluation()).toBeUndefined();
+    clock.mockReturnValue(deadline + 1);
+    expect(approvalSource.reviewedMentionJevProduction()).toBeUndefined();
+    expect(token).not.toHaveBeenCalled();
   });
   it('does not create a client without the existing workload identity', () => {
     vi.spyOn(gates, 'isJevShadowReleased').mockReturnValue(true);
