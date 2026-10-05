@@ -176,6 +176,18 @@ function likeCall(id: number, postId: string): Record<string, unknown> {
   };
 }
 
+/**
+ * A tool call, read to its END. Over SSE the headers arrive before the tool has
+ * run, so the API call it makes is only certain once the body is consumed.
+ */
+async function callTool(
+  baseUrl: string,
+  message: Record<string, unknown>,
+  options: { sessionId?: string; token?: string } = {},
+): Promise<Record<string, unknown>> {
+  return rpcResult(await rpc(baseUrl, message, options));
+}
+
 function likeCallsFor(postId: string): ApiCall[] {
   return apiCalls.filter(
     (call) => call.method === "POST" && call.path === `/posts/${postId}/like`,
@@ -260,8 +272,8 @@ describe("Stateless Streamable HTTP across independent tasks", () => {
 
   test("a retried write gets the same idempotency key on whichever task serves it", async () => {
     const sessionId = await initialize(taskA.baseUrl);
-    await rpc(taskA.baseUrl, likeCall(3, "post-retried"), { sessionId });
-    await rpc(taskB.baseUrl, likeCall(3, "post-retried"), { sessionId });
+    await callTool(taskA.baseUrl, likeCall(3, "post-retried"), { sessionId });
+    await callTool(taskB.baseUrl, likeCall(3, "post-retried"), { sessionId });
 
     const writes = likeCallsFor("post-retried");
     expect(writes).toHaveLength(2);
@@ -275,9 +287,9 @@ describe("Stateless Streamable HTTP across independent tasks", () => {
     const otherClient = await initialize(taskA.baseUrl, OTHER_CLIENT_TOKEN);
     expect(new Set([first, second, otherClient]).size).toBe(3);
 
-    await rpc(taskB.baseUrl, likeCall(2, "post-reused-id"), { sessionId: first });
-    await rpc(taskA.baseUrl, likeCall(2, "post-reused-id"), { sessionId: second });
-    await rpc(taskB.baseUrl, likeCall(2, "post-reused-id"), {
+    await callTool(taskB.baseUrl, likeCall(2, "post-reused-id"), { sessionId: first });
+    await callTool(taskA.baseUrl, likeCall(2, "post-reused-id"), { sessionId: second });
+    await callTool(taskB.baseUrl, likeCall(2, "post-reused-id"), {
       sessionId: first,
       token: OTHER_CLIENT_TOKEN,
     });
