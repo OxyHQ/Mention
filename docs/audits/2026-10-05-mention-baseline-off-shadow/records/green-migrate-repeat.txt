@@ -1,0 +1,3 @@
+$ bun src/db/migrate.ts "--target-database=oxy_rehearsal_1519_a85824d90c5dcf6f"
+[01:48:17] [32mINFO[39m: [36mNo pending Postgres migrations[39m
+    [35mjournalEntries[39m: 61

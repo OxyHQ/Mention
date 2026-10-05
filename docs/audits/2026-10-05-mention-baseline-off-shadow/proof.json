@@ -1,0 +1,166 @@
+{
+  "sourceCommit": "f1fb265eee0febb5e0e90fb1afd839073a7d39aa",
+  "baseline": "c527a137eda1f5419179af452467262a23e79ab2",
+  "sources": [
+    {
+      "path": "packages/backend/src/services/PostClassificationService.ts",
+      "sha256": "ee2dc37b917a343c219aab115c84877f1c6889b577bda1987221eed8b2bce634"
+    },
+    {
+      "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
+      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
+      "sha256": "b9f6c07c4e95da755e57fa07ddb4d19e1b99f30d931e651ac0d1a3a77b1ef141"
+    },
+    {
+      "path": "packages/backend/src/services/contentClassification/jevProductionApproval.ts",
+      "sha256": "7c1041bbb8952b593a8daa4b67ca2aea9bc77815ae57391a1a5a866284c329c5"
+    },
+    {
+      "path": "packages/backend/src/runtime/schedulers.ts",
+      "sha256": "80411611fd9799c69bbec8679dba0a0b5a25fb2c47b0d335348f048cf1816711"
+    },
+    {
+      "path": "packages/backend/src/config/index.ts",
+      "sha256": "791ca7c7b52373b1e0aa25df766d5662d7f9f7c8983a434879132dbdd7a3a959"
+    },
+    {
+      "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
+      "sha256": "1231e97c2669c14f48ee0803469a9e82dfef7052408dcc7c487f9bc0e1de76c0"
+    },
+    {
+      "path": "packages/backend/src/utils/oxyInference.ts",
+      "sha256": "58e9934ecd4acd907719cbe70231c74d1b4c06c65762346301a72042a19742e7"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/baseline-lint.json",
+      "sha256": "0daad1ee3a04448143c7b6ac21ae4f0dd51a8967deb1f4a7d6dca02883001072"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/biome.log",
+      "sha256": "6f1968652a3554f7e02c25b27716ec011f930a9c94b8d3ae37469144b7b3eaba"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/current-lint.json",
+      "sha256": "0070c66c5e302281e9ed69d85d9d3e9e48c20b4cceb5dd6e12ecf26a8dadce26"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/first-red-focused.txt",
+      "sha256": "c5baff68b439a38944f8946d64856bd9fae7ac92c849da761cfdfd604387e2cc"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/first-red-migrate-fresh.txt",
+      "sha256": "9fd6509d7ef89c60445b11cd8d0d9593b58c4f391bf4b77b287aa16926ffecd2"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/first-red-migrate-repeat.txt",
+      "sha256": "4d7f188742e4bfa7bd08cef556e24782097391926f762e4c188bdc725fc76789"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/frozen-test.ts",
+      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/green-focused.txt",
+      "sha256": "b5d507aae412d95c810344cd1c932b0ffeb2cf1001e4744683d0eba9fb809157"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/green-migrate-fresh.txt",
+      "sha256": "f81f3ff73a249b2cbfac7e436f5b8682862d2c373dbccfed75ef35cb14851012"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/green-migrate-repeat.txt",
+      "sha256": "26fe1265f177b229b30aabc9625650c8f298f39f48f57148dd73502fe574a8b3"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/green.log",
+      "sha256": "4ed67643ae1f065e49edfca9335910e83c01f35776a3cb1a5405e1dd28d2b951"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/lint-equivalence.json",
+      "sha256": "74d20a485928fbc95c17cd3631eba608e95497d0c3300324fbba08325ef3f238"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/owned-pg.py",
+      "sha256": "02ae8a8d214d5f81b41bf86ad335c93039c6e004dadfd5c1a6700618ad355cab"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/pg-absence.json",
+      "sha256": "483b43591f499aa6119a36c23cce3b6811e2b12d2beacc81381eda8182a73de7"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/red-corrected.log",
+      "sha256": "3c1505a3615fe599641802f3b498034d15f1157f1b4ddd009a0d7148ac80680b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/red-focused.txt",
+      "sha256": "62dbb0197dacd6f7ae076be8c63f52b944296c208e888cf981e023187fcf4ad1"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/red-migrate-fresh.txt",
+      "sha256": "a99a5e27cccdfae2abce2130709da47a149e274da51ad8ed1b7c13b3921a2a96"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/red-migrate-repeat.txt",
+      "sha256": "6e72308ee2cec703f028fb7e42d7a1b3c1d3acfbbea13a7f22645d5de6775ce3"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/red.log",
+      "sha256": "0b38fe3daae1e4e542949d22cf1c95ab7be24aaf4bdc22c393a7499b7a2d0118"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/shared-build.log",
+      "sha256": "5ac71a99decf5b92dbfe798066cbe8ea317395f8f764f5a8879fd3511ca99454"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/types-final.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/types.log",
+      "sha256": "31535fcf0a7e763639ffab4e7c9e4b92e3bee961fe93296f65c382e3e9453e68"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/backend/dist/src/services/PostClassificationService.js",
+      "sha256": "eaeb269a97a5075cf71ecf0e6f38a2217bdf9e8ee05510ce9eb942d1f0f1b52e"
+    }
+  ],
+  "validation": {
+    "sameFrozenFixture": true,
+    "baseline": {
+      "passed": 50,
+      "failed": 6
+    },
+    "final": {
+      "passed": 56,
+      "failed": 0
+    },
+    "sharedBuildExit": 0,
+    "backendTypesExit": 0,
+    "backendBuildExit": 0,
+    "baselineLintDiagnosticsEqual": 4,
+    "ownedPostgresAbsent": [
+      2370149,
+      2371213,
+      2372023
+    ]
+  },
+  "limitations": [
+    "First RED accidentally changed one unrelated expectation; retained separately; corrected identical fixture is authoritative RED6/GREEN56.",
+    "First typecheck failed because fresh checkout shared-types had not been built; dependency build then normal types/build passed.",
+    "Four existing test lint diagnostics unchanged; no new runtime diagnostics.",
+    "Synthetic own authority and HTTP response with actual production factory, published SDK and owned PostgreSQL; no provider/AWS/live calls.",
+    "Production approval getter remains undefined. Source approval and five root-reviewed references are still required for admission.",
+    "Baseline-disabled source-off worker may run bounded read-only receipt recovery; it does not enumerate baseline posts or enable classification."
+  ]
+}

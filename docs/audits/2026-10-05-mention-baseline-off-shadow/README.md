@@ -1,0 +1,9 @@
+# Native shadow with baseline classification disabled
+
+The deployed configuration keeps `POST_CLASSIFICATION_ENABLED` false. The scheduler now permits only a factory-reviewed selected native operation or durable own receipt recovery while that global flag is off. It never runs `markEmptyPosts` or the baseline batch in this mode. A constructor-supplied shadow binding cannot open admission; the existing production-factory identity, privacy/fingerprint checks, durable claim and expiry guards remain authoritative.
+
+The same frozen worker fixture fails six cases against c527 and passes all 56 with this change. Actual factory + published SDK + owned PostgreSQL cover baseline on/off, exactly one selected POST, duplicate prevention, untouched unrelated empty/federated posts, scheduler startup, source-off/expired restart GET-only recovery, foreign/revoked receipt refusal, and unreviewed constructor rejection. No production operation ran. Getter remains undefined.
+
+Backend types and build pass after building the fresh checkout shared-types dependency. Initial missing-output diagnostics are retained. Baseline/current Biome diagnostics are identical: four existing test diagnostics, no new runtime diagnostics. The first RED had one accidental unrelated expectation edit; only the corrected RED6/50 and final56/0 use the identical frozen fixture. All three owned PostgreSQL processes are stopped.
+
+The production getter may automatically claim the selected operation on the existing leader worker's first 30-second cycle and subsequent five-minute cycles. Root must capture Mention/Oxy/Kaana original-key baselines before activation and reconcile the same key afterwards; do not invoke a second manual worker or retry provider dispatch after an unknown outcome. Source-off recovery reads known own receipts only and does not restore deleted/private content or alter ranking.
