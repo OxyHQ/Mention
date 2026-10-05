@@ -75,6 +75,15 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
+  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])('rejects canonical preset %s through the legacy hex write', async (primaryColor) => {
+    await request(app).put('/profile/settings').send({ appearance: { primaryColor } }).expect(400);
+  });
+
+  it('preserves basic custom hex for a free account', async () => {
+    await request(app).put('/profile/settings').send({ appearance: { primaryColor: '#102030' } }).expect(200);
+    expect((await getSettings()).appearance).toMatchObject({ primaryColor: '#102030' });
+  });
+
   it('persists a valid postReadMoreAction value', async () => {
     await request(app)
       .put('/profile/settings')

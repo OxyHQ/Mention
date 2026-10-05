@@ -8,6 +8,7 @@ import {
   type AppColorName,
   type ThemeMode,
 } from '@oxy.so/bloom/theme';
+import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { useThemeSourceStore, type ThemeSource } from '@/stores/themeSourceStore';
 import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlement';
 
@@ -55,6 +56,7 @@ export function useAccountThemeSync(): void {
     void hydrate();
   }, [hydrate]);
 
+  const viewer = useMentionColorViewer();
   const themePreference = user?.themePreference;
 
   useEffect(() => {
@@ -83,20 +85,12 @@ export function useAccountThemeSync(): void {
   // local storage paints on cold boot before any account theme lands, and under
   // the `app` source it is the only thing that ever paints.
   //
-  // Guarded on the resolved user object rather than on `isAuthenticated` alone,
-  // because entitlement is READ FROM IT: acting while it is still undefined would
-  // read `isPremium` as false and strip a paying subscriber's theme on every cold
-  // boot, in the window before the session resolves.
+  // Missing authority, sign-out and account switches fall back to a free preset.
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    const viewer = {
-      username: user.username,
-      isPremium: (user as { premium?: { isPremium?: boolean } }).premium?.isPremium ?? false,
-    };
     if (!isColorEntitled(colorPreset, viewer)) {
       setColorPreset(APP_DEFAULT_COLOR_PRESET);
     }
-  }, [isAuthenticated, user, colorPreset, setColorPreset]);
+  }, [isAuthenticated, user, colorPreset, setColorPreset, viewer]);
 }
 
 interface ThemeControls {
@@ -118,6 +112,7 @@ interface ThemeControls {
 export function useThemeControls(): ThemeControls {
   const { oxyServices, user, canUsePrivateApi } = useAuth();
   const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
+  const viewer = useMentionColorViewer();
   const storedSource = useThemeSourceStore((state) => state.source);
   const setSource = useThemeSourceStore((state) => state.setSource);
   // Without a usable session there is no account theme to follow or write to, so
@@ -148,12 +143,13 @@ export function useThemeControls(): ThemeControls {
 
   const changeColorPreset = useCallback(
     async (nextPreset: AppColorName) => {
+      if (!isColorEntitled(nextPreset, viewer)) throw new Error('Color is not available for this account');
       setColorPreset(nextPreset);
       if (source === 'account') {
         await persistAccountTheme({ mode, colorPreset: nextPreset });
       }
     },
-    [setColorPreset, source, persistAccountTheme, mode],
+    [setColorPreset, source, persistAccountTheme, mode, viewer],
   );
 
   const changeThemeSource = useCallback(

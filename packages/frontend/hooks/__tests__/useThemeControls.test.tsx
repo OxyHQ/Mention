@@ -41,6 +41,8 @@ jest.mock('@/stores/themeSourceStore', () => ({
     select({ source: mockSource, setSource: mockSetSource, hydrated: true, hydrate: mockHydrate }),
 }));
 
+jest.mock('../useMentionColorViewer', () => ({ useMentionColorViewer: () => ({ mentionMono: mockEntitled }) }));
+
 jest.mock('@/lib/colorEntitlement', () => ({
   APP_DEFAULT_COLOR_PRESET: 'teal',
   isColorEntitled: () => mockEntitled,

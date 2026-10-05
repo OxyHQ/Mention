@@ -22,7 +22,7 @@ import {
 export interface ColorViewer {
   /** The viewer's handle, in any case. Absent for a signed-out viewer. */
   username?: string | null;
-  isPremium: boolean;
+  mentionMono: boolean;
 }
 
 /**
@@ -48,10 +48,17 @@ export function entitledColorNames(viewer: ColorViewer): readonly AppColorName[]
   return [
     ...FREE_COLOR_NAMES,
     ...HANDLE_COLOR_NAMES.filter((name) => name === handle),
-    ...(viewer.isPremium ? PREMIUM_COLOR_NAMES : []),
+    ...(viewer.mentionMono ? PREMIUM_COLOR_NAMES.filter(name => name === 'mono') : []),
   ];
 }
 
 export function isColorEntitled(name: AppColorName, viewer: ColorViewer): boolean {
   return entitledColorNames(viewer).includes(name);
+}
+
+/** Oxy resolves individual and configured product sources; generic premium is not authority. */
+export function colorViewerForUser(user: { username?: string | null; personalization?: { mentionMono?: { allowed: boolean; expiresAt: string | null } } } | null | undefined, now = Date.now()): ColorViewer {
+  const grant = user?.personalization?.mentionMono;
+  const expires = grant?.expiresAt === null ? Infinity : Date.parse(grant?.expiresAt ?? '');
+  return { username: user?.username, mentionMono: grant?.allowed === true && expires > now };
 }
