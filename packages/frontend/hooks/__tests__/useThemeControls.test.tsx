@@ -99,6 +99,14 @@ describe('useThemeControls', () => {
     expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
+  it('refuses a colour the viewer is not entitled to, without applying or persisting it', async () => {
+    mockEntitled = false;
+    mount();
+    await expect(controls.changeColorPreset('mono')).rejects.toThrow('Color is not available for this account');
+    expect(mockSetColorPreset).not.toHaveBeenCalled();
+    expect(mockUpdateMe).not.toHaveBeenCalled();
+  });
+
   it('writes the portable theme to the account when signed in on the account source', async () => {
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
     mount();

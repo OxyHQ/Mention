@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 43.03,
-      "covered": 11651,
-      "total": 27072
+      "pct": 43.7,
+      "covered": 11769,
+      "total": 26926
     },
     "branches": {
-      "pct": 37.57,
-      "covered": 7338,
-      "total": 19530
+      "pct": 38.2,
+      "covered": 7422,
+      "total": 19429
     },
     "functions": {
-      "pct": 38.11,
-      "covered": 2629,
-      "total": 6897
+      "pct": 38.66,
+      "covered": 2661,
+      "total": 6883
     },
     "lines": {
-      "pct": 43.77,
-      "covered": 10590,
-      "total": 24194
+      "pct": 44.46,
+      "covered": 10695,
+      "total": 24050
     }
   },
   "pins": {
@@ -186,8 +186,8 @@
       "lines": 100
     },
     "hooks/useAccountTheme.ts": {
-      "statements": 96,
-      "branches": 85,
+      "statements": 98,
+      "branches": 86,
       "functions": 100,
       "lines": 97
     },
@@ -406,6 +406,12 @@
       "branches": 93,
       "functions": 100,
       "lines": 100
+    },
+    "hooks/useMentionColorViewer.ts": {
+      "statements": 93,
+      "branches": 92,
+      "functions": 100,
+      "lines": 91
     },
     "hooks/useMentionNode.ts": {
       "statements": 0,
@@ -1398,8 +1404,8 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 81,
-      "branches": 51,
+      "statements": 82,
+      "branches": 53,
       "functions": 70,
       "lines": 87
     },
