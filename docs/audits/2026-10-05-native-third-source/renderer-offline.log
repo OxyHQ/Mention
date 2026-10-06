@@ -1,0 +1,11 @@
+test_changed_review_bytes_denied (test_prepare.RenderTests.test_changed_review_bytes_denied) ... ok
+test_exact_tuple_preserves_semantic_version_and_source_prefix (test_prepare.RenderTests.test_exact_tuple_preserves_semantic_version_and_source_prefix) ... ok
+test_fixed_expiry_boundary_denied (test_prepare.RenderTests.test_fixed_expiry_boundary_denied) ... ok
+test_freeze_and_proposal_drift_denied (test_prepare.RenderTests.test_freeze_and_proposal_drift_denied) ... ok
+test_missing_and_placeholder_reviews_denied (test_prepare.RenderTests.test_missing_and_placeholder_reviews_denied) ... ok
+test_unaccepted_or_wrong_root_input_denied (test_prepare.RenderTests.test_unaccepted_or_wrong_root_input_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.005s
+
+OK
