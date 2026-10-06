@@ -86,6 +86,17 @@ export const publicQueryKeys = {
  */
 export const viewerQueryKeys = {
   all: (viewerId: ViewerId) => ['viewer', viewerCacheId(viewerId)] as const,
+  /**
+   * The viewer's central Mention personalization permission (mono colour).
+   * Keyed by session and private-API availability too, so an account or session
+   * change never reuses a cached permission.
+   */
+  mentionPersonalization: (viewerId: ViewerId, sessionId: string | null | undefined, canUsePrivateApi: boolean) => [
+    ...viewerQueryKeys.all(viewerId),
+    'mention-personalization',
+    sessionId ?? null,
+    canUsePrivateApi,
+  ] as const,
   postsRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'posts',

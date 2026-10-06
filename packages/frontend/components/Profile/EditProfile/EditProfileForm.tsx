@@ -11,6 +11,7 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { useProfileData } from '@/hooks/useProfileData';
 import { entitledColorNames } from '@/lib/colorEntitlement';
+import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { BannerSection } from './BannerSection';
 import { PinnedMediaSection } from './PinnedMediaSection';
@@ -28,11 +29,10 @@ export function EditProfileForm() {
   const { colors } = useTheme();
   const { saveColor } = useAppColorSave();
 
-  const authUserRecord = authUser as { premium?: { isPremium?: boolean } } | null;
-  const isPremium = authUserRecord?.premium?.isPremium ?? false;
+  const viewer = useMentionColorViewer();
   const visibleColors = useMemo(
-    () => entitledColorNames({ username: authUser?.username, isPremium }),
-    [authUser?.username, isPremium],
+    () => entitledColorNames(viewer),
+    [viewer],
   );
 
   if (!isAuthenticated) {

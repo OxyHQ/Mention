@@ -299,6 +299,11 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['appearance.themeMode'] = appearance.themeMode;
       }
       if (typeof appearance.primaryColor === 'string' && appearance.primaryColor.trim()) {
+        // This legacy field stores a basic custom hex, never a Bloom identity or
+        // premium preset name. Canonical names are validated by Oxy updateMe.
+        if (!/^#[0-9a-f]{6}$/i.test(appearance.primaryColor.trim())) {
+          return sendErrorResponse(res, 400, 'Bad Request', 'appearance.primaryColor must be a six-digit hex color');
+        }
         update['appearance.primaryColor'] = appearance.primaryColor.trim();
       } else if (appearance.primaryColor === null) {
         unset['appearance.primaryColor'] = '';

@@ -3,6 +3,8 @@ import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core/logger';
+import { isColorEntitled } from '@/lib/colorEntitlement';
+import { useMentionColorViewer } from '@/hooks/useMentionColorViewer';
 import { queryClient } from '@/lib/queryClient';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useThemeSourceStore } from '@/stores/themeSourceStore';
@@ -22,9 +24,11 @@ export function useAppColorSave() {
   const { mode, setColorPreset } = useBloomTheme();
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const source = useThemeSourceStore((state) => state.source);
+  const viewer = useMentionColorViewer();
   const [saving, setSaving] = useState(false);
 
   const saveColor = useCallback(async (name: AppColorName) => {
+    if (!isColorEntitled(name, viewer)) throw new Error('Color is not available for this account');
     setSaving(true);
     setColorPreset(name);
     const hex = APP_COLOR_PRESETS[name].hex;
@@ -67,7 +71,7 @@ export function useAppColorSave() {
     } finally {
       setSaving(false);
     }
-  }, [oxyServices, setColorPreset, updateMySettings, source, mode, user]);
+  }, [oxyServices, setColorPreset, updateMySettings, source, mode, user, viewer]);
 
   return { saveColor, saving };
 }

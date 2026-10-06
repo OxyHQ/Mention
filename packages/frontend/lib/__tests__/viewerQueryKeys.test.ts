@@ -23,6 +23,8 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.savedPostsRoot(viewerId),
       viewerQueryKeys.savedPosts(viewerId, 'query', 'work'),
       viewerQueryKeys.bookmarkFolders(viewerId),
+      viewerQueryKeys.mentionPersonalization(viewerId, 'session-1', true),
+      viewerQueryKeys.mentionPersonalization(viewerId, undefined, false),
       viewerQueryKeys.listsRoot(viewerId),
       viewerQueryKeys.ownedLists(viewerId),
       viewerQueryKeys.followedLists(viewerId),
@@ -367,5 +369,13 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.jobApplicationNotes('viewer-a', 'job-1', 'app-1')).not.toEqual(
       viewerQueryKeys.jobApplicationNotes('viewer-a', 'job-1', 'app-2'),
     );
+  });
+});
+
+describe('Mention personalization key', () => {
+  it('separates sessions and private-API availability, and keys a missing session as null', () => {
+    expect(viewerQueryKeys.mentionPersonalization('a', 'session-a', true)).toEqual(['viewer', 'a', 'mention-personalization', 'session-a', true]);
+    expect(viewerQueryKeys.mentionPersonalization('a', undefined, false)).toEqual(['viewer', 'a', 'mention-personalization', null, false]);
+    expect(viewerQueryKeys.mentionPersonalization('a', 'session-b', true)).not.toEqual(viewerQueryKeys.mentionPersonalization('a', 'session-a', true));
   });
 });
