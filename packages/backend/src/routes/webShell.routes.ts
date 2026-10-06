@@ -32,11 +32,9 @@
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Router, Request, Response } from 'express';
-import { and, eq } from 'drizzle-orm';
 import { config } from '../config';
-import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
-import { posts } from '../db/schema/posts';
-import { ELIGIBLE_REPLY_MATCH } from '../services/PostRecentReplierService';
+import { loadPostRecord } from '../db/posts/postRepository';
+import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
@@ -285,10 +283,8 @@ const SEO_REPLY_LIMIT = 5;
  */
 async function postComments(postId: string): Promise<Record<string, unknown>[]> {
   try {
-    const rows = (await findPostRecords(
-      and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH),
-      { orderBy: CHRONO_DESC, limit: SEO_REPLY_LIMIT },
-    )).filter((row) => !requiresContentWarning(row));
+    const rows = (await loadNewestEligibleReplies(postId, SEO_REPLY_LIMIT))
+      .filter((row) => !requiresContentWarning(row));
     if (!rows.length) return [];
 
     const authorIds = [...new Set(rows.map((row) => String(row.oxyUserId)))];

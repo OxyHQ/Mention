@@ -194,7 +194,7 @@
     "jest": "~30.5.1",
     "jest-expo": "~57.0.5",
     "react-test-renderer": "19.2.3",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.3",
     "typescript": "catalog:"
   },
