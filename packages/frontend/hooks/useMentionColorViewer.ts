@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { colorViewerForUser } from '@/lib/colorEntitlement';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /** Private, non-persisted capability read. Account/session changes never reuse permission. */
 export function useMentionColorViewer() {
@@ -13,7 +14,7 @@ export function useMentionColorViewer() {
     return () => clearInterval(timer);
   }, [user?.id, activeSessionId]);
   const query = useQuery({
-    queryKey: ['mention-personalization', user?.id, activeSessionId, canUsePrivateApi],
+    queryKey: viewerQueryKeys.mentionPersonalization(user?.id, activeSessionId, canUsePrivateApi),
     enabled: canUsePrivateApi && !!user?.id && !!activeSessionId,
     queryFn: async () => {
       const subject = user!.id;
