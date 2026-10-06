@@ -21,7 +21,7 @@ describe('Mention capability read isolation', () => {
   afterEach(() => { act(() => renderer?.unmount()); jest.useRealTimers(); });
   it('keys private reads by account and session, excludes persisted capability cache, and checks response ownership', async () => {
     act(() => { renderer = TestRenderer.create(<Probe />); });
-    expect(mockOptions.queryKey).toEqual(['mention-personalization', 'a', 'session-a', true]);
+    expect(mockOptions.queryKey).toEqual(['viewer', 'a', 'mention-personalization', 'session-a', true]);
     expect(mockOptions.gcTime).toBe(0);
     mockMe.mockResolvedValue({ id: 'b' });
     await expect(mockOptions.queryFn()).rejects.toThrow('subject changed');
@@ -29,7 +29,7 @@ describe('Mention capability read isolation', () => {
     mockQuery = { isError: false, data: { id: 'a', personalization: { mentionMono: { allowed: true, expiresAt: null } } } };
     mockAuth = { user: { id: 'b', username: 'bea' }, activeSessionId: 'session-b', canUsePrivateApi: true };
     act(() => renderer.update(<Probe />));
-    expect(mockOptions.queryKey).toEqual(['mention-personalization', 'b', 'session-b', true]);
+    expect(mockOptions.queryKey).toEqual(['viewer', 'b', 'mention-personalization', 'session-b', true]);
     expect(viewer.mentionMono).toBe(false);
   });
   it('drops granted mono at expiry and on cancellation/error/sign-out', () => {
