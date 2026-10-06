@@ -45,7 +45,8 @@ jest.mock('../useMentionColorViewer', () => ({ useMentionColorViewer: () => ({ m
 
 jest.mock('@/lib/colorEntitlement', () => ({
   APP_DEFAULT_COLOR_PRESET: 'teal',
-  isColorEntitled: () => mockEntitled,
+  // The free default is always entitled; anything else follows the viewer.
+  isColorEntitled: (preset: string) => preset === 'teal' || mockEntitled,
 }));
 
 let controls: ReturnType<typeof useThemeControls>;
@@ -190,4 +191,48 @@ describe('useAccountThemeSync', () => {
     mountSync();
     expect(mockSetColorPreset).toHaveBeenCalledWith('teal');
   });
+
+  describe('while the permission read is pending', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    function render() { act(() => { renderer = TestRenderer.create(<SyncProbe />); }); }
+    function rerender() { act(() => { renderer.update(<SyncProbe />); }); }
+    beforeEach(() => {
+      mockSource = 'app';
+      mockColorPreset = 'oxy';
+      mockEntitled = false;
+      mockAuth = { canUsePrivateApi: true, isAuthenticated: true, user: { id: 'ada-id', username: 'ada' } };
+    });
+
+    it('withholds the saved preset, then restores it once the permission arrives', () => {
+      render();
+      expect(mockSetColorPreset).toHaveBeenLastCalledWith('teal');
+      mockColorPreset = 'teal'; rerender();
+      mockEntitled = true; rerender();
+      expect(mockSetColorPreset).toHaveBeenLastCalledWith('oxy');
+    });
+
+    it('keeps the free preset when the permission is denied', () => {
+      render();
+      mockColorPreset = 'teal'; rerender(); rerender();
+      expect(mockSetColorPreset.mock.calls).toEqual([['teal']]);
+    });
+
+    it('never restores over a newer selection', async () => {
+      render();
+      mockColorPreset = 'teal'; rerender();
+      mount();
+      await act(() => controls.changeColorPreset('teal'));
+      mockEntitled = true; rerender();
+      expect(mockSetColorPreset).not.toHaveBeenCalledWith('oxy');
+    });
+
+    it("never restores one account's preset for another account", () => {
+      render();
+      mockColorPreset = 'teal';
+      mockAuth = { canUsePrivateApi: true, isAuthenticated: true, user: { id: 'bob-id', username: 'bob' } };
+      mockEntitled = true; rerender();
+      expect(mockSetColorPreset).not.toHaveBeenCalledWith('oxy');
+    });
+  });
 });
+

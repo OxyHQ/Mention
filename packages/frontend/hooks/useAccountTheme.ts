@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
@@ -19,6 +19,12 @@ import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlemen
  */
 type AccountTheme = NonNullable<User['themePreference']>;
 type PortableThemeMode = AccountTheme['mode'];
+
+/**
+ * Bumped by every explicit preset choice, so a preset withheld while authority
+ * was unknown is never restored over a newer selection.
+ */
+let presetSelectionEpoch = 0;
 
 function isAppColorName(value: string): value is AppColorName {
   return Object.prototype.hasOwnProperty.call(APP_COLOR_PRESETS, value);
@@ -86,9 +92,29 @@ export function useAccountThemeSync(): void {
   // the `app` source it is the only thing that ever paints.
   //
   // Missing authority, sign-out and account switches fall back to a free preset.
+  // While the permission read is still pending that fallback is temporary: the
+  // account's own choice is withheld, not discarded, and comes back once the
+  // read confirms it — for the same account, and only if nothing newer was
+  // chosen meanwhile. Without this a paying viewer lost a saved preset on every
+  // cold start, since the account-theme effect does not rerun on authority.
+  const withheld = useRef<{ userId: string; preset: AppColorName; epoch: number } | null>(null);
   useEffect(() => {
     if (!isColorEntitled(colorPreset, viewer)) {
+      withheld.current = user?.id && isAppColorName(colorPreset)
+        ? { userId: user.id, preset: colorPreset, epoch: presetSelectionEpoch }
+        : null;
       setColorPreset(APP_DEFAULT_COLOR_PRESET);
+      return;
+    }
+    const held = withheld.current;
+    if (!held) return;
+    if (held.userId !== user?.id || held.epoch !== presetSelectionEpoch || colorPreset !== APP_DEFAULT_COLOR_PRESET) {
+      withheld.current = null;
+      return;
+    }
+    if (isColorEntitled(held.preset, viewer)) {
+      withheld.current = null;
+      setColorPreset(held.preset);
     }
   }, [isAuthenticated, user, colorPreset, setColorPreset, viewer]);
 }
@@ -144,6 +170,7 @@ export function useThemeControls(): ThemeControls {
   const changeColorPreset = useCallback(
     async (nextPreset: AppColorName) => {
       if (!isColorEntitled(nextPreset, viewer)) throw new Error('Color is not available for this account');
+      presetSelectionEpoch += 1;
       setColorPreset(nextPreset);
       if (source === 'account') {
         await persistAccountTheme({ mode, colorPreset: nextPreset });
