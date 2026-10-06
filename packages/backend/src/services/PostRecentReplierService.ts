@@ -42,6 +42,8 @@ import {
 } from '@oxy.so/db';
 import { POST_RECENT_REPLIER_LIMIT, postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 
 /** Attempts before a projection repair gives up and logs. */
@@ -96,6 +98,18 @@ export const ELIGIBLE_REPLY_MATCH = and(
   isNotNull(posts.oxyUserId),
   ne(posts.oxyUserId, ''),
 );
+
+/**
+ * A post's newest {@link ELIGIBLE_REPLY_MATCH eligible} replies, as full records.
+ * Eligibility is only the floor: a caller showing them still applies its own
+ * safety and audience rules.
+ */
+export async function loadNewestEligibleReplies(postId: string, limit: number): Promise<PostRecord[]> {
+  return findPostRecords(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH), {
+    orderBy: CHRONO_DESC,
+    limit,
+  });
+}
 
 /**
  * The authoritative ≤3, recomputed from the replies themselves.

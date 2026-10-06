@@ -43,6 +43,15 @@ import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 const LINKIFY_KINDS = ['mentionDisplay', 'federatedHandle', 'url', 'hashtag', 'cashtag'] as const;
 
 /**
+ * A linkified span. `unverified` marks a profile link read out of the
+ * characters — a typed `@user@instance`, a pasted profile URL — rather than one
+ * hydration resolved to an account. Nobody has checked that such an account
+ * exists, so it is a link a reader may follow but a crawler should not: each one
+ * naming nobody was a page search engines found and recorded as a 404.
+ */
+export type LinkifyEntity = TextEntity & { unverified?: true };
+
+/**
  * A URL that names a profile on THIS instance, re-read as the mention it is.
  *
  * Somebody who pastes `https://mention.earth/@alice` into a post has written
@@ -71,7 +80,8 @@ const LINKIFY_KINDS = ['mentionDisplay', 'federatedHandle', 'url', 'hashtag', 'c
  * same `displayName || handle` fallback hydration applies when a user has no
  * display name, so the two agree.
  */
-function asOwnProfileMention(entity: TextEntity): TextEntity {
+function asOwnProfileMention(entity: TextEntity): LinkifyEntity {
+  if (entity.kind === 'federatedHandle') return { ...entity, unverified: true };
   if (entity.kind !== 'url') return entity;
 
   // Punctuation that merely trailed the URL is not part of it. Cutting the span
@@ -91,6 +101,7 @@ function asOwnProfileMention(entity: TextEntity): TextEntity {
     end: entity.start + url.length,
     value: handle,
     label: `@${handle}`,
+    unverified: true,
   };
 }
 
@@ -101,7 +112,7 @@ function asOwnProfileMention(entity: TextEntity): TextEntity {
  * so the renderer walks the list emitting `text.slice(cursor, start)` and then
  * the entity.
  */
-export function scanLinkifyEntities(text: string): TextEntity[] {
+export function scanLinkifyEntities(text: string): LinkifyEntity[] {
   return scanTextEntities(text, { kinds: LINKIFY_KINDS }).map(asOwnProfileMention);
 }
 

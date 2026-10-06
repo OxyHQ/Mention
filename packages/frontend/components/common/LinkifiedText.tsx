@@ -35,6 +35,14 @@ function stopAtLink(event: { stopPropagation(): void }): void {
   event.stopPropagation();
 }
 
+/**
+ * `rel="nofollow"` on the web anchor, for a profile link nobody has verified
+ * (see `LinkifyEntity.unverified`). Set on the `Text` itself: `Link asChild`
+ * hands its own `rel` to the child as a bare prop, and react-native-web writes
+ * only `hrefAttrs.rel` to the `<a>`. Native ignores it.
+ */
+const NOFOLLOW = { hrefAttrs: { rel: 'nofollow' } } as object;
+
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs.
 // In-app destinations are expo-router `Link`s — on web, real `<a href>`s that
 // a crawler follows and a reader can open in a new tab.
@@ -45,9 +53,9 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
     // Flattened: a `Link asChild` merges its own props into the link's `Text`,
     // and that merge cannot take a style array.
     const flatLinkStyle = StyleSheet.flatten(linkStyle);
-    const linkText = (href: Href, label: React.ReactNode, linkKey?: string) => (
+    const linkText = (href: Href, label: React.ReactNode, linkKey?: string, unverified?: boolean) => (
       <Link key={linkKey} href={href} push asChild onPress={stopAtLink}>
-        <Text className="text-primary" style={flatLinkStyle}>{label}</Text>
+        <Text className="text-primary" style={flatLinkStyle} {...(unverified ? NOFOLLOW : null)}>{label}</Text>
       </Link>
     );
 
@@ -85,7 +93,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
         elements.push(
           <ProfileHoverCard key={`m-${key++}`} username={mentionHandle}>
-            {mentionHandle ? linkText(`/@${mentionHandle}`, entity.label) : (
+            {mentionHandle ? linkText(`/@${mentionHandle}`, entity.label, undefined, entity.unverified) : (
               <Text className="text-primary" style={linkStyle}>{entity.label}</Text>
             )}
           </ProfileHoverCard>
@@ -95,7 +103,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         // normalization, and nothing inferred about which instance it is on.
         elements.push(
           <ProfileHoverCard key={`f-${key++}`} username={entity.value}>
-            {linkText(`/@${entity.value}`, entity.raw)}
+            {linkText(`/@${entity.value}`, entity.raw, undefined, entity.unverified)}
           </ProfileHoverCard>
         );
       } else if (entity.kind === 'url') {

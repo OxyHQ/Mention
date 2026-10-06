@@ -93,6 +93,8 @@ describe('LinkifiedText scan — a profile link on our own instance', () => {
     // `value` is what the profile route is built from; `label` is what is shown.
     expect(entity.value).toBe('alice');
     expect(entity.label).toBe('@alice');
+    // Nobody checked that alice exists, so crawlers are told not to follow it.
+    expect(entity.unverified).toBe(true);
   });
 
   it('covers exactly the URL, so the prose either side is untouched', () => {

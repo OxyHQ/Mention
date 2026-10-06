@@ -107,6 +107,24 @@ describe('LinkifiedText', () => {
     });
 
     it.each([
+        ['a typed federated handle', 'hi @nobody@nowhere.example', '@nobody@nowhere.example', 'nofollow'],
+        ['a hydrated mention', 'hi [@Nate](nate)', 'Nate', undefined],
+        ['a hashtag', 'hey #expo', '#expo', undefined],
+    ])('tells crawlers whether to follow %s', (_label, text, label, rel) => {
+        // A typed handle names an account nobody checked exists; each one naming
+        // nobody was a page Google crawled and recorded as a 404.
+        let renderer: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            renderer = TestRenderer.create(<LinkifiedText text={text} />);
+        });
+        if (!renderer) throw new Error('render produced no tree');
+        const link = renderer.root.find(
+            (node) => String(node.type) === 'Text' && node.props.children === label,
+        );
+        expect(link.props.hrefAttrs?.rel).toBe(rel);
+    });
+
+    it.each([
         [
             'an https URL',
             'Read https://example.com/articles/a-very…',
