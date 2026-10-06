@@ -488,7 +488,6 @@ export function mapPostOg(
   const createdAt = post.metadata?.createdAt;
   const updatedAt = post.metadata?.updatedAt;
   const lang = post.content?.textLang || post.metadata?.language;
-  const authorUrl = handle ? `${WEB_ORIGIN}/@${handlePathSegment(handle)}` : undefined;
   const snippet = bodyText ? titleSnippet(bodyText) : '';
 
   const images = media
@@ -500,6 +499,9 @@ export function mapPostOg(
     .map((item) => ({
       '@type': 'VideoObject',
       name: snippet || `Video by ${author} on ${brand}`,
+      // Required by Google's video results. The author's own words about the
+      // clip first, then the post around it, then who posted it.
+      description: (item.alt?.trim() || bodyText || `A video posted by ${author} (${authorHandle}) on ${brand}.`).slice(0, 500),
       contentUrl: item.url,
       thumbnailUrl: item.posterUrl || item.thumbUrl,
       ...(createdAt ? { uploadDate: createdAt } : {}),
@@ -547,16 +549,60 @@ export function mapPostOg(
       ...(lang ? { inLanguage: lang } : {}),
       ...(images.length ? { image: images } : {}),
       ...(videos.length ? { video: videos } : {}),
-      author: {
-        '@type': user.kind === 'channel' ? 'Organization' : 'Person',
-        name: author,
-        alternateName: authorHandle,
-        ...(authorUrl ? { url: authorUrl } : {}),
-        ...(avatarImage ? { image: avatarImage } : {}),
-      },
+      author: authorJsonLd(user, author, handle, avatarImage),
       ...(interactionStatistic.length ? { interactionStatistic } : {}),
       ...(typeof replies === 'number' && replies >= 0 ? { commentCount: replies } : {}),
     },
+  };
+}
+
+/**
+ * A post's author as schema.org reads one. Its `url` is the author's canonical
+ * profile — `/c/` for a channel, the same rule {@link canonicalProfilePath}
+ * applies — because a profile link that redirects is not the profile.
+ */
+function authorJsonLd(
+  user: HydratedPost['user'],
+  name: string,
+  handle: string | null,
+  image: string | undefined,
+): Record<string, unknown> {
+  return {
+    '@type': user.kind === 'channel' ? 'Organization' : 'Person',
+    name,
+    alternateName: handle ? `@${handle}` : name,
+    ...(handle ? { url: `${WEB_ORIGIN}${canonicalProfilePath({ username: handle, kind: user.kind })}` } : {}),
+    ...(image ? { image } : {}),
+  };
+}
+
+/**
+ * A public reply as a `Comment` on the post it answers — the `comment` a
+ * discussion page is read by. Null for a reply with no author to name or
+ * nothing to say: Google needs both.
+ *
+ * The caller decides WHICH replies are shown here (public, ungated, by an
+ * author who is visible and indexable); this only describes one.
+ */
+export function mapReplyComment(reply: HydratedPost, id: string): Record<string, unknown> | null {
+  const handle = getNormalizedUserHandle(reply.user);
+  if (!handle) return null;
+  const text = (reply.content?.text ?? '').replace(/\s+/g, ' ').trim();
+  const images = (reply.content?.media ?? [])
+    .filter((item) => item.type !== 'video')
+    .map((item) => item.url || item.thumbUrl)
+    .filter((value): value is string => Boolean(value));
+  if (!text && !images.length) return null;
+
+  const name = reply.user.name?.displayName?.trim() || `@${handle}`;
+  const createdAt = reply.metadata?.createdAt;
+  return {
+    '@type': 'Comment',
+    url: `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`,
+    ...(text ? { text } : {}),
+    ...(images.length ? { image: images } : {}),
+    ...(createdAt ? { datePublished: createdAt } : {}),
+    author: authorJsonLd(reply.user, name, handle, ogImageForAvatar(reply.user.avatar)),
   };
 }
 

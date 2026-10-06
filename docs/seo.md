@@ -47,10 +47,15 @@ A post page's title is the author then the opening of the post, cut at a word
 (`Nate on Mention: "Mention federates with…"`); a post with no words falls back
 to the author and gets a generated description. Its JSON-LD is a
 `SocialMediaPosting` read by `text` (not `articleBody`), with its dates,
-language, images, videos as `VideoObject` (poster as thumbnail), the author as
-a `Person` (a channel's as an `Organization`), likes and boosts as
-`interactionStatistic` and replies as `commentCount`. A count the author hid is
-`null` and omitted. `og:image` is always an image — a video's poster, never its
+language, images, videos as `VideoObject` (poster as thumbnail; described by
+its alt text, else the post, else who posted it), the author as a `Person` (a
+channel's as an `Organization`) linked to their canonical profile, likes and
+boosts as `interactionStatistic` and replies as `commentCount`. A count the
+author hid is `null` and omitted. An indexed post also lists its newest
+public replies as `comment`s — read fresh on every request, never from the card
+cache, and only those without a content warning by authors who are public and
+indexable. An author who fails to resolve for one request makes it a 503, not
+an hour-cached "Unknown user" card with no profile to link. `og:image` is always an image — a video's poster, never its
 file — and an avatar fallback is a `summary` card.
 
 The post page's `<h1>` is the focused post's author (with their profile link
@@ -94,6 +99,12 @@ an anchor on web and still navigates in-app on a plain click. Use `asChild`
 with a `Text` child: a `Touchable`/`Pressable` child replaces the link's web
 click handler with its own, so the browser does a full page load. A link
 inside a pressable row stops the press from reaching the row.
+
+A profile link read out of plain text — a typed `@user@instance`, a pasted
+profile URL — names an account nobody has checked exists, so it is
+`rel="nofollow"` (`LinkifyEntity.unverified`); each one naming nobody was a
+404 in Search Console. A hydrated mention is a resolved account and is
+followed.
 
 The profile's display name is the page's `<h1>` (`UserName asHeading`).
 

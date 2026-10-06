@@ -663,6 +663,14 @@ describe('webShell routes (integration)', () => {
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 
+  it('answers a handle with a literal percent sign with a 404, not a crash', async () => {
+    stubFetch({ ok: false });
+
+    const res = await request(makeApp()).get('/@100%25').set('User-Agent', 'Googlebot/2.1');
+
+    expect(res.status).toBe(404);
+  });
+
   it('returns a real noindex 404 for a missing post', async () => {
     stubPublicAuthor();
 
@@ -882,6 +890,45 @@ describe('webShell post OG sensitivity gate', () => {
 
       expect((await crawl(postId)).text).toContain('content="index,follow"');
     });
+
+    it('lists a post\'s public replies as its comments, never a gated one or theirs', async () => {
+      const postId = await seedOgPost();
+      const shown = await seedOgPost({ parentPostId: postId });
+      const gated = await seedOgPost({ parentPostId: postId, metadata: { isSensitive: true } });
+      const quiet = await seedOgPost({
+        parentPostId: postId,
+        oxyUserId: OPTED_OUT,
+        authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
+      });
+      vi.mocked(postHydrationService.hydratePosts).mockImplementation(async (rows) =>
+        (rows as { id: string }[]).map((row) => ({
+          id: row.id,
+          user: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' } },
+          content: { text: `words of ${row.id}` },
+        }) as unknown as HydratedPost));
+
+      const res = await crawl(postId);
+
+      const comment = (profileJsonLd(res.text).comment ?? []) as Record<string, unknown>[];
+      expect(comment.map((c) => c.url)).toEqual([`https://mention.earth/p/${shown}`]);
+      expect(comment[0]).toMatchObject({ '@type': 'Comment', text: `words of ${shown}` });
+      expect(res.text).not.toContain(gated);
+      expect(res.text).not.toContain(quiet);
+    });
+  });
+
+  it('never caches a card whose author failed to resolve for this request', async () => {
+    const postId = await seedOgPost();
+    mockHydrated(postId, { user: { id: AUTHOR, username: '', name: { displayName: 'Unknown user' } } } as unknown as Partial<HydratedPost>);
+
+    const degraded = await crawl(postId);
+    expect(degraded.status).toBe(503);
+    expect(degraded.text).not.toContain('Unknown user');
+
+    mockHydrated(postId);
+    const recovered = await crawl(postId);
+    expect(recovered.status).toBe(200);
+    expect(recovered.text).toContain('Nate on Mention');
   });
 
   it('withholds a boost whose original author is no longer publicly resolvable', async () => {

@@ -30,9 +30,13 @@
  * Mastodon's strict redirector refuses.
  */
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Router, Request, Response } from 'express';
+import { and, eq } from 'drizzle-orm';
 import { config } from '../config';
-import { loadPostRecord } from '../db/posts/postRepository';
+import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
+import { posts } from '../db/schema/posts';
+import { ELIGIBLE_REPLY_MATCH } from '../services/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
@@ -47,6 +51,7 @@ import {
   mapHomepageOg,
   mapPostOg,
   mapProfileOg,
+  mapReplyComment,
   renderShellWithOg,
   buildShellBootstrapHtml,
   type ShellBootstrap,
@@ -251,11 +256,64 @@ async function fetchPostOg(post: PostRecord, safety: PostOgSafety): Promise<OgDa
       includeLinkMetadata: true,
     });
     if (!hydrated?.user) return null;
+    // The route already confirmed this author is public under a username, so a
+    // nameless author here is a lookup that failed for this request — not a
+    // card to cache for an hour as "Unknown user" with no profile to link.
+    if (!getNormalizedUserHandle(hydrated.user)) throw new Error('post author did not resolve');
     return mapPostOg(hydrated, String(post.id), safety, { isBoost: Boolean(post.boostOf) });
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
     throw error;
   }
+}
+
+/** The newest replies a post page describes to search engines. */
+const SEO_REPLY_LIMIT = 5;
+
+/**
+ * The newest public replies to a post, as the `Comment`s its structured data
+ * lists.
+ *
+ * Read on every request, never from the hour-long card cache: whether a reply
+ * may be shown is decided the way the post's own visibility is — fresh. Each
+ * reply must be public and published, carry no content warning, and be by an
+ * author who is public AND has not opted out of search engines; their words go
+ * to a search engine only by their own leave.
+ *
+ * FAIL-OPEN: the replies describe the page, they are not the page, so a failed
+ * read renders it without them rather than turning the post into a 503.
+ */
+async function postComments(postId: string): Promise<Record<string, unknown>[]> {
+  try {
+    const rows = (await findPostRecords(
+      and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH),
+      { orderBy: CHRONO_DESC, limit: SEO_REPLY_LIMIT },
+    )).filter((row) => !requiresContentWarning(row));
+    if (!rows.length) return [];
+
+    const authorIds = [...new Set(rows.map((row) => String(row.oxyUserId)))];
+    const policies = new Map(await Promise.all(
+      authorIds.map(async (id) => [id, await authorSeoPolicy(id)] as const),
+    ));
+    const shown = rows.filter((row) => policies.get(String(row.oxyUserId))?.indexable);
+    if (!shown.length) return [];
+
+    const hydrated = await postHydrationService.hydratePosts(shown, { maxDepth: 0 });
+    return hydrated.flatMap((reply) => {
+      const comment = reply ? mapReplyComment(reply, String(reply.id)) : null;
+      return comment ? [comment] : [];
+    });
+  } catch (error) {
+    logger.warn('[webShell] Post replies for structured data failed', { postId, ...describeShellFailure(error) });
+    return [];
+  }
+}
+
+/** The card with its replies attached, when the page is one a search engine indexes. */
+async function withComments(og: OgData, postId: string): Promise<OgData> {
+  if (og.robots !== 'index,follow' || !og.jsonLd || og.jsonLd.commentCount === 0) return og;
+  const comment = await postComments(postId);
+  return comment.length ? { ...og, jsonLd: { ...og.jsonLd, comment } } : og;
 }
 
 /**
@@ -451,7 +509,9 @@ router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req
 // The captured group is the handle segment (`user` or `user@domain`).
 router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   warmShell();
-  const handle = decodeURIComponent(req.params[0]);
+  // Express 5 has already decoded the captured segment; decoding it again
+  // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
+  const handle = req.params[0];
   const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
   const isProfileRoot = PROFILE_ROOT_RE.test(req.path);
 
@@ -539,7 +599,9 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 // remote software to guess which is canonical.
 router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   warmShell();
-  const handle = decodeURIComponent(req.params[0]);
+  // Express 5 has already decoded the captured segment; decoding it again
+  // threw on any handle with a literal `%`, so a bad link was a 500, not a 404.
+  const handle = req.params[0];
   // The same profile resolution the `/@handle` route uses, so a channel's card is
   // built from the same payload and `og:url` comes back as `/c/<handle>` from the
   // ONE definition of that (`canonicalProfilePath`).
@@ -654,7 +716,7 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
       return;
     }
-    await serveShell(res, indexable ? og : withoutIndexing(og));
+    await serveShell(res, indexable ? await withComments(og, String(post.id)) : withoutIndexing(og));
   } catch (error) {
     logger.warn('[webShell] Post page resolution failed', {
       path: req.path,

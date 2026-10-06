@@ -11,6 +11,7 @@ import {
   mapHomepageOg,
   mapProfileOg,
   mapPostOg,
+  mapReplyComment,
   OgData,
   PostOgSafety,
 } from '../services/webShellRenderer';
@@ -378,11 +379,26 @@ describe('mapPostOg for search', () => {
     expect(og.jsonLd?.video).toEqual([{
       '@type': 'VideoObject',
       name: 'clip',
+      description: 'clip',
       contentUrl: 'https://cdn/v.mp4',
       thumbnailUrl: 'https://cdn/v.jpg',
       uploadDate: '2026-10-01T10:00:00.000Z',
       duration: 'PT42S',
     }]);
+  });
+
+  it('describes a video by its alt text, and never leaves it undescribed', () => {
+    const video = (overrides: Record<string, unknown>, text: string) => mapPostOg(post({
+      content: { text, media: [{ id: 'v', type: 'video', url: 'https://cdn/v.mp4', posterUrl: 'https://cdn/v.jpg', ...overrides }] },
+    }), 'p1', SAFE).jsonLd?.video as Record<string, unknown>[];
+
+    expect(video({ alt: 'A dog catching a frisbee' }, 'look')[0].description).toBe('A dog catching a frisbee');
+    expect(video({}, '')[0].description).toBe('A video posted by Nate (@nate) on Mention.');
+  });
+
+  it('links a channel author to the channel\'s canonical page, not a redirect', () => {
+    const og = mapPostOg(post({ user: { ...author, username: 'news', kind: 'channel' } }), 'p1', SAFE);
+    expect((og.jsonLd?.author as Record<string, unknown>).url).toBe('https://mention.earth/c/news');
   });
 
   it('sizes and describes a photo card, and keeps an avatar card small', () => {
@@ -405,6 +421,32 @@ describe('mapPostOg for search', () => {
   it('marks a channel\'s post as the organization\'s', () => {
     const og = mapPostOg(post({ user: { ...author, kind: 'channel' } }), 'p1', SAFE);
     expect((og.jsonLd?.author as Record<string, unknown>)['@type']).toBe('Organization');
+  });
+});
+
+describe('mapReplyComment', () => {
+  const replier = { id: 'u2', username: 'ana', name: { displayName: 'Ana' } };
+  const reply = (overrides: Record<string, unknown>) => ({
+    id: 'r1',
+    user: replier,
+    content: { text: 'nice  post' },
+    metadata: { createdAt: '2026-10-02T09:00:00.000Z' },
+    ...overrides,
+  }) as unknown as HydratedPost;
+
+  it('describes a reply the way a discussion page lists its comments', () => {
+    expect(mapReplyComment(reply({}), 'r1')).toEqual({
+      '@type': 'Comment',
+      url: 'https://mention.earth/p/r1',
+      text: 'nice post',
+      datePublished: '2026-10-02T09:00:00.000Z',
+      author: { '@type': 'Person', name: 'Ana', alternateName: '@ana', url: 'https://mention.earth/@ana' },
+    });
+  });
+
+  it('leaves out a reply with no author to name or nothing to say', () => {
+    expect(mapReplyComment(reply({ user: { id: 'x', username: '', name: { displayName: 'Unknown user' } } }), 'r1')).toBeNull();
+    expect(mapReplyComment(reply({ content: { text: ' ' } }), 'r1')).toBeNull();
   });
 });
 
