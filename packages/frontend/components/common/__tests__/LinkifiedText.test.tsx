@@ -67,6 +67,25 @@ describe('LinkifiedText', () => {
         mockOpenExternalLink.mockReset();
     });
 
+    it('opens the actual source URL of an unresolved federated mention', () => {
+        const href = 'https://flipboard.com/@forbes/leadership-bs0je34pz';
+        let renderer: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            renderer = TestRenderer.create(<LinkifiedText text={`Posted into Leadership [@@leadership-forbes](${href})`} />);
+        });
+        if (!renderer) throw new Error('render produced no tree');
+        const link = renderer.root.findAll((node) =>
+            typeof node.props.onPress === 'function' && node.props.children === '@leadership-forbes',
+        )[0];
+        if (!link) throw new Error('render produced no mention link');
+        const stopPropagation = jest.fn();
+        act(() => link.props.onPress({ stopPropagation }));
+        expect(stopPropagation).toHaveBeenCalled();
+        expect(mockOpenExternalLink).toHaveBeenCalledWith(href);
+        expect(link.props.href).not.toBe(`/@${href}`);
+        act(() => renderer?.unmount());
+    });
+
     it('draws prose with a single text node', () => {
         const nodes = hostNodes(<LinkifiedText text="just some words about nothing" />);
         const texts = nodes.filter((n) => n.type === 'Text');

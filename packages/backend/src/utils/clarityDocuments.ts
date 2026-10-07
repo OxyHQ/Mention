@@ -70,6 +70,8 @@ export function previewableUrls(text: string): string[] {
  */
 const IN_PROGRESS_STATUSES: ReadonlySet<string> = new Set([
   'queued',
+  // Admission is temporary; keep warming this URL when crawl capacity frees.
+  'throttled',
   'discovered',
   'fetching',
   'extracted',

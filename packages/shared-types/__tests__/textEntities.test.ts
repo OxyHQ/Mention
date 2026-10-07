@@ -653,3 +653,22 @@ describe('federatedHandle', () => {
     expect(entity.raw).toBe('@alice@mastodon.social');
   });
 });
+
+
+describe('labelled source mentions', () => {
+  const mention = '[@@leadership-forbes](https://flipboard.com/@forbes/leadership-bs0je34pz)';
+
+  it('keeps the label and source destination together', () => {
+    expect(scanTextEntities(mention)).toEqual([{
+      kind: 'mentionDisplay', raw: mention, start: 0, end: mention.length,
+      label: '@leadership-forbes', value: 'https://flipboard.com/@forbes/leadership-bs0je34pz',
+    }]);
+  });
+
+  it('does not extract a source mention as a preview URL or a bare handle', () => {
+    expect(scanTextEntities(mention, { kinds: ['url'] })).toEqual([]);
+    expect(scanTextEntities(mention, { kinds: ['bareHandle'] })).toEqual([]);
+    expect(scanTextEntities(`${mention} https://example.org/story`, { kinds: ['url'] }).map((entity) => entity.value))
+      .toEqual(['https://example.org/story']);
+  });
+});

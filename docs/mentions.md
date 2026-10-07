@@ -151,7 +151,17 @@ For an inbound Note:
 3. Resolved local or remote actors are mapped to canonical Oxy user IDs.
 4. Matching anchors in `content` and `contentMap` become internal placeholders,
    and the IDs are stored in `Post.mentions`.
-5. Unresolved anchors remain ordinary text.
+5. Unresolved mention anchors retain their actual HTTP(S) destination as
+   `[@<label>](<sourceUrl>)`; the label includes the visible `@`. The reader opens
+   that source profile externally, without inventing an Oxy identity. This also
+   covers remote Group actors with profile URLs that differ from their actor URI.
+   Invalid destinations remain ordinary text. These labelled links are atomic
+   scanner entities and never become document previews.
+
+Outbox re-sync repairs existing dead mentions from the source HTML, including
+links whose identities still cannot resolve, and skips bodies already repaired.
+`repairFederatedMentions.ts` also supports a bounded repair with `REPAIR_POST_IDS`
+(comma-separated IDs) and `DRY_RUN=true` for reviewing the exact changes first.
 
 Only locally hosted mentioned users receive a Mention notification for an
 inbound federated post, and each recipient's fediverse-sharing consent is

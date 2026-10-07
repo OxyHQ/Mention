@@ -395,6 +395,21 @@ afterAll(async () => {
 });
 
 describe('buildCandidateFilter', () => {
+  it('limits a dry-run repair to explicit post IDs without writing either post', async () => {
+    const target = await seedDamaged('1');
+    const other = await seedDamaged('2');
+    const summary = await repairFederatedMentions({ postIds: [target], dryRun: true, noteTimeoutMs: 1_000 });
+    expect(summary.scanned).toBe(1);
+    expect(summary.samples.map((sample) => sample.id)).toEqual([target]);
+    expect((await storedVariants(target))[0].text).toBe(DAMAGED_TEXT);
+    expect((await storedVariants(other))[0].text).toBe(DAMAGED_TEXT);
+  });
+
+  it('rejects empty or malformed post ID scopes instead of running broadly', async () => {
+    await expect(repairFederatedMentions({ postIds: [] })).rejects.toThrow('postIds');
+    await expect(repairFederatedMentions({ postIds: ['broken'] })).rejects.toThrow('postIds');
+  });
+
   /** The ids the filter selects, in the order the sweep would page them. */
   async function selected(actorUri?: string): Promise<string[]> {
     const rows = await getDb()
@@ -769,19 +784,22 @@ describe('repairFederatedMentions', () => {
     expect(summary.failures[0].contentType).toBe('application/activity+json');
   });
 
-  it('counts a note whose mentions resolve to nobody as unresolved, writing nothing', async () => {
+  it('repairs source links even when no mentioned identity is stored', async () => {
     const id = await seedDamaged('1');
     // No stored federated actor row for the mentioned account.
     mocks.findExistingActor.mockResolvedValue(null);
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
 
-    expect(summary.unresolved).toBe(1);
-    expect(summary.repaired).toBe(0);
-    expect(summary.written).toBe(0);
+    expect(summary.unresolved).toBe(0);
+    expect(summary.repaired).toBe(1);
+    expect(summary.written).toBe(1);
     expect(await storedMentions(id)).toEqual([]);
-    expect((await storedVariants(id))[0].text).toBe(DAMAGED_TEXT);
+    expect((await storedVariants(id))[0].text).toContain('[@@indigoparadox](https://mastodon.social/@indigoparadox)');
     expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
+    const repeated = await repairFederatedMentions({ postIds: [id], resetCursor: true, noteTimeoutMs: 1_000 });
+    expect(repeated.unchanged).toBe(1);
+    expect(repeated.written).toBe(0);
   });
 
   it('writes NOTHING under dryRun, while reporting the plan and a before/after sample', async () => {

@@ -292,7 +292,7 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
     expect((await storedState(postId)).texts[0]).toContain('<a');
   });
 
-  it('leaves the post as-is on a resolve MISS (mentioned actor unresolvable)', async () => {
+  it('preserves the source link when the mentioned actor cannot be resolved', async () => {
     const postId = await seedExistingPost([]);
     stubOutbox({
       type: 'OrderedCollection',
@@ -304,13 +304,13 @@ describe('OutboxSyncService — @mention self-heal on re-sync', () => {
 
     const result = await runSync();
 
-    expect(result.healedMentionCount).toBe(0);
-    // The heal was attempted (bounded resolution ran) but wrote nothing: the
-    // stored body keeps its raw anchor and the allowlist stays empty. Writing a
-    // placeholder here with no id behind it is the corruption this guards.
+    expect(result.healedMentionCount).toBe(1);
+    // Retain the actual source destination without creating an identity.
     expect(mocks.getOrFetchActor).toHaveBeenCalledWith(BOB_URI);
     const state = await storedState(postId);
     expect(state.mentions).toEqual([]);
-    expect(state.texts[0]).toContain('<a');
+    expect(state.texts[0]).toContain(`[@@bob](${BOB_PROFILE})`);
+    const repeated = await runSync();
+    expect(repeated.healedMentionCount).toBe(0);
   });
 });

@@ -1,3 +1,4 @@
+import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { eq, inArray } from 'drizzle-orm';
 import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
@@ -1168,8 +1169,8 @@ export class OutboxSyncService {
    * bounded, shared mention resolution already performed for the page.
    *
    * Bounded batch of `updateOne`s. Idempotent + fail-soft: a note whose mentions
-   * did not resolve, or whose resolution adds nothing the stored allowlist already
-   * has, is a no-op — an already-resolved post is never rewritten. Historical posts
+   * add neither an identity nor a restored source link are a no-op. A restored
+   * source link is compared with the stored body to avoid repeated rewrites. Historical posts
    * are NEITHER re-notified NOR re-federated: this is a pure content-heal.
    *
    * @returns the number of posts actually rewritten this run.
@@ -1211,15 +1212,13 @@ export class OutboxSyncService {
     mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
   ): Promise<boolean> {
     const resolved = mentionsByNote.get(candidate.note);
-    // Resolve miss (or the note carried no resolvable mention): leave the post as-is.
-    if (!resolved || resolved.ids.length === 0) return false;
+    // No resolution result means this note was not processed.
+    if (!resolved) return false;
 
-    // Only rewrite when the resolution ADDS a mention the stored allowlist lacks —
-    // a genuine improvement. When every resolved id is already stored (e.g. the
-    // remaining anchors point at now-unresolvable actors), the post is left
-    // untouched, so a partially-healed post is never rewritten on every re-sync.
+    // Resolved identities and preserved source links can each repair dead text.
+    // The latter is compared with the stored body below.
     const storedSet = new Set(candidate.storedMentions);
-    if (resolved.ids.every((id) => storedSet.has(id))) return false;
+    const addsIdentity = resolved.ids.some((id) => !storedSet.has(id));
 
     // Rewrite the in-hand note's mention anchors to `[mention:<id>]` placeholders,
     // then re-derive ONLY the body variants (NO media I/O — the stored media state
@@ -1239,7 +1238,15 @@ export class OutboxSyncService {
       { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
     );
     if (!stored) return false;
-    await replacePostContent(stored.id, { ...stored.content, variants }, resolved.ids);
+    // An unresolved source mention can now retain its href without adding an
+    // identity. Repair it once, then compare bodies to keep later syncs inert.
+    const repairsSourceLink = variants.some((variant, index) =>
+      variant.text !== stored.content.variants?.[index]?.text
+      && scanTextEntities(variant.text, { kinds: ['mentionDisplay'] })
+        .some((entity) => /^https?:\/\//i.test(entity.value)),
+    );
+    if (!addsIdentity && !repairsSourceLink) return false;
+    await replacePostContent(stored.id, { ...stored.content, variants }, [...new Set([...candidate.storedMentions, ...resolved.ids])]);
     return true;
   }
 

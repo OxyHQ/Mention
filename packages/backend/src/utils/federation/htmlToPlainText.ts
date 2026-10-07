@@ -75,12 +75,28 @@ function isHCardWrapped(html: string, offset: number): boolean {
  * a `<span>`. Matching every anchor and branching on what the anchor SAYS IT IS
  * makes the two consistent.
  */
-function collapseAnchors(html: string): string {
+function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
   return html.replace(
     ANCHOR_REGEX,
     (_match: string, attrs: string, inner: string, offset: number, source: string) => {
       const visible = anchorVisibleText(inner);
       if ((LABEL_ANCHOR_ATTR_REGEX.test(attrs) || isHCardWrapped(source, offset)) && visible) {
+        // Resolved mentions have already become placeholders. Keep the source
+        // destination for the remaining mentions, including Group actors whose
+        // human profile URL cannot be reconstructed from their username.
+        const label = decodeEntities(visible);
+        const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1];
+        if (preserveMentionLinks && label.startsWith('@') && !/[\[\]\r\n]/.test(label) && href) {
+          try {
+            const url = new URL(decodeEntities(href));
+            if (url.protocol === 'https:' || url.protocol === 'http:') {
+              const target = url.href.replace(/\(/g, '%28').replace(/\)/g, '%29');
+              return `[@${visible}](${target})`;
+            }
+          } catch {
+            // A malformed destination cannot produce an actionable link.
+          }
+        }
         return visible;
       }
       const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1]?.trim() ?? '';
@@ -95,6 +111,8 @@ function collapseAnchors(html: string): string {
  * Convert ActivityPub HTML content to plain text for storage.
  * Preserves paragraph breaks, line breaks, and collapses each link to its href or
  * — for a mention/hashtag anchor — to its visible label (see {@link collapseAnchors}).
+ * Post bodies opt into preserving unresolved mention destinations as labelled
+ * links. Profile bios and one-line labels keep their plain-text representation.
  * Uses the `he` library for robust HTML entity decoding.
  *
  * The result is finished with {@link normalizeMultilineText} (the canonical Oxy
@@ -110,7 +128,7 @@ function collapseAnchors(html: string): string {
  * lines, which is exactly what that case needs — the author's own paragraph
  * breaks survive, the markup's indentation does not.
  */
-export function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string, options: { preserveMentionLinks?: boolean } = {}): string {
   if (!html) return '';
 
   let text = html;
@@ -125,7 +143,7 @@ export function htmlToPlainText(html: string): string {
   // Links → the href, EXCEPT a mention/hashtag anchor, which becomes its visible
   // label. Runs before the blanket tag strip so the anchor's own markup is still
   // there to be read.
-  text = collapseAnchors(text);
+  text = collapseAnchors(text, options.preserveMentionLinks ?? false);
 
   // Parse and remove all remaining markup. A parser is required here: a
   // regex-based tag strip can leave executable markup behind when a malformed

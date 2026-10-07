@@ -1,3 +1,6 @@
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
+import { extractUrls } from '@/utils/extractUrls';
+import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
@@ -300,6 +303,9 @@ const PostItem: React.FC<PostItemProps> = ({
     // embedded-original slot instead of a blank card.
     const boostUnavailable = Boolean(viewPost?.boost?.unavailable);
 
+    const hasSourceLinkCard = extractUrls(content.text ?? '')
+        .slice(0, MAX_POST_DOCUMENTS)
+        .some((url) => ownProfileLinkHandle(url) === undefined);
     const shouldRenderMediaBlock =
         mediaItems.length > 0 ||
         Boolean(nestedPost) ||
@@ -310,6 +316,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(podcastContent) ||
         Boolean(jobContent) ||
         documents.length > 0 ||
+        hasSourceLinkCard ||
         hasValidLocation;
 
     const attachmentDescriptors: PostAttachmentDescriptor[] | undefined = Array.isArray(content.attachments)
