@@ -65,6 +65,18 @@ describe('resolveClarityDocuments', () => {
     expect(result.documents.size).toBe(10);
   });
 
+  it('keeps quota-throttled URLs pending while retaining ready previews from the same response', async () => {
+    const ready = 'https://example.com/ready';
+    const busy = 'https://example.com/busy';
+    resolve.mockResolvedValue({ data: [
+      { url: ready, status: 'indexed', document: document(ready) },
+      { url: busy, status: 'throttled', error: { code: 'active_crawl_quota_exceeded', retryable: true } },
+    ] });
+    const result = await resolveClarityDocuments([ready, busy]);
+    expect([...result.documents.keys()]).toEqual([ready]);
+    expect([...result.pending]).toEqual([busy]);
+  });
+
   it('dedupes before asking', async () => {
     answerEveryUrl();
     await resolveClarityDocuments(['https://example.com/x', 'https://example.com/x']);
