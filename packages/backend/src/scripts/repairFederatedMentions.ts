@@ -59,12 +59,12 @@
  *   sweep must never fetch or MINT a `FederatedActor` for a mentioned account, or
  *   it would pollute the federated index with thousands of 0-post ghost users for
  *   the deleted/spam accounts a legacy post happened to mention. An actor with no
- *   stored row is simply skipped and its anchor stays raw text.
+ *   stored row keeps its source URL as a labelled external mention link.
  *
  * OUTCOMES (per post)
  *   `repaired`          a field changed — written (or, under DRY_RUN, would be)
  *   `unchanged`         re-mapping matched what is stored; nothing written
- *   `unresolved`        no mention resolved to an already-known identity
+ *   `unresolved`        no identity or usable source mention link can be repaired
  *   `gone`              origin answered 404/410 — SKIPPED, never deleted
  *   `fetchFailed`       transient failure / timeout — left for a later re-run,
  *                       split by cause in `fetchFailedByReason` (`timeout`,
@@ -117,6 +117,7 @@
  *                             PARALLEL shards; a single sequential sweep has none.
  *   REPAIR_RESET_CURSOR=true  forget this shard's recorded progress and start
  *                             again at the declared bound (see RESUMING below)
+ *   REPAIR_POST_IDS=<id,...> restrict to an explicit set of post IDs
  *   REPAIR_ACTOR_URI=<uri>    restrict to one `federation.actorUri`
  *   REPAIR_NOTE_TIMEOUT_MS    per-note fetch budget (default 20000; note the
  *                             transport's own `ACTIVITYPUB_FETCH_DEADLINE_MS` of
@@ -213,6 +214,7 @@
 
 import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, sql, type SQL } from 'drizzle-orm';
 import { type PostContentVariant } from '@mention/shared-types';
+import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
@@ -408,6 +410,8 @@ export interface RepairFederatedMentionsOptions {
   limit?: number;
   /** Restrict the sweep to one `federation.actorUri`. */
   actorUri?: string;
+  /** Restrict repairs to these exact post IDs. */
+  postIds?: string[];
   /** Per-note wall-clock budget for the read-only source re-fetch. */
   noteTimeoutMs?: number;
   /** How many before/after samples a dry run collects. */
@@ -559,7 +563,7 @@ async function fetchApObject(url: string): Promise<ApFetchOutcome> {
  * (and exported) so the exact selection can be asserted by a test rather than
  * re-described in prose.
  */
-export function buildCandidateFilter(actorUri?: string): SQL {
+export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL {
   const clauses: SQL[] = [
     sql`${posts.federationActivityId} is not null`,
     ne(posts.type, 'boost'),
@@ -596,6 +600,7 @@ export function buildCandidateFilter(actorUri?: string): SQL {
     ),
   ];
   if (actorUri) clauses.push(eq(posts.federationActorUri, actorUri));
+  if (postIds) clauses.push(inArray(posts.id, postIds));
   return and(...clauses) as SQL;
 }
 
@@ -612,11 +617,14 @@ export function buildCursorScope(scope: {
   afterId?: string;
   beforeId?: string;
   actorUri?: string;
+  /** Restrict repairs to these exact post IDs. */
+  postIds?: string[];
 }): string {
   return [
     `after:${scope.afterId ?? ''}`,
     `before:${scope.beforeId ?? ''}`,
     `actor:${scope.actorUri?.trim() ?? ''}`,
+    ...(scope.postIds ? [`posts:${[...scope.postIds].sort().join(',')}`] : []),
   ].join('|');
 }
 
@@ -794,12 +802,15 @@ async function prepareRepair(
 
   // LOOKUP-ONLY resolution: never fetches, never mints a `FederatedActor`.
   const resolved = await resolveInboundMentionsExisting(fetched.object);
-  if (resolved.ids.length === 0) return { outcome: 'unresolved' };
 
   const noteObject = applyMentionPlaceholders(fetched.object, resolved.anchorMap);
   // Re-derive the body ONLY (no media I/O — the stored media state is reused via
   // `hasMedia`), exactly like the live outbox self-heal.
   const freshVariants = buildFederatedNoteVariants(noteObject, post.hasMedia);
+  if (resolved.ids.length === 0 && !freshVariants.some((variant) =>
+    scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) => /^https?:\/\//i.test(entity.value)))) {
+    return { outcome: 'unresolved' };
+  }
   if (freshVariants.length === 0) return { outcome: 'skipped-empty-body' };
 
   const storedVariants = post.variants.map((row) => row.variant);
@@ -829,10 +840,11 @@ async function prepareRepair(
   }
 
   // Nothing to change: the stored state already matches a fresh re-map.
-  // Idempotency for the SHIPPED filter comes one level up (a repaired post no
-  // longer matches it); this branch is what keeps an in-process caller with a
-  // wider filter from churning row versions across the corpus.
-  if (!staged.variantBodies && !staged.mentions) return { outcome: 'unchanged' };
+  // Source-link repairs do not add an identity, so they can remain candidates.
+  // Compare the bodies to avoid rewriting them on a later sweep.
+  if (!staged.variantBodies && !staged.mentions) {
+    return { outcome: 'unchanged' };
+  }
 
   return {
     outcome: 'repaired',
@@ -959,7 +971,13 @@ export async function repairFederatedMentions(
 
   // Keyed on the DECLARED territory, so the same shard command always addresses
   // the same recorded progress however far into its range it has got.
-  const cursorScope = buildCursorScope({ afterId, beforeId, actorUri: options.actorUri });
+  const postIds = options.postIds?.map((id) => {
+    const parsed = parseIdBound('postIds', id);
+    if (!parsed) throw new Error('postIds must contain valid IDs');
+    return parsed;
+  });
+  if (postIds?.length === 0) throw new Error('postIds must not be empty');
+  const cursorScope = buildCursorScope({ afterId, beforeId, actorUri: options.actorUri, postIds });
   if (options.resetCursor) await clearAdminScriptCursor(SCRIPT_NAME, cursorScope);
   const resumeFrom = options.resetCursor
     ? null
@@ -983,7 +1001,7 @@ export async function repairFederatedMentions(
   // partition as (b[k-1], b[k]].
   const lowerBound = resumeId ?? afterId;
 
-  const candidateMatch = buildCandidateFilter(options.actorUri);
+  const candidateMatch = buildCandidateFilter(options.actorUri, postIds);
   /** The declared range, rebuilt per query — `lastId` narrows it, never replaces it. */
   const rangeClauses = (from: string | undefined): SQL[] => {
     const clauses: SQL[] = [];
@@ -1400,6 +1418,7 @@ async function main(): Promise<void> {
       concurrency: parsePositiveInt(process.env.REPAIR_CONCURRENCY, DEFAULT_CONCURRENCY),
       limit: process.env.REPAIR_LIMIT ? parsePositiveInt(process.env.REPAIR_LIMIT, 0) : undefined,
       actorUri: process.env.REPAIR_ACTOR_URI?.trim() || undefined,
+      postIds: process.env.REPAIR_POST_IDS?.split(',').map((id) => id.trim()),
       noteTimeoutMs: parsePositiveInt(process.env.REPAIR_NOTE_TIMEOUT_MS, DEFAULT_NOTE_TIMEOUT_MS),
       sampleSize: parsePositiveInt(process.env.REPAIR_SAMPLE_SIZE, DEFAULT_SAMPLE_SIZE),
       failureSampleSize: parsePositiveInt(

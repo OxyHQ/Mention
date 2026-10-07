@@ -89,7 +89,7 @@ export interface TextEntity {
    *                         no trailing-punctuation trim — see
    *                         {@link trimUrlTrailingPunctuation})
    *  - `mentionPlaceholder` the Oxy user id
-   *  - `mentionDisplay`     the link target (a username or `handle@instance`)
+   *  - `mentionDisplay`     a username, `handle@instance`, or source HTTP(S) URL
    *  - `bareHandle`         the handle without its `@`
    *  - `hashtag`            the tag without its `#`
    *  - `cashtag`            the symbol without its `$`
@@ -152,7 +152,9 @@ const DEFAULT_ENTITY_KINDS: readonly TextEntityKind[] = [
 
 /**
  * The `[@Label](target)` form the backend hydrates a stored mention into
- * (`PostHydrationService`), and the only mention form a reader ever sees.
+ * (`PostHydrationService`). Inbound federation can also retain an unresolved
+ * mention's source HTTP(S) URL as target; it opens externally, without asserting
+ * an Oxy identity. The label is the actual display text (including its `@`).
  *
  * Both parts are "anything up to the closing bracket", because a display name is
  * arbitrary user text — it may contain spaces, punctuation, or another `@`.
@@ -280,7 +282,9 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
   // which asserts this rule by name rather than tripping over it. Only reachable
   // since `bareHandle` was added: before it the sigil group could not begin with
   // `@` at all, and no ordering in this function changed anything.
-  if (wanted.has('mentionDisplay')) alternatives.push(MENTION_DISPLAY_SOURCE);
+  // A labelled mention is atomic even for URL-only scans: its destination
+  // must not turn into a document preview or its label into another mention.
+  alternatives.push(MENTION_DISPLAY_SOURCE);
   if (wanted.has('mentionPlaceholder')) alternatives.push(MENTION_PLACEHOLDER_SOURCE);
   if (wanted.has('url')) alternatives.push(urlSource(urlTerminator, bareWww));
   // The sigil entities share ONE boundary group, so they contribute a single
@@ -289,7 +293,7 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
   const sigils = sigilSource(wanted);
   if (sigils) alternatives.push(sigils);
 
-  if (alternatives.length === 0) {
+  if (wanted.size === 0) {
     throw new Error('scanTextEntities: `kinds` selected no entity kinds to match');
   }
 
@@ -351,6 +355,7 @@ export function scanTextEntities(
   if (!text) return [];
 
   const pattern = cachedTextEntityPattern(options);
+  const wanted = options.kinds ? new Set(options.kinds) : null;
   const entities: TextEntity[] = [];
 
   for (const match of text.matchAll(pattern)) {
@@ -364,7 +369,7 @@ export function scanTextEntities(
     const raw = boundary ? match[0].slice(boundary.length) : match[0];
 
     const entity = classify(groups, raw, start);
-    if (entity) entities.push(entity);
+    if (entity && (!wanted || wanted.has(entity.kind))) entities.push(entity);
   }
 
   return entities;

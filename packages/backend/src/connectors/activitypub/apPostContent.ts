@@ -339,7 +339,7 @@ function normalizeRemoteBody(
   hasMedia: boolean,
   customEmojiNames: readonly string[],
 ): string {
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(html), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(html, { preserveMentionLinks: true }), customEmojiNames);
   const { content } = normalizePostHashtags(rawText);
   const text = normalizeMultilineText(content);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) return rawText;
@@ -463,7 +463,7 @@ async function assembleFederatedNoteContent(
   });
 
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml, { preserveMentionLinks: true }), customEmojiNames);
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
   // is stored identically regardless of how it was ingested. `extractApHashtags`
@@ -706,7 +706,7 @@ export function buildFederatedNoteVariants(
   const source = rewriteHashtagAnchorsInObject(object);
   const customEmojiNames = extractDeclaredCustomEmojiNames(source);
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml), customEmojiNames);
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml, { preserveMentionLinks: true }), customEmojiNames);
   const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
   let text = normalizeMultilineText(normalizedText);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) {

@@ -87,7 +87,21 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
       pushText(text.slice(lastIndex, entity.start));
       lastIndex = entity.end;
 
-      if (entity.kind === 'mentionDisplay') {
+      if (entity.kind === 'mentionDisplay' && /^https?:\/\//i.test(entity.value)) {
+        // Inbound federation keeps an unresolved mention's actual source href.
+        // It is a link to that remote profile, not a local identity or hover card.
+        elements.push(
+          <Text
+            key={`m-${key++}`}
+            className="text-primary"
+            style={linkStyle}
+            accessibilityRole="link"
+            onPress={(event) => { event.stopPropagation(); openExternalLink(entity.value); }}
+          >
+            {entity.label}
+          </Text>
+        );
+      } else if (entity.kind === 'mentionDisplay') {
         // One handle drives both behaviors — the profile link and the hover
         // preview — so they can never point at different profiles.
         const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
