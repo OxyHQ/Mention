@@ -672,11 +672,17 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     const element = node as unknown as HTMLElement;
 
     let isDragging = false;
+    let didDrag = false;
     let startXPos = 0;
     let startScrollLeft = 0;
 
     const handleMouseDown = (event: MouseEvent) => {
+      if (event.button !== 0) return;
       isDragging = true;
+      didDrag = false;
+      // Prevent text selection without cancelling the eventual click. Images
+      // also need dragstart cancelled: their native drag takes over mousemove.
+      event.preventDefault();
       startXPos = event.pageX;
       startScrollLeft = element.scrollLeft;
       element.style.userSelect = 'none';
@@ -693,17 +699,33 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       event.preventDefault();
       const x = event.pageX;
       const walk = x - startXPos;
+      if (!didDrag && Math.abs(walk) <= 5) return;
+      didDrag = true;
       element.scrollLeft = startScrollLeft - walk;
     };
 
+    const preventNativeDrag = (event: DragEvent) => event.preventDefault();
+    const handleClickCapture = (event: MouseEvent) => {
+      if (!didDrag || event.detail === 0) return;
+      // Stop React Native Web's Pressable (and the parent post) from treating
+      // the release of a carousel drag as a tap. Keyboard clicks still work.
+      event.preventDefault();
+      event.stopPropagation();
+      didDrag = false;
+    };
+
     element.addEventListener('mousedown', handleMouseDown);
-    element.addEventListener('mouseleave', stopDragging);
+    element.addEventListener('dragstart', preventNativeDrag);
+    element.addEventListener('click', handleClickCapture, true);
+    window.addEventListener('blur', stopDragging);
     window.addEventListener('mouseup', stopDragging);
     window.addEventListener('mousemove', handleMouseMove);
 
     return () => {
       element.removeEventListener('mousedown', handleMouseDown);
-      element.removeEventListener('mouseleave', stopDragging);
+      element.removeEventListener('dragstart', preventNativeDrag);
+      element.removeEventListener('click', handleClickCapture, true);
+      window.removeEventListener('blur', stopDragging);
       window.removeEventListener('mouseup', stopDragging);
       window.removeEventListener('mousemove', handleMouseMove);
       element.style.removeProperty('user-select');
