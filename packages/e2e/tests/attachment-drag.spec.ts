@@ -52,15 +52,15 @@ test('dragging post images scrolls the row without opening the viewer; clicking 
   const releasedOffset = await scrollOffset();
   await page.mouse.move(box.x + 100, y, { steps: 5 });
   expect(await scrollOffset()).toBe(releasedOffset);
-+
-+  // Losing the window while pressed must release the scroll ownership too.
-+  await page.mouse.down();
-+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-+  await page.mouse.move(box.x + 50, y, { steps: 5 });
-+  await page.mouse.up();
-+  expect(await scrollOffset()).toBe(releasedOffset);
-+
-+  // A fresh click after the drag must not remain suppressed.
+
+  // Losing the window while pressed must release the scroll ownership too.
+  await page.mouse.down();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.mouse.move(box.x + 50, y, { steps: 5 });
+  await page.mouse.up();
+  expect(await scrollOffset()).toBe(releasedOffset);
+
+  // A fresh click after the drag must not remain suppressed.
   await page.mouse.click(box.x + 40, y);
   await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toBeVisible();
   expect(candidate.scriptErrors).toEqual([]);
