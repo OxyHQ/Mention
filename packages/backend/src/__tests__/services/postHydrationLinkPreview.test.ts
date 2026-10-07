@@ -168,7 +168,18 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     // The service requested exactly the extracted URL.
     expect(resolveDocuments).toHaveBeenCalledTimes(1);
     expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL] });
-    expect(hydrated.documents).toEqual([resolved]);
+    expect(hydrated.documents).toEqual([{ ...resolved, requestedUrl: POST_URL }]);
+  });
+
+  it('binds an already indexed alias to the current post source URL without mutating Clarity metadata', async () => {
+    const source = 'https://kpbs.org/story?utm_source=reader#section';
+    const document = { ...resolvedPreview('https://npr.org/story', 'Original article'), requestedUrl: 'https://npr.org/story?old=crawl' };
+    resolveDocuments.mockResolvedValue({ data: [{ url: 'https://kpbs.org/story?utm_source=reader', status: 'indexed', document }] });
+    const hydrated = await hydrate(source);
+    expect(hydrated.documents).toEqual([expect.objectContaining({
+      requestedUrl: source, canonicalUrl: 'https://npr.org/story', title: 'Original article',
+    })]);
+    expect(document.requestedUrl).toBe('https://npr.org/story?old=crawl');
   });
 
   it('never passes on an image the reader would load from the linked site', async () => {

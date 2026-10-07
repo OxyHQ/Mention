@@ -1425,7 +1425,11 @@ export interface HydratedPostSummary {
   /**
    * Link-preview cards for the post text, in text order, capped at
    * {@link MAX_POST_DOCUMENTS}: one Clarity document per link Clarity has
-   * indexed. A link Clarity has not finished yet has no entry here (see
+   * indexed. Each document's `requestedUrl` is the exact URL from this post's
+   * selected text that was resolved; `canonicalUrl` and article metadata retain
+   * Clarity's values. This associates a source-only card with its later metadata
+   * even when Clarity first indexed the document through another URL alias.
+   * A link Clarity has not finished yet has no entry here (see
    * {@link documentsPending}); a link it gave up on never gets one. Absent or
    * empty when metadata hydration was not requested or every link is
    * deliberately suppressed.

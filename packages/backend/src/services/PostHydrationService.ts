@@ -2123,7 +2123,9 @@ export class PostHydrationService {
       for (const url of urls) {
         const document = resolved.documents.get(url);
         if (document) {
-          documents.push(document);
+          // Bind the document to this post's source URL, even when Clarity
+          // originally fetched the same article through another alias.
+          documents.push({ ...document, requestedUrl: url });
           continue;
         }
         const key = linkPreviewKey(url);
