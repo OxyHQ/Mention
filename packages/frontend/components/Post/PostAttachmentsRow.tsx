@@ -14,6 +14,7 @@ import type { GeoJSONPoint } from '@mention/shared-types/common';
 import {
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
+  MAX_POST_DOCUMENTS,
 } from '@mention/shared-types/post';
 import { useRouter } from 'expo-router';
 import JobCard from '@/components/Post/JobCard';
@@ -44,6 +45,8 @@ import {
   PostAttachmentRoom,
 } from './Attachments';
 import { parseEmbedPlayerFromUrl, canEmbed, type EmbedPlayerParams } from '@/utils/embedPlayer';
+import { extractUrls } from '@/utils/extractUrls';
+import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
 // Runtime media reference. The server now resolves final URLs (`url`, `thumbUrl`,
@@ -116,10 +119,8 @@ type AttachmentItem =
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square' };
 
 /**
- * The link previews of a post are identified by their URLs, in order — the rest
- * of a preview (title/image/…) is resolved server-side and never changes for a
- * given URL within a session. Compared element-wise so a re-rendered parent
- * handing over an equivalent array doesn't force the row to re-render.
+ * Compare the fields rendered by a card, including metadata arriving after its
+ * URL. Equivalent documents do not make the row re-render; enrichment does.
  */
 const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]): boolean => {
   if (a === b) return true;
@@ -127,11 +128,21 @@ const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]):
   const next = b ?? [];
   if (prev.length !== next.length) return false;
   return prev.every((preview, index) =>
-    preview.canonicalUrl === next[index].canonicalUrl && preview.requestedUrl === next[index].requestedUrl,
+    preview.canonicalUrl === next[index].canonicalUrl && preview.requestedUrl === next[index].requestedUrl
+    && preview.title === next[index].title && preview.description === next[index].description
+    && preview.imageUrl === next[index].imageUrl && preview.publisher === next[index].publisher,
   );
 };
 
 const logger = createLogger('PostAttachmentsRow');
+
+function normalizedLinkUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = ''; // A document preview is shared by anchors within the page.
+    return parsed.href;
+  } catch { return url; }
+}
 
 /** The one height every item of a multi-item row shares. */
 const ROW_HEIGHT = 200;
@@ -187,7 +198,34 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
   const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
-  const linkPreviewArray = useMemo(() => Array.isArray(documents) ? documents.filter((preview) => Boolean(preview?.canonicalUrl)) : [], [documents]);
+  const linkItems = useMemo<AttachmentItem[]>(() => {
+    const resolved = (documents ?? []).filter((document) => Boolean(document?.canonicalUrl));
+    const byUrl = new Map<string, ClarityDocument>();
+    for (const document of resolved) {
+      byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
+      if (document.requestedUrl) byUrl.set(normalizedLinkUrl(document.requestedUrl), document);
+    }
+    // The cap precedes the profile filter, matching hydration and the composer.
+    const sourceUrls = extractUrls(text ?? '').slice(0, MAX_POST_DOCUMENTS)
+      .filter((url) => ownProfileLinkHandle(url) === undefined);
+    const seen = new Set<string>();
+    const cards: AttachmentItem[] = [];
+    for (const sourceUrl of [...sourceUrls, ...resolved.map((document) => document.canonicalUrl)]) {
+      const document = byUrl.get(normalizedLinkUrl(sourceUrl));
+      const url = document?.canonicalUrl ?? sourceUrl;
+      const key = normalizedLinkUrl(url);
+      if (seen.has(key) || cards.length >= MAX_POST_DOCUMENTS) continue;
+      seen.add(key);
+      // A source link is actionable even when indexing has not produced any
+      // metadata. Only Clarity documents supply article titles and cover images.
+      cards.push({
+        type: 'link', url, title: document?.title, description: document?.description,
+        image: document?.imageUrl, siteName: document?.publisher,
+        embedParams: parseEmbedPlayerFromUrl(url),
+      });
+    }
+    return cards;
+  }, [text, documents]);
 
   // Resolve a media reference to a final render URL for a given context:
   //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
@@ -230,20 +268,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const attachmentItems = useMemo(() => {
     const results: AttachmentItem[] = [];
-    // One item per resolved preview, in text order. Built once; pushed by the
-    // non-descriptor branch below, or inserted by the fallback for the descriptor
-    // branch — the two paths are mutually exclusive.
-    const linkItems: AttachmentItem[] = linkPreviewArray.map((preview) => ({
-      type: 'link',
-      url: preview.canonicalUrl,
-      title: preview.title,
-      description: preview.description,
-      image: preview.imageUrl,
-      siteName: preview.publisher,
-      // Parse the embed provider once here (memoized on `linkPreviewArray`) so
-      // the render loop doesn't run `new URL()` + regex on every frame.
-      embedParams: parseEmbedPlayerFromUrl(preview.canonicalUrl),
-    }));
     const mediaById = new Map<string, MediaObj>();
     const usedMedia = new Set<string>();
 
@@ -399,7 +423,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkPreviewArray, resolveMediaSrc]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkItems, resolveMediaSrc]);
 
   type Item = AttachmentItem;
 
