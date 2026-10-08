@@ -129,9 +129,9 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const handlePress = useCallback(() => {
     if (!zoomUri) return;
     void measureThumb().then((rect) => {
-      galleryRef.current?.open([{ uri: zoomUri, aspectRatio: 1 }], 0, rect ?? undefined);
+      galleryRef.current?.open([{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1 }], 0, rect ?? undefined);
     });
-  }, [measureThumb, zoomUri]);
+  }, [measureThumb, zoomUri, thumbUri]);
 
   // Resting transform: the scroll-collapse shrink. Neutral (identity) when the
   // host passes no `collapseProgress`.
@@ -161,6 +161,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           >
             <Image
               source={imageSource}
+              cachePolicy="memory-disk"
               onError={() => setErrored(true)}
               contentFit="cover"
               style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }, imageStyle]}
