@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   ZoomableMediaGallery,
   type ZoomableMediaGalleryHandle,
@@ -18,8 +18,8 @@ type OpenArgs = Parameters<ZoomableMediaGalleryHandle['open']>;
  * nothing about how it looks; only WHEN it mounts moves.
  *
  * The handle is the gallery's own: the first `open()` mounts the viewer and
- * replays the call once its ref exists (one commit later — the fly-in starts
- * from the rect measured at press time, so nothing visible is lost). After
+ * replays the call in a layout effect once its ref exists, before paint. The fly-in starts
+ * from the rect measured at press time, so nothing visible is lost. After
  * that the viewer stays mounted for this owner, exactly as before.
  */
 export const LazyZoomableGallery = forwardRef<ZoomableMediaGalleryHandle, ZoomableMediaGalleryProps>(
@@ -43,7 +43,7 @@ export const LazyZoomableGallery = forwardRef<ZoomableMediaGalleryHandle, Zoomab
       [],
     );
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!pending || !galleryRef.current) return;
       galleryRef.current.open(...pending);
       setPending(null);
