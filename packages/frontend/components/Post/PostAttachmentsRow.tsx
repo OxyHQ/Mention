@@ -573,11 +573,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   // position is the index the gallery opens at when its thumbnail is tapped;
   // `imageIndexByMediaId` maps a tapped media id to that position. The gallery
   // renders `fullSrc` (a large variant) so opening fullscreen UPGRADES the image
-  // rather than reusing the small in-feed thumbnail (`src`).
+  // while retaining the already visible thumbnail until the large image loads.
   const galleryImages = useMemo<GalleryImage[]>(
     () => mediaItems
       .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
-      .map(item => ({ uri: item.fullSrc, alt: item.alt, aspectRatio: readMediaAspectRatio(item) })),
+      .map(item => ({ uri: item.fullSrc, previewUri: item.src, alt: item.alt, aspectRatio: readMediaAspectRatio(item) })),
     [mediaItems]
   );
 
