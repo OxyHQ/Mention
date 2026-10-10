@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { Search } from '@oxy.so/bloom/search';
 import { useTranslation } from 'react-i18next';

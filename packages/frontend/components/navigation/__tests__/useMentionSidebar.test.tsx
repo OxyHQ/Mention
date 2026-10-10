@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 

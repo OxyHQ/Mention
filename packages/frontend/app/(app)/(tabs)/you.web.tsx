@@ -1,4 +1,3 @@
-import React from 'react';
 import { View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

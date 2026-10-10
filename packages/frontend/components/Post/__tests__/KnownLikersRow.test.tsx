@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';

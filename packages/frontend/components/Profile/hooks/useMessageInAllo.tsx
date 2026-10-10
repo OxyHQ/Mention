@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { Linking, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';

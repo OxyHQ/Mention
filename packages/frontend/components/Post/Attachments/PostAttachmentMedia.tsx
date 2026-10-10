@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View, StyleSheet, type ViewStyle, Platform } from 'react-native';
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { BlurView } from 'expo-blur';

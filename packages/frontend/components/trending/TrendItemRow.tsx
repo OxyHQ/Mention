@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';

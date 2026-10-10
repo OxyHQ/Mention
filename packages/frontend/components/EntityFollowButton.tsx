@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { FollowButton } from '@oxy.so/bloom/media-header';
 import { useFollowEntity } from '@/hooks/useFollowEntity';
 import type { EntityFollowType } from '@/services/entityFollowService';

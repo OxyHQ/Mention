@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useAuth } from '@oxy.so/services/ui/client';

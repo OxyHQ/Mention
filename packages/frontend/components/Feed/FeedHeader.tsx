@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { View, Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';

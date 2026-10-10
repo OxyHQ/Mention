@@ -6,7 +6,6 @@
  * attached" — an image element cannot decode an mp4.
  */
 
-import React from 'react';
 import { Image } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ComposeMediaPreview } from '../ComposeMediaPreview';

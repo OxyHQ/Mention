@@ -1,5 +1,5 @@
 import { Button } from '@oxy.so/bloom/button';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
 import {
   Pressable,

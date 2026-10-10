@@ -1,4 +1,3 @@
-import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Path, Line } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';

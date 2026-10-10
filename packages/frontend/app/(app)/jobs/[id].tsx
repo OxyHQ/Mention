@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
+import { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';

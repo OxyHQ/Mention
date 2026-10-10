@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { CommunityNotesScreen } from '@/components/CommunityNotes/CommunityNotesScreen';

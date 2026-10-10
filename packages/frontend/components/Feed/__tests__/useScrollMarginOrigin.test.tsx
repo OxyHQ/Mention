@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useScrollMarginOrigin } from '../useScrollMarginOrigin';

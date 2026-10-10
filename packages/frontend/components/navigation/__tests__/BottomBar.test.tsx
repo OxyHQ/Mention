@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { BottomBar } from '../../BottomBar';
 import { BAR_TABS, pageIndexByName } from '../tabs';

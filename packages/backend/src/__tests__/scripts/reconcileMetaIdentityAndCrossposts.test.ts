@@ -7,11 +7,7 @@ import { posts, postEquivalenceClusters } from '../../db/schema/posts';
 import { postAuthorships } from '../../db/schema/postContent';
 import { mutes } from '../../db/schema/engagement';
 import { insertPostRecord } from '../../db/posts/postRepository';
-import {
-  upsertActor,
-  setActorOxyUserId,
-  deleteActorsByUris,
-} from '../../db/federation/actorRepository';
+import { upsertActor, setActorOxyUserId } from '../../db/federation/actorRepository';
 import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import {
   createActorProjectionCacheBatch,

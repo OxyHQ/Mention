@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 

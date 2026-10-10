@@ -29,7 +29,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';

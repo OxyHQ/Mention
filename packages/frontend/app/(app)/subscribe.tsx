@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, ScrollView, Linking, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { Slot } from 'expo-router';
 import { useTabsWithTriggers } from 'expo-router/ui';

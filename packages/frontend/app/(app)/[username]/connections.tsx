@@ -9,7 +9,7 @@ import {
 } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';

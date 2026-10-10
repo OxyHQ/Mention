@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';

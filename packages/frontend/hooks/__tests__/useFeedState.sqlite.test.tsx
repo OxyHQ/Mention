@@ -1,13 +1,3 @@
-/**
- * The SQLite half of `useFeedState`: native, unscoped feeds. Their rows are
- * written to SQLite by `postsStore` and read back through its selectors, so this
- * suite drives the hook against the store's actions and asserts which of them it
- * calls — the first-page cache check, refresh, pagination and its gates, the
- * federated pending poll, and a viewer change.
- *
- * The feed-query half (web, scoped feeds) is `useFeedState.memory.test.tsx`.
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';

@@ -3,7 +3,7 @@
  * Extracted from _layout.tsx for better organization
  */
 
-import React, { useContext, useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { BottomSheetContext } from '@/context/BottomSheetContext';

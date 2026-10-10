@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useContext, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useContext, useEffect, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';

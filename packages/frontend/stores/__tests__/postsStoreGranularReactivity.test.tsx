@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { FeedType } from '@mention/shared-types/feed';
 import { PostVisibility } from '@mention/shared-types/post';

@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { type ReactTestRenderer, act } from 'react-test-renderer';
 
 import { useJobAttachmentManager, type JobAttachmentData } from '../useJobAttachmentManager';
