@@ -195,8 +195,8 @@ jobs:
           # application, with nothing empty and nothing erroring. A repo
           # VARIABLE, not a secret: the id ships inside the bundle, so it is
           # public by construction and a secret would only hide it from the UI.
-          # The backend's MENTION_OXY_CLIENT_ID stays a secret because it rides
-          # the SSM sync pipeline in deploy-aws.yml, which is built for secrets.
+          # The backend's MENTION_OXY_CLIENT_ID is a SecureString in SSM
+          # (/oxy/mention/), where every backend runtime value lives.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
 
       - name: Validate static hosting contract

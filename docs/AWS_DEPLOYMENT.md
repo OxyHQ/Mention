@@ -44,7 +44,8 @@ CI's `merge_group` trigger is inert until the merge-queue ruleset is enabled on
 | `shell.mention.earth` (static Expo web export) | Cloudflare Worker `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
 
 GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
-deploy; secrets sync to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
+deploy. Runtime secrets live only in SSM `/oxy/mention/*` and
+`/oxy/mention-mcp/*`; no workflow writes them (see [Runtime secrets](#runtime-secrets)).
 
 The backend serves API, ActivityPub, OG shells and the apex proxy. ActivityPub
 paths (`/.well-known/*`, `/ap/*`, nodeinfo and inboxes) are routed directly to
@@ -66,12 +67,46 @@ always serves `<project>.pages.dev` with no way to switch it off, and
 was in no CORS allowlist, so a browser that found it booted the shell and had
 every API call blocked. Pages serves assets and runs no code; a Worker can refuse.
 
-The key is one GitHub secret, `MENTION_SHELL_ACCESS_KEY`, with two consumers:
-`deploy-aws.yml` syncs it to SSM `/oxy/mention/MENTION_SHELL_ACCESS_KEY` and
-injects it into the task, and `deploy-frontends.yml` uploads it to the Worker in
-the same operation as the code. Rotating it means running both workflows. The
-backend refuses to boot without it in production rather than start into an apex
-that answers every page with the empty fallback shell.
+The key, `MENTION_SHELL_ACCESS_KEY`, has two copies that must hold the same
+value: SSM `/oxy/mention/MENTION_SHELL_ACCESS_KEY`, which the backend task reads,
+and the GitHub secret of that name, which `deploy-frontends.yml` uploads to the
+Worker in the same operation as the code. Rotating it means writing both, then
+rolling the backend and running the frontend deploy (see
+[Runtime secrets](#runtime-secrets)). The backend refuses to boot without it in
+production rather than start into an apex that answers every page with the empty
+fallback shell.
+
+## Runtime secrets
+
+SSM Parameter Store is the ONE source of every backend and MCP runtime secret:
+`/oxy/mention/<NAME>` and `/oxy/mention-mcp/<NAME>`, `SecureString`, read by the
+task definition at task start. GitHub holds none of them, and
+`scripts/validate-workflows.mjs` fails CI if any workflow writes SSM or reads a
+repo secret outside its CI-only allowlist (`CLOUDFLARE_*` and the shell key for
+`deploy-frontends.yml`, `ADD_TO_PROJECT_TOKEN` for `add-to-roadmap.yml`). Until
+2026-10-10 the deploys copied GitHub repo secrets into SSM on every run.
+
+```bash
+# set or rotate (the owner, never a workflow)
+aws ssm put-parameter --profile oxy --region us-west-2 --type SecureString \
+  --overwrite --name /oxy/mention/KLIPY_APP_KEY --value '…'
+# then roll the service so new tasks read it (or dispatch deploy-backend-config.yml)
+aws ecs update-service --profile oxy --region us-west-2 --cluster oxy-cluster \
+  --service mention --force-new-deployment
+```
+
+Two values have more than one home, and a rotation writes all of them first:
+
+- `MENTION_MCP_JWT_SECRET` is read from BOTH `/oxy/mention/` (backend) and
+  `/oxy/mention-mcp/` (MCP). Write both paths with the same value, then roll both
+  services.
+- `MENTION_SHELL_ACCESS_KEY` is also the shell Worker's key (above).
+
+A NEW secret is written to SSM FIRST and only then named in the deploy step's
+`TASK_SECRET_OVERRIDES_JSON` (in `deploy-aws.yml` and its copy in
+`deploy-backend-config.yml`): a task definition naming a parameter that does not
+exist registers fine and then cannot start. The full procedure is oxy-infra
+`docs/runbooks/46-app-secrets-in-ssm.md`.
 
 ## Release transaction
 

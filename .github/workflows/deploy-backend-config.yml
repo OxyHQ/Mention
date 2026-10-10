@@ -1,10 +1,12 @@
 name: Redeploy Mention Backend Configuration
 
-# A CONFIGURATION-ONLY backend redeploy: re-syncs the GitHub secrets to SSM and
-# re-renders the task definition's environment from vars.*, on the image the
-# service is ALREADY RUNNING. Repository variables and secrets are not paths
-# deployment-scope.sh can see, so deploy-aws.yml (the code release, triggered by
-# CI) skips a change to them; this is how one ships.
+# A CONFIGURATION-ONLY backend redeploy: re-renders the task definition's
+# environment from vars.* and starts new tasks, which read the current SSM
+# secret values, on the image the service is ALREADY RUNNING. Repository
+# variables and SSM parameters are not paths deployment-scope.sh can see, so
+# deploy-aws.yml (the code release, triggered by CI) skips a change to them;
+# this is how one ships. It writes no SSM parameter: runtime secrets are set in
+# SSM by their owner, never from GitHub.
 #
 # Deliberately a separate workflow, and deliberately no build:
 #
@@ -16,10 +18,10 @@ name: Redeploy Mention Backend Configuration
 #   poison. The code release keeps its own build, cache and trigger unchanged.
 # - It ships no code, so it neither runs migrations nor moves deployed/backend.
 #
-# The two steps below that do the work are COPIES of deploy-aws.yml's steps of
-# the same names, where every setting is documented. scripts/validate-workflows.mjs
-# fails CI unless they match exactly (the image and RUN_MIGRATIONS aside), so a
-# change there must be made here too.
+# The deploy step below is a COPY of deploy-aws.yml's step of the same name,
+# where every setting is documented. scripts/validate-workflows.mjs fails CI
+# unless it matches exactly (the image and RUN_MIGRATIONS aside), so a change
+# there must be made here too.
 
 on:
   workflow_dispatch:
@@ -112,78 +114,11 @@ jobs:
       - name: Verify current main before production changes
         run: bash .github/scripts/require-current-main.sh
 
-      - name: Sync GitHub secrets to SSM
-        id: sync
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          INTERNAL_METRICS_TOKEN: ${{ secrets.INTERNAL_METRICS_TOKEN }}
-          KLIPY_APP_KEY: ${{ secrets.KLIPY_APP_KEY }}
-          MENTION_DID: ${{ secrets.MENTION_DID }}
-          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
-          MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
-          MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
-          MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
-          MENTION_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          REDIS_URI: ${{ secrets.REDIS_URI }}
-          META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
-          META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
-          SSM_SECRET_ALLOWLIST: DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MENTION_SHELL_ACCESS_KEY REDIS_URI REDIS_HOST REDIS_PASSWORD META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
-        run: |
-          set -euo pipefail
-          # The backend's config schema refuses to boot on a non-numeric id, and
-          # a boot failure only surfaces as a reverted rollout. Refuse it here,
-          # before anything is written. The value is never printed.
-          if [[ -n "$META_IG_BUSINESS_ACCOUNT_ID" && "$META_IG_BUSINESS_ACCOUNT_ID" != "-" &&
-                ! "$META_IG_BUSINESS_ACCOUNT_ID" =~ ^[[:space:]]*[0-9]{1,32}[[:space:]]*$ ]]; then
-            echo "::error::secrets.META_IG_BUSINESS_ACCOUNT_ID is not a numeric Instagram user id; nothing was synced."
-            exit 1
-          fi
-          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
-            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
-            exit 1
-          fi
-
-          # Running tasks keep their injected value. Update both parameter
-          # paths successfully before any task is restarted.
-          for path in \
-            /oxy/mention/MENTION_MCP_JWT_SECRET \
-            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
-            aws ssm put-parameter \
-              --name "$path" \
-              --value "$MENTION_MCP_JWT_SECRET" \
-              --type SecureString \
-              --overwrite \
-              >/dev/null
-            echo "Synced $path"
-          done
-
-          # NAMES written in this run, never values. The deploy step binds an
-          # optional secret only when its name is here: the write above succeeded
-          # (or the job already failed), so the parameter exists before any
-          # revision naming it is registered.
-          synced=""
-          for key in $SSM_SECRET_ALLOWLIST; do
-            value="${!key:-}"
-            [[ -z "$key" ]] && continue
-            if [[ -z "$value" || "$value" == "-" ]]; then
-              echo "::warning::Skipping empty or placeholder secret $key; SSM unchanged."
-              continue
-            fi
-            path="/oxy/$APP/$key"
-            aws ssm put-parameter \
-              --name "$path" \
-              --value "$value" \
-              --type SecureString \
-              --overwrite \
-              >/dev/null
-            echo "Synced $path"
-            synced="${synced:+$synced }$key"
-          done
-          echo "synced=$synced" >>"$GITHUB_OUTPUT"
+      # Nothing here writes SSM. Runtime secrets live only in SSM
+      # /oxy/mention/* (SecureString), set with `aws ssm put-parameter
+      # --overwrite` by their owner (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md);
+      # the new tasks this redeploy starts read the current values at task
+      # start. Until 2026-10-10 a step here copied GitHub repo secrets into SSM.
       - name: Re-verify current main before ECS rollout
         run: bash .github/scripts/require-current-main.sh
 
@@ -197,13 +132,13 @@ jobs:
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL",
              "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY",
-             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET"}
+             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET",
+             "META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_GRAPH_ACCESS_TOKEN",
+             "META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_IG_BUSINESS_ACCOUNT_ID"}
           TASK_ENV_OVERRIDES_JSON: |-
             {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
              "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
              "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
-          OPTIONAL_TASK_SECRETS: META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
-          SYNCED_SECRETS: ${{ steps.sync.outputs.synced }}
           OPTIONAL_TASK_ENV: INSTAGRAM_GRAPH_ENABLED META_GRAPH_API_VERSION INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT FEDERATED_MEDIA_DELETE_ENABLED
           OPTIONAL_ENV_INSTAGRAM_GRAPH_ENABLED: ${{ vars.INSTAGRAM_GRAPH_ENABLED }}
           OPTIONAL_ENV_META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
