@@ -5,7 +5,15 @@ vi.mock('../../utils/logger', () => ({
   logger: { warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { ensurePostMediaPublic, postMediaFileIds } from '../../services/postMediaVisibility';
+const createUserScopedOxyServices = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/oxyHelpers', () => ({ createUserScopedOxyServices }));
+
+import {
+  POST_MEDIA_VISIBILITY_TIMEOUT_MS,
+  createPostMediaOwnerClient,
+  ensurePostMediaPublic,
+  postMediaFileIds,
+} from '../../services/postMediaVisibility';
 
 function fakeClient(setVisibility = vi.fn().mockResolvedValue({ file: {} })) {
   return { assets: { setVisibility } } as unknown as Parameters<typeof ensurePostMediaPublic>[0] & {
@@ -83,5 +91,15 @@ describe('ensurePostMediaPublic', () => {
       '[postMediaVisibility] Failed to make post media public',
       expect.objectContaining({ fileId: 'not-mine', error: 'Forbidden' }),
     );
+  });
+});
+
+describe('createPostMediaOwnerClient', () => {
+  it("uses the author's session with room for Oxy to move a long video's variants", () => {
+    const req = { accessToken: 'author-token' };
+    createPostMediaOwnerClient(req as never);
+    expect(createUserScopedOxyServices).toHaveBeenCalledWith(req, { requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS });
+    // The SDK default is 5s; a relocation of a few-minute video took longer.
+    expect(POST_MEDIA_VISIBILITY_TIMEOUT_MS).toBeGreaterThan(5_000);
   });
 });

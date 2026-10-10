@@ -19,6 +19,7 @@
 import type { OxyServices } from '@oxy.so/core';
 import { authorVariants } from './postVariants';
 import { logger } from '../utils/logger';
+import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 
 type PostMediaContent = Parameters<typeof authorVariants>[0];
 
@@ -55,6 +56,20 @@ export function postMediaFileIds(content: PostMediaContent | null | undefined): 
     }
   }
   return [...fileIds];
+}
+
+/**
+ * Bound on one visibility change, in ms. Oxy moves the original AND every
+ * variant under the `public/` prefix before it answers, one S3 copy after
+ * another, so a long video takes seconds — past the SDK's 5s default for JSON
+ * calls. Timing out there would not undo the change (Oxy finishes it), but the
+ * post would be written before its media is servable.
+ */
+export const POST_MEDIA_VISIBILITY_TIMEOUT_MS = 60_000;
+
+/** The author's own Oxy session, with room for {@link POST_MEDIA_VISIBILITY_TIMEOUT_MS}. */
+export function createPostMediaOwnerClient(req: Parameters<typeof createUserScopedOxyServices>[0]) {
+  return createUserScopedOxyServices(req, { requestTimeout: POST_MEDIA_VISIBILITY_TIMEOUT_MS });
 }
 
 /**

@@ -220,7 +220,9 @@ async function uploadWithOxySession(
   const file = new File([new Uint8Array(buffer)], fileName, { type: contentType });
   const oxyClient = new OxyServices({ baseURL: OXY_API_URL });
   oxyClient.session.setAccessToken(token);
-  const uploadResult = await oxyClient.assets.upload(file);
+  // Post media renders from the public CDN, which 404s a private asset — the
+  // same visibility the MCP path's service upload already gives it.
+  const uploadResult = await oxyClient.assets.upload(file, { visibility: 'public' });
   const fileId = uploadResult?.file?.id;
   if (typeof fileId !== 'string' || fileId.length === 0) {
     throw new Error('Could not save the media');

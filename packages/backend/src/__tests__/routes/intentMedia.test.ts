@@ -177,6 +177,15 @@ describe('POST /posts/intent-media', () => {
     expect(uploadedFile?.type).toBe('image/png');
   });
 
+  it('uploads post media public, because the CDN that renders it 404s a private asset', async () => {
+    const res = await request(app)
+      .post('/')
+      .send({ base64: Buffer.from('PNG!').toString('base64'), mimeType: 'image/png' });
+
+    expect(res.status).toBe(200);
+    expect(assetUploadMock).toHaveBeenCalledWith(expect.any(File), { visibility: 'public' });
+  });
+
   it('strips path traversal from filename on base64 upload', async () => {
     const png = Buffer.from('PNG!');
     const res = await request(app)
