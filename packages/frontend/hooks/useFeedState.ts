@@ -31,7 +31,11 @@ import {
     subscribeToNewLocalPosts,
     subscribeToNewLocalReplies,
     subscribeToRemovedLocalPosts,
+    setFeedOwnNewPostScope,
+    prependToMemoryCache,
+    localPostSlice,
     type FeedMemoryCacheEntry,
+    type OwnNewPostScope,
 } from '@/stores/feedScrollStore';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
 import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
@@ -56,6 +60,9 @@ const logger = createLogger('useFeedState');
 // space out instead of hammering a still-syncing outbox. The number of entries
 // is the (bounded) poll budget, so we never poll indefinitely.
 const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
+
+/** The unscoped feeds a viewer's own new post goes to the top of. */
+const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']);
 
 export interface UseFeedStateOptions {
     type: FeedType;
@@ -259,96 +266,50 @@ export function useFeedState({
         };
     }, [clearPendingPoll]);
 
-    // Memory-mode home feeds (web without SQLite) don't read SQLite, so a post
-    // created by postsStore won't appear until a manual refresh. Subscribe to the
-    // new-post broadcast and prepend it to the live items + retained cache,
-    // mirroring the SQLite "insert at top" behavior. Scoped/filtered feeds and
-    // the saved feed never receive arbitrary new posts; a profile feed only shows
-    // its own author's new post — matching the SQLite path's feed-key selection.
-    const HOME_FEED_TYPES = useMemo(() => new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']), []);
+    // Memory-mode feeds (web without SQLite) don't read SQLite, so a post created
+    // by postsStore reaches them through `publishNewLocalPost`, mirroring the
+    // SQLite "insert at top". Scoped/filtered feeds and the saved feed never
+    // receive arbitrary new posts; a profile feed only its own author's —
+    // matching the SQLite path's feed-key selection.
+    const ownNewPostScope: OwnNewPostScope['kind'] | undefined =
+        !useMemoryFeed || useScoped || showOnlySaved
+            ? undefined
+            : userId ? 'author' : HOME_FEED_TYPES.has(type) ? 'home' : undefined;
 
-    /**
-     * Put a post the viewer just created at the top of this memory-mode feed:
-     * live items, live slices, and the retained slice an unmount→remount seeds
-     * from. Shared by the two broadcasts below — a new post on a home or profile
-     * feed, a new reply on its thread's replies feed.
-     */
-    const prependLocalPost = useCallback((item: HydratedPost) => {
+    // The store puts the new post into this feed's RETAINED slice, whether or not
+    // the feed is mounted when it is published: on web the composer replaces the
+    // home feed, which then warm-starts from that slice.
+    useEffect(() => {
+        if (!ownNewPostScope) return;
+        setFeedOwnNewPostScope(
+            feedScrollKey,
+            ownNewPostScope === 'author' ? { kind: 'author', authorId: String(userId) } : { kind: 'home' },
+        );
+    }, [ownNewPostScope, feedScrollKey, userId]);
+
+    /** Put a post the viewer just created at the top of the live items and slices. */
+    const prependLiveItem = useCallback((item: HydratedPost) => {
         const key = getItemKey(item);
-
-        // Prepend to live items (pure updater — dedup is order-stable).
+        // Pure updaters — dedup is order-stable.
         setLocalItems((prev) =>
             prev.some((p) => getItemKey(p) === key) ? prev : [item, ...prev]
         );
-
         // When the feed renders via slices (Feed.tsx prefers slices over items),
         // prepend a single-post slice so the new post is visible there too.
-        const buildLocalSlice = (): FeedPostSlice => ({
-            _sliceKey: `local-new:${key}`,
-            isIncompleteThread: false,
-            items: [{
-                post: item,
-                isThreadParent: false,
-                isThreadChild: false,
-                isThreadLastChild: false,
-            }],
-        });
-        setLocalSlices((prev) => {
-            if (!prev) return prev;
-            const alreadyPresent = prev.some((slice) =>
-                slice.items.some((si) => getItemKey(si.post) === key)
-            );
-            return alreadyPresent ? prev : [buildLocalSlice(), ...prev];
-        });
-
-        // Keep the retained slice in sync so an unmount→remount still shows it.
-        // The retained cache is the source of truth for memory mode, so compute
-        // the next snapshot from it (not from possibly-stale closure state).
-        const existing = getFeedMemoryCache(feedScrollKey);
-        const existingItems = existing?.items ?? localItemsRef.current;
-        if (!existingItems.some((p) => getItemKey(p) === key)) {
-            const existingSlices = existing?.slices ?? localSlicesRef.current;
-            const nextSlices = existingSlices
-                && !existingSlices.some((slice) =>
-                    slice.items.some((si) => getItemKey(si.post) === key))
-                ? [buildLocalSlice(), ...existingSlices]
-                : existingSlices;
-            setFeedMemoryCache(feedScrollKey, {
-                items: [item, ...existingItems],
-                slices: nextSlices,
-                // The new post prepends its own slice; the existing card
-                // placements are anchored by slice key, so they survive intact.
-                interstitials: existing?.interstitials ?? localInterstitialsRef.current,
-                hasMore: existing?.hasMore ?? localHasMore,
-                nextCursor: existing?.nextCursor ?? localNextCursor,
-                // Prepending the viewer's own new post does not make this
-                // slice any fresher than the read it came from.
-                retainedAt: existing?.retainedAt ?? 0,
-            });
-        }
-    }, [feedScrollKey, localHasMore, localNextCursor]);
+        setLocalSlices((prev) =>
+            !prev || prev.some((slice) => slice.items.some((si) => getItemKey(si.post) === key))
+                ? prev
+                : [localPostSlice(item), ...prev]
+        );
+    }, []);
 
     useEffect(() => {
-        if (!useMemoryFeed || useScoped || showOnlySaved) return;
-        const isHomeFeed = !userId && HOME_FEED_TYPES.has(type);
-        if (!isHomeFeed && !userId) return;
-
+        if (!ownNewPostScope) return;
         return subscribeToNewLocalPosts((item) => {
-            // For a profile feed, only prepend the post if it belongs to that user.
-            if (userId && String((item as HydratedPost)?.user?.id ?? '') !== String(userId)) {
-                return;
-            }
-            prependLocalPost(item);
+            if (ownNewPostScope === 'author' && String(item?.user?.id ?? '') !== String(userId)) return;
+            prependLiveItem(item);
         });
-    }, [
-        useMemoryFeed,
-        useScoped,
-        showOnlySaved,
-        userId,
-        type,
-        HOME_FEED_TYPES,
-        prependLocalPost,
-    ]);
+    }, [ownNewPostScope, userId, prependLiveItem]);
 
     // A thread's replies feed is a SCOPED memory feed, so the new-post broadcast
     // above deliberately skips it — and a reply the viewer just posted used to
@@ -366,9 +327,19 @@ export function useFeedState({
 
         return subscribeToNewLocalReplies((reply) => {
             if (String(reply.parentPostId ?? '') !== String(repliesParentId)) return;
-            prependLocalPost(reply);
+            prependLiveItem(reply);
+            // Keep the retained slice in sync so an unmount→remount still shows it.
+            const existing = getFeedMemoryCache(feedScrollKey);
+            setFeedMemoryCache(feedScrollKey, prependToMemoryCache(existing ?? {
+                items: localItemsRef.current,
+                slices: localSlicesRef.current,
+                interstitials: localInterstitialsRef.current,
+                hasMore: localHasMore,
+                nextCursor: localNextCursor,
+                retainedAt: 0,
+            }, reply));
         });
-    }, [useMemoryFeed, repliesParentId, prependLocalPost]);
+    }, [useMemoryFeed, repliesParentId, prependLiveItem, feedScrollKey, localHasMore, localNextCursor]);
 
     // Memory-mode feeds hold items in local React state and never read SQLite, so
     // a post deleted via `postsStore.removePostEverywhere` (SQLite delete + version
