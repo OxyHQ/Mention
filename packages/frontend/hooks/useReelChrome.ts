@@ -223,6 +223,18 @@ export function useReelChrome({
   // so a newly-activated video always autoplays instead of inheriting a stale
   // paused state.
   const [userPaused, setUserPaused] = useState(false);
+  // Whether the element is actually playing, as the player reports it. Asking to
+  // play is not the same thing: Safari refuses a play() it did not get from a
+  // tap — always in Low Power Mode, and for any video with sound — and leaves
+  // the element paused on its first frame. Without this the surface showed that
+  // frame with nothing to say a tap would start it.
+  const [playing, setPlaying] = useState(player.playing);
+  const [prevPlayer, setPrevPlayer] = useState(player);
+  if (prevPlayer !== player) {
+    setPrevPlayer(player);
+    setPlaying(player.playing);
+  }
+  useEventListener(player, 'playingChange', ({ isPlaying }) => setPlaying(isPlaying));
   // Scrubber state. The playhead lives in a shared value, not React state:
   // `timeUpdate` fires four times a second, and as state every tick re-rendered
   // the whole slide overlay (surface, tap layer, heart, spinner) just to move a
@@ -607,6 +619,22 @@ export function useReelChrome({
 
   const handleSurfacePress = useCallback(() => {
     if (!isActive || !screenFocused) return;
+    // A tap on a video that is not playing starts it, from INSIDE the tap. iOS
+    // Safari honours a play() only within the gesture that asked for it; the
+    // pause toggle below lands after the double-tap window, through a state
+    // change and an effect, so a refused autoplay (Low Power Mode) could never
+    // be started at all — every tap was spent unmuting or toggling a pause the
+    // element was already in.
+    if (!player.playing) {
+      lastTapRef.current = 0;
+      if (pausePendingRef.current) {
+        clearTimeout(pausePendingRef.current);
+        pausePendingRef.current = null;
+      }
+      setUserPaused(false);
+      player.play();
+      return;
+    }
     // Web autoplay begins muted. The first intentional tap joins the audio,
     // matching short-video apps without keeping a floating volume control
     // over every reel. Once audible, taps retain pause/play behaviour.
@@ -637,7 +665,7 @@ export function useReelChrome({
       pausePendingRef.current = null;
       setUserPaused((prev) => !prev);
     }, DOUBLE_TAP_WINDOW_MS);
-  }, [isActive, screenFocused, muted, onMutedChange, isLiked, onLikePost, popHeart]);
+  }, [isActive, screenFocused, player, muted, onMutedChange, isLiked, onLikePost, popHeart]);
 
   const heartStyle = useAnimatedStyle(() => ({
     opacity: heartOpacity.value,
@@ -693,9 +721,11 @@ export function useReelChrome({
   }));
 
   const showPoster = !hasRendered;
-  // The pause affordance shows only when the viewer has actively paused the
-  // current video — not for the autoplay-gating pauses (off-screen / blurred).
-  const showPauseAffordance = isActive && screenFocused && userPaused;
+  // The play affordance shows on the watched surface whenever its video is not
+  // playing: the viewer paused it, or the browser refused to start it (Safari
+  // without a tap, e.g. in Low Power Mode). The autoplay-gating pauses
+  // (off-screen / blurred) never reach it.
+  const showPauseAffordance = isActive && screenFocused && (userPaused || !playing);
   const showScrubber = isActive && screenFocused;
   const showBufferSpinner = isBuffering && isActive && hasRendered;
   return {
