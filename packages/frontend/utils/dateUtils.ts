@@ -6,7 +6,9 @@ export const addMinutes = (date: Date, minutes: number) => new Date(date.getTime
 
 export const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 
-export const formatTimeInput = (date: Date) => date.toTimeString().slice(0, 5);
+/** Local 24h `"HH:mm"`, the format Bloom's `TimeField` speaks. */
+export const formatTimeInput = (date: Date) =>
+  `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
 export const formatScheduledLabel = (date: Date): string => {
   try {

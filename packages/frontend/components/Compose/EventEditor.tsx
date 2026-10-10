@@ -7,6 +7,7 @@ import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from "react-i18next";
+import { formatTimeInput } from '@/utils/dateUtils';
 
 /** Strict 24h `HH:mm` — `99:99`, `25:00` and half-typed values are not times. */
 const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
@@ -69,7 +70,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         () => new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()),
         [eventDate],
     );
-    const eventTime = `${String(eventDate.getHours()).padStart(2, '0')}:${String(eventDate.getMinutes()).padStart(2, '0')}`;
+    const eventTime = formatTimeInput(eventDate);
 
     const handleDateChange = React.useCallback((selectedDate: Date | null) => {
         if (!selectedDate) return;

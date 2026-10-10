@@ -6,6 +6,7 @@ import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
+import { formatTimeInput } from '@/utils/dateUtils';
 
 export type ScheduleOption = {
   key: string;
@@ -24,10 +25,6 @@ export interface ScheduleSheetProps {
 
 /** Bloom's `DatePicker` speaks local-midnight days. */
 const toLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-/** Bloom's `TimeField` speaks local 24h `"HH:mm"`. */
-const formatTimeInput = (date: Date) =>
-  `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
 /** Merges the picked day and time into one local timestamp. */
 export const parseDateTime = (day: Date | null, time: string | null): Date | null => {

@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { toast as toastFn } from '@oxy.so/bloom/toast';
 import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
 import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
-import { addMinutes } from '@/utils/dateUtils';
+import { addMinutes, formatScheduledLabel } from '@/utils/dateUtils';
 
 interface UseScheduleManagerProps {
   bottomSheet: BottomSheetContextProps;
@@ -25,14 +25,6 @@ export const useScheduleManager = ({
   // render, so it already closes over the current value.
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 
-  const formatScheduledLabel = useCallback((date: Date) => {
-    try {
-      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-    } catch {
-      return date.toLocaleString();
-    }
-  }, []);
-
   const clearSchedule = useCallback((options?: { silent?: boolean }) => {
     setScheduledAt(null);
     if (!options?.silent) {
@@ -44,7 +36,7 @@ export const useScheduleManager = ({
     setScheduledAt(date);
     toast(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }), { type: 'success' });
     bottomSheet.openBottomSheet(false);
-  }, [bottomSheet, formatScheduledLabel, t, toast]);
+  }, [bottomSheet, t, toast]);
 
   const handleScheduleClear = useCallback(() => {
     clearSchedule();
@@ -97,7 +89,6 @@ export const useScheduleManager = ({
   }, [
     scheduledAt,
     bottomSheet,
-    formatScheduledLabel,
     handleScheduleSelect,
     handleScheduleClear,
     handleScheduleClose,
