@@ -544,8 +544,9 @@ const ReelSurface: React.FC<
     onRegisterTransportSeek,
   });
 
-  // Inert unless `jsHlsSource` is set, and always on native.
-  useHlsPlayback(jsHlsSource ?? '', videoViewRef, true, fallbackVideoUrl);
+  // Inert unless `jsHlsSource` is set, and always on native. Its `ref` goes on
+  // the slide's VideoView: hls.js attaches when that element exists.
+  const { ref: hlsRef } = useHlsPlayback(jsHlsSource ?? '', videoViewRef, true, fallbackVideoUrl);
 
   // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
   // without a size. `player` passes through untouched including `null`, which
@@ -553,7 +554,7 @@ const ReelSurface: React.FC<
   const renderReelVideo = useCallback(
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
       <VideoView
-        ref={videoViewRef}
+        ref={hlsRef}
         // `null` is forwarded verbatim — it is the instruction to unbind
         // this element, and expo-video answers it by emptying the source
         // without an event, which is what stops an outgoing surface
@@ -592,7 +593,7 @@ const ReelSurface: React.FC<
     ),
     [
       player,
-      videoViewRef,
+      hlsRef,
       isWatched,
       handlePictureInPictureStart,
       handlePictureInPictureStop,

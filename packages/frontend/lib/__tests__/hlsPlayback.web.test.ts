@@ -14,7 +14,10 @@
  */
 
 import { URL as NodeURL } from 'node:url';
-import { needsJsHlsDecoder, playProgressiveInstead } from '../hlsPlayback.web';
+import { createElement } from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
+import { needsJsHlsDecoder, playProgressiveInstead, useHlsPlayback } from '../hlsPlayback.web';
 
 const LADDER = 'https://cloud.oxy.so/m1?variant=hls_master';
 const ORIGINAL = 'https://cloud.oxy.so/m1';
@@ -79,5 +82,80 @@ describe('playProgressiveInstead', () => {
     element.play.mockReturnValueOnce(Promise.reject(new DOMException('denied', 'NotAllowedError')));
     expect(() => playProgressiveInstead(element, ORIGINAL, true)).not.toThrow();
     await Promise.resolve();
+  });
+});
+
+/**
+ * The hook attaches through the view's `ref`, not an effect: a flight host
+ * mounts its video after the owner's effects run, and an effect that read the
+ * ref once found nothing and never asked again. These pin the ref's contract;
+ * the hls.js attach itself sits behind an `import()` Jest cannot execute.
+ */
+describe('useHlsPlayback ref', () => {
+  function hookFor(src: string) {
+    const viewRef: { current: VideoViewHandle | null } = { current: null };
+    let playback: ReturnType<typeof useHlsPlayback> | undefined;
+    function Probe() {
+      playback = useHlsPlayback(src, viewRef);
+      return null;
+    }
+    act(() => {
+      TestRenderer.create(createElement(Probe));
+    });
+    if (!playback) throw new Error('hook did not render');
+    return { playback, viewRef };
+  }
+
+  const handleFor = (element: unknown) =>
+    ({ nativeRef: { current: element } }) as unknown as VideoViewHandle;
+
+  type RefCallback = (handle: VideoViewHandle | null) => (() => void) | undefined;
+
+  it("fills the caller's ref for a progressive source, and attaches nothing", () => {
+    withMediaSource(true);
+    const { playback, viewRef } = hookFor(ORIGINAL);
+    const handle = handleFor(document.createElement('video'));
+
+    expect(playback.active).toBe(false);
+    expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    expect(viewRef.current).toBe(handle);
+    (playback.ref as RefCallback)(null);
+    expect(viewRef.current).toBeNull();
+  });
+
+  it('attaches to the element when the view mounts it, and releases it on cleanup', () => {
+    withMediaSource(true);
+    const { playback, viewRef } = hookFor(LADDER);
+    const handle = handleFor(document.createElement('video'));
+
+    expect(playback.active).toBe(true);
+    const cleanup = (playback.ref as RefCallback)(handle);
+    expect(viewRef.current).toBe(handle);
+    expect(typeof cleanup).toBe('function');
+
+    act(() => cleanup?.());
+    expect(viewRef.current).toBeNull();
+  });
+
+  it('leaves the ref to a newer view when an older one is cleaned up', () => {
+    withMediaSource(true);
+    const { playback, viewRef } = hookFor(LADDER);
+    const older = handleFor(document.createElement('video'));
+    const newer = handleFor(document.createElement('video'));
+
+    const cleanupOlder = (playback.ref as RefCallback)(older);
+    (playback.ref as RefCallback)(newer);
+    act(() => cleanupOlder?.());
+
+    expect(viewRef.current).toBe(newer);
+  });
+
+  it('attaches nothing to a view whose element is not a <video>', () => {
+    withMediaSource(true);
+    const { playback, viewRef } = hookFor(LADDER);
+    const handle = handleFor(null);
+
+    expect((playback.ref as RefCallback)(handle)).toBeUndefined();
+    expect(viewRef.current).toBe(handle);
   });
 });

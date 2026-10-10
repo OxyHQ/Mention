@@ -16,9 +16,9 @@ import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 export interface HlsPlayback {
   /** Always false on native — the platform decoder owns HLS. */
   readonly active: boolean;
+  /** The `ref` for the view: on native, the caller's own ref. */
+  readonly ref: React.Ref<VideoViewHandle>;
 }
-
-const NATIVE_PLAYBACK: HlsPlayback = { active: false };
 
 /** Never on native: the platform decoder plays HLS itself. */
 export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
@@ -27,9 +27,9 @@ export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
 
 export function useHlsPlayback(
   _src: string,
-  _viewRef: React.RefObject<VideoViewHandle | null>,
+  viewRef: React.RefObject<VideoViewHandle | null>,
   _loading?: boolean,
   _fallbackSrc?: string,
 ): HlsPlayback {
-  return NATIVE_PLAYBACK;
+  return { active: false, ref: viewRef };
 }
