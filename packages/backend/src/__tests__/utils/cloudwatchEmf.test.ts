@@ -54,7 +54,8 @@ describe('emitRequestMetrics', () => {
 
     const [emfMetric] = line._aws.CloudWatchMetrics;
     expect(emfMetric.Namespace).toBe('Mention/Backend');
-    expect(emfMetric.Dimensions).toEqual([['route', 'method']]);
+    // Low cardinality on purpose: each dimension set is a billed metric.
+    expect(emfMetric.Dimensions).toEqual([['method']]);
     expect(emfMetric.Metrics).toEqual(expect.arrayContaining([
       { Name: 'HttpRequestDurationMs', Unit: 'Milliseconds' },
       { Name: 'QueryCount', Unit: 'Count' },
