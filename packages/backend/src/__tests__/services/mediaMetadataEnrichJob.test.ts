@@ -18,7 +18,11 @@ import { PostType, PostVisibility, type MediaItem } from '@mention/shared-types'
 const enrichFromOxy = vi.fn();
 const needsOxyRetry = vi.fn();
 
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/MediaMetadataService', async (importOriginal) => ({
+  // The real comparison: what counts as a change is part of what is under test.
+  mediaMetadataChanged: (
+    await importOriginal<typeof import('../../services/MediaMetadataService')>()
+  ).mediaMetadataChanged,
   mediaMetadataService: {
     enrichFromOxy: (...args: unknown[]) => enrichFromOxy(...args),
     needsOxyRetry: (...args: unknown[]) => needsOxyRetry(...args),
@@ -128,6 +132,19 @@ describe('processMediaMetadataEnrichJob', () => {
     await patchPostMediaMetadata(postId);
 
     expect(await storedMedia(postId)).toEqual([probedVideo]);
+  });
+
+  it("persists Oxy's HLS ladder stamp once it arrives, with nothing else changed", async () => {
+    // The ladder finishes after the probe: dimensions are already stored, and the
+    // stamp alone must still be written, or the DTO never carries an `hlsUrl`.
+    const postId = await seedPostWithMedia([probedVideo]);
+    const stamped = { ...probedVideo, hlsReadyAt: '2026-10-10T18:00:00.000Z' };
+    enrichFromOxy.mockResolvedValue([stamped]);
+    needsOxyRetry.mockReturnValue(false);
+
+    await patchPostMediaMetadata(postId);
+
+    expect(await storedMedia(postId)).toEqual([stamped]);
   });
 
   it('keeps the gallery ORDER when it rewrites the media rows', async () => {

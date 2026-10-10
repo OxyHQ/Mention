@@ -120,6 +120,27 @@ const HLS_CONFIG = {
   startLevel: -1,
 } as const;
 
+/**
+ * Hand an element whose stream failed the same video as a progressive file.
+ *
+ * While hls.js is attached it, not expo-video, supplies the element's bytes, so
+ * a fatal stream error never reaches expo-video's status — and with it the
+ * fallback every other player failure takes. This is that fallback, on the same
+ * element expo-video keeps driving: play/pause and the time updates carry on.
+ * `resume` is whether the element was playing when the stream died.
+ */
+export function playProgressiveInstead(
+  element: HTMLVideoElement,
+  src: string,
+  resume: boolean,
+): void {
+  element.src = src;
+  if (!resume) return;
+  void element.play().catch(() => {
+    // Autoplay refused; the viewer's tap plays it like any video.
+  });
+}
+
 /** What the caller needs to know about the JS decoder for one source. */
 export interface HlsPlayback {
   /**
@@ -150,6 +171,13 @@ export function useHlsPlayback(
    * its buffer for nobody; it resumes from where it stopped.
    */
   loading = true,
+  /**
+   * The same video as a progressive file, played when the stream fails. While
+   * hls.js is attached it, not expo-video, supplies this element's bytes, so a
+   * fatal stream error never reaches expo-video's status and its fallback; the
+   * element is handed this file instead, which is all a fallback is.
+   */
+  fallbackSrc?: string,
 ): HlsPlayback {
   // The decision is a pure function of the source and the browser, so it is
   // resolved during render (not in an effect): the caller needs it on the FIRST
@@ -181,9 +209,12 @@ export function useHlsPlayback(
             errorType: data.type,
             details: data.details,
           });
+          // Read before destroying: detaching resets the element.
+          const resume = !element.paused;
           created.destroy();
           if (hls === created) hls = null;
           setInstance((current) => (current === created ? null : current));
+          if (fallbackSrc) playProgressiveInstead(element, fallbackSrc, resume);
         });
         created.loadSource(src);
         created.attachMedia(element);
@@ -201,7 +232,7 @@ export function useHlsPlayback(
       hls = null;
       setInstance(null);
     };
-  }, [active, src, viewRef]);
+  }, [active, src, viewRef, fallbackSrc]);
 
   useEffect(() => {
     if (!instance) return;

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 44.12,
-      "covered": 11852,
-      "total": 26863
+      "pct": 44.43,
+      "covered": 11846,
+      "total": 26657
     },
     "branches": {
-      "pct": 38.87,
-      "covered": 7534,
-      "total": 19380
+      "pct": 39.35,
+      "covered": 7545,
+      "total": 19173
     },
     "functions": {
-      "pct": 39.1,
-      "covered": 2693,
-      "total": 6886
+      "pct": 39.51,
+      "covered": 2697,
+      "total": 6825
     },
     "lines": {
-      "pct": 44.82,
-      "covered": 10751,
-      "total": 23982
+      "pct": 45.13,
+      "covered": 10739,
+      "total": 23795
     }
   },
   "pins": {
@@ -132,10 +132,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 12,
-      "branches": 9,
-      "functions": 22,
-      "lines": 14
+      "statements": 16,
+      "branches": 12,
+      "functions": 33,
+      "lines": 18
     },
     "db/index.ts": {
       "statements": 100,
@@ -168,10 +168,10 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 37,
-      "branches": 29,
-      "functions": 66,
-      "lines": 41
+      "statements": 38,
+      "branches": 31,
+      "functions": 75,
+      "lines": 43
     },
     "db/schema.ts": {
       "statements": 79,
@@ -624,10 +624,10 @@
       "lines": 80
     },
     "hooks/useScheduleManager.ts": {
-      "statements": 96,
+      "statements": 100,
       "branches": 100,
       "functions": 100,
-      "lines": 96
+      "lines": 100
     },
     "hooks/useScheduledPosts.ts": {
       "statements": 78,
@@ -826,6 +826,12 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
+    },
+    "lib/hlsPlayback.web.ts": {
+      "statements": 24,
+      "branches": 29,
+      "functions": 31,
+      "lines": 25
     },
     "lib/i18n.ts": {
       "statements": 41,
@@ -1188,10 +1194,10 @@
       "lines": 77
     },
     "services/socketService.ts": {
-      "statements": 47,
+      "statements": 48,
       "branches": 28,
-      "functions": 43,
-      "lines": 49
+      "functions": 46,
+      "lines": 50
     },
     "services/starterPacksService.ts": {
       "statements": 0,
@@ -1242,9 +1248,9 @@
       "lines": 74
     },
     "stores/externalEmbedsStore.ts": {
-      "statements": 48,
+      "statements": 50,
       "branches": 38,
-      "functions": 38,
+      "functions": 43,
       "lines": 50
     },
     "stores/feedQueryCache.ts": {
@@ -1309,9 +1315,9 @@
     },
     "stores/postsStore.ts": {
       "statements": 63,
-      "branches": 43,
-      "functions": 61,
-      "lines": 68
+      "branches": 44,
+      "functions": 63,
+      "lines": 69
     },
     "stores/privacyStore.ts": {
       "statements": 52,
@@ -1410,8 +1416,8 @@
       "lines": 99
     },
     "utils/composeUtils.ts": {
-      "statements": 50,
-      "branches": 31,
+      "statements": 53,
+      "branches": 33,
       "functions": 35,
       "lines": 56
     },
@@ -1428,9 +1434,9 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 91,
+      "statements": 92,
       "branches": 95,
-      "functions": 70,
+      "functions": 80,
       "lines": 92
     },
     "utils/displayName.ts": {
@@ -1530,10 +1536,10 @@
       "lines": 90
     },
     "utils/hlsSource.ts": {
-      "statements": 87,
+      "statements": 90,
       "branches": 100,
       "functions": 100,
-      "lines": 84
+      "lines": 87
     },
     "utils/imageUrlCache.ts": {
       "statements": 0,
@@ -1560,10 +1566,10 @@
       "lines": 100
     },
     "utils/mediaTypes.ts": {
-      "statements": 60,
-      "branches": 52,
-      "functions": 50,
-      "lines": 58
+      "statements": 66,
+      "branches": 62,
+      "functions": 57,
+      "lines": 66
     },
     "utils/mentionSearch.ts": {
       "statements": 100,
