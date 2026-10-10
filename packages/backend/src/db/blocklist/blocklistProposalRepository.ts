@@ -30,7 +30,7 @@
  * verdict rather than throwing.
  */
 
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import {
   BLOCKLIST_SOURCE_OUTCOMES,
@@ -462,12 +462,4 @@ export async function latestProposalRunStartedAt(): Promise<Date | null> {
     .orderBy(desc(blocklistProposalRuns.startedAt))
     .limit(1);
   return row?.startedAt ?? null;
-}
-
-/** Total proposal rows, whatever their status. Diagnostics only. */
-export async function countProposals(): Promise<number> {
-  const [row] = await getDb()
-    .select({ total: sql<number>`count(*)::int` })
-    .from(blocklistProposals);
-  return row?.total ?? 0;
 }

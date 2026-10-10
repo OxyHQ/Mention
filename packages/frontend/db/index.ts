@@ -39,7 +39,6 @@ export {
   updatePost,
   deletePost,
   pruneOldPosts,
-  countPosts,
 } from './postQueries';
 
 // Feed queries
@@ -47,19 +46,14 @@ export type { FeedMetaData } from './feedQueries';
 export {
   setFeedItems,
   appendFeedItems,
-  getFeedItems,
   getAllFeedItems,
-  getFeedItemCount,
   getFeedMeta,
   hasFeedData,
-  getFeedKeys,
-  updateFeedMeta,
   removeFeedItem,
   addFeedItemAtStart,
   getFeedKeysForPost,
   removePostFromAllFeeds,
   clearFeed,
-  clearAllFeeds,
 } from './feedQueries';
 
 // Link queries

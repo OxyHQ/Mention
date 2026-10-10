@@ -75,7 +75,6 @@ jest.mock('@/db', () => ({
   prependFeedItem: jest.fn(),
   addFeedItemAtStart: jest.fn(),
   removeFeedItem: jest.fn(),
-  getFeedItems: () => [],
   getFeedMeta: () => null,
   clearFeed: jest.fn(),
   clearAllCachedData: jest.fn(),

@@ -146,12 +146,6 @@ export class OxyPrivacyAuthorizationError extends Error {
   }
 }
 
-export function isOxyPrivacyAuthorizationError(
-  error: unknown,
-): error is OxyPrivacyAuthorizationError {
-  return error instanceof OxyPrivacyAuthorizationError;
-}
-
 /**
  * Oxy could not provide an authoritative privacy list. Authenticated request
  * paths must fail closed instead of treating an outage or malformed response as

@@ -19,7 +19,7 @@
  * meant to be there.
  */
 
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { getDb } from '../postgres';
 import { starterPackMembers, starterPacks } from '../schema/lists';
 
@@ -95,17 +95,4 @@ export async function upsertMirroredStarterPack(pack: MirroredStarterPack): Prom
 
     return row.id;
   });
-}
-
-/** One mirrored pack by its source URI, or `null`. Exists for the sync's own reads. */
-export async function findMirroredStarterPack(
-  sourceNetwork: 'atproto',
-  sourceUri: string
-): Promise<{ id: string; name: string } | null> {
-  const [row] = await getDb()
-    .select({ id: starterPacks.id, name: starterPacks.name })
-    .from(starterPacks)
-    .where(and(eq(starterPacks.sourceNetwork, sourceNetwork), eq(starterPacks.sourceUri, sourceUri)))
-    .limit(1);
-  return row ?? null;
 }

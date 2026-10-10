@@ -406,22 +406,3 @@ export async function recordPurgeRun(
       },
     });
 }
-
-/** Set a domain's state directly. The purge script's own progress stamp. */
-export async function markPurgeState(
-  domain: string,
-  values: {
-    state: BlockedDomainPurgeState;
-    runId?: string | null;
-    purgedAt?: Date | null;
-    heldReason?: string | null;
-    failureReason?: string | null;
-    measured?: BlockedDomainPurgeCounts;
-  }
-): Promise<void> {
-  const { measured, ...rest } = values;
-  await getDb()
-    .update(blockedDomainPurges)
-    .set({ ...rest, ...(measured ? measuredColumns(measured) : {}) })
-    .where(eq(blockedDomainPurges.domain, domain));
-}

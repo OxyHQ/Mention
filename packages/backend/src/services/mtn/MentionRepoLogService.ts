@@ -21,18 +21,14 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { ChainHead } from '@oxy.so/protocol';
 import { getDb } from '../../db/postgres';
 import { mentionSignedRecords } from '../../db/schema/mtn';
-import { canonicalChainRow, mentionRecordStore } from './MentionRecordStore';
+import {
+  canonicalChainRow,
+  clampLogLimit,
+  DEFAULT_LOG_LIMIT,
+  mentionRecordStore,
+} from './MentionRecordStore';
 import { buildUserDid } from './mentionDid';
 import { MENTION_NODE_PUBLIC_COLLECTIONS } from './mentionNodes.constants';
-
-/** Default page size for the public-log read (matches the store's default). */
-export const DEFAULT_PUBLIC_LOG_LIMIT = 100;
-/** Hard ceiling so a single public-log call can never scan an unbounded slice. */
-const MAX_PUBLIC_LOG_LIMIT = 500;
-
-function clampLimit(limit: number): number {
-  return Math.max(1, Math.min(Math.trunc(limit) || DEFAULT_PUBLIC_LOG_LIMIT, MAX_PUBLIC_LOG_LIMIT));
-}
 
 /** The subject's chain head, or `null` when the user has no chain yet. */
 export async function getHead(oxyUserId: string): Promise<ChainHead | null> {
@@ -57,7 +53,7 @@ export async function getHead(oxyUserId: string): Promise<ChainHead | null> {
 export async function getPublicLogSince(
   oxyUserId: string,
   sinceSeq: number,
-  limit: number = DEFAULT_PUBLIC_LOG_LIMIT,
+  limit: number = DEFAULT_LOG_LIMIT,
 ): Promise<SignedRecordEnvelope[]> {
   const rows = await getDb()
     .select({ envelope: mentionSignedRecords.envelope })
@@ -71,6 +67,6 @@ export async function getPublicLogSince(
       ),
     )
     .orderBy(asc(mentionSignedRecords.seq))
-    .limit(clampLimit(limit));
+    .limit(clampLogLimit(limit));
   return rows.map((row) => row.envelope);
 }

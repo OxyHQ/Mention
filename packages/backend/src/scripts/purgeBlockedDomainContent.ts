@@ -227,6 +227,7 @@ import {
   readAdminScriptCursor,
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
+import { chunk } from '@oxy.so/utils/text';
 
 /** This script's own name — the token its mutation guard and cursor rows use. */
 const SCRIPT_NAME = 'purgeBlockedDomainContent';
@@ -724,12 +725,6 @@ function postUris(post: PostRow): string[] {
   return [post.federationActivityId, post.federationUrl].filter(
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
-}
-
-function chunk<T>(values: readonly T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < values.length; i += size) chunks.push(values.slice(i, i + size));
-  return chunks;
 }
 
 /**

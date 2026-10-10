@@ -195,17 +195,6 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
 }
 
 /**
- * Compact notification variant — no icon, no description.
- * Matches Bluesky's StarterPackCard.Notification.
- */
-export function StarterPackCardNotification({
-  pack,
-  onPress,
-}: StarterPackCardProps) {
-  return <StarterPackCard pack={pack} onPress={onPress} noDescription />;
-}
-
-/**
  * Skeleton placeholder matching StarterPackCard layout.
  */
 export function StarterPackCardSkeleton() {

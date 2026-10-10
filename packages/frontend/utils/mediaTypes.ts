@@ -28,16 +28,6 @@ export function readMediaAspectRatio(item: PersistedMediaDimensions | undefined)
   return undefined;
 }
 
-/** Read stored orientation from the media DTO (never computed client-side). */
-export function readMediaOrientation(
-  item: PersistedMediaDimensions | undefined,
-): 'portrait' | 'landscape' | 'square' | undefined {
-  const orientation = item?.orientation;
-  return orientation === 'portrait' || orientation === 'landscape' || orientation === 'square'
-    ? orientation
-    : undefined;
-}
-
 /** Read stored duration in seconds from the media DTO. */
 export function readMediaDurationSec(item: PersistedMediaDimensions | undefined): number | undefined {
   const duration = item?.durationSec;

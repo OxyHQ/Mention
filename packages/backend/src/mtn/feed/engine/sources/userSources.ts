@@ -29,6 +29,7 @@ import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import { resolveTrendStory } from '../../../../services/trendStoryCache';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * The profile feed, fetched down BOTH indexed routes to an author's posts and
@@ -134,11 +135,6 @@ async function fetchChrono(
   return assemblePostRecords(rows, db);
 }
 
-/** Escape a literal for embedding in a POSIX regular expression. */
-function escapeRegexLiteral(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /** `keywords`: posts matching hashtags (Hashtag feed) and/or content keywords (custom). */
 export const keywordsSource: SourceModule = {
   id: 'keywords',
@@ -159,7 +155,7 @@ export const keywordsSource: SourceModule = {
       // One alternation matching any keyword, rather than N separate EXISTS
       // scans over the same child table. `~*` is the case-insensitive POSIX
       // regex — the direct analogue of the JS `RegExp(..., 'i')` this replaces.
-      const pattern = keywords.map(escapeRegexLiteral).join('|');
+      const pattern = keywords.map(escapeRegExp).join('|');
       alternatives.push(
         sql`exists ${getDb()
           .select({ one: sql`1` })

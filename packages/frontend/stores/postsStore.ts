@@ -1982,18 +1982,3 @@ export const useUserFeedSelector = (userId: string, type: FeedType) => {
     lastUpdated: ui?.lastUpdated ?? 0,
   };
 };
-
-export const useFeedLoading = (type: FeedType) => {
-  const feedKey = buildFeedKey(type);
-  return usePostsStore((s) => s.feedUI[feedKey]?.isLoading ?? false);
-};
-
-export const useFeedError = (type: FeedType) => {
-  const feedKey = buildFeedKey(type);
-  return usePostsStore((s) => s.feedUI[feedKey]?.error ?? null);
-};
-
-export const useFeedHasMore = (type: FeedType) => {
-  const { meta } = useFeedSnapshot(buildFeedKey(type));
-  return meta?.hasMore ?? false;
-};

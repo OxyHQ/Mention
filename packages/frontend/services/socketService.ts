@@ -942,22 +942,6 @@ class SocketService {
   }
 
   /**
-   * Get online status of multiple users
-   */
-  getPresenceBulk(userIds: string[]): Promise<Record<string, boolean>> {
-    return new Promise((resolve) => {
-      if (!this.socket?.connected) {
-        resolve({});
-        return;
-      }
-
-      this.socket.emit('getPresenceBulk', userIds, (data: Record<string, boolean>) => {
-        resolve(data || {});
-      });
-    });
-  }
-
-  /**
    * Get connection status
    */
   getConnectionStatus() {

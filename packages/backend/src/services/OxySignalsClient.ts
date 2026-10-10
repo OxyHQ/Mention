@@ -15,6 +15,7 @@
 
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
+import { chunk } from '@oxy.so/utils/text';
 
 /** Oxy signals ingest endpoint path (service-token call). */
 const INGEST_PATH = '/app-signals/ingest';
@@ -99,16 +100,6 @@ interface SignalIngestBody {
 /** Body sent to `POST /app-signals/events`. */
 interface AffinityEventsBody {
   events: AffinityEvent[];
-}
-
-/** Split an array into fixed-size chunks. */
-function chunk<T>(items: T[], size: number): T[][] {
-  if (items.length <= size) return items.length > 0 ? [items] : [];
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
 }
 
 /**

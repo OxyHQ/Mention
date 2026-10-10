@@ -10,6 +10,11 @@ import {
   reserveMcpEffect,
   type McpEffectReservation,
 } from '../mcp/services/mcpEffectReceiptService';
+import {
+  fingerprintEffectRequest,
+  isSafeMethod,
+  settleReceiptWhenResponseEnds,
+} from '../mcp/utils/effectReceiptRequest';
 
 export interface CapabilityEffectReceiptDependencies {
   reserve: typeof reserveMcpEffect;
@@ -60,7 +65,7 @@ export function createMentionCapabilityEffectIdempotency(
         ].join(':'),
         toolName,
         idempotencyKey,
-        requestFingerprint: fingerprintRequest(request, toolName),
+        requestFingerprint: fingerprintEffectRequest(request, toolName),
       });
     } catch (error) {
       logger.error('[CapabilityEffect] Could not reserve effect', {
@@ -85,48 +90,19 @@ export function createMentionCapabilityEffectIdempotency(
       return;
     }
 
-    let finalized = false;
-    const finish = (responseStatus: number, indeterminate: boolean): void => {
-      if (finalized) return;
-      finalized = true;
-      void dependencies.finalize(reservation.receiptId, responseStatus, indeterminate)
-        .catch((error) => {
-          logger.error('[CapabilityEffect] Could not finalize effect receipt', {
-            receiptId: reservation.receiptId,
-            ticketId: claims.jti,
-            toolName,
-            reason: error instanceof Error ? error.message : 'unknown',
-          });
+    settleReceiptWhenResponseEnds(
+      response,
+      (responseStatus, indeterminate) =>
+        dependencies.finalize(reservation.receiptId, responseStatus, indeterminate),
+      (error) => {
+        logger.error('[CapabilityEffect] Could not finalize effect receipt', {
+          receiptId: reservation.receiptId,
+          ticketId: claims.jti,
+          toolName,
+          reason: error instanceof Error ? error.message : 'unknown',
         });
-    };
-    response.once('finish', () => finish(response.statusCode, false));
-    response.once('close', () => {
-      if (!response.writableEnded) finish(499, true);
-    });
+      },
+    );
     next();
   };
-}
-
-function isSafeMethod(method: string): boolean {
-  return ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
-}
-
-function fingerprintRequest(request: Request, toolName: string): string {
-  return JSON.stringify({
-    toolName,
-    method: request.method.toUpperCase(),
-    path: request.path,
-    query: canonicalize(request.query),
-    body: canonicalize(request.body),
-  });
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (typeof value !== 'object' || value === null) return value;
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, canonicalize(entry)]),
-  );
 }

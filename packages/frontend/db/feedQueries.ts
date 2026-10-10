@@ -198,37 +198,6 @@ export function appendFeedItems(
 // ── Read operations ──────────────────────────────────────────────
 
 /**
- * Get feed items ordered by position.
- * Returns full FeedItem objects by joining with the posts table.
- */
-export function getFeedItems(
-  feedKey: string,
-  offset: number = 0,
-  limit: number = 100
-): FeedItem[] {
-  if (!feedKey) return [];
-
-  if (!isDbAvailable()) {
-    return memGetAllFeedItems(feedKey).slice(offset, offset + limit);
-  }
-
-  const db = getDb();
-  if (!db) return [];
-  const rows = db.getAllSync<PostRow>(
-    `SELECT p.* FROM feed_items fi
-     JOIN posts p ON p.id = fi.post_id
-     WHERE fi.feed_key = ?
-     ORDER BY fi.position ASC
-     LIMIT ? OFFSET ?`,
-    feedKey, limit, offset
-  );
-
-  return rows
-    .map(rowToFeedItem)
-    .filter((item): item is FeedItem => item !== null);
-}
-
-/**
  * Get all feed items for a feed (no limit).
  * Use sparingly — prefer paginated reads for large feeds.
  *
@@ -283,25 +252,6 @@ export function getAllFeedItems(
 }
 
 /**
- * Get feed item count for a feed key.
- */
-export function getFeedItemCount(feedKey: string): number {
-  if (!feedKey) return 0;
-
-  if (!isDbAvailable()) {
-    return memGetAllFeedItems(feedKey).length;
-  }
-
-  const db = getDb();
-  if (!db) return 0;
-  const row = db.getFirstSync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM feed_items WHERE feed_key = ?',
-    feedKey
-  );
-  return row?.count ?? 0;
-}
-
-/**
  * Get feed metadata.
  */
 export function getFeedMeta(feedKey: string): FeedMetaData | null {
@@ -351,44 +301,7 @@ export function hasFeedData(feedKey: string): boolean {
   return Boolean(row?.has_data);
 }
 
-/**
- * Get all feed keys in the database.
- */
-export function getFeedKeys(): string[] {
-  const db = getDb();
-  if (!db) return [];
-  const rows = db.getAllSync<{ feed_key: string }>(
-    'SELECT DISTINCT feed_key FROM feed_meta ORDER BY last_updated DESC'
-  );
-  return rows.map((r) => r.feed_key);
-}
-
 // ── Mutation operations ──────────────────────────────────────────
-
-/**
- * Update feed metadata without touching items.
- */
-export function updateFeedMeta(feedKey: string, updates: Partial<FeedMetaData>): void {
-  if (!feedKey) return;
-
-  const db = getDb();
-  if (!db) return;
-  const current = db.getFirstSync<FeedMetaRow>(
-    'SELECT * FROM feed_meta WHERE feed_key = ?',
-    feedKey
-  );
-
-  db.runSync(
-    `INSERT OR REPLACE INTO feed_meta (feed_key, has_more, next_cursor, total_count, last_updated, filters_json)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    feedKey,
-    updates.hasMore !== undefined ? (updates.hasMore ? 1 : 0) : (current?.has_more ?? 1),
-    updates.nextCursor !== undefined ? (updates.nextCursor || null) : (current?.next_cursor || null),
-    updates.totalCount ?? current?.total_count ?? 0,
-    updates.lastUpdated ?? Date.now(),
-    updates.filters ? JSON.stringify(updates.filters) : (current?.filters_json || null)
-  );
-}
 
 /**
  * Remove a single post from a feed.
@@ -519,23 +432,6 @@ export function clearFeed(feedKey: string): void {
   } catch (error) {
     db.execSync('ROLLBACK');
     logger.error(`Failed to clear feed ${feedKey}`, error);
-  }
-}
-
-/**
- * Clear all feeds.
- */
-export function clearAllFeeds(): void {
-  const db = getDb();
-  if (!db) return;
-  try {
-    db.execSync('BEGIN TRANSACTION');
-    db.execSync('DELETE FROM feed_items');
-    db.execSync('DELETE FROM feed_meta');
-    db.execSync('COMMIT');
-  } catch (error) {
-    db.execSync('ROLLBACK');
-    logger.error('Failed to clear all feeds', error);
   }
 }
 

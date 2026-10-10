@@ -316,13 +316,3 @@ export function pruneOldPosts(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): numbe
 
   return deleted;
 }
-
-/**
- * Count total posts in cache.
- */
-export function countPosts(): number {
-  const db = getDb();
-  if (!db) return 0;
-  const row = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM posts');
-  return row?.count ?? 0;
-}
