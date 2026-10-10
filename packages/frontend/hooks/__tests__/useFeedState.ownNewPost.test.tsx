@@ -238,6 +238,9 @@ describe("useFeedState: the viewer's own new post", () => {
         await visit(home);
 
         invalidateSafetyFilters();
+        // Publish strictly AFTER the rule change: stamped with its own time, the
+        // write would then look newer than the change and hide it.
+        await new Promise((resolve) => setTimeout(resolve, 5));
         act(() => publishNewLocalPost(post('mine', 'viewer-a')));
 
         // The post went in, but the read under it still predates the rule
