@@ -40,6 +40,7 @@ import { engagementScoreSql } from './discoverySources';
 import { logger } from '../../../../utils/logger';
 import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * A "new voice" author must have at most this many recent posts to qualify as
@@ -489,18 +490,13 @@ export const instanceSource: SourceModule = {
       // `~*` is a case-insensitive POSIX regex, the direct analogue of the
       // JavaScript `RegExp(..., 'i')` this replaces. The pattern is anchored so
       // `evil-example.com` cannot match a request for `example.com`.
-      const pattern = `^https?://${escapeRegexLiteral(domain)}(:[0-9]+)?/`;
+      const pattern = `^https?://${escapeRegExp(domain)}(:[0-9]+)?/`;
       conditions.push(sql`${posts.federationActorUri} ~* ${pattern}`);
     }
 
     return fetchChrono(conditions, ctx.cursor, cap);
   },
 };
-
-/** Escape a literal for embedding in a POSIX regular expression. */
-function escapeRegexLiteral(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /**
  * `links`: posts linking to a specific domain (`params.domain`) — "news from
@@ -519,7 +515,7 @@ export const linksSource: SourceModule = {
     const domain = typeof params.domain === 'string' ? params.domain.trim().toLowerCase() : '';
     if (!domain) return [];
 
-    const pattern = `https?://([a-z0-9-]+\\.)*${escapeRegexLiteral(domain)}([/:?#]|\\s|$)`;
+    const pattern = `https?://([a-z0-9-]+\\.)*${escapeRegExp(domain)}([/:?#]|\\s|$)`;
     const db = getDb();
 
     const inSources = sql`exists ${db

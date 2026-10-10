@@ -13,6 +13,7 @@ import {
   isTopicSlug,
   type TopicSlug,
 } from './taxonomy';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /** Minimal, already-normalized input a topic classifier needs. */
 export interface TopicClassifierInput {
@@ -29,14 +30,6 @@ export interface TopicClassifierInput {
  */
 export interface TopicClassifier {
   classify(input: TopicClassifierInput): string[];
-}
-
-/**
- * Escapes a keyword for safe inclusion in a RegExp. Keywords are static data,
- * but escaping keeps the rules robust if punctuation is ever added.
- */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

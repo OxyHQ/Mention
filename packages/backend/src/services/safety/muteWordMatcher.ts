@@ -24,7 +24,7 @@
  *     `false` for the overwhelming majority of viewers, who have no such rule.
  */
 
-import { escapeRegex } from '../../utils/textProcessing';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /** What part of a post a muted entry matches against. */
 export type MuteTarget = 'content' | 'tag';
@@ -92,7 +92,7 @@ export const NO_FOLLOWED_AUTHORS: ReadonlySet<string> = new Set<string>();
 function toContentPattern(value: string): RegExp {
   const leading = /^\w/.test(value) ? '\\b' : '';
   const trailing = /\w$/.test(value) ? '\\b' : '';
-  return new RegExp(`${leading}${escapeRegex(value)}${trailing}`, 'i');
+  return new RegExp(`${leading}${escapeRegExp(value)}${trailing}`, 'i');
 }
 
 function emptyBucket(): MuteWordBucket {

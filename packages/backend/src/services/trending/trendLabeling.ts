@@ -38,6 +38,7 @@ import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
 import { canonicalHashtag } from '../contentClassification/taxonomy';
 import { collectTrendPhraseEntries, stripNonProse, type TrendPhrase } from './termExtraction';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * Version of the labelling rules.
@@ -508,10 +509,6 @@ function deriveCategory(term: string, excerpts: readonly string[]): TrendCategor
     if (category) return normalizeTrendCategory(category);
   }
   return 'other';
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

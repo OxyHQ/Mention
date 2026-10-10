@@ -18,6 +18,7 @@ import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentCl
 import { resolveVariant } from '../../../../services/postVariants';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * Read a field off a candidate without widening to `any`.
@@ -190,7 +191,7 @@ function matchesAnyWord(post: CandidatePost, words: string[]): boolean {
   for (const word of words) {
     const lower = word.toLowerCase();
     if (hashtags.includes(lower.replace(/^#/, ''))) return true;
-    const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegExp(lower);
     const pattern = new RegExp(`(^|\\W)${escaped}(\\W|$)`, 'i');
     if (texts.some((text) => pattern.test(text))) return true;
   }

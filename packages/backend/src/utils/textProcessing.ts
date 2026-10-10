@@ -217,13 +217,6 @@ export function normalizePostHashtags(text: string | undefined | null, userProvi
   return { content, hashtags };
 }
 
-/**
- * Escape special regex characters in a string for safe use in RegExp constructor.
- */
-export function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export function slugify(name: string): string {
   return name
     .toLowerCase()

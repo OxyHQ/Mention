@@ -17,6 +17,7 @@ import { clampFutureDate } from '../../utils/ingestTimestamp';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service
@@ -723,7 +724,7 @@ export function stripRenderedQuoteMarker(body: string, quotedUrls: readonly stri
 
   let out = body;
   for (const url of targets) {
-    const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegExp(url);
     // Trailing `/` is optional on the rendered form even when the stored URL
     // carries one, and vice versa — the marker is a rendering of the same post.
     const pattern = new RegExp(`(^|\\s*)RE:\\s*${escaped}/?(?=\\s|$)`, 'g');

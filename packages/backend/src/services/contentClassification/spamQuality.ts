@@ -27,6 +27,7 @@ import {
   type BotShapeResult,
   type BotSignalContext,
 } from './botSignals';
+import { escapeRegExp } from '@oxy.so/utils/text';
 
 /**
  * Optional federated-origin context for the low-effort / bot-shape heuristics.
@@ -306,11 +307,6 @@ const LETTER_PATTERN = /\p{L}/u;
 const UPPER_LETTER_PATTERN = /\p{Lu}/u;
 /** Sentence terminators. */
 const SENTENCE_TERMINATORS = /[.!?]/g;
-
-/** Escapes a static keyword for safe inclusion in a RegExp. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /** Whole-word/phrase, case-insensitive matchers compiled once from the lists. */
 const PROMO_PATTERNS: readonly RegExp[] = PROMO_KEYWORDS.map(
