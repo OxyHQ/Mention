@@ -1,13 +1,13 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import type { HydratedPost } from '@mention/shared-types';
+import { QueryClientProvider } from '@tanstack/react-query';
+import type { FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import {
-    clearAllFeedMemoryCaches,
-    publishNewLocalPost,
-    setFeedMemoryCache,
-} from '@/stores/feedScrollStore';
-import { buildFeedScrollKey } from '@/utils/feedUtils';
+import { queryClient } from '@/lib/queryClient';
+import { publishNewLocalPost } from '@/stores/feedQueryCache';
+import { getLocalPostRevision } from '@/stores/feedScrollStore';
+import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
+import { invalidateSafetyFilters, resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import {
     useFeedState,
     type UseFeedStateOptions,
@@ -64,8 +64,21 @@ jest.mock('@/lib/precacheActorsFromPosts', () => ({
     precacheActorsFromPosts: jest.fn(),
 }));
 
-function post(id: string): HydratedPost {
-    return { id, user: { id: `author-${id}` } } as unknown as HydratedPost;
+/** A post by `author`; the viewer's own new posts are by `viewer-a`. */
+function post(id: string, author: string = `author-${id}`): HydratedPost {
+    return { id, user: { id: author } } as unknown as HydratedPost;
+}
+
+function slice(id: string): FeedPostSlice {
+    return {
+        _sliceKey: `s-${id}`,
+        isIncompleteThread: false,
+        items: [{ post: post(id), isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
+    };
+}
+
+function page(items: HydratedPost[], slices: FeedPostSlice[] = []): SlicedFeedResponse {
+    return { items, slices, interstitials: [], hasMore: false, totalCount: items.length };
 }
 
 let latest: UseFeedStateReturn | undefined;
@@ -78,19 +91,36 @@ function Probe({ options }: { options: UseFeedStateOptions }) {
 const getFeedMock = feedService.getFeed as jest.Mock;
 const getUserFeedMock = feedService.getUserFeed as jest.Mock;
 
+async function flush(): Promise<void> {
+    for (let i = 0; i < 3; i += 1) {
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+    }
+}
+
+function ids(): string[] {
+    return (latest?.items ?? []).map((item) => item.id);
+}
+
 /**
- * A post the viewer publishes reaches the RETAINED slice of every feed it belongs
- * in, mounted or not. On web the composer replaces the home feed, so the feed is
- * unmounted at the moment of publishing and warm-starts from that slice when the
- * viewer comes back — it used to come back without the post.
+ * A post the viewer publishes reaches every feed it belongs in, mounted or not.
+ * On web the composer REPLACES the home feed, so the feed is unmounted at the
+ * moment of publishing and warm-starts from its cached pages when the viewer
+ * comes back — it used to come back without the post (#1331).
  */
 describe("useFeedState: the viewer's own new post", () => {
-    const homeOptions: UseFeedStateOptions = {
+    const home: UseFeedStateOptions = {
         type: 'for_you',
         isAuthenticated: true,
         currentUserId: 'viewer-a',
     };
-    const homeKey = buildFeedScrollKey({ type: 'for_you', isAuthenticated: true, currentViewerId: 'viewer-a' });
+    const ownProfile: UseFeedStateOptions = {
+        type: 'posts',
+        userId: 'viewer-a',
+        isAuthenticated: true,
+        currentUserId: 'viewer-a',
+    };
 
     beforeAll(() => {
         (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -99,105 +129,146 @@ describe("useFeedState: the viewer's own new post", () => {
     beforeEach(() => {
         latest = undefined;
         jest.clearAllMocks();
-        clearAllFeedMemoryCaches();
+        queryClient.clear();
+        resetEngagementInvalidation();
+        resetSafetyInvalidation();
     });
 
     async function mount(options: UseFeedStateOptions): Promise<TestRenderer.ReactTestRenderer> {
         let renderer!: TestRenderer.ReactTestRenderer;
         await act(async () => {
-            renderer = TestRenderer.create(<Probe options={options} />);
+            renderer = TestRenderer.create(
+                <QueryClientProvider client={queryClient}>
+                    <Probe options={options} />
+                </QueryClientProvider>,
+            );
         });
+        await flush();
         return renderer;
     }
 
+    /** Load a feed once and leave it, as the reader opening the composer does. */
+    async function visit(options: UseFeedStateOptions): Promise<void> {
+        const renderer = await mount(options);
+        act(() => renderer.unmount());
+    }
+
     it('is at the top of a home feed that was unmounted while it was published', async () => {
-        setFeedMemoryCache(homeKey, { items: [post('p1'), post('p2')], hasMore: false, retainedAt: Date.now() });
-        const home = await mount(homeOptions);
-        act(() => home.unmount());
+        getFeedMock.mockResolvedValueOnce(page([post('p1'), post('p2')]));
+        await visit(home);
 
         // The viewer is on the composer: the home feed is not mounted.
-        act(() => publishNewLocalPost(post('mine')));
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
 
-        const back = await mount(homeOptions);
-        expect(latest?.items.map((item) => item.id)).toEqual(['mine', 'p1', 'p2']);
-        // Warm-started from the retained slice, not refetched.
-        expect(getFeedMock).not.toHaveBeenCalled();
+        const back = await mount(home);
+        expect(ids()).toEqual(['mine', 'p1', 'p2']);
+        // Warm-started from the cache, not read again.
+        expect(getFeedMock).toHaveBeenCalledTimes(1);
         act(() => back.unmount());
     });
 
     it('is the first slice of a feed that renders by slice (the web home feed)', async () => {
-        const slice = (id: string) => ({
-            _sliceKey: `s-${id}`,
-            isIncompleteThread: false,
-            items: [{ post: post(id), isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
-        });
-        setFeedMemoryCache(homeKey, {
-            items: [post('p1')],
-            slices: [slice('p1')],
-            hasMore: false,
-            retainedAt: Date.now(),
-        });
-        const home = await mount(homeOptions);
-        act(() => home.unmount());
+        getFeedMock.mockResolvedValueOnce(page([post('p1')], [slice('p1')]));
+        await visit(home);
 
-        act(() => publishNewLocalPost(post('mine')));
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
 
-        const back = await mount(homeOptions);
+        const back = await mount(home);
         expect(latest?.slices?.map((s) => s.items.map((si) => si.post.id))).toEqual([['mine'], ['p1']]);
         act(() => back.unmount());
     });
 
     it('is at the top of a mounted home feed exactly once', async () => {
-        setFeedMemoryCache(homeKey, { items: [post('p1')], hasMore: false, retainedAt: Date.now() });
-        const home = await mount(homeOptions);
+        getFeedMock.mockResolvedValueOnce(page([post('p1')]));
+        const mounted = await mount(home);
 
-        act(() => publishNewLocalPost(post('mine')));
-        expect(latest?.items.map((item) => item.id)).toEqual(['mine', 'p1']);
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+        await flush();
+        expect(ids()).toEqual(['mine', 'p1']);
 
-        act(() => home.unmount());
-        const back = await mount(homeOptions);
-        expect(latest?.items.map((item) => item.id)).toEqual(['mine', 'p1']);
+        act(() => mounted.unmount());
+        const back = await mount(home);
+        expect(ids()).toEqual(['mine', 'p1']);
+        expect(getFeedMock).toHaveBeenCalledTimes(1);
         act(() => back.unmount());
     });
 
-    it("reaches a retained profile feed only when it is that profile's author", async () => {
-        const profileOptions: UseFeedStateOptions = {
-            type: 'posts',
-            userId: 'author-mine',
-            isAuthenticated: true,
-            currentUserId: 'viewer-a',
-        };
-        const profileKey = buildFeedScrollKey({
-            type: 'posts',
-            userId: 'author-mine',
-            isAuthenticated: true,
-            currentViewerId: 'viewer-a',
-        });
-        setFeedMemoryCache(profileKey, { items: [post('old')], hasMore: false, retainedAt: Date.now() });
-        const profile = await mount(profileOptions);
+    it("reaches its author's own profile posts, and no other profile tab or profile", async () => {
+        const ownLikes: UseFeedStateOptions = { ...ownProfile, type: 'likes' };
+        const otherProfile: UseFeedStateOptions = { ...ownProfile, userId: 'someone-else' };
+        getUserFeedMock.mockImplementation((userId: string, request: { type: string }) =>
+            Promise.resolve(page([post(`${userId}-${request.type}`)])));
+        await visit(ownProfile);
+        await visit(ownLikes);
+        await visit(otherProfile);
+
+        act(() => publishNewLocalPost(post('elsewhere', 'someone-else-entirely')));
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+
+        const profile = await mount(ownProfile);
+        expect(ids()).toEqual(['mine', 'viewer-a-posts']);
         act(() => profile.unmount());
 
-        act(() => publishNewLocalPost(post('elsewhere')));
-        act(() => publishNewLocalPost(post('mine')));
+        const likes = await mount(ownLikes);
+        expect(ids()).toEqual(['viewer-a-likes']);
+        act(() => likes.unmount());
 
-        const back = await mount(profileOptions);
-        expect(latest?.items.map((item) => item.id)).toEqual(['mine', 'old']);
-        expect(getUserFeedMock).not.toHaveBeenCalled();
+        const other = await mount(otherProfile);
+        expect(ids()).toEqual(['someone-else-posts']);
+        act(() => other.unmount());
+
+        expect(getUserFeedMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('never reaches a scoped feed', async () => {
+        const hashtag: UseFeedStateOptions = { ...home, type: 'hashtag', filters: { hashtag: 'news' }, useScoped: true };
+        getFeedMock.mockResolvedValueOnce(page([post('tagged')]));
+        const mounted = await mount(hashtag);
+
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+        await flush();
+
+        expect(ids()).toEqual(['tagged']);
+        act(() => mounted.unmount());
+    });
+
+    it('does not make a feed read before a write look fresher than it is', async () => {
+        getFeedMock.mockResolvedValueOnce(page([post('p1')]));
+        await visit(home);
+
+        invalidateSafetyFilters();
+        // Publish strictly AFTER the rule change: stamped with its own time, the
+        // write would then look newer than the change and hide it.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+
+        // The post went in, but the read under it still predates the rule
+        // change, so the warm start reads page 1 again.
+        getFeedMock.mockResolvedValueOnce(page([post('mine', 'viewer-a'), post('fresh')]));
+        const back = await mount(home);
+        expect(getFeedMock).toHaveBeenCalledTimes(2);
+        expect(ids()).toEqual(['mine', 'fresh']);
         act(() => back.unmount());
+    });
+
+    it('advances the revision the feed brings it into view by', () => {
+        const before = getLocalPostRevision();
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
+        expect(getLocalPostRevision()).toBe(before + 1);
     });
 
     it("does not carry one viewer's posts into the next viewer's feeds", async () => {
-        setFeedMemoryCache(homeKey, { items: [post('p1')], hasMore: false, retainedAt: Date.now() });
-        const home = await mount(homeOptions);
-        act(() => home.unmount());
+        getFeedMock.mockResolvedValueOnce(page([post('p1')]));
+        await visit(home);
 
-        // Account switch.
-        clearAllFeedMemoryCaches();
-        setFeedMemoryCache(homeKey, { items: [post('p1')], hasMore: false, retainedAt: Date.now() });
-        act(() => publishNewLocalPost(post('mine')));
+        // Account switch: `AccountSwitchReset` clears the whole client.
+        queryClient.clear();
+        act(() => publishNewLocalPost(post('mine', 'viewer-a')));
 
-        const back = await mount(homeOptions);
-        expect(latest?.items.map((item) => item.id)).toEqual(['p1']);
-        act(() => back.unmount());
+        getFeedMock.mockResolvedValueOnce(page([post('for-b')]));
+        const next = await mount({ ...home, currentUserId: 'viewer-b' });
+        expect(ids()).toEqual(['for-b']);
+        act(() => next.unmount());
     });
 });

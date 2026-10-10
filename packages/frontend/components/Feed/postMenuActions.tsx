@@ -160,7 +160,7 @@ export function buildPostMenuActions({
             const authorId = viewPost?.user?.id;
 
             // Optimistic removal: drop it from every feed (SQLite reactive removal
-            // on native; memory-mode broadcast on web) so it vanishes instantly —
+            // on native; the feed query cache on web) so it vanishes instantly —
             // Twitter/Threads-style — instead of lingering through the round-trip.
             removePostEverywhere(postId);
             if (isPostDetail) safeBack();
@@ -505,7 +505,7 @@ export function buildPostMenuActions({
             try {
                 await lanesService.mute(postLane.id);
                 // A mute is a filter over EVERY feed this reader opens, so the
-                // retained slices all have to be revalidated.
+                // held feed reads all have to be revalidated.
                 noteLaneListsChanged('mute');
                 toast(
                     t('lanes.postActions.laneMuted', {

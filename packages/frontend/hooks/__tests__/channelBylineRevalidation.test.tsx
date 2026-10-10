@@ -1,9 +1,10 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
+import { queryClient } from '@/lib/queryClient';
 import { usePostsStore } from '@/stores/postsStore';
-import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import {
@@ -160,7 +161,11 @@ async function flush(): Promise<void> {
 async function openFeed(): Promise<TestRenderer.ReactTestRenderer> {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-        renderer = TestRenderer.create(<ChannelFeed />);
+        renderer = TestRenderer.create(
+            <QueryClientProvider client={queryClient}>
+                <ChannelFeed />
+            </QueryClientProvider>,
+        );
     });
     await flush();
     openFeeds.add(renderer);
@@ -201,7 +206,7 @@ describe('a channel byline converges on the feeds the operator is looking at', (
     beforeEach(() => {
         latest = undefined;
         jest.clearAllMocks();
-        clearAllFeedMemoryCaches();
+        queryClient.clear();
         resetEngagementInvalidation();
         resetSafetyInvalidation();
         resetBylineInvalidation();
@@ -260,7 +265,7 @@ describe('a channel byline converges on the feeds the operator is looking at', (
         expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
         closeFeed(firstVisit);
 
-        // Nothing is subscribed now, so only the retained slice's age can carry the
+        // Nothing is subscribed now, so only the held read's age can carry the
         // change to the next mount.
         channelDiscloses = true;
         noteChannelBylineChanged(CHANNEL_ID);
@@ -301,7 +306,7 @@ describe('a channel byline converges on the feeds the operator is looking at', (
     });
 
     /**
-     * Native reads its feed out of SQLite rather than local state, so the same
+     * Native reads its feed out of SQLite rather than a feed query, so the same
      * question is asked in a different place: `fetchInitial` skips the fetch
      * entirely when the store says this feed was already loaded. That skip has to
      * notice a byline changed since, or the rows SQLite is holding — which survive

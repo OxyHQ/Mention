@@ -34,7 +34,7 @@ import {
   prefetchFollowingWidgetFeed,
   syncFeedWidget,
 } from '../modules/mention-widgets/feedWidgetSync';
-import { FeedFilters } from '../utils/feedUtils';
+import { FeedFilters, feedThreadParentId } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';
@@ -420,7 +420,7 @@ class FeedService {
 
           // Handle replies feed
           if (request.type === 'replies') {
-            const parentId = request.filters?.parentPostId || request.filters?.postId;
+            const parentId = feedThreadParentId(request.filters);
             if (!parentId) {
               return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
             }

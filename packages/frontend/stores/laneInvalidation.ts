@@ -13,23 +13,25 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * CLASS, with different surfaces and a different reach — but they share the same
  * hard constraint, so read that file's docstring first if this one is new to you.
  *
- * Mention holds post lists in TWO read caches, and neither can see the other:
+ * Mention holds post lists in TWO kinds of read cache, which answer a write
+ * differently:
  *
- *   * React Query owns the lane COLLECTIONS (the management screen, the muted
- *     list, a profile's tab list).
- *   * The feed store owns every `<Feed>` surface — the profile tabs, the lane
- *     tabs, Following, For You — and warm-starts a remount from a retained slice
- *     rather than refetching page 1. It has no staleness notion of its own, so
- *     absent a signal it serves that slice until a full reload.
+ *   * The lane COLLECTIONS (the management screen, the muted list, a profile's
+ *     tab list) are ordinary React Query lists, invalidated like them.
+ *   * Every `<Feed>` surface — the profile tabs, the lane tabs, Following, For
+ *     You — is a feed cache (a feed query, or SQLite on native) that warm-starts
+ *     a remount from the pages it holds rather than refetching page 1. It has no
+ *     age-based staleness, so absent a signal it serves those pages until a full
+ *     reload.
  *
- * A React-Query-only invalidation is therefore a NO-OP on every `<Feed>` surface,
- * which is precisely the half a lane write needs most.
+ * Invalidating the lane collections is therefore a NO-OP on every `<Feed>`
+ * surface, which is precisely the half a lane write needs most.
  *
  * Two write classes, because they reach different feeds:
  *
  *   * `mute` — the reader's own filter. It applies to EVERY feed they read
- *     (Following, For You, an author feed, a lane tab), so every retained slice
- *     that predates it is stale.
+ *     (Following, For You, an author feed, a lane tab), so every feed read that
+ *     predates it is stale.
  *   * `assignment` — a post moved between lanes, or a lane's `displayMode`
  *     changed. Both only move posts between the OWNER's own surfaces: their
  *     profile tabs and their lane tabs. The owner is always the acting viewer

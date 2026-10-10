@@ -11,7 +11,7 @@ import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useTrendsStore } from '@/stores/trendsStore';
-import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { clearFeedScrollOffsets } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
@@ -116,7 +116,7 @@ jest.mock('@/hooks/usePrivacySettings', () => ({
 }));
 
 jest.mock('@/stores/feedScrollStore', () => ({
-  clearAllFeedMemoryCaches: jest.fn(),
+  clearFeedScrollOffsets: jest.fn(),
 }));
 
 jest.mock('@/stores/engagementInvalidation', () => ({
@@ -159,7 +159,7 @@ const mockGetExternalEmbedsState =
 const mockGetLiveRoomsState = useLiveRoomsStore.getState as jest.Mock;
 const mockGetTrendsState = useTrendsStore.getState as jest.Mock;
 const mockSetReaderLanguages = jest.fn();
-const mockClearFeedMemory = clearAllFeedMemoryCaches as jest.Mock;
+const mockClearFeedScrollOffsets = clearFeedScrollOffsets as jest.Mock;
 const mockResetEngagementInvalidation = resetEngagementInvalidation as jest.Mock;
 const mockResetSafetyInvalidation = resetSafetyInvalidation as jest.Mock;
 const mockSetFeedViewerRequestScope =
@@ -271,7 +271,7 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockResetTrends).toHaveBeenCalledTimes(1);
     expect(mockResetRecommendationFilters).toHaveBeenCalledWith('viewer-a');
     expect(mockResetPrivacySettingsCache).toHaveBeenCalledWith('viewer-a');
-    expect(mockClearFeedMemory).toHaveBeenCalledTimes(1);
+    expect(mockClearFeedScrollOffsets).toHaveBeenCalledTimes(1);
     expect(mockResetEngagementInvalidation).toHaveBeenCalledTimes(1);
     expect(mockResetSafetyInvalidation).toHaveBeenCalledTimes(1);
     expect(mockResetAppearance).toHaveBeenCalledTimes(1);

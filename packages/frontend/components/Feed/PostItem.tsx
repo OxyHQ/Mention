@@ -183,8 +183,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // session.
     //
     // Each of them is a SNAPSHOT of an identity taken when the server hydrated
-    // the post, and nothing rewrites those: the feed store's retained slice and
-    // the SQLite copy both keep them, and a remount warm-starts from that slice
+    // the post, and nothing rewrites those: the feed query's cached pages and
+    // the SQLite copy both keep them, and a remount warm-starts from those pages
     // rather than refetching page 1. So a picture changed after a post was
     // fetched stays wrong on that row until something throws the whole cache
     // away — which is why a full reload looked like the only fix.

@@ -3,17 +3,10 @@ import type {
     FeedInterstitialSlot,
     FeedType,
     FeedPostSlice,
-    FeedRequest,
     HydratedPost,
 } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
-import { feedService } from '@/services/feedService';
-import {
-    FeedFilters,
-    getItemKey,
-    buildFeedScrollKey,
-    mergeFeedPageContent,
-} from '@/utils/feedUtils';
+import { FeedFilters, buildFeedScrollKey } from '@/utils/feedUtils';
 import { createLogger } from '@oxy.so/core/logger';
 import {
     classifyFeedFailure,
@@ -23,51 +16,18 @@ import {
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
-import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
-import {
-    getFeedMemoryCache,
-    setFeedMemoryCache,
-    clearFeedMemoryCache,
-    subscribeToNewLocalPosts,
-    subscribeToNewLocalReplies,
-    subscribeToRemovedLocalPosts,
-    setFeedOwnNewPostScope,
-    prependToMemoryCache,
-    localPostSlice,
-    type FeedMemoryCacheEntry,
-    type OwnNewPostScope,
-} from '@/stores/feedScrollStore';
-import { isFeedCacheStale } from '@/stores/engagementInvalidation';
-import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
-import {
-    isFeedCacheStaleForSafety,
-    subscribeToSafetyFilterChanges,
-} from '@/stores/safetyInvalidation';
-import {
-    isFeedCacheStaleForByline,
-    subscribeToBylineChanges,
-} from '@/stores/bylineInvalidation';
+import { isFeedReadStale } from '@/stores/feedStaleness';
+import { FED_PENDING_POLL_DELAYS_MS, useFeedQuery } from './useFeedQuery';
+import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createLogger('useFeedState');
 
-// Federated outbox-sync polling: when a profile feed responds with `pending`
-// (its ActivityPub outbox is still syncing in the background), we refetch a few
-// times until posts arrive, then stop. The delays back off (1s → 2.5s → 5s) so
-// the first retry lands quickly when the sync is nearly done while later retries
-// space out instead of hammering a still-syncing outbox. The number of entries
-// is the (bounded) poll budget, so we never poll indefinitely.
-const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
-
-/** The unscoped feeds a viewer's own new post goes to the top of. */
-const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']);
-
 export interface UseFeedStateOptions {
     type: FeedType;
     userId?: string;
-    showOnlySaved?: boolean;
     filters?: FeedFilters;
     useScoped?: boolean;
     reloadKey?: string | number;
@@ -96,7 +56,6 @@ export interface UseFeedStateReturn {
      * is never pre-empting a retry that is still in flight.
      */
     errorKind: FeedFailureKind | null;
-    nextCursor?: string;
     /**
      * True while a federated profile feed is still populating in the background
      * (the hook is auto-refetching). Consumers can show a brief loading state.
@@ -113,24 +72,61 @@ export interface UseFeedStateReturn {
  *
  * Memory mode (useMemoryFeed): activated when `useScoped` is true (filtered feeds)
  * OR when SQLite is unavailable (e.g. web without COOP/COEP headers, where
- * SharedArrayBuffer is undefined). In memory mode, items live in local React state
- * and are fetched directly via feedService. Pagination and refresh work identically
- * to the SQLite path.
+ * SharedArrayBuffer is undefined). In memory mode the feed is one React Query
+ * infinite query (`useFeedQuery`): its pages live in the query cache, which is
+ * also what a remount warm-starts from.
  *
  * SQLite mode: activated when `isDbAvailable()` is true and no scoped filters are
  * present. Items are written to SQLite by postsStore and read back via selectors.
  * This is the native path and must remain byte-identical to the previous behavior.
+ *
+ * Both halves are always called — a hook cannot be called conditionally — and
+ * the one that does not serve this feed stays idle.
  */
 export function useFeedState({
     type,
     userId,
-    showOnlySaved,
     filters,
     useScoped,
     reloadKey,
     isAuthenticated,
     currentUserId,
 }: UseFeedStateOptions): UseFeedStateReturn {
+    const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
+
+    // Stable identity for this feed, used by scroll restoration. Recomputed
+    // only when identity inputs change.
+    const feedScrollKey = useMemo(
+        () => buildFeedScrollKey({
+            type,
+            userId,
+            filters,
+            isAuthenticated,
+            currentViewerId: currentUserId,
+        }),
+        [type, userId, filters, isAuthenticated, currentUserId]
+    );
+
+    const feed = { type, userId, filters, reloadKey, isAuthenticated, currentUserId };
+    const queried = useFeedQuery({ ...feed, enabled: useMemoryFeed });
+    const stored = useStoredFeed({ ...feed, enabled: !useMemoryFeed });
+
+    return { feedScrollKey, ...(useMemoryFeed ? queried : stored) };
+}
+
+/**
+ * The SQLite half of {@link useFeedState}: native, unscoped feeds. Items are
+ * written to SQLite by postsStore and read back via selectors.
+ */
+function useStoredFeed({
+    type,
+    userId,
+    filters,
+    reloadKey,
+    isAuthenticated,
+    currentUserId,
+    enabled,
+}: Omit<UseFeedStateOptions, 'useScoped'> & { enabled: boolean }): Omit<UseFeedStateReturn, 'feedScrollKey'> {
     // Actions are stable for the lifetime of the Zustand store. Subscribe to
     // them individually so a keyed post revision does not re-render every
     // mounted feed hook merely because it previously selected the whole store.
@@ -138,73 +134,11 @@ export function useFeedState({
     const fetchUserFeed = usePostsStore((state) => state.fetchUserFeed);
     const refreshFeed = usePostsStore((state) => state.refreshFeed);
     const loadMoreFeed = usePostsStore((state) => state.loadMoreFeed);
-    const cachePosts = usePostsStore((state) => state.cachePosts);
     const clearFeed = usePostsStore((state) => state.clearFeed);
     const clearUserFeed = usePostsStore((state) => state.clearUserFeed);
     const clearGlobalError = usePostsStore((state) => state.clearError);
 
-    // useMemoryFeed is true when:
-    //   1. useScoped is set (filtered/scoped feed — always uses local state), OR
-    //   2. SQLite is unavailable (web without COOP/COEP, SharedArrayBuffer undefined)
-    // When true, all feed items live in local React state (localItems/localNextCursor/…).
-    // When false (SQLite available, no filters), items live in SQLite and are read via
-    // selectors — this is the standard native path.
-    const useMemoryFeed = resolveUseMemoryFeed(useScoped, isDbAvailable());
-
-    // Stable identity for this feed. Used to retain memory-mode items across an
-    // unmount→remount (e.g. navigating to `/videos` and back) so the saved
-    // scroll offset lands on the same items. Recomputed only when identity
-    // inputs change.
-    const feedScrollKey = useMemo(
-        () => buildFeedScrollKey({
-            type,
-            userId,
-            showOnlySaved,
-            filters,
-            isAuthenticated,
-            currentViewerId: currentUserId,
-        }),
-        [type, userId, showOnlySaved, filters, isAuthenticated, currentUserId]
-    );
-    const viewerIdentity = showOnlySaved
-        ? 'saved'
-        : (isAuthenticated && currentUserId ? currentUserId : 'anon');
-
-    // Warm-start seed: in memory mode, if we retained this feed's slice from a
-    // previous mount, hydrate local state from it synchronously so the list
-    // renders the full previously-loaded set immediately (no flash of page 1,
-    // no refetch-from-scratch that would invalidate the restored offset).
-    // Read once at mount via lazy initializers — not reactive by design.
-    const seededCacheRef = useRef<FeedMemoryCacheEntry | undefined>(
-        (() => {
-            if (!useMemoryFeed) return undefined;
-            const cached = getFeedMemoryCache(feedScrollKey);
-            // Only treat a non-empty slice as a warm start. An empty cached set
-            // would otherwise suppress the cold fetch and strand an empty feed.
-            return cached && cached.items.length > 0 ? cached : undefined;
-        })()
-    );
-    const seed = seededCacheRef.current;
-
-    // Local state for scoped feeds
-    const [localItems, setLocalItems] = useState<HydratedPost[]>(() => seed?.items ?? []);
-    const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(() => seed?.slices);
-    const [localInterstitials, setLocalInterstitials] = useState<FeedInterstitialSlot[] | undefined>(() => seed?.interstitials);
-    const [localHasMore, setLocalHasMore] = useState<boolean>(() => seed ? seed.hasMore : true);
-    const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(() => seed?.nextCursor);
-    const [localLoading, setLocalLoading] = useState<boolean>(false);
-    const [localError, setLocalError] = useState<string | null>(null);
-    const [localErrorKind, setLocalErrorKind] = useState<FeedFailureKind | null>(null);
-
-    // Latest local items/slices/interstitials, mirrored into refs so the new-post
-    // broadcast listener can read current state without re-subscribing on every
-    // change and without depending on possibly-stale closure values.
-    const localItemsRef = useRef(localItems);
-    localItemsRef.current = localItems;
-    const localSlicesRef = useRef(localSlices);
-    localSlicesRef.current = localSlices;
-    const localInterstitialsRef = useRef(localInterstitials);
-    localInterstitialsRef.current = localInterstitials;
+    const viewerIdentity = isAuthenticated && currentUserId ? currentUserId : 'anon';
 
     // Federated outbox-sync polling state. `pending` is surfaced to consumers so
     // the UI can show a "loading posts…" state; the scheduler refetches a bounded
@@ -221,10 +155,9 @@ export function useFeedState({
     }, []);
 
     // Global feed state — reads from SQLite via selectors
-    const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
-    const globalFeedSelector = useFeedSelector(effectiveType);
-    const userFeedSelector = useUserFeedSelector(userId || '', effectiveType);
-    const globalFeed = showOnlySaved ? globalFeedSelector : (userId ? userFeedSelector : globalFeedSelector);
+    const globalFeedSelector = useFeedSelector(type);
+    const userFeedSelector = useUserFeedSelector(userId || '', type);
+    const globalFeed = userId ? userFeedSelector : globalFeedSelector;
 
     // Refs for preventing duplicate calls.
     //
@@ -266,146 +199,6 @@ export function useFeedState({
         };
     }, [clearPendingPoll]);
 
-    // Memory-mode feeds (web without SQLite) don't read SQLite, so a post created
-    // by postsStore reaches them through `publishNewLocalPost`, mirroring the
-    // SQLite "insert at top". Scoped/filtered feeds and the saved feed never
-    // receive arbitrary new posts; a profile feed only its own author's —
-    // matching the SQLite path's feed-key selection.
-    const ownNewPostScope: OwnNewPostScope['kind'] | undefined =
-        !useMemoryFeed || useScoped || showOnlySaved
-            ? undefined
-            : userId ? 'author' : HOME_FEED_TYPES.has(type) ? 'home' : undefined;
-
-    // The store puts the new post into this feed's RETAINED slice, whether or not
-    // the feed is mounted when it is published: on web the composer replaces the
-    // home feed, which then warm-starts from that slice.
-    useEffect(() => {
-        if (!ownNewPostScope) return;
-        setFeedOwnNewPostScope(
-            feedScrollKey,
-            ownNewPostScope === 'author' ? { kind: 'author', authorId: String(userId) } : { kind: 'home' },
-        );
-    }, [ownNewPostScope, feedScrollKey, userId]);
-
-    /** Put a post the viewer just created at the top of the live items and slices. */
-    const prependLiveItem = useCallback((item: HydratedPost) => {
-        const key = getItemKey(item);
-        // Pure updaters — dedup is order-stable.
-        setLocalItems((prev) =>
-            prev.some((p) => getItemKey(p) === key) ? prev : [item, ...prev]
-        );
-        // When the feed renders via slices (Feed.tsx prefers slices over items),
-        // prepend a single-post slice so the new post is visible there too.
-        setLocalSlices((prev) =>
-            !prev || prev.some((slice) => slice.items.some((si) => getItemKey(si.post) === key))
-                ? prev
-                : [localPostSlice(item), ...prev]
-        );
-    }, []);
-
-    useEffect(() => {
-        if (!ownNewPostScope) return;
-        return subscribeToNewLocalPosts((item) => {
-            if (ownNewPostScope === 'author' && String(item?.user?.id ?? '') !== String(userId)) return;
-            prependLiveItem(item);
-        });
-    }, [ownNewPostScope, userId, prependLiveItem]);
-
-    // A thread's replies feed is a SCOPED memory feed, so the new-post broadcast
-    // above deliberately skips it — and a reply the viewer just posted used to
-    // stay out of the thread until a pull-to-refresh (OxyHQ/Mention#1140). On
-    // native the thread screen stays mounted under the pushed composer, so no
-    // remount revalidates it either. A reply the server accepted for THIS
-    // thread's parent goes on top, the way the reader's own reply lands in every
-    // threaded app; the next revalidation puts it wherever the server sorts it.
-    //
-    // Matched on the same parent id the fetch narrows its results to below, so
-    // this list only ever holds what a fetch of it could have returned.
-    const repliesParentId = type === 'replies' ? (filters?.postId || filters?.parentPostId) : undefined;
-    useEffect(() => {
-        if (!useMemoryFeed || !repliesParentId) return;
-
-        return subscribeToNewLocalReplies((reply) => {
-            if (String(reply.parentPostId ?? '') !== String(repliesParentId)) return;
-            prependLiveItem(reply);
-            // Keep the retained slice in sync so an unmount→remount still shows it.
-            const existing = getFeedMemoryCache(feedScrollKey);
-            setFeedMemoryCache(feedScrollKey, prependToMemoryCache(existing ?? {
-                items: localItemsRef.current,
-                slices: localSlicesRef.current,
-                interstitials: localInterstitialsRef.current,
-                hasMore: localHasMore,
-                nextCursor: localNextCursor,
-                retainedAt: 0,
-            }, reply));
-        });
-    }, [useMemoryFeed, repliesParentId, prependLiveItem, feedScrollKey, localHasMore, localNextCursor]);
-
-    // Memory-mode feeds hold items in local React state and never read SQLite, so
-    // a post deleted via `postsStore.removePostEverywhere` (SQLite delete + version
-    // bump) would otherwise linger here until a manual refresh. Subscribe to the
-    // removal broadcast and drop the post from live items, slices, AND the retained
-    // cache — mirroring the SQLite path's reactive removal. Active for ALL
-    // memory-mode feeds (home, profile, scoped, saved) because a deleted post must
-    // vanish everywhere it appears, not just on home feeds.
-    useEffect(() => {
-        if (!useMemoryFeed) return;
-
-        return subscribeToRemovedLocalPosts((removedId) => {
-            setLocalItems((prev) => {
-                const next = prev.filter((p) => getItemKey(p) !== removedId);
-                return next.length === prev.length ? prev : next;
-            });
-
-            setLocalSlices((prev) => {
-                if (!prev) return prev;
-                let changed = false;
-                const next = prev
-                    .map((slice) => {
-                        const items = slice.items.filter((si) => getItemKey(si.post) !== removedId);
-                        if (items.length === slice.items.length) return slice;
-                        changed = true;
-                        return { ...slice, items };
-                    })
-                    .filter((slice) => slice.items.length > 0);
-                return changed ? next : prev;
-            });
-
-            // Keep the retained slice in sync so an unmount→remount can't resurrect
-            // the deleted post from the warm cache.
-            const existing = getFeedMemoryCache(feedScrollKey);
-            if (!existing) return;
-            const cachedItems = existing.items.filter((p) => getItemKey(p) !== removedId);
-            let slicesChanged = false;
-            const cachedSlices = existing.slices
-                ? existing.slices
-                    .map((slice) => {
-                        const items = slice.items.filter((si) => getItemKey(si.post) !== removedId);
-                        if (items.length !== slice.items.length) slicesChanged = true;
-                        return items.length === slice.items.length ? slice : { ...slice, items };
-                    })
-                    .filter((slice) => slice.items.length > 0)
-                : existing.slices;
-            const itemsChanged = cachedItems.length !== existing.items.length;
-            if (itemsChanged || slicesChanged) {
-                setFeedMemoryCache(feedScrollKey, {
-                    ...existing,
-                    items: cachedItems,
-                    slices: cachedSlices,
-                });
-            }
-        });
-    }, [useMemoryFeed, feedScrollKey]);
-
-    const clearError = useCallback(() => {
-        if (useMemoryFeed) {
-            setLocalError(null);
-            setLocalErrorKind(null);
-        } else {
-            clearGlobalError();
-        }
-    }, [useMemoryFeed, clearGlobalError]);
-
     // Holds the latest `fetchInitial` so the pending-poll scheduler can re-invoke
     // it without creating a circular callback dependency.
     const fetchInitialRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null);
@@ -436,17 +229,6 @@ export function useFeedState({
         }
     }, [clearPendingPoll]);
 
-    // Retain the current memory-mode slice under this feed's identity so a
-    // remount can warm-start from it. No-op outside memory mode (SQLite retains
-    // its own data). Called after every successful memory-mode state update.
-    const retainMemoryCache = useCallback(
-        (entry: Omit<FeedMemoryCacheEntry, 'retainedAt'>) => {
-            if (!useMemoryFeed) return;
-            setFeedMemoryCache(feedScrollKey, { ...entry, retainedAt: Date.now() });
-        },
-        [useMemoryFeed, feedScrollKey]
-    );
-
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
             if (isFetchingRef.current && !forceRefresh) {
@@ -466,9 +248,9 @@ export function useFeedState({
             const controller = new AbortController();
             primaryAbortRef.current = controller;
             const signal = controller.signal;
-            // Only the operation that still owns the primary controller may toggle
-            // the shared memory-mode loading flag, so a superseded request can't
-            // clear the spinner of the request that replaced it.
+            // Only the operation that still owns the primary controller may
+            // release the fetching gate, so a superseded request can't release
+            // the gate of the request that replaced it.
             const ownsPrimary = () => primaryAbortRef.current === controller;
 
             // Transient cold-boot guard: at restore, `isAuthenticated` can flip true
@@ -482,33 +264,13 @@ export function useFeedState({
                 return;
             }
 
-            const feedTypeToCheck = showOnlySaved ? 'saved' : type;
-
-            // A retained slice is only good if it postdates ALL FOUR classes of
-            // change that decide what a feed shows. Three decide what a list
-            // CONTAINS: an engagement (like/boost/save), a lane write (a post moved
-            // between lanes, a lane's displayMode changed, a lane muted), and a
-            // safety-rule change (muted words, the sensitive-content toggle — these
-            // decide what the server is willing to send at all). The fourth decides
-            // what a row already in the list SAYS: a channel turning its byline on
-            // or off adds or removes the writer from every one of its posts, and the
-            // client was never sent the writer's id while it was off. Each lives in
-            // its own authority module and none can see another's writes, so all
-            // four are asked. Ask them HERE rather than at each call site: a caller
-            // that consults three of the four still returns a plausible feed, which
-            // is why that mistake survives review.
-            const cacheIsStale = (retainedAt: number): boolean =>
-                isFeedCacheStale(feedTypeToCheck, userId, currentUserId, retainedAt)
-                || isLaneFeedCacheStale(userId, currentUserId, filters?.laneId, retainedAt)
-                || isFeedCacheStaleForSafety(retainedAt)
-                || isFeedCacheStaleForByline(retainedAt);
-
-            // Check SQLite for cached data (cold-start optimization).
-            // Only relevant when using the SQLite path (useMemoryFeed === false).
-            if (!useMemoryFeed && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
+            // Check SQLite for cached data (cold-start optimization). The cache
+            // is only good if it postdates every write that changes what this
+            // feed shows (`stores/feedStaleness`).
+            if (!forceRefresh && !filters?.searchQuery) {
                 const feedKey = userId
-                    ? buildFeedKey(feedTypeToCheck, userId)
-                    : buildFeedKey(feedTypeToCheck);
+                    ? buildFeedKey(type, userId)
+                    : buildFeedKey(type);
 
                 // If SQLite has items AND the UI state shows it was previously fetched
                 const ui = usePostsStore.getState().feedUI[feedKey];
@@ -518,7 +280,7 @@ export function useFeedState({
                     hasDbData
                     && ui?.lastUpdated
                     && ui.lastUpdated > 0
-                    && !cacheIsStale(ui.lastUpdated)
+                    && !isFeedReadStale({ type, userId, filters, viewerId: currentUserId }, ui.lastUpdated)
                 ) {
                     logger.debug('Skipping — feed has SQLite cache');
                     isFetchingRef.current = false;
@@ -540,137 +302,19 @@ export function useFeedState({
                 }
             }
 
-            // Memory-mode warm start: if this mount was seeded from a retained
-            // slice and this isn't a forced refresh, skip the cold fetch. A
-            // from-scratch fetch here would replace the cached items (including
-            // pages > 1) with just page 1, losing the user's scroll context.
-            // The seed is consumed once so a later forceRefresh still refetches.
-            //
-            // FIRST EXCEPTION — replies feeds always revalidate. A thread's replies
-            // list seeds instantly from `localItems` (no flash) but must then
-            // fetch fresh so server-side changes (new/deleted/duplicate replies)
-            // show on SPA navigation, not only on a hard reload that wipes the
-            // memory store. Freshness wins over scroll preservation here, and a
-            // replies list has no deep-scroll/pagination context worth keeping.
-            //
-            // SECOND EXCEPTION — a slice that predates an engagement the viewer
-            // has since made — or a lane write. Liking, boosting and saving change
-            // which posts these lists CONTAIN, as does moving a post between lanes,
-            // changing a lane's displayMode, or muting one; no optimistic update can
-            // know the server's paging or ordering. The seed still renders (no
-            // flash), but the fetch below has to run or the list keeps showing its
-            // pre-write membership until a reload. See `stores/engagementInvalidation`
-            // and `stores/laneInvalidation`.
-            //
-            // THIRD EXCEPTION — a slice that predates a safety rule the viewer has
-            // since changed. Muted words and the sensitive-content toggle decide
-            // what the server is willing to send at all, so a slice retained under
-            // the old rules holds content the viewer asked not to see (or is
-            // missing content they just asked for). See `stores/safetyInvalidation`.
-            //
-            // FOURTH EXCEPTION — a slice that predates a channel changing its
-            // byline. The posts are the same posts; their AUTHOR LIST is not, and
-            // the writer's id was never sent while the channel kept them anonymous,
-            // so nothing held here can reconstruct it. See `stores/bylineInvalidation`.
-            const seeded = seededCacheRef.current;
-            if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
-                seededCacheRef.current = undefined;
-                if (!cacheIsStale(seeded.retainedAt)) {
-                    logger.debug('Skipping — memory feed warm-started from cache');
-                    isFetchingRef.current = false;
-                    return;
-                }
-                logger.debug('Warm cache predates an engagement, lane write, safety change or byline change — revalidating');
-            }
-
             try {
-                clearError();
+                clearGlobalError();
 
-                if (showOnlySaved) {
-                    await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
-                    return;
-                }
-
-                if (useMemoryFeed) {
-                    setLocalLoading(true);
-                    setLocalError(null);
-                    setLocalErrorKind(null);
-
-                    // No retry wrapper here: `feedService` owns the one policy
-                    // (see `utils/feedRetry`), so the read below has already
-                    // exhausted its attempts by the time it rejects — and the
-                    // loading state stays up for all of them, which is why a
-                    // blip never flashes an error screen.
-                    const feedReq: FeedRequest = { type, limit: 20, filters };
-                    const resp = await (userId
-                        ? feedService.getUserFeed(userId, feedReq, { signal })
-                        : feedService.getFeed({ type, limit: 20, filters }, { signal }));
-
-                    if (signal.aborted || !ownsPrimary()) return;
-
-                    let items = resp.items || [];
-                    // When scoped (filtered), narrow results to the requested post/thread.
-                    // For global-in-memory feeds (no filters), this guard is a no-op.
-                    const pid = filters?.postId || filters?.parentPostId;
-                    if (pid) {
-                        items = items.filter(
-                            (it) => String(it.parentPostId) === String(pid)
-                        );
-                    }
-
-                    const normalizedPage = mergeFeedPageContent(undefined, {
-                        items,
-                        slices: resp.slices,
-                        interstitials: resp.interstitials,
-                    });
-                    const uniqueItems = normalizedPage.items;
-                    if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
-                        applyPendingResult(true, false);
-                        return;
-                    }
-
-                    // Prime the React Query actor cache so avatars/names render
-                    // on web (no SQLite). This is the web feed's only actor source.
-                    precacheActorsFromPosts(uniqueItems);
-                    // Seed the shared post cache so the post-detail screen can
-                    // render instantly from `getPostFromDb(id)` instead of issuing
-                    // a cold blocking fetch on open. Memory mode keeps its own
-                    // ordering in local state; this only upserts the post objects.
-                    cachePosts(uniqueItems);
-                    const initialSlices = normalizedPage.slices;
-                    const initialInterstitials = normalizedPage.interstitials;
-                    const initialHasMore = !!resp.hasMore;
-                    setLocalItems(uniqueItems);
-                    setLocalSlices(initialSlices);
-                    setLocalInterstitials(initialInterstitials);
-                    setLocalHasMore(initialHasMore);
-                    setLocalNextCursor(resp.nextCursor);
-                    // A fresh fetch overwrites any retained slice so the cache
-                    // never drifts from what is on screen.
-                    retainMemoryCache({
-                        items: uniqueItems,
-                        slices: initialSlices,
-                        interstitials: initialInterstitials,
-                        hasMore: initialHasMore,
-                        nextCursor: resp.nextCursor,
-                    });
-
-                    // Federated profile feed still syncing → schedule a bounded refetch.
-                    if (userId) {
-                        applyPendingResult(resp.pending === true, uniqueItems.length > 0);
-                    }
-                } else if (userId) {
+                if (userId) {
                     const { pending: isPending } = await fetchUserFeed(userId, { type, limit: 20, filters });
                     if (signal.aborted) return;
                     // Federated profile feed still syncing → schedule a bounded refetch.
                     // `fetchUserFeed` already reports `pending` only when items are empty.
                     applyPendingResult(isPending, !isPending);
+                } else if (forceRefresh) {
+                    await refreshFeed(type, filters);
                 } else {
-                    if (forceRefresh) {
-                        await refreshFeed(type, filters);
-                    } else {
-                        await fetchFeed({ type, limit: 20, filters });
-                    }
+                    await fetchFeed({ type, limit: 20, filters });
                 }
             } catch (err: unknown) {
                 if (signal.aborted) {
@@ -679,16 +323,10 @@ export function useFeedState({
                 }
                 const failure = classifyFeedFailure(err);
                 logFeedFailure(logger, 'Feed load failed', failure, { feedType: type });
-                if (useMemoryFeed && ownsPrimary()) {
-                    setLocalError('Failed to load');
-                    setLocalErrorKind(failure.kind);
-                }
             } finally {
-                // Only clear the spinner if this request still owns the primary
-                // controller; otherwise a newer request has taken over and is
-                // responsible for its own loading state.
+                // Only release the gate if this request still owns the primary
+                // controller; otherwise a newer request has taken over.
                 if (ownsPrimary()) {
-                    if (useMemoryFeed) setLocalLoading(false);
                     isFetchingRef.current = false;
                 }
             }
@@ -696,18 +334,14 @@ export function useFeedState({
         [
             type,
             userId,
-            showOnlySaved,
-            useMemoryFeed,
             isAuthenticated,
             currentUserId,
             filters,
             fetchFeed,
             fetchUserFeed,
             refreshFeed,
-            cachePosts,
-            clearError,
+            clearGlobalError,
             applyPendingResult,
-            retainMemoryCache,
             invalidatePagination,
         ]
     );
@@ -715,42 +349,13 @@ export function useFeedState({
     // Keep the ref pointing at the latest fetchInitial for the pending-poll scheduler.
     fetchInitialRef.current = fetchInitial;
 
-    // A muted word or the sensitive-content toggle changes what the server is
-    // willing to send, so a feed already on screen cannot re-derive its own
-    // contents — it has to ask again. The warm-start check in `fetchInitial`
-    // covers feeds that are unmounted when the rule changes; this covers the
-    // common case, where the settings screen was pushed OVER a feed that stays
-    // mounted underneath and would otherwise never run that check.
-    //
-    // Subscribed once for the hook's lifetime: the listener reads the current
-    // `fetchInitial` off the ref, so it never needs re-subscribing.
-    useEffect(
-        () => subscribeToSafetyFilterChanges(() => {
-            void fetchInitialRef.current?.(true);
-        }),
-        [],
-    );
-
-    // A channel turning its byline on or off rewrites the author list of every
-    // post it has published, and the client cannot derive the new one: with the
-    // byline off the writer's id is never sent here at all. So, as above, the
-    // posts have to be asked for again — and the same two halves apply, for a
-    // sharper version of the same reason. The settings screen is pushed over the
-    // CHANNEL'S OWN PAGE, so the surface most in need of converging is the one
-    // still mounted underneath, and Back lands the operator straight on it.
-    //
-    // A separate subscription rather than a shared one: these are two different
-    // write classes with two different authorities, and one listener serving both
-    // would make either module's signal impossible to test without the other.
-    useEffect(
-        () => subscribeToBylineChanges(() => {
-            void fetchInitialRef.current?.(true);
-        }),
-        [],
-    );
+    // The listener reads the current `fetchInitial` off the ref, so it never
+    // needs re-subscribing while this half serves the feed.
+    const reloadStored = useCallback(() => fetchInitialRef.current?.(true), []);
+    useReloadOnFeedRuleChange(enabled, reloadStored);
 
     const refresh = useCallback(async () => {
-        // Gate onEndReached synchronously before React commits localLoading.
+        // Gate onEndReached synchronously before the store commits isLoading.
         isFetchingRef.current = true;
         // Refresh replaces the accumulated feed. Invalidate pagination before
         // starting it so even an uncancellable, late loadMore response is stale.
@@ -762,73 +367,13 @@ export function useFeedState({
         primaryAbortRef.current = controller;
         const signal = controller.signal;
         // See fetchInitial: only the operation still owning the primary
-        // controller may toggle the shared memory-mode loading flag.
+        // controller may release the fetching gate.
         const ownsPrimary = () => primaryAbortRef.current === controller;
 
         try {
-            clearError();
+            clearGlobalError();
 
-            if (showOnlySaved) {
-                await refreshFeed('saved', filters);
-                return;
-            }
-
-            if (useMemoryFeed) {
-                setLocalLoading(true);
-                setLocalError(null);
-                setLocalErrorKind(null);
-
-                // One retry policy, owned by `feedService` — see fetchInitial.
-                const feedReq: FeedRequest = { type, limit: 20, filters };
-                const resp = await (userId
-                    ? feedService.getUserFeed(userId, feedReq, { signal })
-                    : feedService.getFeed({ type, limit: 20, filters }, { signal }));
-
-                if (signal.aborted || !ownsPrimary()) return;
-
-                let items = resp.items || [];
-                // When scoped (filtered), narrow results to the requested post/thread.
-                // For global-in-memory feeds (no filters), this guard is a no-op.
-                const pid = filters?.postId || filters?.parentPostId;
-                if (pid) {
-                    items = items.filter(
-                        (it) => String(it.parentPostId) === String(pid)
-                    );
-                }
-
-                const normalizedPage = mergeFeedPageContent(undefined, {
-                    items,
-                    slices: resp.slices,
-                    interstitials: resp.interstitials,
-                });
-                const uniqueItems = normalizedPage.items;
-                if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
-                    applyPendingResult(true, false);
-                    return;
-                }
-
-                // Prime the React Query actor cache (web feed's only actor source)
-                precacheActorsFromPosts(uniqueItems);
-                // Seed the shared post cache for instant post-detail open (see fetchInitial).
-                cachePosts(uniqueItems);
-                const refreshedSlices = normalizedPage.slices;
-                const refreshedInterstitials = normalizedPage.interstitials;
-                const refreshedHasMore = !!resp.hasMore;
-                setLocalItems(uniqueItems);
-                setLocalSlices(refreshedSlices);
-                setLocalInterstitials(refreshedInterstitials);
-                setLocalHasMore(refreshedHasMore);
-                setLocalNextCursor(resp.nextCursor);
-                // A refresh rebuilds the feed from page 1, so overwrite the
-                // retained slice with the fresh set.
-                retainMemoryCache({
-                    items: uniqueItems,
-                    slices: refreshedSlices,
-                    interstitials: refreshedInterstitials,
-                    hasMore: refreshedHasMore,
-                    nextCursor: resp.nextCursor,
-                });
-            } else if (userId) {
+            if (userId) {
                 await fetchUserFeed(userId, { type, limit: 20, filters });
             } else {
                 await refreshFeed(type, filters);
@@ -837,28 +382,18 @@ export function useFeedState({
             if (signal.aborted) return;
             const failure = classifyFeedFailure(err);
             logFeedFailure(logger, 'Feed refresh failed', failure, { feedType: type });
-            if (useMemoryFeed && ownsPrimary()) {
-                setLocalError('Failed to refresh');
-                setLocalErrorKind(failure.kind);
-            }
         } finally {
             if (ownsPrimary()) {
-                if (useMemoryFeed) setLocalLoading(false);
                 isFetchingRef.current = false;
             }
         }
     }, [
-        applyPendingResult,
         type,
         userId,
-        showOnlySaved,
-        useMemoryFeed,
         filters,
         refreshFeed,
         fetchUserFeed,
-        cachePosts,
-        clearError,
-        retainMemoryCache,
+        clearGlobalError,
         invalidatePagination,
     ]);
 
@@ -875,9 +410,9 @@ export function useFeedState({
         loadMoreAbortRef.current = controller;
         const signal = controller.signal;
         const paginationEpoch = paginationEpochRef.current;
-        // Only the operation still owning the loadMore controller may toggle the
-        // shared memory-mode loading flag, so a superseded loadMore can't clear
-        // the spinner of the loadMore that replaced it.
+        // Only the operation still owning the loadMore controller may release
+        // the pagination gate, so a superseded loadMore can't release the gate
+        // of the loadMore that replaced it.
         const ownsLoadMore = () =>
             loadMoreAbortRef.current === controller
             && paginationEpochRef.current === paginationEpoch;
@@ -885,102 +420,15 @@ export function useFeedState({
         isLoadingMoreRef.current = true;
 
         try {
-            if (showOnlySaved) {
-                await loadMoreFeed('saved', filters);
-                return;
-            }
-
-            if (useMemoryFeed) {
-                if (!localHasMore || localLoading) {
-                    isLoadingMoreRef.current = false;
-                    return;
-                }
-
-                setLocalLoading(true);
-                setLocalError(null);
-                setLocalErrorKind(null);
-
-                // One retry policy, owned by `feedService` — see fetchInitial.
-                const feedReq: FeedRequest = { type, limit: 20, cursor: localNextCursor, filters };
-                const resp = await (userId
-                    ? feedService.getUserFeed(userId, feedReq, { signal })
-                    : feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters }, { signal }));
-
-                if (signal.aborted || !ownsLoadMore()) return;
-
-                let items = resp.items || [];
-                // When scoped (filtered), narrow results to the requested post/thread.
-                // For global-in-memory feeds (no filters), this guard is a no-op.
-                const pid = filters?.postId || filters?.parentPostId;
-                if (pid) {
-                    items = items.filter(
-                        (it) => String(it.parentPostId) === String(pid)
-                    );
-                }
-
-                const incomingPage = mergeFeedPageContent(undefined, {
-                    items,
-                    slices: resp.slices,
-                    interstitials: resp.interstitials,
-                });
-
-                // Prime the React Query actor cache (web feed's only actor source)
-                precacheActorsFromPosts(incomingPage.items);
-                // Seed the shared post cache for instant post-detail open (see fetchInitial).
-                cachePosts(incomingPage.items);
-
-                const prevCursor = localNextCursor;
-                const nextCursor = resp.nextCursor;
-                const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
-                const mergedHasMore = !!resp.hasMore && cursorAdvanced;
-                // Compute the merged set up-front against the current state
-                // (closure values), so both the React state update and the cache
-                // write use the exact same result — independent of when React
-                // commits the functional updaters. `localItems`/`localSlices`
-                // are in this callback's dependency list, so the closure is fresh.
-                const mergedPage = mergeFeedPageContent(
-                    {
-                        items: localItems,
-                        slices: localSlices,
-                        interstitials: localInterstitials,
-                    },
-                    incomingPage,
-                );
-                const mergedItems = mergedPage.items;
-                const mergedSlices = mergedPage.slices;
-                // Card placements accumulate with the pages that carry them: each
-                // page's slots anchor to slices of THAT page, so appending is enough
-                // to keep every card at its position in the accumulated feed.
-                const mergedInterstitials = mergedPage.interstitials;
-
-                setLocalItems(mergedItems);
-                if (mergedSlices !== localSlices) {
-                    setLocalSlices(mergedSlices);
-                }
-                if (mergedInterstitials !== localInterstitials) {
-                    setLocalInterstitials(mergedInterstitials);
-                }
-                setLocalHasMore(mergedHasMore);
-                setLocalNextCursor(nextCursor);
-
-                // Retain the paginated set so a remount restores the full list
-                // (pages > 1 included) and the saved offset lands correctly.
-                retainMemoryCache({
-                    items: mergedItems,
-                    slices: mergedSlices,
-                    interstitials: mergedInterstitials,
-                    hasMore: mergedHasMore,
-                    nextCursor,
-                });
-            } else if (userId) {
+            if (userId) {
                 await fetchUserFeed(userId, {
-                    type: effectiveType,
+                    type,
                     limit: 20,
                     cursor: globalFeed?.nextCursor,
                     filters,
                 });
             } else {
-                await loadMoreFeed(effectiveType, filters);
+                await loadMoreFeed(type, filters);
             }
         } catch (err: unknown) {
             if (signal.aborted) {
@@ -989,42 +437,24 @@ export function useFeedState({
             }
             const failure = classifyFeedFailure(err);
             logFeedFailure(logger, 'Feed pagination failed', failure, { feedType: type });
-            if (useMemoryFeed && ownsLoadMore()) {
-                // A stable marker, not the transport's message: the rows already
-                // on screen stay, and nothing renders this string — the empty
-                // state owns its own copy and only appears with no rows at all.
-                setLocalError('Failed to load more posts');
-                setLocalErrorKind(failure.kind);
-            }
         } finally {
-            // Only clear the spinner if this loadMore still owns its controller.
+            // Only release the gate if this loadMore still owns its controller.
             if (ownsLoadMore()) {
-                if (useMemoryFeed) setLocalLoading(false);
                 isLoadingMoreRef.current = false;
             }
         }
     }, [
-        showOnlySaved,
-        useMemoryFeed,
-        localHasMore,
-        localLoading,
-        localNextCursor,
-        localItems,
-        localSlices,
-        localInterstitials,
         type,
-        effectiveType,
         userId,
         filters,
         globalFeed?.nextCursor,
         loadMoreFeed,
         fetchUserFeed,
-        cachePosts,
-        retainMemoryCache,
     ]);
 
     // Handle reloadKey changes
     useDeepCompareEffect(() => {
+        if (!enabled) return;
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         previousReloadKeyRef.current = reloadKey;
@@ -1032,7 +462,7 @@ export function useFeedState({
         if (reloadKeyChanged) {
             fetchInitial(true);
         }
-    }, [reloadKey]);
+    }, [reloadKey, enabled]);
 
     // Handle initial load, filter changes, and auth-identity changes. This effect
     // is keyed on the reactive auth identity (`isAuthenticated` + `currentUserId`)
@@ -1043,13 +473,13 @@ export function useFeedState({
     // Switching feed identity also resets the federated pending-poll budget so a
     // new profile starts polling fresh.
     useDeepCompareEffect(() => {
+        if (!enabled) return;
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) return;
 
         // The auth identity this run represents: the authenticated user id when
-        // signed in, the literal 'anon' otherwise. Saved feeds never key on the
-        // viewer, so their identity is constant.
+        // signed in, the literal 'anon' otherwise.
         const identity = viewerIdentity;
         const previousIdentity = previousIdentityRef.current;
         const identityChanged = previousIdentity !== identity;
@@ -1057,21 +487,11 @@ export function useFeedState({
 
         // The initial ref is this concrete viewer, whose persisted boundary was
         // already proved or cleared by AccountSwitchReset before descendants
-        // mounted. Deleting its keyed warm cache would turn every Back/remount
-        // into a page-1 reset.
-        // Only a real identity transition within this mounted hook invalidates
-        // displayed state; the trust gate below hides the old rows synchronously.
-        const shouldInvalidateViewerCache = !showOnlySaved && identityChanged;
-        if (shouldInvalidateViewerCache) {
-            seededCacheRef.current = undefined;
-            if (useMemoryFeed) {
-                clearFeedMemoryCache(feedScrollKey);
-                setLocalItems([]);
-                setLocalSlices(undefined);
-                setLocalInterstitials(undefined);
-                setLocalHasMore(true);
-                setLocalNextCursor(undefined);
-            } else if (userId) {
+        // mounted. Only a real identity transition within this mounted hook
+        // invalidates displayed state; the trust gate below hides the old rows
+        // synchronously.
+        if (identityChanged) {
+            if (userId) {
                 clearUserFeed(userId, type);
             } else {
                 clearFeed(type);
@@ -1082,57 +502,38 @@ export function useFeedState({
         pendingPollCountRef.current = 0;
         setPending(false);
 
-        fetchInitial(shouldInvalidateViewerCache);
+        fetchInitial(identityChanged);
     }, [
         type,
         userId,
         filters,
-        useMemoryFeed,
-        showOnlySaved,
+        enabled,
         isAuthenticated,
         currentUserId,
         viewerIdentity,
-        feedScrollKey,
         clearFeed,
         clearUserFeed,
     ]);
 
-    // Return appropriate state based on which path is active.
-    // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite
-    // is unavailable (web without COOP/COEP). The SQLite path is only taken when
-    // isDbAvailable() === true and no scoped filters are present.
-    const isViewerCacheTrusted =
-        showOnlySaved || previousIdentityRef.current === viewerIdentity;
-    const items = isViewerCacheTrusted ? (useMemoryFeed ? localItems : globalFeed?.items || []) : [];
-    const slices = isViewerCacheTrusted ? (useMemoryFeed ? localSlices : globalFeed?.slices) : undefined;
-    // Card placements are viewer-specific (the server only emits them for an
-    // authenticated viewer), so they follow the same trust gate as the items.
-    const interstitials = isViewerCacheTrusted
-        ? (useMemoryFeed ? localInterstitials : globalFeed?.interstitials)
-        : undefined;
-    const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
-    const isLoading = !isViewerCacheTrusted || (useMemoryFeed ? localLoading : !!globalFeed?.isLoading);
-    const error = useMemoryFeed ? localError : globalFeed?.error || null;
-    // Both paths classify at the point they catch — the memory path here, the
-    // SQLite path in `postsStore` — so neither has to re-derive a kind from a
-    // message string.
-    const errorKind = useMemoryFeed ? localErrorKind : globalFeed?.errorKind ?? null;
-    const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
+    const isViewerCacheTrusted = previousIdentityRef.current === viewerIdentity;
+    const error = globalFeed?.error || null;
 
     return {
-        feedScrollKey,
-        items,
-        slices,
-        interstitials,
-        hasMore,
-        isLoading,
+        items: isViewerCacheTrusted ? globalFeed?.items || [] : [],
+        slices: isViewerCacheTrusted ? globalFeed?.slices : undefined,
+        // Card placements are viewer-specific (the server only emits them for an
+        // authenticated viewer), so they follow the same trust gate as the items.
+        interstitials: isViewerCacheTrusted ? globalFeed?.interstitials : undefined,
+        hasMore: !!globalFeed?.hasMore,
+        isLoading: !isViewerCacheTrusted || !!globalFeed?.isLoading,
         error,
-        errorKind: error ? errorKind : null,
-        nextCursor,
+        // The SQLite path classifies at the point it catches — in `postsStore` —
+        // so nothing here re-derives a kind from a message string.
+        errorKind: error ? globalFeed?.errorKind ?? null : null,
         pending,
         fetchInitial,
         refresh,
         loadMore,
-        clearError,
+        clearError: clearGlobalError,
     };
 }

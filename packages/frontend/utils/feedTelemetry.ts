@@ -133,9 +133,7 @@ export function resolveFeedDescriptor(
     type: FeedType,
     userId?: string,
     filters?: FeedFilters,
-    showOnlySaved?: boolean,
 ): string {
-    if (showOnlySaved) return 'saved';
     if (filters?.laneId) return `lane|${filters.laneId}`;
     if (userId) return `author|${userId}`;
     if (filters?.hashtag) return `hashtag|${filters.hashtag}`;

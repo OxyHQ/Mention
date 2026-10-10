@@ -18,7 +18,7 @@ const logger = createLogger('postInteractions');
  * calls a command; the command does the work at press time.
  *
  * Every command resolves the post as the store holds it WHEN PRESSED, falling
- * back to the copy the row rendered (web's memory-mode feed holds rows the store
+ * back to the copy the row rendered (web's feed query holds rows the store
  * never saw). A captured copy can no longer make a menu act on stale state.
  *
  * Engagement writes keep their exact semantics: the store's optimistic update

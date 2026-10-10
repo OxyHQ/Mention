@@ -18,7 +18,6 @@ interface FeedEmptyStateProps {
     errorKind?: FeedFailureKind | null;
     hasItems: boolean;
     type: FeedType;
-    showOnlySaved?: boolean;
     onRetry?: () => Promise<void>;
     /**
      * True while a federated profile feed is still populating in the background
@@ -34,7 +33,7 @@ interface FeedEmptyStateProps {
  * Handles loading, error, and empty states
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
-    ({ isLoading, error, errorKind, hasItems, type, showOnlySaved, onRetry, pending, isThread }) => {
+    ({ isLoading, error, errorKind, hasItems, type, onRetry, pending, isThread }) => {
         const { t } = useTranslation();
         if (isLoading || pending) return (
             <View className="items-center justify-center py-12 gap-3">
@@ -77,12 +76,12 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             );
         }
 
-        const copy = emptyCopy(t, type, { showOnlySaved, isThread });
+        const copy = emptyCopy(t, type, { isThread });
         return (
             <EmptyState
                 title={copy.title}
                 subtitle={copy.subtitle}
-                sticker={emptySticker(type, { showOnlySaved, isThread })}
+                sticker={emptySticker(type, { isThread })}
             />
         );
     }
@@ -97,9 +96,8 @@ FeedEmptyState.displayName = 'FeedEmptyState';
  */
 export function emptySticker(
     type: FeedType,
-    { showOnlySaved, isThread }: { showOnlySaved?: boolean; isThread?: boolean } = {},
+    { isThread }: { isThread?: boolean } = {},
 ): EmptyStateStickerName {
-    if (showOnlySaved) return 'saved';
     switch (type) {
         case 'posts':
             return 'profilePosts';
@@ -146,15 +144,8 @@ type Translate = ReturnType<typeof useTranslation>['t'];
 export function emptyCopy(
     t: Translate,
     type: FeedType,
-    { showOnlySaved, isThread }: { showOnlySaved?: boolean; isThread?: boolean } = {},
+    { isThread }: { isThread?: boolean } = {},
 ): { title: string; subtitle: string } {
-    if (showOnlySaved) {
-        return {
-            title: t('feed.emptyState.saved.title'),
-            subtitle: t('feed.emptyState.saved.subtitle'),
-        };
-    }
-
     switch (type) {
         case 'posts':
             return { title: t('feed.emptyState.posts.title'), subtitle: t('feed.emptyState.posts.subtitle') };
@@ -176,6 +167,8 @@ export function emptyCopy(
             return { title: t('feed.emptyState.forYou.title'), subtitle: t('feed.emptyState.forYou.subtitle') };
         case 'custom':
             return { title: t('feed.emptyState.custom.title'), subtitle: t('feed.emptyState.custom.subtitle') };
+        case 'saved':
+            return { title: t('feed.emptyState.saved.title'), subtitle: t('feed.emptyState.saved.subtitle') };
         case 'following':
         default:
             return { title: t('feed.emptyState.following.title'), subtitle: t('feed.emptyState.following.subtitle') };

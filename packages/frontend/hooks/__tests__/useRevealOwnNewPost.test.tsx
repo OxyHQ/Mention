@@ -6,9 +6,9 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
-import { publishNewLocalPost } from '@/stores/feedScrollStore';
+import { publishNewLocalPost } from '@/stores/feedQueryCache';
+import { feedReceivesOwnNewPost } from '@/utils/feedUtils';
 import {
-  feedReceivesOwnNewPost,
   resetRevealOwnNewPost,
   useRevealOwnNewPost,
 } from '../useRevealOwnNewPost';
@@ -89,7 +89,7 @@ describe('feedReceivesOwnNewPost', () => {
   it('is never someone else’s profile, a scoped feed, or the saved feed', () => {
     expect(feedReceivesOwnNewPost({ type: 'posts', userId: 'ana', currentUserId: 'me' })).toBe(false);
     expect(feedReceivesOwnNewPost({ type: 'replies', filters: { postId: 'p' } })).toBe(false);
-    expect(feedReceivesOwnNewPost({ type: 'for_you', showOnlySaved: true })).toBe(false);
+    expect(feedReceivesOwnNewPost({ type: 'saved' })).toBe(false);
     expect(feedReceivesOwnNewPost({ type: 'likes', userId: 'me', currentUserId: 'me' })).toBe(false);
   });
 });

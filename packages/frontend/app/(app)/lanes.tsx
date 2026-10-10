@@ -93,7 +93,7 @@ export default function LanesScreen() {
 
     // Creating a lane changes no list's membership — a brand-new lane is empty —
     // so this one only refreshes the collection. Every OTHER write here goes
-    // through `noteLaneListsChanged`, which reaches the feed store too.
+    // through `noteLaneListsChanged`, which reaches the feed caches too.
     const refreshLanes = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: lanesQueryKey });
     }, [queryClient, lanesQueryKey]);
@@ -132,8 +132,8 @@ export default function LanesScreen() {
         mutationFn: ({ id, displayMode }) => lanesService.update(id, { displayMode }),
         onSuccess: () => {
             // Which posts the profile's tabs CONTAIN just changed, on a surface
-            // React Query does not own. The feed store has to hear about it or
-            // the profile keeps serving its retained slice until a full reload.
+            // no invalidation reaches. The feed caches have to hear about it or
+            // the profile keeps serving the pages it holds until a full reload.
             noteLaneListsChanged('assignment');
         },
         onError: (error) =>

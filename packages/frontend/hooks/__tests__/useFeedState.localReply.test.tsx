@@ -2,21 +2,20 @@
  * A reply the viewer just posted shows up in the thread it answers, without a
  * pull-to-refresh (OxyHQ/Mention#1140).
  *
- * The thread's replies list is a SCOPED memory feed, which the new-post
- * broadcast skips on purpose; on native the thread screen also stays mounted
- * under the pushed composer, so nothing remounts it. `postsStore.createReply`
- * now publishes the server's hydrated reply, and the replies feed whose scope is
- * that reply's parent puts it on top — and no other feed does.
+ * The thread's replies list is a SCOPED feed, which a new post never reaches on
+ * purpose; on native the thread screen also stays mounted under the pushed
+ * composer, so nothing remounts it. `postsStore.createReply` publishes the
+ * server's hydrated reply into the feed queries, and the replies feed whose
+ * scope is that reply's parent puts it on top — and no other feed does.
  */
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import {
-    clearAllFeedMemoryCaches,
-    getFeedMemoryCache,
-    publishNewLocalReply,
-} from '@/stores/feedScrollStore';
+import { queryClient } from '@/lib/queryClient';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { publishNewLocalReply, type FeedQueryData } from '@/stores/feedQueryCache';
 import {
     useFeedState,
     type UseFeedStateOptions,
@@ -103,15 +102,21 @@ const threadOptions = (parent: string): UseFeedStateOptions => ({
 });
 
 async function flush(): Promise<void> {
-    await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    for (let i = 0; i < 3; i += 1) {
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+    }
 }
 
 async function mount(options: UseFeedStateOptions): Promise<TestRenderer.ReactTestRenderer> {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-        renderer = TestRenderer.create(<Probe options={options} />);
+        renderer = TestRenderer.create(
+            <QueryClientProvider client={queryClient}>
+                <Probe options={options} />
+            </QueryClientProvider>,
+        );
     });
     await flush();
     return renderer;
@@ -126,7 +131,7 @@ describe('useFeedState: the viewer’s own new reply', () => {
     beforeEach(() => {
         latest = undefined;
         jest.clearAllMocks();
-        clearAllFeedMemoryCaches();
+        queryClient.clear();
     });
 
     it('goes on top of the thread it answers, with no refetch', async () => {
@@ -136,12 +141,16 @@ describe('useFeedState: the viewer’s own new reply', () => {
         const readsBefore = (feedService.getFeed as jest.Mock).mock.calls.length;
 
         act(() => publishNewLocalReply(reply('mine', 'root')));
+        await flush();
 
         expect(latest?.items.map((item) => item.id)).toEqual(['mine', 'r1']);
         expect((feedService.getFeed as jest.Mock).mock.calls.length).toBe(readsBefore);
-        // And the retained slice agrees, so leaving and coming back keeps it.
-        const retained = getFeedMemoryCache(latest!.feedScrollKey);
-        expect(retained?.items.map((item) => item.id)).toEqual(['mine', 'r1']);
+        // It is in the cache itself, not only on screen, so the thread's next
+        // mount paints with it before its revalidation lands.
+        const cached = queryClient.getQueryData<FeedQueryData>(
+            viewerQueryKeys.feed('viewer-a', 'replies', undefined, { postId: 'root', parentPostId: 'root' }),
+        );
+        expect(cached?.pages[0].items.map((item) => item.id)).toEqual(['mine', 'r1']);
 
         act(() => renderer.unmount());
     });
@@ -152,6 +161,7 @@ describe('useFeedState: the viewer’s own new reply', () => {
         expect(latest?.items).toEqual([]);
 
         act(() => publishNewLocalReply(reply('mine', 'root')));
+        await flush();
 
         expect(latest?.items.map((item) => item.id)).toEqual(['mine']);
         act(() => renderer.unmount());
@@ -162,10 +172,12 @@ describe('useFeedState: the viewer’s own new reply', () => {
         const renderer = await mount(threadOptions('other'));
 
         act(() => publishNewLocalReply(reply('mine', 'root')));
+        await flush();
         expect(latest?.items).toEqual([]);
 
         act(() => publishNewLocalReply(reply('mine-2', 'other')));
         act(() => publishNewLocalReply(reply('mine-2', 'other')));
+        await flush();
         expect(latest?.items.map((item) => item.id)).toEqual(['mine-2']);
 
         act(() => renderer.unmount());
@@ -182,8 +194,20 @@ describe('useFeedState: the viewer’s own new reply', () => {
         });
 
         act(() => publishNewLocalReply(reply('mine', 'root')));
+        await flush();
         expect(latest?.items).toEqual([]);
 
+        act(() => renderer.unmount());
+    });
+
+    it('ignores a reply that names no parent', async () => {
+        (feedService.getFeed as jest.Mock).mockResolvedValue(page([]));
+        const renderer = await mount(threadOptions('root'));
+
+        act(() => publishNewLocalReply({ id: 'orphan', user: { id: 'viewer-a' } } as unknown as HydratedPost));
+        await flush();
+
+        expect(latest?.items).toEqual([]);
         act(() => renderer.unmount());
     });
 });

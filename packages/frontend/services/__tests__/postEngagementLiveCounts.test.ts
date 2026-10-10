@@ -47,9 +47,6 @@ jest.mock('@/services/feedService', () => ({
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
 }));
-jest.mock('@/stores/feedScrollStore', () => ({
-  useFeedScrollStore: { getState: () => ({ retainSlice: jest.fn(), getSlice: () => null }) },
-}));
 jest.mock('@/stores/liveRoomsStore', () => ({
   useLiveRoomsStore: { getState: () => ({ fetchLiveRooms: jest.fn() }) },
 }));

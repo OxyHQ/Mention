@@ -192,7 +192,6 @@ export function mergeFeedPageContent(
 export interface FeedIdentityParams {
     type: FeedType;
     userId?: string;
-    showOnlySaved?: boolean;
     filters?: FeedFilters;
     /**
      * Authenticated viewer that the feed response is authorized for. Feed
@@ -209,12 +208,34 @@ export interface FeedIdentityParams {
  * output. Mirrors the dedupe-key strategy in `services/feedService.ts` but is
  * defined locally to avoid a service ↔ utils dependency.
  */
+/**
+ * A feed's filters in the one shape both of its identities use — the scroll key
+ * ({@link buildFeedScrollKey}) and the query key (`viewerQueryKeys.feed`): keys
+ * sorted, an absent value read as `''`, and no filters the same as an empty bag
+ * (`null`). Shared so the two identities of one feed cannot disagree on whether
+ * two `<Feed>`s are the same feed.
+ */
+export function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
+    if (!filters) return null;
+    const keys = Object.keys(filters).sort();
+    if (keys.length === 0) return null;
+    return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
+}
+
 function serializeFeedFilters(filters?: FeedFilters): string {
-    if (!filters) return '';
-    return Object.keys(filters)
-        .sort()
-        .map((key) => `${key}=${filters[key] ?? ''}`)
-        .join('&');
+    const normalized = normalizeFeedFilters(filters);
+    if (!normalized) return '';
+    return Object.entries(normalized).map(([key, value]) => `${key}=${value}`).join('&');
+}
+
+/**
+ * The post a replies feed is the thread of. `feedService` reads
+ * `/feed/replies/<this id>`, so every other place that narrows to, or matches,
+ * a thread asks this same question in this same order.
+ */
+export function feedThreadParentId(filters?: FeedFilters): string | undefined {
+    const parentId = filters?.parentPostId || filters?.postId;
+    return parentId ? String(parentId) : undefined;
 }
 
 /**
@@ -222,18 +243,37 @@ function serializeFeedFilters(filters?: FeedFilters): string {
  *
  * The same inputs always produce the same key (so scroll offset / cached items
  * restore correctly across an unmount→remount), while distinct feeds (different
- * viewer, type, user, saved view, or filters) produce distinct keys so they never
- * share state. `showOnlySaved` collapses to the `'saved'` effective type, matching
- * the effective-type logic in `useFeedState`.
+ * viewer, type, user, or filters) produce distinct keys so they never share
+ * state.
  */
 export function buildFeedScrollKey(params: FeedIdentityParams): string {
-    const effectiveType = params.showOnlySaved ? 'saved' : params.type;
     const viewerKey = params.isAuthenticated
         ? `auth:${params.currentViewerId || 'pending'}`
         : 'anon';
     const userId = params.userId ?? '';
     const filterKey = serializeFeedFilters(params.filters);
-    return `${viewerKey}|${effectiveType}|${userId}|${filterKey}`;
+    return `${viewerKey}|${params.type}|${userId}|${filterKey}`;
+}
+
+const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']);
+
+/**
+ * Whether a viewer's new post goes at the top of this feed — the same selection
+ * `postsStore.createPost` inserts into on the SQLite path: the home feeds, and
+ * the viewer's own profile posts. A scoped (filtered) feed and anybody else's
+ * profile never receive it, so they never jump. `stores/feedQueryCache` applies
+ * the same rule to the feed queries, with the post's author as the viewer.
+ */
+export function feedReceivesOwnNewPost(params: {
+    type: FeedType;
+    userId?: string;
+    filters?: FeedFilters;
+    currentUserId?: string;
+}): boolean {
+    const { type, userId, filters, currentUserId } = params;
+    if (filters && Object.keys(filters).length > 0) return false;
+    if (!userId) return HOME_FEED_TYPES.has(type);
+    return type === 'posts' && Boolean(currentUserId) && String(userId) === String(currentUserId);
 }
 
 /**
@@ -272,7 +312,7 @@ export function shallowFiltersEqual(a?: FeedFilters, b?: FeedFilters): boolean {
  *
  * Both feed data paths also allocate a NEW top-level array reference precisely
  * when the underlying data changes (SQLite re-`.map`s rows on each `dataVersion`;
- * memory mode replaces the array on every setter), so the reference short-circuit
+ * the feed query folds a new array whenever its pages change), so the reference short-circuit
  * safely catches the common "re-render, same data" case. For changed references,
  * a full key-by-key pass is still cheap relative to rebuilding rows, and is required
  * to detect same-length interior replacements / reorders without stale row sets.
