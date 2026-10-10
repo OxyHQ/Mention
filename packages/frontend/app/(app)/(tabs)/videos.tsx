@@ -545,7 +545,7 @@ const ReelSurface: React.FC<
   });
 
   // Inert unless `jsHlsSource` is set, and always on native.
-  useHlsPlayback(jsHlsSource ?? '', videoViewRef);
+  useHlsPlayback(jsHlsSource ?? '', videoViewRef, true, fallbackVideoUrl);
 
   // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
   // without a size. `player` passes through untouched including `null`, which
@@ -1328,33 +1328,19 @@ export default function VideosScreen() {
   );
 
   // Preferred playback URL: the adaptive HLS stream when the server resolved
-  // one (native video only — federated media never has `hlsUrl`), else the
-  // same raw/original URL `resolveFallbackVideoUrl` would return.
+  // one (federated media never has `hlsUrl`), else the same raw/original URL
+  // `resolveFallbackVideoUrl` would return.
   //
-  // NOT on web, and that is a defect being removed rather than an
-  // optimisation being tuned. A browser plays HLS only where it decodes the
-  // playlist itself (Safari) or where something hands the bytes to hls.js —
-  // and this screen does neither: it puts the URL straight on the element.
-  // Measured on a build of `main`, cold, against the production origin: a
-  // slide that mounts its own player sat at `?variant=hls_master` with
-  // `networkState` LOADING, `readyState` 0, no error and `paused === false`
-  // for the whole 26 second window, four runs out of four. The
-  // element had not failed and had not finished, so nothing downstream could
-  // react: `useReelChrome` swaps to `fallbackVideoUrl` on `status === 'error'`
-  // and the error never arrives. Every slide that mounts its OWN player is
-  // affected — opening the reel from the bar, swiping to the next video, a
-  // flight whose player never arrived — which is why tapping a feed video
-  // looked healthy throughout: that path adopts the feed's already-loaded
-  // player and never resolves a source at all.
-  //
-  // The MP4 is what web has always actually played, so the only thing given
-  // up here is adaptivity in Safari, which could decode the playlist. The
-  // screen now routes FEDERATED playlists (`.m3u8`, which have no MP4 to fall
-  // back to) through `useHlsPlayback`; our own `?variant=hls_master` ladder is
-  // not recognised by `isHlsSource`, so it stays native-only until it is.
+  // On every platform. The ladder is Oxy's H.264 transcode, and the original
+  // is whatever was uploaded — an Instagram reel arrives as VP9, which an
+  // iPhone cannot decode, so the slide showed its poster and never played.
+  // Web reaches the ladder the way it reaches a federated playlist:
+  // `isHlsSource` recognises `?variant=hls_master`, so a browser without a
+  // native HLS decoder hands it to hls.js (`useHlsPlayback`), and a failed
+  // stream falls back to the original there as `useReelChrome` does on native.
   const resolveVideoUrl = useCallback(
     (ref: MediaRef): string => {
-      if (ref?.hlsUrl && Platform.OS !== 'web') return ref.hlsUrl;
+      if (ref?.hlsUrl) return ref.hlsUrl;
       return resolveFallbackVideoUrl(ref);
     },
     [resolveFallbackVideoUrl],

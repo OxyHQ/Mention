@@ -154,6 +154,44 @@ describe('backfillMediaMetadata', () => {
     expect(result.scanned).toBe(1);
   });
 
+  /**
+   * The ladder arm. A video probed long ago still lacks its HLS stamp — nothing
+   * copied it before 2026-10-10 — and without it every player is handed the
+   * uploaded original, which an iPhone cannot decode when it is VP9.
+   */
+  it('selects a probed Oxy video whose HLS ladder was never stamped, and stamps it', async () => {
+    metadataByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({
+        id,
+        width: 720,
+        height: 1280,
+        durationSec: 12,
+        orientation: 'portrait',
+        hlsReadyAt: '2026-10-10T18:00:00.000Z',
+      })),
+    );
+    const id = await seedWithMedia([
+      {
+        id: UUID_FILE_ID,
+        type: 'video',
+        width: 720,
+        height: 1280,
+        durationSec: 12,
+        orientation: 'portrait',
+      },
+    ]);
+
+    const result = await backfillMediaMetadata({ dryRun: false });
+
+    expect(result.scanned).toBe(1);
+    expect(result.updated).toBe(1);
+    const [row] = await db
+      .select({ hlsReadyAt: postMedia.hlsReadyAt })
+      .from(postMedia)
+      .where(eq(postMedia.postId, id));
+    expect(row.hlsReadyAt?.toISOString()).toBe('2026-10-10T18:00:00.000Z');
+  });
+
   it('does not select an Oxy-backed image that already has its dimensions', async () => {
     await seedWithMedia([{ id: HEX_FILE_ID, type: 'image', width: 800, height: 600 }]);
 

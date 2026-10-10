@@ -17,7 +17,11 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postMedia } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';
-import { mediaMetadataService, isOxyFileId } from '../services/MediaMetadataService';
+import {
+  mediaMetadataChanged,
+  mediaMetadataService,
+  isOxyFileId,
+} from '../services/MediaMetadataService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
@@ -46,7 +50,7 @@ function mediaNeedsEnrichment(items: MediaItem[]): boolean {
       return (
         item.width === undefined ||
         item.height === undefined ||
-        (item.type === 'video' && item.durationSec === undefined)
+        (item.type === 'video' && (item.durationSec === undefined || item.hlsReadyAt === undefined))
       );
     }
     return (
@@ -112,7 +116,7 @@ interface MediaMetadataWrite {
  * This used to call `replacePostContent`, which is the right write for an EDIT:
  * it deletes and re-inserts the post's whole content graph — variants, media,
  * attachments, sources, mentions — inside one transaction, because a changed
- * body can change any of them. Enrichment changes none of them. It fills in six
+ * body can change any of them. Enrichment changes none of them. It fills in seven
  * columns on rows that already exist, in place, with the same media set in the
  * same order.
  *
@@ -144,7 +148,8 @@ async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promis
     ${item.durationSec ?? null}::double precision,
     ${item.orientation ?? null}::text,
     ${item.aspectRatio ?? null}::double precision,
-    ${item.sizeBytes ?? null}::integer
+    ${item.sizeBytes ?? null}::integer,
+    ${item.hlsReadyAt ?? null}::timestamptz
   )`,
   );
 
@@ -155,9 +160,10 @@ async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promis
       duration_sec = v.duration_sec,
       orientation = v.orientation,
       aspect_ratio = v.aspect_ratio,
-      size_bytes = v.size_bytes
+      size_bytes = v.size_bytes,
+      hls_ready_at = v.hls_ready_at
     from (values ${sql.join(values, sql`, `)})
-      as v(post_id, position, width, height, duration_sec, orientation, aspect_ratio, size_bytes)
+      as v(post_id, position, width, height, duration_sec, orientation, aspect_ratio, size_bytes, hls_ready_at)
     where ${postMedia.postId} = v.post_id
       and ${postMedia.position} = v.position
   `);
@@ -195,7 +201,8 @@ export async function backfillMediaMetadata(
         when ${postMedia.mediaId} !~* '^https?://'
           then ${postMedia.width} is null
             or ${postMedia.height} is null
-            or (${postMedia.type} = 'video' and ${postMedia.durationSec} is null)
+            or (${postMedia.type} = 'video'
+              and (${postMedia.durationSec} is null or ${postMedia.hlsReadyAt} is null))
         else ${postMedia.type} = 'video'
           and (${postMedia.orientation} is null or ${postMedia.durationSec} is null)
       end
@@ -268,19 +275,7 @@ export async function backfillMediaMetadata(
         continue;
       }
 
-      const changed = enriched.some((item, index) => {
-        const prev = current[index];
-        return (
-          item.width !== prev.width ||
-          item.height !== prev.height ||
-          item.durationSec !== prev.durationSec ||
-          item.orientation !== prev.orientation ||
-          item.aspectRatio !== prev.aspectRatio ||
-          item.sizeBytes !== prev.sizeBytes
-        );
-      });
-
-      if (!changed) {
+      if (!mediaMetadataChanged(current, enriched)) {
         skipped += 1;
         continue;
       }

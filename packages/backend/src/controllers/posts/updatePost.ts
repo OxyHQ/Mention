@@ -38,6 +38,7 @@ import {
   createPostMediaOwnerClient,
   ensurePostMediaPublic,
 } from '../../services/postMediaVisibility';
+import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
@@ -269,7 +270,19 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     if (normalizedMedia !== undefined) {
-      content.media = normalizedMedia;
+      // An edit sends each file's id, type and ALT — not what Oxy derived about
+      // it. A file the post already carried keeps its stored dimensions,
+      // duration and HLS ladder stamp (dropping the stamp sent every player back
+      // to the uploaded original); a new one is filled in by the enrichment run
+      // after the write. ALT is the author's, so the edit's value — or its
+      // absence — wins.
+      const stored = new Map((content.media ?? []).map((item) => [String(item.id), item]));
+      content.media = normalizedMedia.map((item) => {
+        const previous = stored.get(String(item.id));
+        if (!previous) return item;
+        const { alt: _previousAlt, ...derived } = previous;
+        return { ...derived, ...item };
+      });
     }
 
     if (authorLanguageVariants !== undefined || textChanged) {
@@ -537,6 +550,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           'This post changed while you were editing it. Reload it to edit within the current rules.',
       });
     }
+
+    // The same post-ingest enrichment a new post gets: new media wait for Oxy's
+    // metadata and ladder, and new links resolve their previews.
+    enrichIngestedPosts([{ id: post.id, content }]);
 
     // The correction trail — the half of permanent editability that makes it
     // honest. Recorded AFTER the write, so an edit that failed leaves no claim

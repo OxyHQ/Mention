@@ -135,6 +135,29 @@ describe('MediaMetadataService.enrichFromOxy', () => {
     });
   });
 
+  it("copies Oxy's HLS ladder stamp, which is what lets players leave the original", async () => {
+    const fileId = '01a12355-5f04-73a5-bb5b-dbf6f53ce659';
+    const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
+    vi.mocked(getServiceOxyClient).mockReturnValue({
+      assets: {
+        metadataByIds: vi.fn().mockResolvedValue([
+          {
+            id: fileId,
+            width: 1916,
+            height: 1078,
+            durationSec: 30,
+            hlsReadyAt: '2026-10-10T18:00:00.000Z',
+          },
+        ]),
+      },
+    } as never);
+
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const [enriched] = await mediaMetadataService.enrichFromOxy([{ id: fileId, type: 'video' }]);
+
+    expect(enriched.hlsReadyAt).toBe('2026-10-10T18:00:00.000Z');
+  });
+
   /**
    * The regression that made this file worth reopening, exercised end to end
    * rather than through the predicate: a modern Oxy id must reach the by-ids
@@ -193,8 +216,40 @@ describe('MediaMetadataService.enrichFromOxy', () => {
     expect(mediaMetadataService.needsOxyRetry(pending)).toBe(true);
     expect(
       mediaMetadataService.needsOxyRetry([
-        { ...pending[0], width: 720, height: 1280, durationSec: 12 },
+        {
+          ...pending[0],
+          width: 720,
+          height: 1280,
+          durationSec: 12,
+          hlsReadyAt: '2026-10-10T18:00:00.000Z',
+        },
       ]),
+    ).toBe(false);
+  });
+
+  /**
+   * Production, 2026-10-10: an Instagram reel uploaded as VP9 showed only its
+   * poster on an iPhone. Oxy had finished its H.264 ladder, but nothing ever
+   * copied the stamp, so the DTO carried no `hlsUrl` and every player was handed
+   * the VP9 original. A video keeps retrying until the ladder is stamped.
+   */
+  it('keeps a video pending until Oxy has finished its HLS ladder', async () => {
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const probed: MediaItem = {
+      id: '01a12355-5f04-73a5-bb5b-dbf6f53ce659',
+      type: 'video',
+      width: 1916,
+      height: 1078,
+      durationSec: 30,
+    };
+
+    expect(mediaMetadataService.needsOxyRetry([probed])).toBe(true);
+    expect(
+      mediaMetadataService.needsOxyRetry([{ ...probed, hlsReadyAt: '2026-10-10T18:00:00.000Z' }]),
+    ).toBe(false);
+    // An image has no ladder to wait for.
+    expect(
+      mediaMetadataService.needsOxyRetry([{ id: probed.id, type: 'image', width: 1, height: 1 }]),
     ).toBe(false);
   });
 

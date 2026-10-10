@@ -1,16 +1,5 @@
 import type { VideoSource } from 'expo-video';
-
-/**
- * The query the media pipeline resolves an adaptive stream under.
- *
- * `mediaResolver` builds `hlsUrl` as `getFileDownloadUrl(id, 'hls_master')`, so
- * the manifest arrives as `…/<id>?variant=hls_master` — a URL whose PATH carries
- * no file extension at all.
- */
-const HLS_VARIANT_QUERY = 'variant=hls_master';
-
-/** The extension a manifest carries when it has one (atproto, and any remote host). */
-const HLS_EXTENSION = '.m3u8';
+import { isHlsSource } from '@/utils/hlsSource';
 
 /**
  * A playable source for a video URL, declaring HLS when the URL cannot.
@@ -42,7 +31,7 @@ const HLS_EXTENSION = '.m3u8';
  */
 export function videoSourceFor(url: string): VideoSource {
   if (!url) return url;
-  if (!(url.includes(HLS_VARIANT_QUERY) || url.includes(HLS_EXTENSION))) return url;
+  if (!isHlsSource(url)) return url;
   // One object per url. `useVideoPlayer` rebuilds its player whenever the
   // source it is handed changes identity, so a fresh object per render would
   // tear the decoder down on every commit; this keeps callers from each having

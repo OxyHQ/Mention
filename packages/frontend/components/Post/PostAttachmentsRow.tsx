@@ -382,11 +382,13 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         if (resolvedType === 'video') {
           const original = resolveMediaSrc(mediaItem, 'playable');
           if (!original) return;
-          // Native plays the adaptive stream when the server has one — the same
-          // preference as the reel, so a flight into it carries the same source —
-          // and falls back to the original once if the stream fails. Web keeps the
-          // original: browsers other than Safari cannot play our HLS ladder.
-          const hls = Platform.OS !== 'web' ? mediaItem.hlsUrl : undefined;
+          // The adaptive stream when the server has one — the same preference as
+          // the reel, so a flight into it carries the same source — falling back
+          // to the original once if the stream fails. On every platform: the
+          // ladder is Oxy's H.264 transcode, which every browser decodes (Safari
+          // natively, the rest through hls.js), while the uploaded original may
+          // be VP9 or AV1, which an iPhone cannot play at all.
+          const hls = mediaItem.hlsUrl;
           const src = hls || original;
           const fallbackSrc = hls ? original : undefined;
           // Poster: prefer the server-resolved final `posterUrl`; fall back to the

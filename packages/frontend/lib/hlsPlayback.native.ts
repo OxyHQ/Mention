@@ -29,6 +29,7 @@ export function useHlsPlayback(
   _src: string,
   _viewRef: React.RefObject<VideoViewHandle | null>,
   _loading?: boolean,
+  _fallbackSrc?: string,
 ): HlsPlayback {
   return NATIVE_PLAYBACK;
 }

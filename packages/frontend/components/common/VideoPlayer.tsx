@@ -285,7 +285,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Segment loading pauses with playback — but only for a player this row owns.
   // A borrowed one may be playing somewhere else right now (a feed video carried
   // into the reel keeps this row, and its hls.js instance, mounted underneath).
-  const hls = useHlsPlayback(src, videoViewRef, externalPlayer ? true : mayPlay);
+  const hls = useHlsPlayback(src, videoViewRef, externalPlayer ? true : mayPlay, fallbackSrc);
 
   // `videoSourceFor` returns one object per url, so this is stable across
   // renders — `useVideoPlayer` rebuilds its player when the source changes.

@@ -1,5 +1,5 @@
 import { loadPostRecord, replacePostContent } from '../db/posts/postRepository';
-import { mediaMetadataService } from './MediaMetadataService';
+import { mediaMetadataChanged, mediaMetadataService } from './MediaMetadataService';
 import { logger } from '../utils/logger';
 import { enqueueMediaMetadataEnrich as enqueueJob } from '../queue/producers';
 
@@ -19,19 +19,7 @@ export async function patchPostMediaMetadata(postId: string): Promise<boolean> {
   const current = post.content.media;
   const enriched = await mediaMetadataService.enrichFromOxy(current);
 
-  const changed = enriched.some((item, index) => {
-    const prev = current[index];
-    return (
-      item.width !== prev.width ||
-      item.height !== prev.height ||
-      item.durationSec !== prev.durationSec ||
-      item.orientation !== prev.orientation ||
-      item.aspectRatio !== prev.aspectRatio ||
-      item.sizeBytes !== prev.sizeBytes
-    );
-  });
-
-  if (changed) {
+  if (mediaMetadataChanged(current, enriched)) {
     // The whole content graph, because `post_media` is a child table with a
     // dense `position`: enrichment rewrites every row's dimensions, so a
     // per-row update would have to renumber nothing but would still have to
