@@ -9,11 +9,11 @@
  *
  * ## `attempts` is incremented in SQL, not read-modify-written
  *
- * The Mongo version read `attempts`, added one in JavaScript, and wrote the sum
- * back. Two drains overlapping on one scope therefore both read the same value
- * and both wrote the same successor, so the backoff stopped growing and a
- * permanently failing scope was retried at the first interval forever. The
- * increment is now the database's, inside a transaction with the write that
+ * Reading `attempts`, adding one in JavaScript, and writing the sum back lets
+ * two drains overlapping on one scope both read the same value and both write
+ * the same successor, so the backoff stops growing and a permanently failing
+ * scope is retried at the first interval forever. The increment is the
+ * database's, inside a transaction with the write that
  * reads it back to compute the next attempt time.
  *
  * ## The backoff schedule lives here
@@ -84,7 +84,7 @@ function scope(source: EndorsementSource, sourceId: string) {
  * members that must be retracted.
  *
  * The removal ids UNION with whatever is already recorded rather than replacing
- * it — this is Mongo's `$addToSet … $each`, and it matters because two removals
+ * it, and that matters because two removals
  * before a successful drain must both be retracted. Replacing would drop the
  * first, permanently: nothing recomputes a removal, since the members are gone
  * from the source document by then.
@@ -181,9 +181,8 @@ export async function loadPendingRemoval(
 /**
  * Mark a scope's push as delivered, clearing the retry state.
  *
- * `error` is cleared explicitly. The Mongo write set it to `undefined`, which
- * Mongoose strips out of `$set` — so a row that had just succeeded went on
- * carrying the message from the last failure, and the only place that reads it
+ * `error` is cleared explicitly, so a row that has just succeeded does not go on
+ * carrying the message from the last failure — the only place that reads it
  * is a human debugging why a scope is stuck.
  */
 export async function markEndorsementSent(

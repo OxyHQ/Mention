@@ -36,7 +36,7 @@ export interface FeedFilters extends SharedFeedFilters {
 
 /**
  * An id as it can reach the feed key helpers: a string, a numeric id, or any
- * object that stringifies to its id — the last shape dates from the Mongo
+ * object that stringifies to its id — the last shape matches the legacy
  * `ObjectId`s the API used to serialize, and is kept because nothing has proven
  * every caller now hands over a plain string.
  */

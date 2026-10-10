@@ -1,6 +1,6 @@
 /**
  * One-shot backfill: normalize the whitespace of the text already stored in
- * Mongo — every piece of REMOTE text, plus the media `alt` of native posts.
+ * Postgres — every piece of REMOTE text, plus the media `alt` of native posts.
  *
  * Third-party text used to be persisted exactly as the remote server sent it —
  * indentation, embedded newlines and all. That is invisible in HTML (whitespace
@@ -43,7 +43,7 @@
  * WHAT IT CANNOT FIX: a native post is also dual-written as a SIGNED record on the
  * author's MTN hash chain, and a signed record is immutable. Rows whose alt was
  * signed before the write boundary was fixed keep that raw alt on-chain forever;
- * this script cleans the Mongo row that every read path actually serves. There is
+ * this script cleans the database row that every read path actually serves. There is
  * no backfill for the chain, and there must not be one — rewriting a signed record
  * would break the chain it belongs to.
  *
@@ -624,7 +624,7 @@ async function normalizeActors(dryRun: boolean): Promise<CollectionResult<ActorC
 
 /**
  * Scan both collections, normalize (or, dry, plan) and report. Split from the
- * entry point below so it can be driven without a MongoDB connection.
+ * entry point below so it can be driven without opening a connection itself.
  */
 export async function normalizeStoredText(dryRun: boolean): Promise<NormalizationSummary> {
   const startedAt = Date.now();
@@ -664,10 +664,8 @@ async function normalizeFederatedText(): Promise<void> {
       scriptName: 'normalizeFederatedText',
       dryRun,
     });
-    // ONE store now. The federated-actor half moved in the federation batch and
-    // the posts half in this one, so the Mongo connection this used to open is
-    // gone rather than left idle — an unused connection in a Fargate one-shot is
-    // a handle nothing closes.
+    // ONE store: posts and federated actors are both Postgres. An unused
+    // connection in a Fargate one-shot is a handle nothing closes.
     await connectPostgres();
     logger.info('[normalizeFederatedText] connected to PostgreSQL', { dryRun });
 

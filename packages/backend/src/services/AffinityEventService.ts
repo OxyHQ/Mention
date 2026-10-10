@@ -10,7 +10,7 @@
  *
  * Design (best-effort, decoupled from the request path):
  *  - Interaction events are HIGH-VOLUME, so we do NOT push per-event
- *    synchronously and we do NOT use a durable per-event Mongo outbox. Instead
+ *    synchronously and we do NOT use a durable per-event database outbox. Instead
  *    {@link record} `LPUSH`es a compact JSON event onto a bounded Redis list and
  *    returns immediately — fire-and-forget. A Redis failure (or absent Redis)
  *    NEVER affects the user action: it is logged at `debug` and swallowed.

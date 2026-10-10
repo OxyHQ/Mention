@@ -193,17 +193,15 @@ class TopicService {
   /**
    * Add `delta` to each topic's popularity, creating the row when absent.
    *
-   * Mongo's `bulkWrite` of `$inc` upserts becomes ONE multi-row
-   * `insert … on conflict do update`: on insert the column takes the delta
-   * (which is what `$inc` on an upsert did), on conflict it takes
-   * `existing + excluded`. Duplicate topic ids are summed BEFORE the statement,
-   * as they were before — and now they have to be, because a single statement
+   * ONE multi-row `insert … on conflict do update`: on insert the column takes
+   * the delta, on conflict it takes `existing + excluded`. Duplicate topic ids
+   * are summed BEFORE the statement, because a single statement
    * may not touch one row twice (`ON CONFLICT DO UPDATE command cannot affect
    * row a second time`).
    *
    * `updated_at` is written explicitly: the column's `$onUpdate` fires on
    * `db.update()` only, never on a conflict branch, so leaving it out would
-   * silently freeze the timestamp Mongoose's `timestamps: true` maintained.
+   * silently freeze the timestamp.
    */
   async batchIncrementPopularity(
     updates: Array<{ topicId: string; delta: number }>,
@@ -256,10 +254,10 @@ class TopicService {
    * duplicate topic ids cannot be folded into one row by summing. They do occur:
    * a name that trends as BOTH a hashtag and a classified topic resolves through
    * `resolveNames` (keyed on the name alone) to the SAME registry id, so one
-   * batch can carry two updates for it, and Mongo's `bulkWrite` applied both in
-   * sequence. A single Postgres statement may not touch one row twice, so the
-   * updates are split into ROUNDS of distinct ids and applied in order — which
-   * reproduces the sequence exactly. In practice there is one round.
+   * batch can carry two updates for it, which must apply in sequence. A single
+   * Postgres statement may not touch one row twice, so the updates are split
+   * into ROUNDS of distinct ids and applied in order — which preserves the
+   * sequence exactly. In practice there is one round.
    */
   async updatePopularityFromTrending(
     updates: Array<{ topicId: string; trendingScore: number }>,

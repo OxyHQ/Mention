@@ -6,7 +6,7 @@
  * The predecessor mocked `Post.aggregate`, captured the pipeline, and walked it
  * with expressions like
  * `expr.$min[1].$cond[0].$gt[0].$size.$setIntersection[1]`. Every one of those
- * paths names a Mongo aggregation node that no longer exists. More to the point,
+ * paths names a legacy-store aggregation node that no longer exists. More to the point,
  * the technique could not answer any of the questions the suite was FOR: it
  * asserted that a `$literal` wrapper appeared in a tree, never that a hostile
  * preference value was harmless; it asserted a `$ne: true` key was present, never
@@ -167,7 +167,7 @@ describe('discovery is hard SFW', () => {
   it('keeps an UNCLASSIFIED post, which is the common case, not a sensitive one', async () => {
     // The vacuity floor for the gate: the flags are NULLABLE, and `<> true` on a
     // NULL is NULL, which DROPS the row. `IS DISTINCT FROM TRUE` is what
-    // reproduces Mongo's `$ne: true`. Get that wrong and Explore is empty for
+    // reproduces the legacy store's `$ne: true`. Get that wrong and Explore is empty for
     // essentially the whole corpus.
     const unclassified = await create();
     expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [] }))).toEqual([
@@ -361,7 +361,7 @@ describe('relevance is a boost, never a filter', () => {
 describe('viewer signals are data, never SQL', () => {
   it('treats hostile topic / language / region preferences as literal values', async () => {
     /**
-     * These strings carry a Mongo aggregation sigil, a SQL string terminator and
+     * These strings carry a legacy-store aggregation sigil, a SQL string terminator and
      * a statement separator. The row-level claim is the one that matters and the
      * shape assertion could never make: the query RUNS, the result is the same as
      * with no preference at all, and the table is still there afterwards.
@@ -421,7 +421,7 @@ describe('what the candidate window excludes', () => {
     /**
      * The NULL-propagation trap, stated as rows. `oxy_user_id` is nullable (the
      * raw federated insert path can omit it) and SQL's `col NOT IN (…)` evaluates
-     * to NULL when the column is NULL — which excludes the row. Mongo's `$nin`
+     * to NULL when the column is NULL — which excludes the row. The legacy store's `$nin`
      * MATCHED a missing field, so the direct translation silently drops every
      * author-less post from Explore, with no error, looking exactly like a
      * ranking change. `authorNotInSql`'s `IS NULL` arm is what restores it.

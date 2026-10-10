@@ -1,19 +1,19 @@
 /**
  * `threadgates` / `postgates` against real rows.
  *
- * These six routes had NO coverage at all under Mongoose, so nothing here went
+ * These six routes had NO coverage at all under the legacy ODM, so nothing here went
  * vacuous when the models were ported — there was nothing to go vacuous. The
  * suite exists because a port with no coverage is the shape that ships broken,
  * and because two of the properties below are NEW and only expressible in
  * Postgres:
  *
- *  - **A rule keeps its row.** `allow[]` was a subdocument array Mongo rewrote
+ *  - **A rule keeps its row.** `allow[]` was a subdocument array the legacy store rewrote
  *    wholesale on every `findOneAndUpdate`. It is a child table now, so
  *    delete-then-insert would hand every surviving rule a new id on each edit.
  *    The write upserts by POSITION and deletes only the tail the new list does
  *    not reach, and the assertion is on the row ID, which is the only thing that
  *    can tell the two implementations apart.
- *  - **`(type = 'listOnly') = (list is not null)`** was unenforceable in Mongo,
+ *  - **`(type = 'listOnly') = (list is not null)`** was unenforceable in the legacy store,
  *    so a `listOnly` rule matching nobody was storable and silent. The CHECK
  *    refuses it; `parseThreadgateAllowRules` refuses it FIRST so the route can
  *    answer 400 rather than letting a constraint violation read as a 500.
@@ -153,7 +153,7 @@ describe('threadgates', () => {
 
   it('returns the OLDEST gate when two writers gated the same post', async () => {
     // `post_uri` embeds the writer, so two people gating one post produce two
-    // rows and `post_id` is not unique. Mongo's `findOne` answered arbitrarily.
+    // rows and `post_id` is not unique. The legacy store's `findOne` answered arbitrarily.
     const id = postId();
     const mine = await upsertThreadgate({
       postUri: postUri(AUTHOR, id),

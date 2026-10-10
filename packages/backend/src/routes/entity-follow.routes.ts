@@ -51,9 +51,8 @@ interface SerializedEntityFollow {
 }
 
 /**
- * `_id` alongside `id`, because a Mongoose document serialized as `_id` and a
- * port changes no response body. `__v` is dropped — it is Mongo bookkeeping the
- * schema deliberately does not carry (`schema/CONVENTIONS.md`).
+ * `_id` alongside `id`, because clients read `_id`. There is no `__v` — the
+ * schema deliberately does not carry it (`schema/CONVENTIONS.md`).
  */
 function serializeFollow(row: typeof entityFollows.$inferSelect): SerializedEntityFollow {
   return {
@@ -82,9 +81,8 @@ type EntityRefResult = { ok: true; ref: EntityRef } | { ok: false; message: stri
 /**
  * Validate and canonicalize the pair every entry point carries.
  *
- * Both values must be real strings. Under Mongo the reason was injection — an
- * `{"$ne": null}` object reached the query as an OPERATOR. Postgres binds them
- * as parameters, so that particular hazard is gone, but `entity_id` and
+ * Both values must be real strings. Postgres binds them as parameters, so an
+ * `{"$ne": null}` object cannot become an operator, but `entity_id` and
  * `entity_type` are both `text NOT NULL` and a non-string is a client error
  * worth a 400 rather than a driver failure worth a 500.
  *
@@ -317,11 +315,10 @@ function parseFollowCursor(cursor: string): { createdAt: Date; id: string } | nu
  * GET /entity-follows?type=...&limit=...&cursor=...
  *
  * NEWEST FIRST, which is what the client documents it consumes
- * (`services/entityFollowService.ts`). Mongo got that ordering for free from a
- * descending `_id` sort, because an ObjectId embeds its creation time. A `text`
- * primary key does not: a post-cutover uuid v7 begins `0198…` and an ObjectId
- * minted in 2024 begins `65b0…`, so ordering on the id alone would file every
- * NEW follow BELOW every old one — silently, and only after the cutover. The
+ * (`services/entityFollowService.ts`). A `text` primary key does not give that
+ * order: a uuid v7 begins `0198…` and a legacy 24-hex id minted in 2024 begins
+ * `65b0…`, so ordering on the id alone would file every NEW follow BELOW every
+ * old one — silently. The
  * sort therefore moves onto `created_at`, with the id as the unique tiebreak
  * that keeps the order TOTAL (offset or keyset, a non-total order duplicates and
  * skips rows at the page boundary).

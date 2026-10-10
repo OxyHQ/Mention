@@ -11,7 +11,7 @@
  *  - {@link syncScope} recomputes the CURRENT member set for one pack/list and
  *    pushes it as `add` edges for that scope.
  *  - {@link syncScopeMembershipChange} captures members removed by an update
- *    before MongoDB loses them, persists those pending retractions in the
+ *    before the update drops them, persists those pending retractions in the
  *    outbox, and then re-syncs the scope.
  *  - When the scope is deleted, the deletion path captures the final member set
  *    and passes it explicitly to {@link syncScopeRemoval}.
@@ -63,12 +63,11 @@ export class EndorsementSignalService {
     sourceId: string,
   ): Promise<ScopeState | null> {
     if (source === 'starterPack') {
-      // Postgres, matching the account-list branch below and for the same
-      // reason: the Mongo `StarterPack` collection now has no writer at all —
-      // the atproto mirror was its last one and it writes `starter_packs`. A
-      // `null` here does not mean "unknown", it means DELETED, so the caller
-      // retracts the endorsements; a read that stopped moving would therefore
-      // have withdrawn signal for live packs rather than merely gone stale.
+      // Postgres, matching the account-list branch below: every writer,
+      // including the atproto mirror, writes `starter_packs`. A `null` here
+      // does not mean "unknown", it means DELETED, so the caller retracts the
+      // endorsements; a stale read would therefore withdraw signal for live
+      // packs rather than merely go stale.
       const [pack] = await getDb()
         .select({ ownerOxyUserId: starterPacks.ownerOxyUserId })
         .from(starterPacks)
@@ -85,12 +84,10 @@ export class EndorsementSignalService {
         memberIds: packMembers.map((member) => member.oxyUserId),
       };
     }
-    // Postgres. The Mongo `AccountList` collection has no writer left, so this
-    // resolved every list created after the cutover as MISSING — and `null` here
-    // does not mean "unknown", it means "deleted", so the caller RETRACTS the
-    // endorsements instead of leaving them alone. A read that stopped moving
-    // therefore did not merely go stale: it actively withdrew signal for lists
-    // that were alive.
+    // Postgres, where every list is written. `null` here does not mean
+    // "unknown", it means "deleted", so the caller RETRACTS the endorsements
+    // instead of leaving them alone. A stale read would therefore not merely go
+    // stale: it would actively withdraw signal for lists that are alive.
     //
     // Members come from the child table, ordered by `position` so the edge set
     // is built in the list's own order rather than an arbitrary one.
@@ -206,7 +203,7 @@ export class EndorsementSignalService {
   /**
    * Re-sync a scope after a membership replacement/removal. The caller passes
    * the pre-save and post-save member lists so members that disappeared can be
-   * emitted as durable `remove` edges even though they are no longer in MongoDB.
+   * emitted as durable `remove` edges even though they are no longer in the database.
    */
   async syncScopeMembershipChange(
     source: EndorsementSource,

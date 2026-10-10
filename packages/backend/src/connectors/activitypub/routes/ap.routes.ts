@@ -120,12 +120,10 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     const PAGE_SIZE = 20;
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
 
-    // The cursor DECODER and the query widened together. A cursor names an
-    // arbitrary `posts.id` — an ObjectId hex before the cutover, a uuid v7 after
-    // — so a decoder that still validated ObjectIds would discard every
-    // post-cutover cursor and re-serve page one forever, while a widened decoder
-    // feeding a Mongo `ObjectId` constructor would turn a clean 400 into a
-    // CastError 500. `chronoCursorSql` is both halves at once.
+    // The cursor DECODER and the query agree. A cursor names an arbitrary
+    // `posts.id` — a legacy 24-hex id or a uuid v7 — so a decoder that only
+    // accepted 24-hex ids would discard every uuid cursor and re-serve page one
+    // forever. `chronoCursorSql` is both halves at once.
     const keyset = await chronoCursorSql(cursor);
     const scope = outboxScope(userId);
     const overfetched = await findPostRecords(keyset ? and(scope, keyset) : scope, {

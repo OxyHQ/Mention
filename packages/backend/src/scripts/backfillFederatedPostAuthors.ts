@@ -384,9 +384,8 @@ export function countRemaining(
 async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
   const startedAt = Date.now();
 
-  // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
-  // an ABSENT field, while SQL's `<>` against NULL matches nothing — so the
-  // literal translation would find zero orphans and report a clean run.
+  // `is not null` / `is null`, never `<> null`: SQL's `<>` against NULL matches
+  // nothing — so that spelling would find zero orphans and report a clean run.
   const orphanFilter = and(isNotNull(posts.federationActivityId), isNull(posts.oxyUserId)) as SQL;
 
   try {

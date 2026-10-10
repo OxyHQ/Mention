@@ -153,11 +153,10 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
   // value passed around is what stops two spellings of "the same match"
   // drifting apart.
   //
-  // The spam clause is `is not true`, not `< threshold`. Mongo's
-  // `{ $not: { $gte: n } }` MATCHED a post with no spam score at all (an
-  // unclassified post), and SQL's `<` would DROP exactly those rows, silently
-  // shrinking both the corpus and every term's count. `is not true` is total:
-  // NULL and false both pass, which is the Mongo behaviour.
+  // The spam clause is `is not true`, not `< threshold`. A post with no spam
+  // score at all (an unclassified post) must pass, and SQL's `<` would DROP
+  // exactly those rows, silently shrinking both the corpus and every term's
+  // count. `is not true` is total: NULL and false both pass.
   const windowMatch = and(
     notCollapsedCrosspostSql(),
     gte(posts.createdAt, windowStart),
@@ -294,9 +293,9 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
  * numbers the floors and the burst statistic are applied to. The only thing
  * that differs between the two calls is what a term IS.
  *
- * `lateral unnest` is Mongo's `$unwind` over the term expression, and the
- * `group by` is its `$group`. `array_agg(distinct …)` gives the
- * distinct-author set; the `count(*) filter` clauses are its `$cond` sums.
+ * `lateral unnest` expands the term expression and the `group by` buckets per
+ * term. `array_agg(distinct …)` gives the distinct-author set; the
+ * `count(*) filter` clauses are the conditional sums.
  *
  * NULL authors, languages and regions are excluded INSIDE the aggregates
  * rather than by a WHERE clause, because a legacy orphan federated post is a
@@ -346,8 +345,7 @@ async function aggregateTermRows(
       -- counted twice — inflating that term's volume, its author set and its
       -- burst score against every term that appears once per post. What a
       -- reader would have seen is a term trending because one post mentioned
-      -- it twice. Mongo's $setUnion deduplicated per document and this is
-      -- where that property lives now. It is what makes the CLUSTERED
+      -- it twice. This is where the per-post dedup lives. It is what makes the CLUSTERED
       -- expression safe too: mapping Kyiv onto Ukraine yields the
       -- representative twice for a post that said both, and that one post
       -- must count once against the story.
@@ -559,9 +557,8 @@ function buildConceptPairs(candidates: readonly TermCandidate[]): TrendTermPair[
  * term its row is reported under.
  *
  * A `CASE` per merged member, applied to each element of the candidate union.
- * Mongo needed a `$setUnion` around the mapped array so that a post saying
- * both `Ukraine` and `Kyiv` did not yield the representative twice and get
- * counted twice against the story; here the `select distinct` inside
+ * A post saying both `Ukraine` and `Kyiv` must not yield the representative
+ * twice and get counted twice against the story; the `select distinct` inside
  * `aggregateTermRows`'s lateral already carries that property, for this
  * expression and the unmapped one alike — one place, not two.
  *
@@ -632,8 +629,7 @@ async function loadTermPairs(windowMatch: SQL, terms: readonly string[]): Promis
       .from(posts)
       // Self-join over the SAME per-post term set, one side renamed. `<` gives
       // each unordered pair exactly once and can never pair a term with
-      // itself, which is what Mongo's `$expr: { $lt: … }` after the double
-      // `$unwind` did. A post carrying fewer than two of the terms produces no
+      // itself. A post carrying fewer than two of the terms produces no
       // row at all, so there is nothing to pre-filter.
       .innerJoin(postTerms('pair_a'), sql`true`)
       .innerJoin(postTerms('pair_b'), sql`pair_b.term > pair_a.term`)

@@ -2,7 +2,7 @@
 -- nothing produces: `published | unavailable | unparseable | empty`. The real
 -- one belongs to the poller (`scripts/reportFederationBlocklistCandidates.ts`,
 -- `export type SourceOutcome`) and is `published | not-published | failed`, from
--- which `models/BlocklistProposalRun.ts` derives its Mongoose enum.
+-- which `models/BlocklistProposalRun.ts` derives its model enum.
 --
 -- Past `published` the two sets do not overlap, so the CHECK would have refused
 -- every row the backfill copies (`backfill/plans/blocklist.ts` takes `outcome`

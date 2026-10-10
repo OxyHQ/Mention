@@ -3,8 +3,8 @@
  * `bookmark_folders`), `post_subscriptions`, `pokes`, `mutes`, `mute_words`,
  * `entity_follows`.
  *
- * Every one of these is a (user, thing) edge that Mongo stored as a document
- * with a compound unique index. The port is direct; the interesting parts are
+ * Every one of these is a (user, thing) edge with a compound unique key. The
+ * interesting parts are
  * the ON DELETE choices, which follow `deletePost`'s own best-effort cascade
  * (`controllers/posts.controller.ts:1741-1747`) — likes and bookmarks are
  * deleted with their post today, so they CASCADE.
@@ -30,7 +30,7 @@ export const MUTE_WORD_ACTOR_TARGETS = ['all', 'exclude-following'] as const;
 /** The longest bookmark-folder name; `BookmarkFolderService` trims and checks it first. */
 export const BOOKMARK_FOLDER_NAME_MAX_LENGTH = 100;
 
-/** `MuteWord.value` length ceiling, from the Mongoose `maxlength`. */
+/** `MuteWord.value` length ceiling. */
 const MUTE_WORD_MAX_LENGTH = 100;
 
 /**
@@ -52,7 +52,7 @@ export const likes = pgTable(
     value: integer().notNull().default(1),
     /**
      * Monotonic relationship revision, the input to the deterministic outbox id.
-     * Mongo's `min: 1, default: 1`, with legacy rows starting at zero — so the
+     * The model says `min: 1, default: 1`, with legacy rows starting at zero — so the
      * CHECK is `>= 0`, not `>= 1`, and the code's own comment says why ("Legacy
      * rows start at zero and receive revision 1 on their next transition").
      */
@@ -126,8 +126,7 @@ export const bookmarks = pgTable(
       .notNull()
       .references(() => posts.id, { onDelete: 'cascade' }),
     /**
-     * NULL means the default (unfiled) folder. Mongo used `default: null` for
-     * exactly this, and it must stay NULL rather than `''` — an empty string is
+     * NULL means the default (unfiled) folder, and it must stay NULL rather than `''` — an empty string is
      * a VALUE, so it would become a folder literally named "".
      *
      * A non-NULL value must name one of the owner's `bookmark_folders` — the
@@ -211,7 +210,7 @@ export const mutes = pgTable(
   },
   (t) => [
     unique('mutes_user_id_muted_id_key').on(t.userId, t.mutedId),
-    // The reverse direction ("who has muted me") — Mongo indexed it, keep it.
+    // The reverse direction ("who has muted me").
     index('mutes_muted_id_idx').on(t.mutedId),
   ],
 );
@@ -262,7 +261,7 @@ export const muteWords = pgTable(
  *
  * `ENTITY_FOLLOW_TYPES` is deliberately two values: rows with
  * `entityType: 'feed'` were written historically and read by nothing (a feed
- * subscription is a `FeedLike` row). The narrowed CHECK is a REMOVAL of Mongo
+ * subscription is a `FeedLike` row). The narrowed CHECK is a REMOVAL of legacy
  * baggage, and it is the one place in this schema where the backfill must
  * actively drop rows rather than copy them — a legacy `'feed'` row would
  * otherwise fail the constraint.

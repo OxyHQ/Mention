@@ -43,21 +43,19 @@ interface RealCounts {
 /**
  * Count the real records that back each engagement counter, for a WHOLE PAGE.
  *
- * Three grouped aggregates rather than three counts per post: the Mongo version
- * issued `3 × PAGE_SIZE` round trips per page, and this sweep is designed to walk
- * the entire federated corpus.
+ * Three grouped aggregates rather than three counts per post: `3 × PAGE_SIZE`
+ * round trips per page would dominate a sweep designed to walk the entire
+ * federated corpus.
  */
 async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCounts>> {
   const db = getDb();
   const [likeRows, boostRows, commentRows] = await Promise.all([
     // Likes: native like rows (upvotes) for this post.
     //
-    // This read was Mongo until it became a DEAD-STORE read.
-    // `PostEngagementCommandService` has written `likes` to Postgres since
-    // `28f4c6bd`, so nothing has written the Mongo collection since — and this
-    // script does not merely READ stale, it recomputes counters and writes them
-    // onto live posts. Left as it was, running it rewrote every federated post's
-    // engagement to its value as of that commit, with no error anywhere.
+    // `PostEngagementCommandService` writes `likes` to Postgres, and this read
+    // must stay on the store the writer uses: this script does not merely READ,
+    // it recomputes counters and writes them onto live posts. A stale read would
+    // rewrite every federated post's engagement with no error anywhere.
     //
     // `value: 1` is the upvote half of the same `LIKE_VALUES` domain the CHECK
     // constrains; a downvote is a real row and must NOT be counted here.
@@ -109,16 +107,13 @@ async function recomputeFederatedEngagement(): Promise<void> {
       scriptName: 'recomputeFederatedEngagement',
       dryRun,
     });
-    // ONE store now. Every record this reconciles against — posts, boosts,
-    // replies and likes — is Postgres, so the Mongo connection is gone rather
-    // than left open: an unused connection to a store nothing reads is how the
-    // next reader concludes a read from it would still be valid.
+    // ONE store. Every record this reconciles against — posts, boosts, replies
+    // and likes — is Postgres.
     await connectPostgres();
     logger.info('[recomputeFederatedEngagement] connected to PostgreSQL', { dryRun });
 
-    // `is not null`, never `<> null`: Mongo's `$ne: null` also matched an ABSENT
-    // field, while SQL's `<>` against NULL matches nothing — the literal
-    // translation would find zero federated posts and report a clean run.
+    // `is not null`, never `<> null`: SQL's `<>` against NULL matches nothing —
+    // that spelling would find zero federated posts and report a clean run.
     const federatedFilter = isNotNull(posts.federationActivityId);
     const [totals] = await getDb().select({ count: count() }).from(posts).where(federatedFilter);
     const totalCount = totals?.count ?? 0;

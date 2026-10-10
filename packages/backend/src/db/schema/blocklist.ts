@@ -321,7 +321,7 @@ export const blockedDomainPurges = pgTable(
       sql`${t.state} in (${sql.raw(inList(BLOCKED_DOMAIN_PURGE_STATES))})`,
     ),
     // Every measured count is nullable and non-negative when present. The
-    // subdocument was absent-or-complete in Mongo (`default: undefined`), and
+    // measurement is absent-or-complete, and
     // that all-or-nothing is what the second clause preserves.
     check(
       'blocked_domain_purges_measured_check',

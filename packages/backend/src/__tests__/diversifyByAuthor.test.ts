@@ -321,7 +321,7 @@ function makeRawSlice(authorId: string, postId: string, finalScore: number): Fee
     isIncompleteThread: false,
     items: [
       {
-        // Mirrors a lean Mongo doc decorated by FeedRankingService.
+        // Mirrors a lean legacy-store doc decorated by FeedRankingService.
         post: {
           _id: { toString: () => postId },
           id: postId,

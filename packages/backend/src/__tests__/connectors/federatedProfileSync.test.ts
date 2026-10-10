@@ -318,7 +318,7 @@ describe('federatedProfileSync author backfill', () => {
    * resolved local author, which is what the backfill claims.
    *
    * These used to be objects in an in-memory array behind a `Post.updateMany`
-   * double that re-implemented Mongo's matching. That double is what decided
+   * double that re-implemented the legacy store's matching. That double is what decided
    * whether the range matched — so it could not distinguish the `/`-terminated
    * range the code actually issues from a prefix that claims a sibling's posts,
    * which is the entire property these two cases exist to pin.

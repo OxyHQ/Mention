@@ -299,8 +299,8 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       fediversePreferredLanguage,
     } = req.body || {};
 
-    // Dot-notation leaf paths mapped to the value Mongo should store. The values
-    // are deliberately heterogeneous (scalars, arrays, sub-documents) and are only
+    // Dot-notation leaf paths mapped to the value to store. The values are
+    // deliberately heterogeneous (scalars, arrays, sub-documents) and are only
     // ever handed to `$set`, never read back here.
     const update: Record<string, unknown> = {};
     const unset: Record<string, ''> = {};
@@ -742,7 +742,7 @@ router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
  * POST /api/profile/export
  * Export the caller's data as newline-delimited JSON (NDJSON).
  *
- * The export is STREAMED from Mongo cursors, one document per line, so a power
+ * The export is STREAMED in keyset pages, one record per line, so a power
  * user's entire history is never buffered into a single in-memory JSON blob —
  * the previous implementation loaded every post, bookmark, and like at once,
  * which spikes memory (and can OOM the task) for large accounts. Nothing is

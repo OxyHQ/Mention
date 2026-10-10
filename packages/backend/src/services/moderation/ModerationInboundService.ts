@@ -21,11 +21,7 @@ import { decisionApplyEventId } from './ModerationOutboxService';
  * together means the only two possible outcomes are "recorded and queued" or
  * "neither", and "neither" releases the claim and gets redelivered.
  *
- * The Mongo version had to open the session itself and pass explicit read/write
- * concerns, because a replica-set transaction needs a snapshot read and a
- * majority write to give that guarantee. `db.transaction()` is that guarantee by
- * construction, so the options object has no counterpart rather than a
- * translation.
+ * `db.transaction()` is that guarantee by construction, so no options are passed.
  */
 
 export interface RecordDecisionEventInput {

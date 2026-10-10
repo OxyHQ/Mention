@@ -589,7 +589,7 @@ describe('PostClassificationService — provider/model isolation', () => {
 
 describe('PostClassificationService — Stage-A baseline preservation', () => {
   it('preserves the Stage-A deterministic fields through AI enrichment', async () => {
-    // The AI stage patches only the fields it owns. Against Mongo this was a
+    // The AI stage patches only the fields it owns. Against the legacy store this was a
     // DOTTED `$set`; here it is a key-by-key merge in `updatePostRecord`. Either
     // way, writing the whole subdocument would wipe Stage A — and the only
     // assertion that can tell the difference is on the row afterwards.
@@ -1224,7 +1224,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
 
   it('never queues a BOOST, even though a boost can carry a rendition', async () => {
     // A boost has nothing of its own to classify. `boost_of IS NULL` is the
-    // discriminator, and `<> NULL` — the literal translation of Mongo's
+    // discriminator, and `<> NULL` — the literal translation of the legacy store's
     // `$ne: null` — is NULL for every row, which would empty the queue entirely.
     const original = await seedSubject('the original everyone is boosting');
     seedClock += 1;

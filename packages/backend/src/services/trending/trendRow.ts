@@ -75,8 +75,7 @@ export function selectForAudience(
 /**
  * A trend row as `GET /trending` serves it.
  *
- * `_id` survives the port because the client's contract requires it; the value
- * is the same one Mongo held, since the backfill copies `_id` verbatim into the
+ * `_id` is emitted because the client's contract requires it; the value is the
  * `text` primary key.
  */
 export interface SerializedTrend {

@@ -17,7 +17,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  * and severity separation run without a network. The FOOTPRINT reads are not
  * mocked: they run against real Postgres rows.
  *
- * That changed when the reads moved off Mongo. The three models used to be
+ * That changed when the reads moved off the legacy store. The three models used to be
  * mocked over in-memory stores with hand-rolled `_id` pagination, and a mocked
  * model answers whatever the mock was told — an assertion could read "the
  * footprint counted this actor" while observing only that a fake had been
@@ -631,7 +631,7 @@ describe('read-only guarantee', () => {
   /**
    * The whole point of this script is that it never enforces anything. That
    * property is not something a reviewer can keep re-checking by eye, so it is
-   * a gate: the source may not contain a Mongo write, and may not touch the
+   * a gate: the source may not contain a database write, and may not touch the
    * blocked-domain configuration.
    *
    * Mutation-tested — inserting any one of these calls into the script makes

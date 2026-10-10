@@ -2,7 +2,7 @@
  * The two spatial columns, asserted against REAL ROWS.
  *
  * The point of this file is the ORDERING check. `ST_MakePoint` takes
- * `(longitude, latitude)` and Mongo stored `{ lat, lon }` pairs that a
+ * `(longitude, latitude)` and the legacy store stored `{ lat, lon }` pairs that a
  * `2dsphere` index reads POSITIONALLY, so a transposed pair is the single most
  * likely thing to get wrong here — and it does not look wrong: a lat/lon swap
  * yields a perfectly plausible point in the wrong hemisphere. A test that only
@@ -187,7 +187,7 @@ describe('posts.content_geo', () => {
 
 describe('coordinate constraints', () => {
   it('refuses half a coordinate pair', async () => {
-    // Mongo allowed it and the federated insert path had to strip half-written
+    // The legacy store allowed it and the federated insert path had to strip half-written
     // pairs by hand (`outbox.service.ts:904`). Here the state is unrepresentable.
     await expect(
       db.insert(posts).values({

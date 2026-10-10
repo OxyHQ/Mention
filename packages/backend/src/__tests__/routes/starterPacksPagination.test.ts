@@ -1,7 +1,7 @@
 /**
  * `GET /starter-packs`, against real rows.
  *
- * The suite this replaces ran the route over a hand-written in-memory Mongo
+ * The suite this replaces ran the route over a hand-written in-memory document-store
  * stand-in and, for the property that actually matters, asserted the SORT SPEC
  * OBJECT — `Object.keys(sortSpecs[0]).at(-1) === '_id'`. That check cannot fail
  * for a query that returns the wrong rows, and it cannot survive the port at all
@@ -309,7 +309,7 @@ describe('GET /starter-packs — search', () => {
 
   it('treats a LIKE wildcard in the search term as a literal', async () => {
     /**
-     * The Mongo version escaped REGEX metacharacters; `%` and `_` are the ones
+     * The legacy-store version escaped REGEX metacharacters; `%` and `_` are the ones
      * `ILIKE` reads as patterns, and leaving them live turns the search box into
      * a way to match every pack in the table.
      */

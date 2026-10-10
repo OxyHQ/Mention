@@ -57,7 +57,7 @@ Mention federates every account by default with no user-facing control and no ex
 
 ### Toggle transitions
 
-- The write goes to OXY (SDK, session-authed). The Mention frontend then calls a small Mention backend endpoint (`POST /federation/sharing-changed`, session-authed) that (a) invalidates the user's sharing cache and (b) on ON→OFF enqueues the protocol cleanup job (BullMQ, Mongo fallback — existing queue conventions; job id hashed, never raw URLs):
+- The write goes to OXY (SDK, session-authed). The Mention frontend then calls a small Mention backend endpoint (`POST /federation/sharing-changed`, session-authed) that (a) invalidates the user's sharing cache and (b) on ON→OFF enqueues the protocol cleanup job (BullMQ — existing queue conventions; job id hashed, never raw URLs):
   1. Deliver `Delete { object: actorUri }` to the shared inboxes of all inbound followers (Threads-style deletion request; best-effort).
   2. Delete inbound `FederatedFollow` rows and bridge-unfollow their Oxy edges (`POST /federation/follow`, action `unfollow` — idempotent).
 - The cleanup endpoint reads the CURRENT flag from Oxy server-side (never trusts the client) and no-ops when sharing is still on — safe to call spuriously, idempotent to re-run.

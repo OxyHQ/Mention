@@ -2,7 +2,7 @@
  * The post storage layer, against a real database.
  *
  * Every assertion here is about a ROW, not about a query having been built —
- * that distinction is the whole reason this suite exists. The Mongoose suites it
+ * that distinction is the whole reason this suite exists. The legacy-ODM suites it
  * replaces mocked the model and checked which arguments the service passed, so
  * they were green while the thing under them was wrong; the guard that shipped
  * broken in the sibling oxy-api port was exactly of that shape.
@@ -275,7 +275,7 @@ describe('authorship', () => {
   });
 
   it('refuses a second owner on one post', async () => {
-    // The invariant `getOwnerId` has always assumed and Mongo could not state.
+    // The invariant `getOwnerId` has always assumed and the legacy store could not state.
     const record = await create();
     await expect(
       db.insert(postAuthorships).values({
@@ -618,7 +618,7 @@ describe('reads the rest of the port depends on', () => {
 describe('writes', () => {
   it('merges a metadata patch instead of replacing the subdocument', async () => {
     /**
-     * The Mongo counterpart was a dotted `$set`, and a dot path handed to
+     * The legacy-store counterpart was a dotted `$set`, and a dot path handed to
      * drizzle's `set()` is an unknown property that drizzle silently IGNORES —
      * the write does nothing and throws nothing. This asserts the merge on real
      * columns: flipping the federation flag must not clear the pin.
@@ -720,7 +720,7 @@ describe('writes', () => {
 
   it('omits an absent optional rather than sending null', async () => {
     /**
-     * Drizzle hands `null` where Mongoose handed `undefined`, and the shared
+     * Drizzle hands `null` where the legacy ODM handed `undefined`, and the shared
      * contract OMITS an absent optional — the SDK's zod parse rejects a null
      * where it expects the key to be missing. This is that conversion, asserted
      * on the keys most likely to be absent.
@@ -770,7 +770,7 @@ describe('writes', () => {
 describe('list reads', () => {
   it('pages newest-first on a keyset both of whose columns are NOT NULL', async () => {
     /**
-     * Mongo sorts missing values FIRST and Postgres sorts NULLs LAST, so a sort
+     * The legacy store sorts missing values FIRST and Postgres sorts NULLs LAST, so a sort
      * key that can be null silently reverses which end of the range a bounded
      * sweep reaches. `created_at` and `id` are both `NOT NULL`, which is what
      * makes this ordering safe without a `nulls first`.

@@ -24,7 +24,7 @@ import {
  *
  * The dedupe store and the outbox are REAL ROWS. That replaces the file's most
  * load-bearing fake: `ModerationEvent.create` had to RAISE a synthetic `E11000` to
- * express "somebody else has this event", because in Mongo that answer only ever
+ * express "somebody else has this event", because in the legacy store that answer only ever
  * arrived as an error — so the fake decided, in the test, what the production code
  * was then judged on for classifying correctly. `moderation_events.id` is the
  * primary key and `claimModerationEvent` answers with a VALUE (`ON CONFLICT DO

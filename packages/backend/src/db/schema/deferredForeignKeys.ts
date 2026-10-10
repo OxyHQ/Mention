@@ -563,7 +563,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: mentionSignedRecords,
     column: mentionSignedRecords.rkey,
     reason:
-      'A Mongo `_id` INSIDE a signed envelope. It usually names a `posts.id`, ' +
+      'A record id INSIDE a signed envelope. It usually names a `posts.id`, ' +
       'but it also names a `likes.id` or a `bookmarks.id` depending on `nsid`, ' +
       'and a record must survive the deletion of what it describes — that is ' +
       'what a tombstone is for.',
@@ -576,8 +576,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: customFeedTopics,
     column: customFeedTopics.topicId,
-    reason:
-      "An Oxy Topic-registry id. Mongo typed it `ref: 'Topic'`; no such collection exists here.",
+    reason: 'An Oxy Topic-registry id; no topics table exists here.',
   },
   {
     table: userBehaviorTopics,

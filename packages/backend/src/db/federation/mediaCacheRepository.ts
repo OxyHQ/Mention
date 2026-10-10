@@ -227,8 +227,7 @@ export async function scheduleMediaCacheRetry(
  * The `pending` URLs whose backoff has elapsed, most recently accessed first.
  *
  * A row that has never been attempted has a `null` `next_attempt_at` and is due
- * immediately — in Mongo that was three alternatives (`<= now`, explicit null,
- * field absent); Postgres has no absent column, so it is two.
+ * immediately, so the predicate is two alternatives (`<= now`, null).
  */
 export async function findDueMediaCacheEntries(
   limit: number,

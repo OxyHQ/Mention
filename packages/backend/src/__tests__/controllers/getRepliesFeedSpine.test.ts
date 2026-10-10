@@ -11,7 +11,7 @@
  * The previous version spied on `Post.find` and asserted the FILTER OBJECT the
  * controller built. That is exactly the check that cannot fail for the right
  * reason: it passed whether or not the filter selected anything, and it pinned
- * the Mongo spelling of a query that has since become SQL, so it would have gone
+ * the legacy-store spelling of a query that has since become SQL, so it would have gone
  * red on a correct port and green on a broken one. The rows are real now and the
  * assertions are about which replies come back.
  *

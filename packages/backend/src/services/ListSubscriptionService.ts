@@ -43,10 +43,9 @@ export class ListSubscriptionService {
    * follow is successfully created. Best-effort: a count drift must never break
    * the follow operation, so failures are logged rather than thrown.
    *
-   * No id-shape guard. The Mongoose version returned early for anything that was
-   * not 24-char hex, which after the cutover would have silently skipped the
-   * maintenance for every list created since — the counter would drift down
-   * forever with nothing logged. An id that names no list simply updates no row.
+   * No id-shape guard: ids are 24-char hex OR uuid v7, and a hex-only guard
+   * would silently skip the maintenance for every uuid-keyed list. An id that
+   * names no list simply updates no row.
    */
   async incrementSubscriberCount(listId: string): Promise<void> {
     try {
@@ -70,8 +69,7 @@ export class ListSubscriptionService {
   async decrementSubscriberCount(listId: string): Promise<void> {
     try {
       // Floor at zero in the PREDICATE, not with `greatest(...)`: a row already
-      // at zero must not be touched at all, which is what Mongo's
-      // `{ subscriberCount: { $gt: 0 } }` filter did — and `updated_at` is a sort
+      // at zero must not be touched at all — `updated_at` is a sort
       // key for `GET /lists`, so a no-op write would reshuffle the list order.
       // `account_lists_subscriber_count_check` refuses a negative value anyway.
       await getDb()
@@ -105,8 +103,8 @@ export class ListSubscriptionService {
     const db = getDb();
 
     // Ordered so truncation is deterministic: the OLDEST subscriptions are the
-    // ones that survive the cap. Mongo took whatever order the collection scan
-    // produced, which made a truncated feed differ run to run.
+    // ones that survive the cap. An unordered scan would make a truncated feed
+    // differ run to run.
     const subscriptions = await db
       .select({ entityId: entityFollows.entityId })
       .from(entityFollows)

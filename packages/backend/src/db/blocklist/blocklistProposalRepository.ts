@@ -20,11 +20,9 @@
  *
  * ## `status <> 'declined'` is the load-bearing predicate
  *
- * A person's decision is never moved by the sweep. Mongo expressed that as
- * `{status: {$ne: 'declined'}}` on the upsert's filter, so a decline landing
- * between the classification read and the write could not be undone by it — and
- * the duplicate-key error that followed WAS the signal that a person decided
- * first. Postgres says it directly: the row is locked for the duration
+ * A person's decision is never moved by the sweep: a decline landing
+ * between the classification read and the write cannot be undone by it. The row
+ * is locked for the duration
  * (`for update`), and the `on conflict do update ... where` refuses the write
  * outright. A refused write is a DECLINE HELD, not an error, so it returns a
  * verdict rather than throwing.
@@ -110,7 +108,7 @@ function toStoredProposal(
       instance: observation.instance,
       operator: observation.operator,
       severity: observation.severity,
-      // The Mongo field was OPTIONAL, so a missing comment must stay missing
+      // The field is OPTIONAL, so a missing comment must stay missing
       // rather than becoming an empty string a renderer would print as `""`.
       ...(observation.comment === null ? {} : { comment: observation.comment }),
       resolvedFromDigest: observation.resolvedFromDigest,
@@ -333,7 +331,7 @@ export async function declineProposalRow(
  * Put a declined proposal back in the queue.
  *
  * The three decision fields are set back to NULL rather than left in place:
- * Mongo `$unset` them, and a row reading `open` while still naming who declined
+ * a row reading `open` while still naming who declined
  * it would describe two decisions at once.
  */
 export async function reopenProposalRow(domain: string): Promise<StoredProposal | null> {

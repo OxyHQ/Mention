@@ -75,10 +75,10 @@
 --     { $count: 'duplicateGroups' },
 --   ])
 --
--- (Driving that from an ad-hoc script needs an isolated `mongodb` driver
+-- (Driving that from an ad-hoc script needs an isolated database driver
 -- installed in the task — the app image's own `bson@7.3.1` fails to import under
 -- bun with `node:v8 isBuildingSnapshot is not yet implemented`, through the ESM
--- entry too, which reads like production Mongo being unreachable and is not.)
+-- entry too, which reads like the production source being unreachable and is not.)
 --
 -- KEEP THE BLOCK BELOW ANYWAY. It guards the window between that measurement and
 -- the cutover, and that window has now been measured rather than hand-waved:

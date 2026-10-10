@@ -71,9 +71,9 @@ router.use(apiRateLimiter);
 /**
  * Narrow a raw request-body value to one of a column's allowed literals.
  *
- * `POST /push-token` is unvalidated and writes straight to the row, and the
- * Mongoose enums it used to hit ran NO validators on an upsert — an unrecognised
- * `platform` was stored VERBATIM. The CHECK constraints do not tolerate that, so
+ * `POST /push-token` is unvalidated and writes straight to the row, and an
+ * unrecognised `platform` could arrive VERBATIM. The CHECK constraints do not
+ * tolerate that, so
  * the two fallbacks are separated: an ABSENT field keeps the default the route
  * always applied (`platform || 'unknown'`, `type || 'fcm'`), while an
  * unrecognised value becomes `'unknown'`. Delivery is unchanged by either — the
@@ -127,7 +127,7 @@ function recipientScope(recipientIds: string[]): SQL {
  * The `:id` path param as a string.
  *
  * Express 5 types every param `string | string[]` (duplicate path segments), and
- * an id is now compared against a `text` column rather than cast by Mongoose.
+ * an id is compared against a `text` column.
  * Anything that is not a string becomes `''`, which names no row and therefore
  * answers 404 — never coerced into a plausible-looking id the way `String([x])`
  * would.
@@ -273,7 +273,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     // Resolve every post referenced by a notification through the SAME
     // viewer-aware hydration/ACL path used by feeds and post detail. Never build
-    // a preview from the raw Mongo row: that would reveal content from a newly
+    // a preview from the raw database row: that would reveal content from a newly
     // blocked/restricted author, private profile, followers-only post, draft, or
     // other row that hydration correctly removes for this viewer.
     const referencedPostIds = Array.from(
@@ -629,8 +629,8 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
     // whichever account registered it last. The conflict target is therefore the
     // token alone, and `userId` is part of the SET: re-registering a handset on a
     // second account must transfer the row, not fail. `deviceId`/`locale` are
-    // only written when the client sent them, because Mongoose dropped undefined
-    // paths from an update and a re-registration must not blank what it omitted.
+    // only written when the client sent them: a re-registration must not blank
+    // what it omitted.
     const deviceIdValue = optionalText(deviceId);
     const localeValue = optionalText(locale);
     const registration = {

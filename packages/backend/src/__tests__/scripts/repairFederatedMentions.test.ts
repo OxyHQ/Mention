@@ -14,7 +14,7 @@ import { asc, eq, like, sql } from 'drizzle-orm';
  * ## What the Postgres port changed, and why the shape of the suite changed with it
  *
  * The previous version mocked `models/Post` over an in-memory array and
- * hand-implemented a Mongo filter interpreter so the mock could evaluate the
+ * hand-implemented a legacy-store filter interpreter so the mock could evaluate the
  * script's ACTUAL filter. That was the right call while the filter was a plain
  * object; it cannot survive the port, because the filter is now a drizzle `SQL`
  * expression that only Postgres can evaluate — and a mock that kept answering
@@ -25,17 +25,17 @@ import { asc, eq, like, sql } from 'drizzle-orm';
  *
  *  - **Selection** is asserted by seeding rows and reading back which ids the
  *    run scanned, so a weakened clause changes the answer.
- *  - **The write shape** was `store.ops` — a Mongo `$set` whitelist. In Postgres
+ *  - **The write shape** was `store.ops` — a legacy-store `$set` whitelist. In Postgres
  *    that property becomes: the body and the mention set changed, and the
  *    media, attachments and localized alt text did NOT. `content.variants` was
- *    ONE document field, so Mongo's `$set` of the whole array was correct; the
+ *    ONE document field, so the legacy store's `$set` of the whole array was correct; the
  *    variants are a child table with rows other tables reference BY ID, and
  *    `replacePostContent` — the function that looks like the answer — clears
  *    media, attachments and sources on its way past. `preserves a post's media,
  *    attachments and localized alt text` is the test for that, and it is new.
  *  - **Idempotency** is asserted by running twice against the real filter: a
  *    repaired post must LEAVE the candidate set. Under the old harness this
- *    depended on the hand-written interpreter agreeing with Mongo.
+ *    depended on the hand-written interpreter agreeing with the legacy store.
  *
  * `actor.service` is mocked purely so the test can ASSERT it is never called —
  * the repair must resolve lookup-only and can never mint a ghost actor. The
@@ -276,7 +276,7 @@ const WEB_PAGE_URL = 'https://mastodon.social/@Gargron/117016521955489722';
 /**
  * A DISTINCT object id and web page per fixture.
  *
- * `posts.federation_activity_id` is UNIQUE — Mongo declared no such index, so
+ * `posts.federation_activity_id` is UNIQUE — the legacy store declared no such index, so
  * the previous in-memory store happily held ten posts sharing one activity id.
  * Two fixture posts are two federated posts, and two federated posts cannot be
  * the same AP object, so the fixtures say so.
@@ -534,7 +534,7 @@ describe('repairFederatedMentions', () => {
 
   it("preserves a post's media, attachments and localized alt text", async () => {
     // The write shape, restated for a child table. `content.variants` was ONE
-    // document field, so Mongo's `$set` of the whole array was correct; here the
+    // document field, so the legacy store's `$set` of the whole array was correct; here the
     // variants are ROWS that `post_variant_media` and `post_variant_alt_texts`
     // reference BY ID, and `replacePostContent` — the function that looks like
     // the answer — clears media, attachments and sources on its way past. A body

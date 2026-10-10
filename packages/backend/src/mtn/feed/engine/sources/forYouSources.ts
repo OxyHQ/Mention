@@ -123,7 +123,7 @@ async function gatherFollowingTimeline(
 /**
  * CHRONOLOGICAL List-feed query (posts from an AccountList's members).
  *
- * Members are a junction TABLE, not the embedded id array Mongo held, so this
+ * Members are a junction TABLE, not an embedded id array, so this
  * reads `account_list_members` rather than the list row.
  */
 async function gatherListTimeline(
@@ -185,7 +185,7 @@ async function gatherTopicTimeline(
 
 /**
  * Run a For You lane for the viewer, returning `[]` when anonymous. The lane
- * results are lean Mongo docs typed as the shared engine {@link CandidatePost}.
+ * results are typed as the shared engine {@link CandidatePost}.
  */
 async function runForYouLane(
   ctx: FeedEngineContext,

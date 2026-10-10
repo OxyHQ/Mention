@@ -47,8 +47,8 @@ export async function getHead(oxyUserId: string): Promise<ChainHead | null> {
  * The allowlist goes through `inArray`, never a JS array interpolated into `sql`:
  * a raw array binds as a ROW constructor, and `= any(<row>)` / `<> all(<row>)`
  * are both wrong (Postgres raises "op ANY/ALL (array) requires array on right
- * side"). `inArray` also reproduces Mongo's `$in` for a NULL `nsid` — a v1 row
- * with no collection matches neither.
+ * side"). Under `inArray` a NULL `nsid` — a v1 row with no collection — matches
+ * neither.
  */
 export async function getPublicLogSince(
   oxyUserId: string,

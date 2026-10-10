@@ -65,7 +65,7 @@ vi.mock('@oxy.so/core/server', () => ({
 /**
  * The settings STORE, faked at the repository seam rather than at the database.
  *
- * `updateUserSettings` takes the same dotted paths the Mongo `$set` took, so the
+ * `updateUserSettings` takes the same dotted paths the legacy-store `$set` took, so the
  * fake stays a path-walking assignment and the assertions still read the shape
  * the route wrote. What it must NOT do is normalize the path: the route writes
  * `channelAccount.signPosts` (the settings path this repository maps to the
@@ -317,7 +317,7 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
    * those alone stays green against the loose one. A truthy NON-boolean is the one
    * shape that makes them disagree — and here the loose read would DISCLOSE the
    * human who wrote the post. The column is `Boolean` in the schema, so this can
-   * only arrive from outside Mongoose (a migration, a manual repair), which is
+   * only arrive from outside the legacy ODM (a migration, a manual repair), which is
    * exactly the case worth failing safe on.
    *
    * The seed spelling is part of the fixture. These store `channelAccount` — the

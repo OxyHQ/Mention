@@ -7,7 +7,7 @@
  * the authoritative `Post`.
  *
  * The ledger is REAL here. The previous suite mocked `MentionSignedRecord.find`
- * and then asserted the Mongo filter object, which meant its two most important
+ * and then asserted the legacy-store filter object, which meant its two most important
  * cases — "a bookmark never leaves" and "a tombstone removes its key" — were
  * verified against rows the test itself had hand-sorted into the answer. Real
  * rows make the ORDER BY part of what is under test rather than part of the
@@ -17,7 +17,7 @@
  * reads `posts` from Postgres, so a mocked `Post.find` no longer intercepts
  * anything and every case returned an empty page. Seeding real post rows also
  * removes the last place this suite could assert a QUERY instead of an ANSWER —
- * the two cases that used to check the Mongo filter object now check which
+ * the two cases that used to check the legacy-store filter object now check which
  * records come back, which is the property they were standing in for.
  */
 
@@ -274,7 +274,7 @@ describe('listRecords', () => {
     ]);
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
 
-    // The ANSWER, not the query. The old version asserted the Mongo filter
+    // The ANSWER, not the query. The old version asserted the legacy-store filter
     // object — which passed whether or not the rows it described existed, and
     // could not have caught a join that returned everything.
     expect(page.records.map((record) => record.rkey)).toEqual(['published-public']);

@@ -447,13 +447,13 @@ describe('push tokens', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].userId).toBe(second);
     expect(rows[0].platform).toBe('ios');
-    // Mongoose dropped undefined paths from an update, so a re-registration that
+    // The legacy ODM dropped undefined paths from an update, so a re-registration that
     // omits `deviceId` must not blank the one already stored.
     expect(rows[0].deviceId).toBe('device-1');
   });
 
   it('falls back to the column default for a value the CHECK would reject', async () => {
-    // Mongoose ran no validators on this upsert, so `platform: 'windows'` was
+    // The legacy ODM ran no validators on this upsert, so `platform: 'windows'` was
     // stored verbatim. The CHECK does not tolerate it; a client typo must not
     // become a 500.
     const viewer = viewerId();

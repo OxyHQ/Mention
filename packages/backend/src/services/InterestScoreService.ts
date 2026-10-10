@@ -87,9 +87,8 @@ export class InterestScoreService {
      * silently score every author 0 — the read-side shape of the trap
      * `db/schema/CONVENTIONS.md` describes for `db.execute`.
      *
-     * The five `stats_*` columns are `NOT NULL DEFAULT 0`, so Mongo's `$ifNull`
-     * wrappers have nothing left to guard and are dropped rather than ported as
-     * `coalesce` noise.
+     * The five `stats_*` columns are `NOT NULL DEFAULT 0`, so there is no
+     * `coalesce` here: it would have nothing to guard.
      *
      * `lastPost` carries the SAME trap in its date-shaped form, and the fix is
      * the same one `routes/channelWriters.routes.ts` documents: a bare

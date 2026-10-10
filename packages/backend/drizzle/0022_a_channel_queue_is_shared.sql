@@ -21,7 +21,7 @@
 -- global scheduled volume rather than with the caller's own queue.
 --
 -- PARTIAL on `status = 'scheduled'` is what makes this nearly free, and it is the
--- Postgres spelling of the rule the Mongo schema stated as
+-- Postgres spelling of the rule the previous schema stated as
 -- `partialFilterExpression` (never `sparse`, which indexes a document when ANY
 -- indexed key exists and would therefore have indexed the whole table here). A
 -- post enters this index when it is scheduled and leaves when it publishes, so

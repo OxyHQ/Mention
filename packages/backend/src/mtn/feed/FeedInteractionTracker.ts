@@ -56,17 +56,10 @@ export interface FeedInteractionData {
  * `null` otherwise — see {@link applyImpressionSignals}. Nothing else the server
  * does here is invisible to the caller, so nothing else needs returning.
  *
- * The raw row goes to `feed_interactions` in POSTGRES. It was the last live
- * Mongo write in the request path, and the last one to find because it was a
- * dynamic `import('../../models/FeedInteraction')` — invisible to a
- * static-import scan. Everything else about this function already wrote
- * Postgres: the view count, the dwell aggregate and the preference signal below.
- *
- * Leaving it on Mongo would not have failed, which is what made it dangerous:
- * the Postgres table exists, is indexed, is swept by `db/expiry.ts` and is
- * probed by the deletion preflight, and the backfill fills it — so after the
- * cutover it would have sat frozen at the backfill snapshot while every new row
- * accumulated in a Mongo collection nothing reads.
+ * The raw row goes to `feed_interactions` in POSTGRES, alongside everything else
+ * this function writes: the view count, the dwell aggregate and the preference
+ * signal below. The table is indexed, swept by `db/expiry.ts` and probed by the
+ * deletion preflight.
  *
  * `createdAt` is written EXPLICITLY from the caller's timestamp rather than
  * left to the column default. The caller stamps the interaction when it

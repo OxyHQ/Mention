@@ -9,8 +9,7 @@ import { randomUUID } from 'node:crypto';
  * ## Why this suite exists
  *
  * The function used to gate its local-post branch on
- * `mongoose.Types.ObjectId.isValid(localPostId)`. That check was free insurance
- * against a Mongo CastError and is now the exact opposite: `posts.id` is `text`
+ * an `ObjectId.isValid(localPostId)` check. That check is wrong here: `posts.id` is `text`
  * holding a 24-char ObjectId hex for pre-cutover rows and a **uuid v7** for
  * everything created after, so an ObjectId test rejects every post this instance
  * has made since the cutover.

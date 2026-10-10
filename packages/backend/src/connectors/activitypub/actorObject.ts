@@ -59,10 +59,9 @@ export const buildLocalActorObject = createLocalActorBuilder({
  *
  * ONE reader for the two call sites that need it — the actor GET
  * (`engine.routes.ts`) and the `Update(Person)` broadcast
- * (`delivery.service.ts`). Both used to query the Mongoose `UserSettings`
- * model, which nothing has written since settings moved to Postgres, so every
- * actor JSON omitted `image` and no banner change ever federated. Nothing
- * errored: the read returned no document and `?? null` read that as "no banner".
+ * (`delivery.service.ts`). One reader means the two cannot drift onto different
+ * stores: a read that returns no row is silently "no banner" (`?? null`), so a
+ * stale reader would omit `image` from every actor JSON with no error.
  */
 export async function loadProfileBanner(oxyUserId: string): Promise<string | null> {
   const [row] = await getDb()

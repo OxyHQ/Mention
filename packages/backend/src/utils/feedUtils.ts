@@ -88,12 +88,8 @@ export function validateAndNormalizeLimit(
 /**
  * Build cursor from post ID.
  *
- * `String(...)` rather than an `instanceof mongoose.Types.ObjectId` branch: the
- * two were always equivalent — `String(obj)` invokes `obj.toString()`, which for
- * an ObjectId is the same 24-hex — so the branch cost a runtime Mongoose import
- * to express what the coercion already did. Post ids are `posts.id`, a `text`
- * column holding ObjectId hex before the cutover and uuid v7 after; neither is
- * an ObjectId instance by the time it reaches here.
+ * `String(...)` is the whole coercion. Post ids are `posts.id`, a `text` column
+ * holding either 24-hex legacy ids or uuid v7.
  */
 export function buildFeedCursor(post: { _id?: string; id?: string }): string | undefined {
   const rawId = post._id || post.id;
@@ -131,7 +127,7 @@ export function deduplicatePosts<T extends { _id?: string; id?: string }>(posts:
   for (const post of posts) {
     let id: string | undefined;
 
-    // Try _id first (MongoDB format)
+    // Try _id first (legacy response shape)
     if (post._id) {
       id = String(post._id);
     }

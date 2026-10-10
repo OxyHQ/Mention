@@ -47,16 +47,10 @@ export async function getNetworkEngagerCounts(
   };
 
   try {
-    // Postgres, not the Mongo `Like` collection. Nothing has written a Mongo
-    // like since the engagement command service moved to Postgres, so this read
-    // answered from a store that had stopped moving — plausibly, and never
-    // erroring, which is why it could sit here unnoticed while the boost half
-    // below already queried Postgres.
+    // Postgres `likes`, where the engagement command service writes.
     //
-    // The `isValidObjectId` filter that used to narrow these ids went with it,
-    // and was a second, independent way to lose the same rows: `posts.id` is
-    // `text` holding pre-cutover ObjectId hex AND post-cutover uuid v7, so it
-    // discarded every post this instance has minted since the cutover before the
+    // No id-shape filter: `posts.id` is `text` holding ObjectId hex AND uuid v7,
+    // so an ObjectId-only filter would discard every uuid-keyed post before the
     // query even ran. Ids are bound parameters here, so no shape check is owed.
     const likeRows = await getDb()
       .select({ postId: likes.postId, userId: likes.userId })

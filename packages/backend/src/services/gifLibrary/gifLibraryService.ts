@@ -38,8 +38,7 @@ export type GifRecord = typeof gifs.$inferSelect;
 /**
  * `ts_rank` weights for GIF search, in Postgres's `{D, C, B, A}` order.
  *
- * Mongo's `gif_search_text` index declares `weights: { searchTerms: 5, title: 1 }`,
- * so a term hit in `searchTerms` must count FIVE times a hit in `title`. Postgres's
+ * A term hit in `searchTerms` must count FIVE times a hit in `title`. Postgres's
  * defaults are `{0.1, 0.2, 0.4, 1.0}` and reproduce nothing of the sort — a
  * default-ranked search compiles, runs, and returns a different order.
  *
@@ -54,7 +53,7 @@ export type GifRecord = typeof gifs.$inferSelect;
  * against PostgreSQL 17.5: `setweight(array_to_tsvector(array['alpha']),'A')`
  * renders `'alpha'`, unchanged.
  *
- * Hence D = 1.0 (searchTerms) and B = 0.2 (title): 1.0 / 0.2 = 5, Mongo's ratio.
+ * Hence D = 1.0 (searchTerms) and B = 0.2 (title): 1.0 / 0.2 = 5, the required ratio.
  * C and A are 0 because nothing in this vector can carry those labels — and if a
  * future schema change makes the `A` label real, `gifSearchVectorLabels` in
  * `__tests__/services/gifLibraryService.test.ts` goes red and names this constant
@@ -91,8 +90,7 @@ export interface GifImportCandidate {
  * punctuation, split on whitespace, drop stop words / empty / over-long tokens.
  *
  * This is the ONLY place stemming-free token hygiene happens, and BOTH the stored
- * terms and every query go through it. That was the meaning of the Mongo index's
- * `default_language: 'none'`, and it is what makes the Postgres port faithful:
+ * terms and every query go through it, and that is what makes search exact:
  * `search_terms` is indexed with `array_to_tsvector` (each element a lexeme
  * verbatim, no dictionary) and matched against a bare `::tsquery` cast (also no
  * dictionary), so the two sides can only agree because this function already
@@ -180,15 +178,13 @@ export function mapKlipyItemsToCandidates(items: KlipyGifItem[]): GifImportCandi
 // ---------------------------------------------------------------------------
 
 /**
- * The `tsquery` for a set of already-normalized terms — an OR over them, which is
- * what Mongo's `$text` did with a space-separated string.
+ * The `tsquery` for a set of already-normalized terms — an OR over them.
  *
  * The lexemes are spelled out and the whole thing is CAST from text rather than
  * run through `to_tsquery`/`plainto_tsquery`, because the stored `search_terms`
  * half of the vector is `array_to_tsvector`: every element is a lexeme VERBATIM,
  * with no dictionary applied. `tsquery`'s input function is the only spelling
- * that matches that — it applies no dictionary either. That equivalence is what
- * `default_language: 'none'` meant on the Mongo index, and {@link normalizeToTerms}
+ * that matches that — it applies no dictionary either. {@link normalizeToTerms}
  * (which both the stored terms and the query go through) is what makes it safe.
  *
  * Quoting is unconditional but the tokens cannot contain a quote: `normalizeToTerms`
@@ -202,14 +198,13 @@ function toTsQuery(terms: string[]): string {
 
 /**
  * Local-first text search over the owned library. Ranked by text relevance — with
- * the EXPLICIT weights that reproduce Mongo's 5:1 `searchTerms`:`title` ratio, see
+ * the EXPLICIT weights that give a 5:1 `searchTerms`:`title` ratio, see
  * {@link GIF_RANK_WEIGHTS} — then most-posted, then most-recently-used, then `id`.
  *
  * `id` is not decoration: rank, `use_count` and `last_used_at` can all tie (they
  * do, routinely, between two GIFs imported in the same burst), and a `limit` over
  * a non-total order returns an arbitrary, run-to-run-varying slice of the tied
- * rows. Mongo had the same hole; a keyset that can repeat or skip is worse here
- * because the picker merges these hits with a paginated Klipy page.
+ * rows; a keyset that can repeat or skip is especially bad here because the picker merges these hits with a paginated Klipy page.
  *
  * Never throws — a search failure degrades to "no local hits" so the route still
  * tops up from Klipy.
@@ -320,12 +315,11 @@ async function findByKlipyId(klipyId: string): Promise<GifRecord | null> {
 /**
  * Append a candidate's terms to an existing row and count the resurfacing.
  *
- * The append stays a SINGLE statement, as Mongo's `$addToSet` + `$inc` was: two
- * concurrent surfacings of the same GIF (the picker fans these out) would lose
- * one another's terms through a read-merge-write. The set semantics are spelled
- * out because Postgres arrays have no `$addToSet`: only terms not already present
- * are appended, in their incoming order, so existing order is preserved exactly
- * as `$addToSet` preserved it.
+ * The append is a SINGLE statement: two concurrent surfacings of the same GIF
+ * (the picker fans these out) would lose one another's terms through a
+ * read-merge-write. The set semantics are spelled out because Postgres arrays
+ * have no set-append: only terms not already present are appended, in their
+ * incoming order, so existing order is preserved exactly.
  *
  * `qualified()` on the correlated reference is defensive rather than load-bearing
  * HERE, and the distinction is measured: drizzle 0.45.2 strips a column's table

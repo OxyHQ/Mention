@@ -16,9 +16,7 @@ import { inArray } from 'drizzle-orm';
  *
  * ## Real rows, not a fake collection
  *
- * `main` ran this against an in-memory `AccountList` double (`./fakeMongo`) and
- * asserted the SORT SPEC the route handed Mongo. Neither survives the port: the
- * route builds a drizzle query against `account_lists`, so a model double
+ * The route builds a drizzle query against `account_lists`, so a model double
  * intercepts nothing and there is no spec object to inspect. Every case below is
  * therefore a real query against real rows — which is also what lets the
  * tie-break case be a behavioural one rather than a claim about a literal.
@@ -302,7 +300,7 @@ describe('GET /lists — offset pagination', () => {
 /**
  * The TIE-BREAK, which is the one case the paging assertions above cannot reach.
  *
- * `main` pinned it by asserting the literal sort spec the route handed Mongo
+ * `main` pinned it by asserting the literal sort spec the route handed the legacy store
  * (`{ updatedAt: -1, _id: -1 }`), and said so: `updated_at` ties reshuffle only
  * under concurrent writes or a plan change, neither of which a seeded run
  * reproduces, so removing `_id` from the sort left every paging test green.

@@ -44,7 +44,7 @@ function eventId(): string {
  * A real report row for the event to name.
  *
  * `moderation_outbox.payload_report_id` carries a FOREIGN KEY to `reports.id` —
- * which is the Mongo transaction's invariant made structural: an outbox row that
+ * which is the legacy-store transaction's invariant made structural: an outbox row that
  * names a report which does not exist is now impossible to write, rather than
  * merely prevented by committing the two together.
  */
@@ -152,8 +152,8 @@ describe('enqueueing', () => {
     expect(after?.attempts).toBe(claimed?.attempts);
     expect(after?.createdAt.getTime()).toBe(before?.createdAt.getTime());
     // NOT EVEN `updated_at`. This is the property `moderationOutboxWrites.test.ts`
-    // existed to pin: in Mongo it took `timestamps: false` plus both fields
-    // written by hand inside `$setOnInsert`, because Mongoose otherwise left its
+    // existed to pin: in the legacy store it took `timestamps: false` plus both fields
+    // written by hand inside `$setOnInsert`, because the legacy ODM otherwise left its
     // own `$set: { updatedAt }` on the update and turned a replay into a real
     // write contending with the dispatcher's live lease. Drizzle writes nothing
     // on a `DO NOTHING` branch, so the guarantee is structural here — which is

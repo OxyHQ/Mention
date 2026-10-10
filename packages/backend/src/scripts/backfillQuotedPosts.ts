@@ -59,28 +59,27 @@
  *  5. Every network fetch goes through the same signed, SSRF-safe, depth-capped
  *     import ingest uses. A failure leaves the post exactly as it is.
  *
- * ── THREE DELIBERATE DIVERGENCES FROM THE MONGO ORIGINAL ─────────────────────
+ * ── THREE DELIBERATE DESIGN CHOICES ───────────────────────────────────────────
  *
- * 1. THE `RE:` FILTER IS IN SQL, NOT IN JS AFTER THE LIMIT. Mongo fetched `MAX`
- *    arbitrary federated posts and then filtered them in the loop, so `MAX`
- *    bounded the SCAN rather than the candidates: at 2,000 against a corpus of
+ * 1. THE `RE:` FILTER IS IN SQL, NOT IN JS AFTER THE LIMIT. Fetching `MAX`
+ *    arbitrary federated posts and then filtering them in the loop would make
+ *    `MAX` bound the SCAN rather than the candidates: at 2,000 against a corpus of
  *    federated posts it would have examined a near-empty sample, and because the
  *    limit was unordered a re-run would have examined the SAME sample — the
  *    docblock's "idempotent and re-runnable" was true and useless. Filtering in
  *    the query makes `MAX` bound real candidates, and a linked post drops out of
  *    `quote_of is null` so successive runs make progress.
  *
- * 2. THE DRY RUN NO LONGER IMPORTS. `ensureQuotedNote` STORES the post it
- *    fetches — so the Mongo version's default, token-free `BACKFILL_DRY_RUN=true`
- *    invocation created rows while claiming "only `=false` writes". A dry run
- *    here resolves only against what we already hold and reports the ones it
+ * 2. THE DRY RUN DOES NOT IMPORT. `ensureQuotedNote` STORES the post it
+ *    fetches, so calling it from a dry run would create rows while claiming
+ *    "only `=false` writes". A dry run here resolves only against what we already hold and reports the ones it
  *    declined to fetch as `notHeldLocally`, so the under-count is stated rather
  *    than silent.
  *
- * 3. `written` COMES FROM A GUARDED UPDATE. Mongo's `modifiedCount` distinguishes
- *    "matched the row" from "changed the value"; `returning()` does not, and
- *    returns the row either way. Carrying `quote_of is null` into the UPDATE's
- *    own WHERE restores exactly that distinction — a zero there means nothing
+ * 3. `written` COMES FROM A GUARDED UPDATE. `returning()` does not distinguish
+ *    "matched the row" from "changed the value", and returns the row either way.
+ *    Carrying `quote_of is null` into the UPDATE's own WHERE makes exactly that
+ *    distinction — a zero there means nothing
  *    changed, which is what `noOpWrites` exists to catch.
  *
  * Runnable as a Fargate one-shot:
@@ -172,9 +171,7 @@ export interface QuotedPostBackfillResult {
 
 /**
  * The backfill itself. The CALLER owns the connection lifecycle, which is what
- * makes this runnable in-process from a test against real rows — the property
- * the Mongo original never had, and the reason its wrong-store bug could only
- * have been caught by reading the file.
+ * makes this runnable in-process from a test against real rows.
  */
 export async function backfillQuotedPosts(
   opts: { dryRun?: boolean; max?: number } = {},

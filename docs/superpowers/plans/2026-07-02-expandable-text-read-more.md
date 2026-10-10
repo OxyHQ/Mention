@@ -4,9 +4,9 @@
 
 **Goal:** Add two Mention-only viewer-side display preferences — whether tapping a post's "Read more" opens the full post or expands it inline, and whether long profile bios collapse by default — following the exact plumbing of the existing `postTextExpand` setting.
 
-**Architecture:** Two new optional fields on `UserSettings.appearance` (backend Mongoose schema + route whitelist), mirrored in the frontend `appearanceStore` types, consumed via a new shared `useExpandableText` hook (a thin `useState` wrapper around a pure, unit-tested truncation function) used by both `PostContentText.tsx` and `ProfileContent.tsx`'s bio rendering.
+**Architecture:** Two new optional fields on `UserSettings.appearance` (backend settings schema + route whitelist), mirrored in the frontend `appearanceStore` types, consumed via a new shared `useExpandableText` hook (a thin `useState` wrapper around a pure, unit-tested truncation function) used by both `PostContentText.tsx` and `ProfileContent.tsx`'s bio rendering.
 
-**Tech Stack:** Express + Mongoose (backend), React Native + Zustand + react-i18next (frontend), Vitest (backend tests), Jest + jest-expo (frontend tests).
+**Tech Stack:** Express (backend), React Native + Zustand + react-i18next (frontend), Vitest (backend tests), Jest + jest-expo (frontend tests).
 
 ## Global Constraints
 
@@ -194,7 +194,7 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
 Run: `cd packages/backend && bunx vitest run src/__tests__/routes/profileSettingsReadMoreBio.test.ts`
 Expected: FAIL — `postReadMoreAction`/`collapseLongBio` are `undefined` even for the "valid value" tests, because the route doesn't whitelist them yet (the first and third `it` blocks fail; the reject/unset ones already trivially pass, which is a good sign the test file itself is wired correctly).
 
-- [ ] **Step 3: Add the fields to the Mongoose model**
+- [ ] **Step 3: Add the fields to the settings model**
 
 In `packages/backend/src/models/UserSettings.ts`, update the type block (around line 10-16):
 

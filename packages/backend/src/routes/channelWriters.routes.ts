@@ -152,11 +152,8 @@ function parseWritersCursor(raw: string | undefined): WritersCursor | undefined 
  *    the fail-closed direction: a non-public post still names its writer to
  *    whoever may read THAT post, but it does not put a name in a directory.
  *  - `written_by_oxy_user_id is not null` — a post published by a person signed
- *    in as themselves has no writer to disclose. Mongo needed `$type: 'string'`
- *    here rather than `$exists`, because a stored `null` satisfies `$exists`
- *    while satisfying nothing else and only the typed form made the partial index
- *    eligible. Postgres has one spelling of absent, so the distinction disappears
- *    with the store that created it.
+ *    in as themselves has no writer to disclose. Postgres has one spelling of
+ *    absent, so `is not null` is the whole test.
  *
  * There is deliberately no post-TYPE filter and no lane filter, so a boost the
  * channel published counts its publisher, a thread continuation counts its

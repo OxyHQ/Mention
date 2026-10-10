@@ -1,13 +1,8 @@
-# MongoDB → PostgreSQL migration — Mention's contract (historical)
+# PostgreSQL database prerequisites — Mention
 
-This file was the binding contract for Mention's port from MongoDB. **The port is
-finished and the machinery it governed is deleted** — the copier, the collection
-map, the coverage gate, the Mongoose models and every `MONGODB_*` binding. Its
-rules that still decide something have moved to
+Two RDS facts about provisioning Mention's database that no schema file can
+state. The schema rules themselves live in
 [`schema/CONVENTIONS.md`](schema/CONVENTIONS.md); read that one.
-
-Kept here because the reasoning is cited from elsewhere in the tree and would
-otherwise have no home:
 
 ## PostGIS is a privileged prerequisite, once per database
 
@@ -35,7 +30,7 @@ holds full DML by ownership — no `GRANT` anywhere.
 
 A throwaway database created by a different role (`oxyadmin`, say) gives the
 application role none of that, and work rehearsed there fails on privileges
-production does not have. Two `42501`-shaped failures during the cutover
+production does not have. Two `42501`-shaped failures during a
 rehearsal were read as production facts before anyone measured the production
 side. **Create a rehearsal target `OWNER mention`**, or it is testing a
 configuration that will never exist.
@@ -43,7 +38,4 @@ configuration that will never exist.
 ## Where the rest went
 
 The id-remapping decision, the `select: false` replacement, the TTL registry, the
-enum-widening rule and the driver choice are all in `schema/CONVENTIONS.md`. The
-cutover sequence and its measurements are in
-[`docs/MONGO-TO-POSTGRES-CUTOVER.md`](../../../../docs/MONGO-TO-POSTGRES-CUTOVER.md),
-itself now a historical note; the runbook and the copier are in git history.
+enum-widening rule and the driver choice are all in `schema/CONVENTIONS.md`.

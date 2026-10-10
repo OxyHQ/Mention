@@ -4,11 +4,8 @@
  *
  * ## Why this is its own entry point
  *
- * It used to be the tail of `runMigrationTask` — the MONGO migration one-shot —
- * and it is Postgres-only. That pairing is what made the coupling invisible: the
- * deploy step that carried this work was named after a store it no longer
- * touches, so removing Mongo from the deploy would have removed the purge with
- * it, silently and for a reason nothing in the diff would name.
+ * It is Postgres-only and owns its own deploy step, so no unrelated one-shot
+ * can take the purge with it when that one-shot is removed.
  *
  * The placement rationale is unchanged and still belongs to a DEPLOY step rather
  * than a scheduled job or a startup hook: it runs once per deploy, on the exact

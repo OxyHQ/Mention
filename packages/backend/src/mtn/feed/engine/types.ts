@@ -195,14 +195,10 @@ export interface FilterModule {
    */
   userComposable?: boolean;
   /**
-   * DELETED, not ported: every `FilterModule` used to also carry a Mongo
-   * `clause` "merged into source queries via the shared base match". Nothing in
-   * the codebase ever read it — filters are applied exclusively through
-   * `keep()` on the merged candidate pool — so the eight clause bodies were
-   * unreachable Mongo query objects. Carrying them into Postgres would have
-   * meant eight hand-translated predicates that still nothing evaluates, which
-   * is strictly worse than none: a reader would reasonably assume the filter is
-   * pushed down to SQL when it is not. A filter that should narrow the QUERY
+   * There is deliberately no query `clause` on a `FilterModule`: filters are
+   * applied exclusively through `keep()` on the merged candidate pool. A clause
+   * nothing evaluates is strictly worse than none: a reader would reasonably
+   * assume the filter is pushed down to SQL when it is not. A filter that should narrow the QUERY
    * belongs in the source's own predicate, where it is visibly wired up.
    */
   /**
@@ -308,8 +304,7 @@ export type FeedDefinitionMode = 'ranked' | 'chronological';
  * feed row itself and are re-attached when the definition is resolved.
  *
  * Typed off `FeedDefinition` so the stored shape can never drift from the one
- * the engine executes. It lived on the Mongoose `CustomFeed` model until that
- * model was deleted; it was never a Mongo concept, only a field on one.
+ * the engine executes.
  */
 export type StoredFeedDefinition = Pick<FeedDefinition, 'mode' | 'sources' | 'signals' | 'filters'>;
 

@@ -11,21 +11,17 @@
  * parses the DID back to its `oxyUserId` via {@link parseUserDid}. (Blob storage
  * is out of scope — no `BlobStore` is implemented here.)
  *
- * ## The three things the Postgres port had to get right
+ * ## The three things the store has to get right
  *
- * **The append is one transaction, unconditionally.** The Mongoose version wrapped
- * `session.withTransaction` in a fallback that re-ran the work session-LESS when
- * the deployment turned out to be a standalone `mongod` — i.e. the append and the
- * head advance could land non-atomically in local dev, and a crash between them
- * left a head pointing at nothing. Postgres has no such mode, so the fallback is
- * deleted rather than ported: `db.transaction` is the only path.
+ * **The append is one transaction, unconditionally.** The append and the head
+ * advance must never land non-atomically — a crash between them would leave a
+ * head pointing at nothing — so `db.transaction` is the only path, with no
+ * transaction-less fallback.
  *
- * **`chainStatus <> 'conflict'` is NOT the port of Mongo's `$ne`.** Mongo's
- * `{chainStatus: {$ne: 'conflict'}}` MATCHES a document where the field is absent,
- * and every row written before fork classification existed has it absent. SQL
- * three-valued logic does the opposite — `chain_status <> 'conflict'` is NULL for
- * a NULL column and the row is dropped — so a literal translation would silently
- * hide the entire pre-classification history from `getHead`, `getLogSince` and the
+ * **`chainStatus <> 'conflict'` alone is NOT enough.** Every row written before
+ * fork classification existed has a NULL `chain_status`, and SQL three-valued
+ * logic makes `chain_status <> 'conflict'` NULL for a NULL column, so the row is
+ * dropped — a bare `<>` would silently hide the entire pre-classification history from `getHead`, `getLogSince` and the
  * public log. {@link canonicalChainRow} spells the NULL branch out.
  *
  * **A duplicate key means "retry", but only for the three indexes that mean it.**
@@ -419,11 +415,10 @@ export class MentionRecordStoreImpl implements RecordStore {
    * and every insert collides: a permanent `chain_conflict` that no retry
    * resolves.
    *
-   * Production reached that state through the Mongo → Postgres cutover: one
-   * account's chain arrived as seq 1..100 with neither its seq-0 genesis nor its
-   * head row, so the first post-cutover append found no head, wrote a NEW
-   * genesis at seq 0, and every append after it collided with the imported
-   * seq 1. Its likes and saves then failed in the engagement outbox for weeks.
+   * Production reached that state through a data import: one account's chain
+   * arrived as seq 1..100 with neither its seq-0 genesis nor its head row, so the
+   * first append after it found no head, wrote a NEW genesis at seq 0, and every
+   * append after that collided with the imported seq 1. Its likes and saves then failed in the engagement outbox for weeks.
    *
    * ## What it does
    *

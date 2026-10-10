@@ -17,7 +17,7 @@ import { asc, eq } from 'drizzle-orm';
  * invoked twice, with `{'source.uri': …}` and `{upsert: true}`. That cannot
  * distinguish a mirror that works from one writing to a store nothing reads,
  * which is exactly what it was doing — every reader had moved to `starter_packs`
- * while the mirror still upserted Mongo, so mirrored packs never appeared in the
+ * while the mirror still upserted the legacy store, so mirrored packs never appeared in the
  * API and never curated anything. Asserting the ROWS is what makes the
  * idempotence claim mean "one pack after two syncs" instead of "two calls".
  */

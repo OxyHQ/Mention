@@ -4,7 +4,7 @@
  *
  * THIS SCRIPT NEVER BLOCKS ANYTHING, AND MUST NEVER LEARN HOW TO.
  *   It reads three things (remote blocklists, our actors, our follows) and
- *   writes NOTHING — not to Mongo, not to `FEDERATION_BLOCKED_DOMAINS`, not to
+ *   writes NOTHING — not to the database, not to `FEDERATION_BLOCKED_DOMAINS`, not to
  *   any config. Adopting another instance's moderation wholesale would make
  *   THEIR policy silently OURS, and some published blocklists are contested. The
  *   deliverable is a report a human reads and acts on; the acting is manual, by
@@ -293,7 +293,7 @@ function describeError(err: unknown): string {
  * Accept a hostname a remote source published, or reject it.
  *
  * Lowercased and stripped of a trailing dot, then held to {@link DOMAIN_PATTERN}.
- * Everything downstream — Mongo queries, report rows, log records — consumes only
+ * Everything downstream — database queries, report rows, log records — consumes only
  * what passes here.
  */
 export function normalizePublishedDomain(value: unknown): string | null {
@@ -776,7 +776,7 @@ function compareCandidates(a: BlocklistCandidate, b: BlocklistCandidate): number
 /**
  * Poll the sources, corroborate, and cross the result against our own corpus.
  *
- * Operates on the models only — the caller owns the Mongo connection lifecycle —
+ * Operates on the models only — the caller owns the database connection lifecycle —
  * so it is unit-testable against mocked models and reusable in process.
  */
 export async function reportFederationBlocklistCandidates(
@@ -1043,9 +1043,7 @@ async function main(): Promise<void> {
       dryRun: true,
     });
     // Postgres only. Every input to the footprint — actors, follow edges and
-    // posts — moved with the write path, so the Mongo connection is REMOVED
-    // rather than left open: a live connection to a store nothing reads is how
-    // the next reader concludes reading from it would still be valid.
+    // posts — is Postgres.
     await connectPostgres();
     logger.info('[reportFederationBlocklistCandidates] connected to PostgreSQL');
 

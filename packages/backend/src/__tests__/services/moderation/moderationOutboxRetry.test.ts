@@ -14,7 +14,7 @@ import { and, asc, eq, like, lte, or } from 'drizzle-orm';
  *
  * ## What the Postgres port changed
  *
- * The outbox row and the report are REAL ROWS, so the in-memory Mongo emulator this
+ * The outbox row and the report are REAL ROWS, so the in-memory legacy-store emulator this
  * file carried — `matches`, `applyUpdate`, and a hand-written `findOneAndUpdate`
  * that had to reimplement `$or`/`$lte`/`$gt`/`$exists` — is gone, and with it the
  * test that existed solely to keep it honest ("claims with an owner-checked lease
@@ -419,7 +419,7 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
  * additionally proves the repository's own `ownedLease` predicate is what produces
  * that `false`. Only the second is evidence about two tasks.
  *
- * This block exists because the Postgres port silently removed it. The Mongo
+ * This block exists because the Postgres port silently removed it. The legacy store
  * suites forced these paths by making a mocked model answer however they liked;
  * rewriting them onto real rows kept every assertion and lost every path that
  * needs a second actor, so the four heartbeat closures and both lease-loss

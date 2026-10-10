@@ -27,7 +27,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUsersByIds: vi.fn() }),
 }));
 
-// Mongo models are not touched on the buildAttachments path; stub to empty objects.
+// Legacy-store models are not touched on the buildAttachments path; stub to empty objects.
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),

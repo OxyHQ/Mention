@@ -1,7 +1,7 @@
 /**
  * Moving a bookmark into a folder, against real rows.
  *
- * This suite used to mock `models/Bookmark` and assert the SHAPE of the Mongo
+ * This suite used to mock `models/Bookmark` and assert the SHAPE of the legacy-store
  * filter it was handed — that `userId` was present, that `_id` was not. That
  * checks the query the code MEANT to send, which is a different question from
  * whether the right row moves: a filter can name `userId` and still be wrong,
@@ -10,7 +10,7 @@
  * "scoped to the viewer" is answered by reading both rows back.
  *
  * That distinction stopped being academic when the service moved to Postgres:
- * nothing had created a Mongo bookmark since engagement moved, so the update ran
+ * nothing had created a legacy-store bookmark since engagement moved, so the update ran
  * against a collection holding only pre-cutover rows and silently matched
  * nothing for any bookmark made since — and every assertion in the old suite
  * still passed, because none of them touched a database.

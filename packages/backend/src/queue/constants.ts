@@ -87,10 +87,10 @@ export const INBOX_REMOVE_ON_FAIL_COUNT = 5000;
 /**
  * Per-attempt delays for outbound delivery retries, in milliseconds.
  *
- * This MIRRORS `FederationDeliveryQueue#getNextRetryTime`'s 6-tier backoff
+ * This MIRRORS `deliveryQueueRepository#getNextRetryTime`'s 6-tier backoff
  * exactly: [1m, 5m, 30m, 2h, 12h, 48h]. With {@link DELIVERY_JOB_ATTEMPTS}
  * (= 7) total attempts, the delays are applied AFTER attempts 1..6 fail, and
- * attempt 7 is the final try (matching the Mongo model giving up once
+ * attempt 7 is the final try (matching the table-backed queue giving up once
  * `attempts >= 6`). Indexed by `attemptsMade - 1` in the custom backoff
  * strategy; an out-of-range index returns the last interval as a safe floor
  * (the worker caps attempts so this is never actually reached past tier 6).
@@ -106,7 +106,7 @@ export const DELIVERY_BACKOFF_INTERVALS_MS: readonly number[] = [
 
 /**
  * Total attempts for an outbound delivery: 1 initial + 6 backoff retries = 7,
- * matching the Mongo model's `BACKOFF_INTERVALS_MS.length` (6) retry tiers
+ * matching `deliveryQueueRepository`'s `BACKOFF_INTERVALS_MS.length` (6) retry tiers
  * before giving up.
  */
 export const DELIVERY_JOB_ATTEMPTS = DELIVERY_BACKOFF_INTERVALS_MS.length + 1;

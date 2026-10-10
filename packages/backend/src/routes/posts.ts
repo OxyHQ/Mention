@@ -216,7 +216,7 @@ router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {
     const postId = String(req.params.id);
     const postUri = createPostUri(userId, postId);
 
-    // Mongo stored `allow[]` unvalidated; the rules table refuses a `listOnly`
+    // `allow[]` is validated here because the rules table refuses a `listOnly`
     // rule with no list and a list on any other rule. Rejecting the payload here
     // answers 400 instead of letting a CHECK violation surface as a 500.
     const allow = parseThreadgateAllowRules(req.body?.allow);

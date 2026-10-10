@@ -1,7 +1,7 @@
 /**
  * The custom-feed STORAGE contract, against real Postgres.
  *
- * This file used to construct a Mongoose document offline and assert its
+ * This file used to construct a legacy-ODM document offline and assert its
  * `toObject()` — which proved the schema declared the fields and nothing about
  * whether a row survives a round trip. The same four properties are asserted
  * here against the tables that replaced the document:
@@ -10,7 +10,7 @@
  *    module's parameters are defined by the module) and `weight`;
  *  - module ORDER is preserved, because module order is evaluation order;
  *  - a nonsense `mode` is REFUSED — by a CHECK constraint now, which unlike a
- *    Mongoose enum also holds on an UPDATE;
+ *    legacy-ODM enum also holds on an UPDATE;
  *  - the seven LEGACY filter fields are still stored and still read, and a feed
  *    with no definition is distinguishable from one with an empty definition.
  */
@@ -109,7 +109,7 @@ describe('the composable definition', () => {
 
   it('REFUSES a mode outside the closed set, on an update as well as an insert', async () => {
     /**
-     * The Mongoose enum was only enforced on a document save, so
+     * The legacy-ODM enum was only enforced on a document save, so
      * `CustomFeed.updateOne` could put anything in the field. A CHECK holds on
      * every write path, which is why `schema/CONVENTIONS.md` chose `text` + a
      * CHECK over a pg enum.
@@ -179,7 +179,7 @@ describe('the legacy filter fields, which are STILL READ', () => {
     expect(feed.definitionMode).toBeNull();
   });
 
-  it('defaults the three include flags to true, as the Mongoose schema did', async () => {
+  it('defaults the three include flags to true', async () => {
     const feedId = await seedFeed();
     const [feed] = await db.select().from(customFeeds).where(eq(customFeeds.id, feedId));
     expect(feed.includeReplies).toBe(true);
@@ -194,7 +194,7 @@ describe('the legacy filter fields, which are STILL READ', () => {
 
 describe('the owner index', () => {
   it('exists, so the per-owner listing is not a table scan', async () => {
-    // The Mongoose version asserted `schema.path('ownerOxyUserId').options.index`.
+    // The legacy-ODM version asserted `schema.path('ownerOxyUserId').options.index`.
     // The catalogue is the equivalent statement about the database that ships.
     const rows = await db.execute(
       sql`select indexname from pg_indexes where tablename = 'custom_feeds'`,

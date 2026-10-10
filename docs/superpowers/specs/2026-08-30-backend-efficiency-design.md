@@ -17,7 +17,7 @@ work. Each workstream below gets its own branch and its own PR.
 ## Measured baseline
 
 Taken against `origin/main`, not the shared checkout (which was 145 commits
-behind and would have reported Mongo as still present):
+behind and would have reported the retired database as still present):
 
 | Signal | Measurement |
 |---|---|

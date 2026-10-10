@@ -2,12 +2,12 @@
  * Account lists are REAL rows here; starter packs are still mocked.
  *
  * The difference is which store each one lives in. `AccountList` moved to
- * Postgres and nothing writes the Mongo collection any more, so a mocked
+ * Postgres and nothing writes the legacy-store collection any more, so a mocked
  * `AccountList.findById` was intercepting an import the service no longer
  * performs — and the case that matters most (`null` means DELETED, so the caller
  * RETRACTS endorsements) would have been proven against a fake.
  *
- * `StarterPack` is real rows too now. Its last Mongo writer was the atproto
+ * `StarterPack` is real rows too now. Its last legacy-store writer was the atproto
  * mirror, which moved to `starter_packs` — so that mock had also stopped
  * intercepting anything.
  */
@@ -19,11 +19,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // The outbox rows are REAL. The stubs that used to sit here let the assertions
-// read the `$set` a Mongo static was CALLED with — so they measured what the
+// read the `$set` a legacy-store static was CALLED with — so they measured what the
 // service asked for, and could not see the row's actual state at all: the
 // `attempts` increment (now the database's, so two overlapping drains cannot
 // compute the same successor), the removal ids UNIONING rather than replacing,
-// or `error` surviving a successful send because Mongoose strips an `undefined`
+// or `error` surviving a successful send because the legacy ODM strips an `undefined`
 // out of `$set`.
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

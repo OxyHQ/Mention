@@ -313,8 +313,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // A fresh Stage-A baseline with status reset to `pending`, and the Stage-B
       // fields reset WITH it: `attempts` back to 0, the AI `scores`/`sentiment`/
       // `intent`/`confidence` replaced by the deterministic ones, `topicRefs`
-      // cleared. Mongo got that for free by replacing the whole subdocument and
-      // letting the schema defaults refill it; here every reset field is named,
+      // cleared. Every reset field is named,
       // because `updatePostRecord` MERGES a partial and would otherwise leave the
       // previous body's AI topics attached to the new one.
       patch.postClassification = {

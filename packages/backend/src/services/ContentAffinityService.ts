@@ -394,15 +394,13 @@ export class ContentAffinityService {
       // viewer's preferred topics, grouped by author, tracking which preferred
       // topics they covered and their post volume. Index-served by
       // {postClassification.topics, visibility, status, createdAt}.
-      // Mongo ran `$match → $sort → $limit → $group`; this is the same shape.
       // The bounded scan is an inner subquery so the row cap applies BEFORE the
-      // grouping, exactly as the `$limit` stage did — grouping the whole corpus
+      // grouping — grouping the whole corpus
       // and capping afterwards would be a different (and unbounded) query.
       //
       // `count(distinct id)` and NOT `count(*)`: the lateral `unnest` emits one
       // row per (post, topic) pair, so `count(*)` would score a post covering
-      // three preferred topics as three posts. Mongo's `$sum: 1` counted
-      // documents in the group.
+      // three preferred topics as three posts; the unit is posts.
       const scanned = getDb()
         .select({
           id: posts.id,
@@ -458,9 +456,7 @@ export class ContentAffinityService {
           continue;
         }
         // `array_agg(distinct topic)` already returns the flat distinct set of
-        // preferred topics this author covered — Mongo's `$addToSet` over a
-        // `$setIntersection` produced an array-of-arrays that had to be
-        // flattened here. Each is scored by the viewer's per-topic weight.
+        // preferred topics this author covered. Each is scored by the viewer's per-topic weight.
         const distinctTopics = new Set<string>(row.matchedTopics ?? []);
         if (distinctTopics.size === 0) continue;
 
@@ -826,12 +822,8 @@ export class ContentAffinityService {
    * that is absent, unpublished, non-public or has no author is simply not in
    * the returned map.
    *
-   * A malformed id is simply not found — which is what an earlier version of
-   * this comment CLAIMED ("ignores ids that are not valid ObjectIds") without
-   * any such check existing. Under Mongoose the real behaviour was worse than
-   * the claim: ONE malformed id made the whole `$in` throw a `CastError` and the
-   * `catch` below discarded every author in the batch. Against `text` ids that
-   * is now true for free, so the promise and the code finally agree.
+   * A malformed id is simply not found: ids are `text`, so one malformed id
+   * cannot fail the batch.
    */
   private async resolvePostAuthors(postIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();

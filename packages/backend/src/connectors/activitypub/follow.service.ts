@@ -280,13 +280,10 @@ interface PollContextSource {
 /**
  * Load polls with their options and ballots, as {@link PollContextSource}.
  *
- * Three tables where Mongo had one document: the options are their own rows
- * (`position` is what preserves the order the author wrote them in) and each
- * ballot is a row rather than an id inside `options[].votes`. Reading the
- * Mongoose model instead — which is what this did until the posts port — returns
- * nothing, so every poll post federated as a PLAIN NOTE and no remote server
- * ever saw a Question. Nothing errored: `null` is also how "this post has no
- * poll" is spelled.
+ * Three tables: the options are their own rows (`position` is what preserves
+ * the order the author wrote them in) and each ballot is a row. A read that
+ * returns nothing would federate every poll post as a PLAIN NOTE with no
+ * error: `null` is also how "this post has no poll" is spelled.
  */
 async function loadPollContextSources(pollIds: string[]): Promise<PollContextSource[]> {
   if (pollIds.length === 0) return [];
@@ -518,7 +515,7 @@ export class FollowService {
     const postId = post.id;
     const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
-    // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
+    // passed a `Date` (outbox/dereference) or an ISO string (push).
     const published =
       post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt;
 

@@ -696,8 +696,7 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
  * Two branches, because an actor Oxy has adopted and one it has not are reached
  * by different keys:
  *
- *  - With an Oxy link, `is not null`, NOT `<> null`: Mongo's `$ne: null` also
- *    matched a MISSING `federation` subdocument, while SQL's `<>` against NULL
+ *  - With an Oxy link, `is not null`, NOT `<> null`: SQL's `<>` against NULL
  *    is NULL and matches nothing — the literal translation would return an empty
  *    author feed for every actor that HAS an Oxy link, which is all of them.
  *  - Without one, a PREFIX rather than a range — see `activityIdUnderActor`. The

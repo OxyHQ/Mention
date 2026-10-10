@@ -19,9 +19,9 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
  * There is no projection any more — `findPostRecords` assembles the whole record
  * — so the second half of the old fix is now structural. What remains testable,
  * and what this file is about, is the publication FILTER: an unpublished parent
- * must not come back at all. The old suite hand-built a Mongo stub that
+ * must not come back at all. The old suite hand-built a legacy-store stub that
  * interpreted `$in` / `$ne` / `.select()` itself, which meant it was asserting
- * against a re-implementation of Mongo written in the test file. These are real
+ * against a re-implementation of the legacy store written in the test file. These are real
  * rows and the real query; the leak assertion reads the emitted slices for the
  * parent's actual stored body.
  *

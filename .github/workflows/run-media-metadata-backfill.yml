@@ -7,7 +7,7 @@ name: Run media-metadata backfill
 # pass fills them in later.
 #
 # WHY THE BACKLOG EXISTS, and why it is not small. `MediaMetadataService`
-# decided which media items were worth asking Oxy about with a Mongo ObjectId
+# decided which media items were worth asking Oxy about with a 24-hex ObjectId
 # regex. oxy-api's `files` table moved to Postgres on 2026-07-31 and its ids are
 # uuid v7, so from that date the predicate answered "no" for every native
 # upload: the enrichment requested nothing, the BullMQ retry saw nothing

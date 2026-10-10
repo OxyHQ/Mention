@@ -84,7 +84,7 @@ export function snapshotHash(snapshot: ModerationSubjectSnapshot): string {
  * The urgency the INTAKE froze, or nothing.
  *
  * Validated against the published contract rather than trusted, because the value
- * crosses two boundaries no type survives: a Mongo document, and a deployment that
+ * crosses two boundaries no type survives: a stored row, and a deployment that
  * need not be the one that wrote it. `CaseUrgencySchema` is a STRICT object, so an
  * extra or malformed key makes envelope composition throw
  * `CrowdSourceReportInputError` — which carries `retryable: false`, so the outbox
@@ -93,7 +93,7 @@ export function snapshotHash(snapshot: ModerationSubjectSnapshot): string {
  * review entirely, so this fails toward delivering the report.
  *
  * Parsing also normalises key ORDER to the contract's own shape, so two rows that
- * differ only in how Mongo happened to store them still compose byte-identical
+ * differ only in how the store happened to order them still compose byte-identical
  * envelopes.
  *
  * Deliberately never RECOMPUTED when absent. This function runs at delivery time,

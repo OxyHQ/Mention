@@ -8,8 +8,7 @@
  * their `defaultPinned` honoured, and a returning one gets them appended
  * UNPINNED, because they have already had the chance to pin what they wanted.
  *
- * Mongo carried that distinction for free — `doc` was null or it was not — and
- * an empty `savedFeeds` array on an existing document was a perfectly ordinary
+ * An empty saved layout on an existing preference row is a perfectly ordinary
  * state (save a layout, then remove every entry). Collapsing the two here would
  * silently re-pin the presets for exactly those viewers, on every load, with no
  * error. So {@link loadFeedLayout} returns the two facts separately rather than

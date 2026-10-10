@@ -16,7 +16,7 @@ import { useHttpTestServers } from '../helpers/httpTestServers';
  * applied to the whole router would pass a test that only hammered `/mine`.
  *
  * The queries are REAL and answer from an empty database. They used to be four
- * mocked Mongoose models; porting the route made those mocks inert, and a
+ * mocked legacy-ODM models; porting the route made those mocks inert, and a
  * limiter test does not need them — an identity with no lanes is the cheapest
  * possible request either way.
  *

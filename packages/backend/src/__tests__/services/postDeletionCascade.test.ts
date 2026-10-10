@@ -4,7 +4,7 @@
  * ## Why this file had to be re-pointed
  *
  * The suite this replaces mocked `models/Post`, `models/Like`, `models/Notification`
- * and ten more Mongoose models, and asserted the FILTER OBJECTS handed to them.
+ * and ten more legacy-ODM models, and asserted the FILTER OBJECTS handed to them.
  * Nothing reads any of those models: the delete path is one Postgres transaction.
  * So every one of those assertions described a store the code had stopped using —
  * green forever, and blind to the two defects that actually shipped here (a reply

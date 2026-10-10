@@ -60,7 +60,7 @@ export async function findAdminScriptCursor(
  * Record where a scope has got to.
  *
  * `completed_at` is written on EVERY save — set when the range was exhausted and
- * back to NULL otherwise. That is deliberate and matches the Mongo write: a
+ * back to NULL otherwise. That is deliberate: a
  * scope that finished and is then re-run from an earlier point has not finished
  * any more, and leaving the old stamp would say it had.
  */

@@ -124,13 +124,6 @@ fi
 # Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.
 #
-# THE MONGO MIGRATION ENTRY IS GONE. It ran a ledger-guarded runner whose every
-# migration was already recorded applied in production, so it applied nothing;
-# its one live payload was the blocked-domain purge, which is Postgres-only and
-# now has its own entry below. Verified by SET INCLUSION before removal — every
-# id the runner declared was present in production's ledger — not by comparing
-# counts.
-#
 # THE POPULATION FLOOR reads rows, so it comes after the schema exists.
 #
 # It exists because a 200 is not evidence of a database. A trunk image went live
@@ -142,10 +135,8 @@ fi
 #
 # THE BLOCKED-DOMAIN PURGE IS LAST because it is the only one that DELETES: the
 # schema has to be current and the store has to be populated before content is
-# removed from it. It used to ride inside the retired Mongo migration one-shot
-# and was split out precisely because it is Postgres-only — carrying it inside a
-# step named after Mongo meant removing that step would have removed the purge
-# with it, silently. It exits 0 even when it fails (fail-soft by design), so it
+# removed from it. It is its own entry so that no other step's removal can take
+# the purge with it silently. It exits 0 even when it fails (fail-soft by design), so it
 # cannot roll a healthy release back over a cleanup.
 MIGRATION_TASK_COMMANDS_JSON='[
   {

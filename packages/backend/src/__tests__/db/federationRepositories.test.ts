@@ -1,8 +1,8 @@
 /**
- * The four federation predicates that a LITERAL Mongo→SQL translation gets
+ * The four federation predicates that a LITERAL document-query→SQL translation gets
  * wrong, against real rows.
  *
- * Each of these has the same shape: the Mongo original was correct, the obvious
+ * Each of these has the same shape: the legacy-store original was correct, the obvious
  * SQL is also syntactically valid, and the difference is a population that
  * silently disappears. None of them raises an error, and none is visible in a
  * code review that does not already know the trap. So each is pinned by the
@@ -91,7 +91,7 @@ describe('findOutboxBackfillCandidates — the never-backfilled actor', () => {
     // discriminates: a terminal status (so neither the null-status branch nor the
     // pending/failed branch fires) with a NULL `outbox_backfill_outbox_url`.
     //
-    // The Mongo original was `{$expr: {$ne: ['$outboxBackfill.outboxUrl', '$outboxUrl']}}`,
+    // The legacy-store original was `{$expr: {$ne: ['$outboxBackfill.outboxUrl', '$outboxUrl']}}`,
     // where a MISSING left side compares as null and is therefore `$ne` the
     // outbox URL — true, selected. `<>` in SQL yields NULL for that same row and
     // `WHERE` discards it, so the literal translation strands the actor: it is
@@ -127,7 +127,7 @@ describe('findOutboxBackfillCandidates — the never-backfilled actor', () => {
   });
 
   it('serves a NEVER-run actor before one that has already had a pass', async () => {
-    // Mongo sorts a missing value FIRST on an ascending sort; Postgres sorts
+    // The legacy store sorts a missing value FIRST on an ascending sort; Postgres sorts
     // NULLs LAST. Without `NULLS FIRST` the actors that most need a first pass
     // sort behind every actor that has had one, and on any instance with more
     // resolved actors than one batch they are never reached at all.
@@ -170,7 +170,7 @@ describe('findUnmigratedDeliveries — the row that predates the column', () => 
     // this red. `migrated_to_bullmq` is `NOT NULL DEFAULT false`, so there is no
     // NULL for `<>` to swallow and both spellings select the same rows today.
     //
-    // `IS NOT TRUE` is kept anyway because the Mongo original's population WAS
+    // `IS NOT TRUE` is kept anyway because the legacy-store original's population WAS
     // the absent field (`$ne: true` matches a document that has none), and the
     // total form is the one that survives the column being made nullable. So it
     // is defence against a future schema change, not against a live bug, and the
@@ -207,7 +207,7 @@ describe('findUnmigratedDeliveries — the row that predates the column', () => 
 
 describe('upsertActor — the actor type Postgres will not store', () => {
   it('narrows an unrecognized remote type to Person instead of failing the insert', async () => {
-    // `federated_actors_type_check` admits five values. Mongoose declared the
+    // `federated_actors_type_check` admits five values. The legacy ODM declared the
     // same enum but `findOneAndUpdate` skips validators, so the upsert stored
     // whatever the remote sent. A rejected upsert here fails `fetchRemoteActor`,
     // which means the actor never resolves, no inbound activity from that

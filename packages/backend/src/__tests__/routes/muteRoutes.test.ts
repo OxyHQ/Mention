@@ -2,10 +2,10 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 /**
  * `/mute` and `/mute-words` against real rows.
  *
- * The interesting half is `mute_words`. Mongoose applied `maxlength: 100` and
+ * The interesting half is `mute_words`. The legacy ODM applied `maxlength: 100` and
  * nothing else — no `trim`, no `lowercase` — so ALL of the normalization that
  * makes `(user_id, value)` a meaningful unique key has always lived at the call
- * site, in `normalizeMuteValue`. Postgres has no counterpart to a Mongoose
+ * site, in `normalizeMuteValue`. Postgres has no counterpart to a legacy-ODM
  * setter, so if that normalization ever drifts out of the route, a padded or
  * mixed-case duplicate stops colliding and the viewer silently accumulates two
  * rules that mean the same thing. Every "still collides" case below is that.
@@ -91,7 +91,7 @@ describe('POST /mute', () => {
     expect(await db.select().from(mutes).where(eq(mutes.userId, viewer))).toEqual([]);
   });
 
-  it('emits _id on the wire, the key a Mongoose document serialized to', async () => {
+  it('emits _id on the wire, the key clients read', async () => {
     const viewer = userId('muter');
     const target = userId('muted');
     const res = await request(makeApp(viewer)).post('/mute').send({ mutedId: target }).expect(201);
@@ -151,7 +151,7 @@ describe('DELETE /mute/:mutedId and GET /mute', () => {
 
 describe('POST /mute-words normalization', () => {
   it('trims the value, so a padded duplicate still collides', async () => {
-    // Mongoose never trimmed this field either — the zod transform and
+    // The legacy ODM never trimmed this field either — the zod transform and
     // `normalizeMuteValue` did, and they are what the unique key depends on.
     const viewer = userId('muter');
     const app = makeApp(viewer);

@@ -16,7 +16,7 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "8c554d5462e055a26472a08a6f82ee92660ebba1e4c1a055ca78945a4bd1742f"
+      "sha256": "a4b30f65f6996b265685f3c83daa1f820386979c54cc45a7b3f99d4232c715a8"
     },
     {
       "path": "packages/backend/src/db/posts/postEvaluationRepository.ts",
@@ -110,7 +110,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/frozen-sql-budget.test.ts",
-      "sha256": "8c554d5462e055a26472a08a6f82ee92660ebba1e4c1a055ca78945a4bd1742f"
+      "sha256": "a4b30f65f6996b265685f3c83daa1f820386979c54cc45a7b3f99d4232c715a8"
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/authority-and-deadline/records/candidate-installed-core.json",

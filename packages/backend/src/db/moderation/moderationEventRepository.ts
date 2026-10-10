@@ -10,16 +10,14 @@
  *
  * `id` is the webhook event id and it is the primary key, so the conflict is not
  * an error condition to work around — it is the answer "somebody else has this
- * event". In Mongo that answer arrived as a duplicate-key ERROR that had to be
- * recognised by code (`code === 11000`) and separated from every other failure;
- * here `ON CONFLICT DO NOTHING … RETURNING` gives it as a VALUE, so the two are
- * no longer distinguished by inspecting an exception.
+ * event". `ON CONFLICT DO NOTHING … RETURNING` gives that answer as a VALUE, so
+ * it is never distinguished from other failures by inspecting an exception.
  *
  * That distinction is the load-bearing one. A lost connection or a failover is
  * NOT "already processed": it has to propagate so the middleware answers non-2xx
  * and the event stays on the sender's retry schedule. Swallowing it would answer
- * 200 and retire a decision nobody ever handled — and the Mongo shape made that
- * one mis-widened catch away.
+ * 200 and retire a decision nobody ever handled — and an exception-shaped answer would
+ * make that one mis-widened catch away.
  */
 
 import { eq } from 'drizzle-orm';

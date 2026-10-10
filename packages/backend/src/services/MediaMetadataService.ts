@@ -17,18 +17,16 @@ import type { ApAttachment } from '../connectors/activitypub/apMedia';
  *
  * ## Why it asks about the URL and not about the id
  *
- * It used to be `/^[a-f0-9]{24}$/` — the Mongo ObjectId shape, correct for as
- * long as oxy-api minted ObjectIds. oxy-api's `files` table moved to Postgres on
- * 2026-07-31 and its ids are `generatedId()`, i.e. **uuid v7**; pre-cutover ids
- * were carried over verbatim, so BOTH shapes are live. The hex test therefore
- * answered `false` for every asset uploaded since, and the consequences were
- * silent by construction: {@link MediaMetadataService.enrichFromOxy} returned
- * early with nothing to ask about, {@link MediaMetadataService.needsOxyRetry}
- * said "nothing pending", and the BullMQ retry that exists precisely for the
- * ffprobe race never fired. Every such video kept NULL `width`/`height`/
- * `orientation` — and the Videos lane requires `width > 0 AND height > 0` and an
- * orientation match (`utils/feedQueryBuilder.ts`), so the videos were not slow
- * or badly laid out, they were ABSENT from the lane.
+ * Oxy file ids are 24-char ObjectId hex for older files and `generatedId()`,
+ * i.e. **uuid v7**, for newer ones, so BOTH shapes are live. A 24-char hex test
+ * would answer `false` for every uuid asset, and the consequences would be
+ * silent by construction: {@link MediaMetadataService.enrichFromOxy} would
+ * return early with nothing to ask about, {@link MediaMetadataService.needsOxyRetry}
+ * would say "nothing pending", and the BullMQ retry that exists precisely for
+ * the ffprobe race would never fire. Every such video would keep NULL
+ * `width`/`height`/`orientation` — and the Videos lane requires
+ * `width > 0 AND height > 0` and an orientation match
+ * (`utils/feedQueryBuilder.ts`), so the videos would be ABSENT from the lane.
  *
  * A widened id pattern would fix today and break at the next id migration. The
  * column holds exactly two things, and the OTHER one is self-describing: an
@@ -82,7 +80,7 @@ export function normalizeAlt(value: unknown): string | undefined {
 }
 
 /**
- * Copy persisted intrinsic fields from a raw Mongo/hydration object.
+ * Copy persisted intrinsic fields from a raw stored/hydration object.
  *
  * The {@link normalizeAlt} call below is a READ BACKSTOP for legacy rows written
  * before the write boundary enforced the rule — NOT where the invariant lives.

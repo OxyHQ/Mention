@@ -2,7 +2,7 @@
  * `topic_stats` — the app-local counters `TopicService` maintains, against real
  * rows.
  *
- * Mongo did all three of these with `bulkWrite` upserts, and each one has a trap
+ * The legacy store did all three of these with `bulkWrite` upserts, and each one has a trap
  * the Postgres form has to answer explicitly:
  *
  *  - `$inc` on an upsert SETS the field to the delta when the row is new and adds
@@ -15,7 +15,7 @@
  *    recurrence is not associative, and applies them in rounds instead.
  *  - `updated_at` has to be written by hand: the column's `$onUpdate` fires on
  *    `db.update()` and never on a conflict branch, so leaving it out silently
- *    freezes the timestamp Mongoose's `timestamps: true` maintained.
+ *    freezes the timestamp the legacy ODM's `timestamps: true` maintained.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -78,7 +78,7 @@ describe('batchIncrementPopularity', () => {
 
   it('sums duplicate ids in ONE call rather than failing the statement', async () => {
     // Postgres refuses to touch one row twice in a single statement, so the fold
-    // has to happen before the insert. Mongo folded them too (by applying both).
+    // has to happen before the insert. The legacy store folded them too (by applying both).
     const id = topicId('duplicate');
 
     await topicService.batchIncrementPopularity([
@@ -147,7 +147,7 @@ describe('updatePopularityFromTrending', () => {
     /**
      * Duplicates really do occur: a name that trends as both a hashtag and a
      * classified topic resolves through `resolveNames` — keyed on the name alone
-     * — to the SAME registry id, so one batch carries two updates for it. Mongo's
+     * — to the SAME registry id, so one batch carries two updates for it. The legacy store's
      * `bulkWrite` applied both in order. Summing them (as the two counters above
      * do) would give a different, wrong number, and a single statement cannot
      * touch the row twice, so the updates go out in rounds.

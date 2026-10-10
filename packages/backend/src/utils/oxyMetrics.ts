@@ -73,7 +73,7 @@ const routeTemplates = new Set<string>();
 /**
  * A path segment that is an identifier rather than a route name.
  *
- * Covers uuid, 24-character hex (Mongo-era ids still in circulation), all
+ * Covers uuid, 24-character hex (legacy ids still in circulation), all
  * digits, and anything longer than a plausible route word. Each becomes `:id`,
  * because a metric label carrying a user id is a cardinality bomb AND a
  * privacy leak.

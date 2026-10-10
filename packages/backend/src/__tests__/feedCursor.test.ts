@@ -240,8 +240,8 @@ describe('the Postgres keyset', () => {
 /**
  * The ASCENDING half of the keyset.
  *
- * `applyToQuery`, the Mongo match form this block replaces, is gone with the
- * last Mongoose pager (`connectors/activitypub/routes/ap.routes.ts`). What took
+ * `applyToQuery`, the legacy-store match form this block replaces, is gone with the
+ * last legacy-ODM pager (`connectors/activitypub/routes/ap.routes.ts`). What took
  * its place is a direction: the replies list is the one surface a reader can
  * flip to oldest-first, and the BOUND has to flip with the SORT. A descending
  * bound behind an ascending sort re-serves page one forever — an infinite scroll

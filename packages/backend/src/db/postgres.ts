@@ -10,10 +10,8 @@
  * exactly what every test run does.
  *
  * Placement note: everything Postgres is kept together under `src/db/` rather
- * than split across two directories (the sibling oxy-api port puts its connector
- * in `src/config/postgres.ts`). This note used to orient the reader by naming
- * Mongo's connector at `src/utils/database.ts`; that file no longer exists, and
- * a pointer to a deleted path is worse than no pointer.
+ * than split across two directories (oxy-api puts its connector
+ * in `src/config/postgres.ts`).
  *
  * Connect once at boot, then read the handle synchronously from anywhere via
  * `getDb()`.

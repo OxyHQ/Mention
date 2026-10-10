@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
  * uncalled spy is indistinguishable from a stub that is working. The suite runs
  * the REAL module while every comment in the file says it is stubbed.
  *
- * That failure mode has been paid for twice. #706 deleted the Mongoose models
+ * That failure mode has been paid for twice. #706 deleted the legacy-ODM models
  * and left 151 mocks pointing at them, and every one of those suites stayed
  * green; #712 swept them. #713 then found two more of a different origin — a
  * module RENAMED out from under its mock, and a relative path written from the

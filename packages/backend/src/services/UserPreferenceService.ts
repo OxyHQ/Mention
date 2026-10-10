@@ -21,9 +21,9 @@ export interface InteractionContext {
 
 /**
  * The (lean) post fields {@link UserPreferenceService.recordInteraction} reads
- * when attributing an interaction. A structural subset of the `Post` document so
- * a lean query result is assignable without coupling to the full Mongoose
- * `Document` type. `postClassification` is kept loosely typed to match
+ * when attributing an interaction. A structural subset of the post record so
+ * a narrow query result is assignable without coupling to the full record
+ * type. `postClassification` is kept loosely typed to match
  * {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
  */
 interface InteractionPost {
@@ -80,9 +80,7 @@ export class UserPreferenceService {
   // interactions per user, so two writers for one viewer collide routinely.
   // `updateUserBehavior` serializes them on a row lock held for the whole
   // transaction — the loser blocks, then applies its mutation on top of the
-  // winner's committed state. The bounded `VersionError`/duplicate-key retry loop
-  // this class used to carry existed to emulate exactly that under Mongoose
-  // optimistic concurrency, and has no subject now.
+  // winner's committed state, so no optimistic-concurrency retry loop is needed.
 
   // Learning weights (how much each interaction affects preferences)
   private readonly LEARNING_WEIGHTS = {
@@ -614,17 +612,13 @@ export class UserPreferenceService {
         return;
       }
 
-      // Postgres. These read the Mongo collections until now, which stopped
-      // receiving engagement when the command service moved — so a rebuild would
-      // have re-derived a user's affinity from whatever they had liked BEFORE
-      // the cutover and nothing since, getting quietly worse the longer the
-      // account stayed active.
+      // Postgres `likes` and `bookmarks`, where the engagement command service
+      // writes.
       //
-      // `value` is deliberately NOT filtered, which preserves the previous
-      // behaviour exactly: the Mongo read did not filter either. It is worth a
-      // second look on its own — `likes` is three-state (`1` up, `-1` down, no
-      // row) and a downvote being fed in as a `'like'` interaction is a
-      // pre-existing question this port is not the place to answer.
+      // `value` is deliberately NOT filtered, which preserves existing
+      // behaviour. It is worth a second look on its own — `likes` is
+      // three-state (`1` up, `-1` down, no row) and a downvote being fed in as a
+      // `'like'` interaction is an open question.
       const likeRows = await getDb()
         .select({ postId: likesTable.postId })
         .from(likesTable)
@@ -645,11 +639,7 @@ export class UserPreferenceService {
       const userPosts = await findPostRecords(eq(posts.oxyUserId, userId), {
         orderBy: CHRONO_DESC,
       });
-      // PERSISTED — the Mongo version mutated a document loaded before the two
-      // replays above and then returned without saving it, so every topic
-      // preference this loop derived was discarded. The whole point of the sweep
-      // is the rebuild, and a load-modify-write that never writes is not a
-      // behaviour worth reproducing. Runs last so it reads the state the replays
+      // PERSISTED — the whole point of the sweep is the rebuild. Runs last so it reads the state the replays
       // just committed rather than a snapshot taken before them.
       await updateUserBehavior(userId, (userBehavior) => {
         for (const post of userPosts) {
@@ -682,7 +672,7 @@ export class UserPreferenceService {
     try {
       // Update average engagement time (exponential moving average). A viewer
       // with no behaviour row is left alone — including the skip below — which
-      // is what the Mongo version's early `return` on a missing document did.
+      // is the intended behaviour for a viewer with no history.
       const alpha = 0.1; // Learning rate
       const updated = await updateUserBehavior(userId, (userBehavior) => {
         userBehavior.averageEngagementTime =
@@ -693,8 +683,8 @@ export class UserPreferenceService {
       }
 
       // If view time is very short, it's likely a skip. Recorded AFTER the
-      // average lands: it takes the same row lock, and the Mongo ordering wrote
-      // the average back from a document the skip had already superseded.
+      // average lands: it takes the same row lock, so the average is never
+      // written back over state the skip had already superseded.
       if (viewTimeSeconds < 2) {
         await this.recordInteraction(userId, postId, 'skip');
       }

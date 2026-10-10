@@ -175,16 +175,15 @@ interface StarterPackListItem extends SerializedStarterPack {
 type StarterPackMember = PostUser;
 
 /**
- * Re-assemble the response body a Mongoose document produced.
+ * Assemble the starter pack response body.
  *
  * `_id` alongside `id`, because the client reads `pack._id || pack.id`
  * (`services/starterPacksService.ts`). An absent `description` is OMITTED rather
- * than sent as `null` — Mongoose's `undefined` disappeared from the JSON and
- * drizzle's `null` would not — and the three flattened source columns are folded
+ * than sent as `null` (drizzle's `null` would serialize) — and the three flattened source columns are folded
  * back into the `source` subdocument the guard above is named after.
  *
- * ONE field of the Mongo document does NOT come back: `usedByOxyUserIds`. It is
- * now `starter_pack_uses`, a junction whose whole point is that it never has to
+ * ONE field does NOT come back: `usedByOxyUserIds`. It is
+ * `starter_pack_uses`, a junction whose whole point is that it never has to
  * be read in full, and shipping it would mean loading every user who has ever
  * used every pack on the page. Nothing consumes it — `StarterPackSummary` in
  * `packages/frontend/services/starterPacksService.ts` does not declare it and no
@@ -215,8 +214,7 @@ function serializePack(
  * The member ids a client sent, in the order they sent them: non-empty strings
  * only, deduplicated.
  *
- * Mongo stored the raw array, so a repeated id simply sat there twice. The
- * junction's `(pack_id, oxy_user_id)` unique constraint refuses that outright,
+ * The junction's `(pack_id, oxy_user_id)` unique constraint refuses that outright,
  * so the duplicate is collapsed HERE — keeping the first occurrence, which is
  * what preserves the arrangement the owner chose.
  */
@@ -497,8 +495,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // suggest a pack the viewer already owns or has already used. Anonymous
       // viewers have used nothing, so the param is ignored for them.
       //
-      // `notExists` over the junction is the port of Mongo's
-      // `usedByOxyUserIds: { $ne: viewerId }` on the member ARRAY. The subquery
+      // `notExists` over the junction: \"the viewer has not used this pack\".
+      // The subquery
       // correlates on `starter_packs.id`, which is the shape that returns an
       // empty result with NO error when the outer column renders unqualified —
       // drizzle's query builder qualifies every column it emits, and the suite
@@ -650,8 +648,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         .set({
           ...(name === undefined ? {} : { name }),
           ...(description === undefined ? {} : { description: description ? description : null }),
-          // Always stamped, matching Mongoose's `save()`: the previous route
-          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // Always stamped: `updatedAt` moves on every PUT whether or not a
+          // field changed, and
           // `updated_at` is the sort key the owner-scoped listing pages on.
           updatedAt: new Date(),
         })
@@ -843,8 +841,7 @@ router.post('/:id/use', async (req: AuthRequest, res: Response) => {
 
       // The junction row IS the idempotency key: `starter_pack_uses_pack_id_oxy_user_id_key`
       // rejects a second use by the same viewer, so `onConflictDoNothing` returning
-      // nothing is exactly Mongo's `usedByOxyUserIds: { $ne: userId }` filter failing
-      // to match — and the counter moves only when a row was really inserted.
+      // nothing means the viewer had already used it — and the counter moves only when a row was really inserted.
       const inserted = await tx
         .insert(starterPackUses)
         .values({ packId: pack.id, oxyUserId: userId })

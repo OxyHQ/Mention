@@ -4,10 +4,10 @@
  *
  * ## The two production failures this file was written for
  *
- * A pasted URL was handed straight to Mongo's `$text`, which TOKENISES it — so
+ * A pasted URL was handed straight to the legacy store's `$text`, which TOKENISES it — so
  * `https://x.com/thinkymachines` became roughly `https OR x.com OR
  * thinkymachines`, and `https` alone matched a large share of every post ever
- * written. Sorted by `createdAt` rather than text score, Mongo had to collect
+ * written. Sorted by `createdAt` rather than text score, the legacy store had to collect
  * every match before ordering, blew through `maxTimeMS` (observed at
  * 3017/3036/3119/3078 ms against a 3000 ms cap) and threw — reaching the client
  * as a 500, which reads as "the server is broken". A handle typed alone
@@ -18,7 +18,7 @@
  * They mocked `models/Post` and asserted `find` was NOT CALLED. Nothing calls
  * that model; search reads `post_content_variants.search_vector` through
  * drizzle. Worse, "no query was issued" stopped being the interesting property:
- * Postgres does not have Mongo's failure mode at all
+ * Postgres does not have the legacy store's failure mode at all
  * (`websearch_to_tsquery('https://x.com/…')` is `'https' & '/x.com/…'` — an AND,
  * and a document carrying a URL has no bare `https` lexeme), so the branch's job
  * here is to make the empty answer **INTENTIONAL rather than incidental**.

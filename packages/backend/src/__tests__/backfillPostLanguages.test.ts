@@ -7,7 +7,7 @@
  * the filter agreed with itself, and the real one could have matched nothing.
  * That filter is the whole script: four disjuncts, one of which
  * (`classification_version IS NULL`) is exactly the arm a literal translation of
- * the Mongo predicate drops, because `version < N` is NULL for an unstamped row
+ * the legacy-store predicate drops, because `version < N` is NULL for an unstamped row
  * and a NULL predicate excludes it — silently skipping the posts that were never
  * classified at all, which is most of the corpus this exists for.
  *

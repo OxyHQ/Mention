@@ -104,9 +104,9 @@ export async function backfillCustomFeedDefinitions(
           memberOxyUserIds: relations.get(feed.id)?.memberOxyUserIds ?? [],
           keywords: feed.keywords ?? undefined,
           language: feed.language ?? undefined,
-          // NOT NULL DEFAULT true in Postgres, where Mongo left them optional.
-          // The mapper only branches on `=== false`, so an absent legacy value
-          // and an explicit `true` were already indistinguishable to it.
+          // NOT NULL DEFAULT true. The mapper only branches on `=== false`, so
+          // an absent legacy value and an explicit `true` are indistinguishable
+          // to it.
           includeReplies: feed.includeReplies,
           includeBoosts: feed.includeBoosts,
           includeMedia: feed.includeMedia,
