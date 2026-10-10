@@ -2,10 +2,10 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { FlashList } from '@shopify/flash-list';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
@@ -27,6 +27,7 @@ import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { jobsService, type MentionJobDiscoveryFilters } from '@/services/jobsService';
 import JobDiscoveryResultCard, { ExternalJobReportSheet } from '@/components/Jobs/JobDiscoveryResultCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -93,16 +94,21 @@ const DISCOVERY_DEBOUNCE_MS = 500;
 const SAVED_JOBS_STORAGE_KEY = 'mention.jobs.saved';
 
 type DiscoveryRow =
-  | { kind: 'filters' }
   | { kind: 'result'; key: string; job: JobSearchResult }
   | { kind: 'status'; key: string; state: 'loading' | 'error' | 'empty' };
 
 /**
- * Global job discovery — `GET /jobs`, the public Clarity-backed search. Mirrors
- * `app/(app)/search/index.tsx`'s established shape: ONE `FlashList` rendering a
- * flattened row union (a filters row, then results, then a loading/error/empty
- * status row) so the scroll container never swaps, and a `setTimeout` ref
- * debounces free-text typing rather than an Effect.
+ * Global job discovery — `GET /jobs`, the public Clarity-backed search. ONE
+ * Bloom `VirtualList` renders the filters as its header and a flattened row
+ * union (results, or a loading/error/empty status row) so the scroll container
+ * never swaps, and a `setTimeout` ref debounces free-text typing rather than an
+ * Effect.
+ *
+ * It is a `VirtualList`, not a `FlashList`: on web the document is the scroller,
+ * so a FlashList here had no bounded height, mounted every row and kept firing
+ * `onEndReached` — the screen paged through the whole index on its own, about a
+ * page a second, until the tab ran out of memory. Web pages through the
+ * footer's `LoadMoreSentinel`; native through `onEndReached`.
  *
  * "Save" has no backend counterpart in issue #952's contract (only
  * applications do) — it is a lightweight, PER-DEVICE bookmark list in
@@ -257,14 +263,15 @@ export default function JobsDiscoveryScreen() {
     [bottomSheet],
   );
 
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = discoveryQuery;
   const handleEndReached = useCallback(() => {
-    if (discoveryQuery.hasNextPage && !discoveryQuery.isFetchingNextPage) {
-      void discoveryQuery.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
     }
-  }, [discoveryQuery]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const rows = useMemo<DiscoveryRow[]>(() => {
-    const out: DiscoveryRow[] = [{ kind: 'filters' }];
+    const out: DiscoveryRow[] = [];
     if (loading) {
       out.push({ kind: 'status', key: 'status-loading', state: 'loading' });
       return out;
@@ -283,117 +290,115 @@ export default function JobsDiscoveryScreen() {
     return out;
   }, [loading, discoveryQuery.isError, results]);
 
+  const filtersHeader = (
+    <View className="px-4 pt-3 pb-2 gap-3">
+      <Search
+        label={t('jobs.discovery.searchPlaceholder', { defaultValue: 'Search jobs' })}
+        value={draft.q}
+        onChangeText={handleQueryChange}
+        onClearText={() => handleQueryChange('')}
+        onSubmitEditing={() => commitNow(draft)}
+      />
+      <TextField>
+        <TextFieldInput
+          label={t('jobs.discovery.location', { defaultValue: 'Location' })}
+          value={draft.location}
+          onChangeText={handleLocationChange}
+        />
+      </TextField>
+
+      <Button
+        size="sm"
+        onPress={() => setShowMoreFilters((v) => !v)}
+        style={{ alignSelf: 'flex-start' }} tone="accent" appearance="plain"
+      >
+        {showMoreFilters
+          ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
+          : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' })}
+      </Button>
+
+      {showMoreFilters ? (
+        <View className="gap-3">
+          <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} multiple>
+            <View className="flex-row flex-wrap gap-2">
+              {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
+                <Chip
+                  key={value}
+                  selected={draft.workplaceType === value}
+                  onPress={() => setWorkplaceType(draft.workplaceType === value ? '' : value)}
+                >
+                  {WORKPLACE_LABELS[value]}
+                </Chip>
+              ))}
+            </View>
+          </Field>
+
+          <Field label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })} multiple>
+            <View className="flex-row flex-wrap gap-2">
+              {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
+                <Chip
+                  key={value}
+                  selected={draft.employmentType === value}
+                  onPress={() => setEmploymentType(draft.employmentType === value ? '' : value)}
+                >
+                  {EMPLOYMENT_LABELS[value]}
+                </Chip>
+              ))}
+            </View>
+          </Field>
+
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <TextField>
+                <TextFieldInput
+                  label={t('jobs.create.salaryMin', { defaultValue: 'Min salary' })}
+                  value={draft.salaryMin}
+                  onChangeText={(v) => handleSalaryChange('salaryMin', v)}
+                  keyboardType="numeric"
+                />
+              </TextField>
+            </View>
+            <View className="flex-1">
+              <TextField>
+                <TextFieldInput
+                  label={t('jobs.create.salaryMax', { defaultValue: 'Max salary' })}
+                  value={draft.salaryMax}
+                  onChangeText={(v) => handleSalaryChange('salaryMax', v)}
+                  keyboardType="numeric"
+                />
+              </TextField>
+            </View>
+          </View>
+
+          <Field label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}>
+            <SegmentedControl
+              label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
+              type="radio"
+              size="sm"
+              value={draft.datePosted}
+              onChange={setDatePosted}
+            >
+              <SegmentedControlItem value="any">
+                <SegmentedControlItemText>{t('jobs.discovery.anyTime', { defaultValue: 'Any time' })}</SegmentedControlItemText>
+              </SegmentedControlItem>
+              <SegmentedControlItem value="24h">
+                <SegmentedControlItemText>{t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })}</SegmentedControlItemText>
+              </SegmentedControlItem>
+              <SegmentedControlItem value="7d">
+                <SegmentedControlItemText>{t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })}</SegmentedControlItemText>
+              </SegmentedControlItem>
+              <SegmentedControlItem value="30d">
+                <SegmentedControlItemText>{t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}</SegmentedControlItemText>
+              </SegmentedControlItem>
+            </SegmentedControl>
+          </Field>
+        </View>
+      ) : null}
+    </View>
+  );
+
   const renderRow = useCallback(
     ({ item }: { item: DiscoveryRow }) => {
-      if (item.kind === 'filters') {
-        return (
-          <View className="px-4 pt-3 pb-2 gap-3">
-            <Search
-              label={t('jobs.discovery.searchPlaceholder', { defaultValue: 'Search jobs' })}
-              value={draft.q}
-              onChangeText={handleQueryChange}
-              onClearText={() => handleQueryChange('')}
-              onSubmitEditing={() => commitNow(draft)}
-            />
-            <TextField>
-              <TextFieldInput
-                label={t('jobs.discovery.location', { defaultValue: 'Location' })}
-                value={draft.location}
-                onChangeText={handleLocationChange}
-              />
-            </TextField>
-
-            <Button
-              size="sm"
-              onPress={() => setShowMoreFilters((v) => !v)}
-              style={{ alignSelf: 'flex-start' }} tone="accent" appearance="plain"
-            >
-              {showMoreFilters
-                ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
-                : t('jobs.discovery.moreFilters', { defaultValue: 'More filters' })}
-            </Button>
-
-            {showMoreFilters ? (
-              <View className="gap-3">
-                <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} multiple>
-                  <View className="flex-row flex-wrap gap-2">
-                    {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
-                      <Chip
-                        key={value}
-                        selected={draft.workplaceType === value}
-                        onPress={() => setWorkplaceType(draft.workplaceType === value ? '' : value)}
-                      >
-                        {WORKPLACE_LABELS[value]}
-                      </Chip>
-                    ))}
-                  </View>
-                </Field>
-
-                <Field label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })} multiple>
-                  <View className="flex-row flex-wrap gap-2">
-                    {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
-                      <Chip
-                        key={value}
-                        selected={draft.employmentType === value}
-                        onPress={() => setEmploymentType(draft.employmentType === value ? '' : value)}
-                      >
-                        {EMPLOYMENT_LABELS[value]}
-                      </Chip>
-                    ))}
-                  </View>
-                </Field>
-
-                <View className="flex-row gap-2">
-                  <View className="flex-1">
-                    <TextField>
-                      <TextFieldInput
-                        label={t('jobs.create.salaryMin', { defaultValue: 'Min salary' })}
-                        value={draft.salaryMin}
-                        onChangeText={(v) => handleSalaryChange('salaryMin', v)}
-                        keyboardType="numeric"
-                      />
-                    </TextField>
-                  </View>
-                  <View className="flex-1">
-                    <TextField>
-                      <TextFieldInput
-                        label={t('jobs.create.salaryMax', { defaultValue: 'Max salary' })}
-                        value={draft.salaryMax}
-                        onChangeText={(v) => handleSalaryChange('salaryMax', v)}
-                        keyboardType="numeric"
-                      />
-                    </TextField>
-                  </View>
-                </View>
-
-                <Field label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}>
-                  <SegmentedControl
-                    label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
-                    type="radio"
-                    size="sm"
-                    value={draft.datePosted}
-                    onChange={setDatePosted}
-                  >
-                    <SegmentedControlItem value="any">
-                      <SegmentedControlItemText>{t('jobs.discovery.anyTime', { defaultValue: 'Any time' })}</SegmentedControlItemText>
-                    </SegmentedControlItem>
-                    <SegmentedControlItem value="24h">
-                      <SegmentedControlItemText>{t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })}</SegmentedControlItemText>
-                    </SegmentedControlItem>
-                    <SegmentedControlItem value="7d">
-                      <SegmentedControlItemText>{t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })}</SegmentedControlItemText>
-                    </SegmentedControlItem>
-                    <SegmentedControlItem value="30d">
-                      <SegmentedControlItemText>{t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}</SegmentedControlItemText>
-                    </SegmentedControlItem>
-                  </SegmentedControl>
-                </Field>
-              </View>
-            ) : null}
-          </View>
-        );
-      }
-
       if (item.kind === 'result') {
         return (
           <JobDiscoveryResultCard
@@ -432,26 +437,10 @@ export default function JobsDiscoveryScreen() {
         />
       );
     },
-    [
-      t,
-      draft,
-      showMoreFilters,
-      handleQueryChange,
-      handleLocationChange,
-      handleSalaryChange,
-      setWorkplaceType,
-      setEmploymentType,
-      setDatePosted,
-      commitNow,
-      savedIds,
-      toggleSave,
-      reportJob,
-      discoveryQuery,
-    ],
+    [t, savedIds, toggleSave, reportJob, discoveryQuery],
   );
 
-  const keyExtractor = useCallback((item: DiscoveryRow) => (item.kind === 'filters' ? 'filters' : item.key), []);
-  const getItemType = useCallback((item: DiscoveryRow) => item.kind, []);
+  const keyExtractor = useCallback((item: DiscoveryRow) => item.key, []);
 
   return (
     <View className="flex-1">
@@ -461,20 +450,18 @@ export default function JobsDiscoveryScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
       <View className="flex-1 min-h-0">
-        <FlashList
+        <VirtualList
           data={rows}
           keyExtractor={keyExtractor}
-          getItemType={getItemType}
           renderItem={renderRow}
-          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={filtersHeader}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
-            discoveryQuery.isFetchingNextPage ? (
-              <View className="items-center justify-center py-4">
-                <Loading className="text-primary" size="sm" />
-              </View>
-            ) : null
+            <View className="items-center justify-center py-4">
+              <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage && !loading} />
+              {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
+            </View>
           }
         />
       </View>

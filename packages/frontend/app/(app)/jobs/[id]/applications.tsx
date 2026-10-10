@@ -3,10 +3,10 @@ import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { FlashList } from '@shopify/flash-list';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -19,6 +19,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
 const STATUS_TONE: Record<MentionJobApplicationStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
   new: 'info',
@@ -89,11 +90,15 @@ export default function JobApplicationsScreen() {
     [bottomSheet, jobId, handleStatusChanged],
   );
 
+  // Web pages through the footer's `LoadMoreSentinel`, native through
+  // `onEndReached`. A FlashList here had no bounded height on web (the document
+  // scrolls), so it kept firing `onEndReached` and paged on its own.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = applicationsQuery;
   const handleEndReached = useCallback(() => {
-    if (applicationsQuery.hasNextPage && !applicationsQuery.isFetchingNextPage) {
-      void applicationsQuery.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
     }
-  }, [applicationsQuery]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const header = (
     <PageHeader
@@ -151,7 +156,7 @@ export default function JobApplicationsScreen() {
             containerStyle={{ flex: 1, justifyContent: 'center' }}
           />
         ) : (
-          <FlashList
+          <VirtualList
             data={applications}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -192,11 +197,10 @@ export default function JobApplicationsScreen() {
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.5}
             ListFooterComponent={
-              applicationsQuery.isFetchingNextPage ? (
-                <View className="items-center justify-center py-4">
-                  <Loading className="text-primary" size="sm" />
-                </View>
-              ) : null
+              <View className="items-center justify-center py-4">
+                <LoadMoreSentinel onLoadMore={handleEndReached} enabled={!!hasNextPage} />
+                {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
+              </View>
             }
           />
         )}
