@@ -35,7 +35,7 @@ import { stripTextEntities } from '@mention/shared-types/textEntities';
  * like `come`/`son`/`van` that no one would recognise as a trend on their own.
  *
  * Deliberately NOT shared with `GIF_STOPWORDS` (gifLibrary). That set exists to
- * strip noise from a MongoDB text query on a `default_language: 'none'` index —
+ * strip noise from a dictionary-free GIF search query —
  * twenty-odd tokens tuned for search recall. This one exists to keep phrases
  * from gluing across function words. Same technique, different jobs; fusing them
  * would tie the trending vocabulary to a search-index detail.
@@ -605,7 +605,7 @@ const BARE_HANDLE_PATTERN = /(?<![\p{L}\p{N}])[\p{L}\p{N}_.-]+@[\p{L}\p{N}.-]+/g
 /** A token below the length floor survives only as an ALL-CAPS acronym. */
 const MIN_ACRONYM_LENGTH = 2;
 
-/** Input a post contributes. Framework-agnostic — no Mongoose, no Post model. */
+/** Input a post contributes. Framework-agnostic — no ORM, no Post model. */
 export interface TrendTermInput {
   /** Visible post text (plain text, original case — the case carries acronyms). */
   text?: string | null;

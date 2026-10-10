@@ -35,7 +35,7 @@ import { join, relative, sep } from 'node:path';
  * ## Why that is harmless TODAY — both grounds verified, not assumed
  *
  *  1. **Nothing writes these tables at all.** Their only producer was the
- *     Mongo→Postgres copier (`db/backfill/plans/feeds.ts`), which is deleted; the
+ *     Postgres copier (`db/backfill/plans/feeds.ts`), which is deleted; the
  *     rows it wrote are all there will ever be until somebody adds a writer. No
  *     request path inserts into either.
  *  2. **Nothing reads them as a sequence.** `customFeedRepository.ts` says so

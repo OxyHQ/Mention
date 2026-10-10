@@ -149,8 +149,7 @@ export async function saveTrendGraph(graph: TrendGraphSnapshot | null): Promise<
 
   try {
     // `onConflictDoUpdate` on `calculated_at`, which is the table's UNIQUE key
-    // and the batch's identity — the direct analogue of the Mongo upsert, and
-    // what makes a retried batch replace its own graph rather than collide with
+    // and the batch's identity — an upsert, which is what makes a retried batch replace its own graph rather than collide with
     // it. `dropped_edges` is set on BOTH paths, including back to NULL when a
     // retry truncated nothing: leaving the previous value would say the stored
     // graph is incomplete when it is now whole.

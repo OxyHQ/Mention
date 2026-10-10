@@ -160,7 +160,7 @@ describe('post hydration — the lane chip', () => {
 /**
  * `lane_id` survives the READ, which is what "it is in the projection" means now.
  *
- * Mongo needed four projection strings kept in step, and the worst spelling of
+ * The legacy store needed four projection strings kept in step, and the worst spelling of
  * that bug was forgetting the SLICER's: the chip present on a feed row and absent
  * on the SAME post as a thread parent, which reads as a caching problem. A
  * Postgres read selects the row, so that drift is gone; what remains worth
@@ -180,7 +180,7 @@ describe('lane_id survives a write/read round trip', () => {
   });
 
   it('comes back as NULL, not undefined, for a post in no lane', async () => {
-    // One state, not two. Mongo had to store the field ABSENT rather than null,
+    // One state, not two. The legacy store had to store the field ABSENT rather than null,
     // because `post_lane_chrono_v1`'s partial filter was `{ $exists: true }` and
     // a stored null satisfied it; the Postgres filter is `lane_id is not null`,
     // so null is exactly the state that stays out of the index.

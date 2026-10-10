@@ -854,11 +854,9 @@ export function mapApVisibility(to?: unknown, cc?: unknown): PostVisibility {
  *
  * ## There is no id-SHAPE guard, and adding one back would be a silent outage
  *
- * This used to gate the local branch on `ObjectId.isValid(localPostId)`. That
- * check was a cheap way to avoid a Mongo CastError, and it is now the opposite
- * of cheap: `posts.id` is `text` holding a 24-char ObjectId hex for pre-cutover
- * rows and a uuid v7 for everything created after, so an ObjectId test rejects
- * every post this instance has made since the cutover.
+ * `posts.id` is `text` holding a 24-char hex id for legacy rows and a uuid v7
+ * for everything newer, so a 24-hex test would reject every post this instance
+ * makes now.
  *
  * Thirteen call sites hang off this one function — `handleLike`,
  * `handleUndoLike`, `handleAnnounce`, `handleUndoAnnounce`, `handlePollVote`,
@@ -943,8 +941,7 @@ export async function resolvePostIdFromNoteUrl(noteUrl: string): Promise<string 
  * `starts_with`, NOT a `>= prefix AND < prefix || '\uffff'` range, and not a
  * `LIKE` pattern either. All three were tried and only this one is correct here:
  *
- *  - The RANGE is what Mongo's byte-ordered comparison made safe, and it does
- *    not survive the port. Under this database's `en_US.utf8` collation U+FFFF
+ *  - The RANGE is only safe under a byte-ordered comparison. Under this database's `en_US.utf8` collation U+FFFF
  *    does not sort above ordinary text — measured, on the migrated schema:
  *    `'…/alice/statuses/1' >= '…/alice/'` is true but
  *    `'…/alice/statuses/1' < '…/alice/\uffff'` is FALSE. The half-open range

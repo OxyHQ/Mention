@@ -19,15 +19,14 @@ import {
  * copies run at once; recording it before and never releasing would make a
  * transient failure permanent and lose a decision silently.
  *
- * ## The duplicate-key classifier is gone, not translated
+ * ## No duplicate-key error classifier
  *
- * In Mongo "somebody else has this event" arrived as a duplicate-key ERROR, so
- * this file carried an `isDuplicateKeyError` helper and the whole store hung on
- * getting that predicate right: widen it by one condition and a lost connection
- * reads as "already processed", the middleware answers 200, and a decision nobody
- * ever handled is retired. `claimModerationEvent` returns that answer as a VALUE
- * (`ON CONFLICT DO NOTHING … RETURNING`), so the two are no longer separated by
- * inspecting an exception — anything thrown is genuinely the store failing to
+ * `claimModerationEvent` returns "somebody else has this event" as a VALUE
+ * (`ON CONFLICT DO NOTHING … RETURNING`), not as an error to classify — a
+ * classifier widened by one condition would read a lost connection as "already
+ * processed", the middleware would answer 200, and a decision nobody ever
+ * handled would be retired. So the two are not separated by inspecting an
+ * exception — anything thrown is genuinely the store failing to
  * answer, and propagates.
  */
 export function moderationProcessedEventStore(): ProcessedEventStore {

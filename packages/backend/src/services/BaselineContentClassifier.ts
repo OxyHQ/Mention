@@ -172,7 +172,7 @@ const LANGUAGE_DETECTION = {
   maxLanguages: 3,
 } as const;
 
-/** Minimal post shape the classifier needs. Framework-agnostic; no Mongoose. */
+/** Minimal post shape the classifier needs. Framework-agnostic; no ORM. */
 export interface ClassifyInput {
   /** Visible post text (already plain text). */
   text?: string;

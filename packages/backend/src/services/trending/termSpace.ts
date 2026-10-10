@@ -59,17 +59,15 @@ export const TREND_TERM_COLUMNS: readonly PgColumn[] = [
  * their evidence into one score and then opened onto only one of them would be
  * strictly worse than not merging.
  *
- * `&&` (array-overlap) per column, ORed — the direct analogue of Mongo's
- * `{ field: { $in: terms } }` against a multikey array, and the generalisation
- * of the single-term `@>` this replaced. Each column is GIN-indexed, so the
+ * `&&` (array-overlap) per column, ORed — any of the terms in any of the
+ * columns, the generalisation of a single-term `@>`. Each column is GIN-indexed, so the
  * disjunction is a bitmap-OR of index scans rather than a scan.
  *
  * A NULL column (a post that predates the field) yields NULL, not true, so it
- * simply does not match — the same answer Mongo gave for a missing field.
+ * simply does not match.
  *
- * Unlike Mongo there is nothing to defend against in the composition: a drizzle
- * `and()` composes, so no cursor can clobber this the way an ASSIGNED `$or`
- * could.
+ * There is nothing to defend against in the composition: a drizzle `and()`
+ * composes, so no cursor can clobber this.
  *
  * **`arrayOverlaps`, never a hand-written `` sql`${column} && ${list}::text[]` ``.**
  * A JS array interpolated into a `sql` template is not bound as an array: drizzle
@@ -81,8 +79,7 @@ export const TREND_TERM_COLUMNS: readonly PgColumn[] = [
  */
 export function trendTermMatchSql(terms: string | readonly string[]): SQL {
   const list = typeof terms === 'string' ? [terms] : [...terms];
-  // An empty list matches NOTHING, which is the honest answer and mirrors
-  // Mongo's `$in: []`. Without it `or()` collapses to `undefined` and the
+  // An empty list matches NOTHING, which is the honest answer. Without it `or()` collapses to `undefined` and the
   // predicate would silently match every post.
   if (list.length === 0) return sql`false`;
   return or(...TREND_TERM_COLUMNS.map((column) => arrayOverlaps(column, list))) as SQL;
@@ -97,8 +94,8 @@ export function trendTermMatchSql(terms: string | readonly string[]): SQL {
  *
  * The arrays are concatenated and de-duplicated by the caller's
  * `select distinct unnest(...)`, so a post carrying a term BOTH as a hashtag and
- * as an extracted term counts once — Mongo's `$setUnion` deduplicated per
- * document and that is where the property lives now. `coalesce` covers a post
+ * as an extracted term counts once — that is where the per-post dedup lives.
+ * `coalesce` covers a post
  * that predates a column.
  *
  * `qualified()` rather than a bare column reference: this expression is

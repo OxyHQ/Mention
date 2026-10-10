@@ -128,13 +128,6 @@ export async function createBookmarkFolderForViewer(input: {
  * post id from being mistaken for a bookmark row id, while `userId` stays in the
  * WHERE clause of both the lookup and the update, so one account can never move
  * another account's bookmark.
- *
- * Postgres, because that is where bookmarks live: nothing has created a Mongo
- * `Bookmark` since the engagement command service moved, so this update ran
- * against a collection holding only pre-cutover rows. It matched nothing for any
- * bookmark made since, and `findOneAndUpdate` reports that as `null` — the same
- * value it returns for "not yours", so the route could not tell a missing row
- * from a forbidden one and the user just saw the folder fail to change.
  */
 export async function updateBookmarkFolderForViewer(input: {
   viewerId: string;

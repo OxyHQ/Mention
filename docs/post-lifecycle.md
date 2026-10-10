@@ -64,7 +64,7 @@ post is classified and ranked once it exists.
   `signAndAppend` reconciles once per append (`MentionRecordStore.reconcileHead`):
   it fast-forwards the head over rows that extend it and archives the rest
   as forks (`chain_status = 'conflict'`, `seq`/`prev` cleared, envelope
-  untouched). The Mongo → Postgres cutover left one account in that state.
+  untouched). One legacy account is in that state.
 
 ## Post and identity rules
 

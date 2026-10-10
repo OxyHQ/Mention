@@ -12,7 +12,7 @@
  * ## Why this suite was rewritten
  *
  * It used to import `dedupeMemberIds` from `models/StarterPack` and assert
- * against that function alone. That model is the Mongo store, which no request
+ * against that function alone. That model is the legacy store, which no request
  * reaches any more — so the suite was five green assertions about unreachable
  * code, and it would have stayed green through any regression in the shipped
  * path. The guard moved with the store; the check has to move with it.
@@ -195,7 +195,7 @@ describe('starter pack membership is a set, on every write path', () => {
 
   it('treats ids as opaque, never normalising two distinct ones together', async () => {
     // The two id shapes in that pack are NOT interchangeable strings to a
-    // reader: one is a 24-char Mongo ObjectId hex, the other a UUIDv7. They are
+    // reader: one is a 24-char legacy-store ObjectId hex, the other a UUIDv7. They are
     // compared as opaque strings on purpose — normalising case or format would
     // risk merging two genuinely different accounts, far worse than a repeat.
     const response = await createPack(['69BF1395DB3D3CBA5D28BC25', '69bf1395db3d3cba5d28bc25']);

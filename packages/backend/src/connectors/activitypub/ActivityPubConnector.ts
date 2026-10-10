@@ -49,9 +49,8 @@ export {
 /**
  * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
  *
- * `@oxy.so/federation`'s event payloads still spell a post's id `_id` (they were
- * written against Mongo documents and the package is shared with apps that have
- * not been ported). Mention's post id is `posts.id`, a uuid v7 string, so every
+ * `@oxy.so/federation`'s event payloads spell a post's id `_id` (the package is
+ * shared with other apps and keeps that spelling). Mention's post id is `posts.id`, a uuid v7 string, so every
  * Mention-owned shape below this line — `NoteSourcePost` included — says `id`.
  * Translating here rather than at each `followService` call keeps the foreign
  * spelling from leaking into the Note builders, and leaves exactly one line to
@@ -159,7 +158,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
 
   /**
    * Backfill a remote actor's outbox. ActivityPub outbox sync is a side-effecting
-   * DB backfill (it inserts/dedupes posts into Mongo, read back via the
+   * DB backfill (it inserts/dedupes posts into Postgres, read back via the
    * `/federation/actor/posts` route), so this advances the opaque outbox cursor
    * and returns it; the imported posts are not echoed back in-band.
    */
@@ -301,7 +300,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   /**
    * Delivery boundary for durable callers. Existing outbound callers retain
    * the best-effort {@link deliver} semantics; engagement events use strict
-   * FollowService variants so a queue failure reaches the Mongo outbox.
+   * FollowService variants so a queue failure reaches the engagement outbox.
    */
   async deliverDurably(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {

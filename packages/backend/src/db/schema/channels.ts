@@ -19,9 +19,9 @@
  *
  * ## `name_lower` is DERIVED, and that is load-bearing
  *
- * `lanes.name_lower` is what the unique index is built on, and Mongo derived it
- * in a `pre('validate')` hook so no route, script or test could arrive at a
- * second spelling. A hook has no equivalent here, so the derivation belongs to
+ * `lanes.name_lower` is what the unique index is built on, and it is derived
+ * in ONE place so no route, script or test can arrive at a
+ * second spelling. The derivation belongs to
  * the repository that writes these rows — and the constraint is the backstop
  * that makes a missed derivation a refused write instead of a duplicate lane.
  *

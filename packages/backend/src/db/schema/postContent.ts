@@ -1,5 +1,5 @@
 /**
- * The child tables of `posts` — every array Mongo embedded in the post document.
+ * The child tables of `posts` — every array-valued part of a post.
  *
  * Each was an array of subdocuments (`content.variants`, `content.media`,
  * `content.attachments`, `content.sources`, `authorship`,
@@ -52,13 +52,9 @@ export const MEDIA_ORIENTATIONS = ['portrait', 'landscape', 'square'] as const;
 /**
  * The two media vocabularies above ARE `@mention/shared-types`, pinned.
  *
- * Mongo never declared either as an `enum:` — it enforced them in a hand-written
- * validator on the Post model — so where every other closed set in this schema
- * was compared against its Mongoose source, these two were compared against the
- * TypeScript type instead. That comparison lived in the migration's own test
- * file and is deleted with the rest of the copier. It was inert there anyway:
- * `tsconfig.json` excludes `src/__tests__`, so no typecheck ever read it. Here
- * it runs.
+ * Neither has an enum declaration of its own, so they are compared against the
+ * TypeScript type here, where `tsc` reads the comparison (`tsconfig.json`
+ * excludes `src/__tests__`, so a test file could not).
  *
  * `satisfies` alone would only prove the members are assignable, which accepts a
  * set that is MISSING a value — half of what this is for. The assignment in both
@@ -85,8 +81,8 @@ void _orientationsCoverTheContract;
 /**
  * `PostAttachmentType`.
  *
- * EIGHT values, not the seven the Mongoose enum declares: `models/Post.ts`
- * `AttachmentSchema` omits `'room'` while `@mention/shared-types`
+ * EIGHT values, not the seven the old model enum declared: `models/Post.ts`
+ * `AttachmentSchema` omitted `'room'` while `@mention/shared-types`
  * `PostAttachmentType` includes it. Same class as `posts.status` — the narrower
  * list is the one that was never enforced, so the CHECK takes the union and a
  * production `distinct` is required before the backfill.
@@ -174,10 +170,9 @@ export const postAuthorships = pgTable(
       'post_authorships_status_check',
       sql`${t.status} in (${sql.raw(inList(POST_AUTHOR_STATUSES))})`,
     ),
-    // One entry per (post, user). Mongo could hold a duplicate; nothing wants one.
+    // One entry per (post, user); nothing wants a duplicate.
     unique('post_authorships_post_id_oxy_user_id_key').on(t.postId, t.oxyUserId),
-    // Exactly one owner per post — the invariant `getOwnerId` assumes and Mongo
-    // could not state. A second `owner` row now fails the insert.
+    // Exactly one owner per post — the invariant `getOwnerId` assumes. A second `owner` row now fails the insert.
     uniqueIndex('post_authorships_one_owner_per_post').on(t.postId).where(sql`${t.role} = 'owner'`),
     // The author feed's `$elemMatch` on (oxyUserId, status) becomes this.
     index('post_authorships_author_idx').on(t.oxyUserId, t.status),
@@ -205,18 +200,14 @@ export const postAuthorships = pgTable(
 /**
  * `post_content_variants` — one localized rendition of the body.
  *
- * `position = 0` is the PRIMARY. The Mongoose `pre('validate')` hook reorders
- * the array so author renditions precede machine translations; that ordering is
- * now a stored `position` the writer sets, because Postgres has no array to
+ * `position = 0` is the PRIMARY. Author renditions precede machine
+ * translations; that ordering is a stored `position` the writer sets, because Postgres has no array to
  * reorder and the primary must be addressable by a predicate rather than by
  * `[0]`.
  *
- * The language column is `tag`, deliberately not `language` — carried over from
- * Mongo, where a field literally named `language` inside an indexed document is
- * read as the text index's per-document stemmer override and rejects any code
- * outside Mongo's stemmer set with error 17262. Postgres has no such trap, but
- * renaming the column would gratuitously diverge from the wire contract that
- * still calls it `tag`.
+ * The language column is `tag`, deliberately not `language`: renaming
+ * the column would gratuitously diverge from the wire contract that calls it
+ * `tag`.
  */
 export const postContentVariants = pgTable(
   'post_content_variants',
@@ -240,8 +231,8 @@ export const postContentVariants = pgTable(
     articleBody: text(),
     articleExcerpt: text(),
     /**
-     * The rendition's own timestamp. Mongo stored this as a STRING; it is an
-     * instant here. The backfill must parse it and write NULL when it cannot —
+     * The rendition's own timestamp. The source data held it as a STRING; it is
+     * an instant here. The backfill must parse it and write NULL when it cannot —
      * a value that is not a date is not a date in either store.
      */
     variantCreatedAt: timestamptz(),
@@ -267,11 +258,11 @@ export const postContentVariants = pgTable(
      */
     postCreatedAt: timestamptz(),
     /**
-     * The replacement for Mongo's `content.variants.text_text` index.
+     * The full-text index over the rendition's body.
      *
      * GENERATED, so no write path can produce a row whose search vector
-     * disagrees with its body. The configuration is the LITERAL `'english'`
-     * (Mongo's `default_language`): the one-argument `to_tsvector` reads
+     * disagrees with its body. The configuration is the LITERAL `'english'`:
+     * the one-argument `to_tsvector` reads
      * `default_text_search_config` at runtime and is therefore STABLE, which
      * Postgres refuses in a generated column.
      */
@@ -285,7 +276,7 @@ export const postContentVariants = pgTable(
     check('post_content_variants_position_check', sql`${t.position} >= 0`),
     unique('post_content_variants_post_id_position_key').on(t.postId, t.position),
     // At most one rendition per language per post. A tagless primary is exempt
-    // (NULLs are distinct), which is exactly Mongo's behaviour.
+    // (NULLs are distinct).
     uniqueIndex('post_content_variants_post_id_tag_key')
       .on(t.postId, t.tag)
       .where(sql`${t.tag} is not null`),
@@ -303,8 +294,7 @@ export const postContentVariants = pgTable(
 /**
  * `post_media` — the post's SHARED media set, in render order.
  *
- * Mongo typed each entry `Schema.Types.Mixed` with a hand-written validator, so
- * the shape was documented in `@mention/shared-types` `MediaItem` and enforced
+ * The entry shape is documented in `@mention/shared-types` `MediaItem` and enforced
  * nowhere. These are the fields that are actually PERSISTED; `url`, `thumbUrl`,
  * `posterUrl`, `fullUrl` and `hlsUrl` on the DTO are resolved at read time by
  * `utils/mediaResolver.ts` and are deliberately absent here.
@@ -387,7 +377,7 @@ export const postMedia = pgTable(
       'post_media_orientation_check',
       sql`${t.orientation} is null or ${t.orientation} in (${sql.raw(inList(MEDIA_ORIENTATIONS))})`,
     ),
-    // Mongo's `isValidMediaItem` rejected a non-positive numeric field. Same rule.
+    // A numeric dimension must be positive.
     check(
       'post_media_positive_dimensions_check',
       sql`(${t.width} is null or ${t.width} > 0)
@@ -486,8 +476,8 @@ export const postVariantMedia = pgTable(
  * `post_variant_alt_texts` — localized alt text for the SHARED media set,
  * keyed by media id.
  *
- * Mongo stored this as a `Mixed` object used as a `Record<mediaId, string>`.
- * That is a MAP with a known key and value type, so it becomes a child table —
+ * The wire shape is a `Record<mediaId, string>` —
+ * a MAP with a known key and value type, so it becomes a child table —
  * jsonb would make "does this media item have localized alt in language X"
  * unanswerable by an index.
  */
@@ -521,7 +511,7 @@ export const postAttachments = pgTable(
       .references(() => posts.id, { onDelete: 'cascade' }),
     position: integer().notNull(),
     type: text({ enum: POST_ATTACHMENT_TYPES }).notNull(),
-    /** Required for `media`, absent otherwise — exactly Mongo's conditional. */
+    /** Required for `media`, absent otherwise. */
     attachmentId: text(),
     mediaType: text({ enum: MEDIA_TYPES }),
   },
@@ -534,8 +524,8 @@ export const postAttachments = pgTable(
       'post_attachments_media_type_check',
       sql`${t.mediaType} is null or ${t.mediaType} in (${sql.raw(inList(MEDIA_TYPES))})`,
     ),
-    // Mongo made `id`/`mediaType` `required` only when `type === 'media'`. That
-    // conditional requirement is a CHECK here rather than a validator function.
+    // `id`/`mediaType` are required only when `type === 'media'` — a CHECK
+    // rather than a validator function.
     check(
       'post_attachments_media_fields_check',
       sql`${t.type} <> 'media' or (${t.attachmentId} is not null and ${t.mediaType} is not null)`,
@@ -655,7 +645,7 @@ export const postSourceKeys = pgTable(
 /**
  * `post_mentions` — the resolved @mention allowlist.
  *
- * Mongo held `mentions: [String]` (Oxy user ids), multikey-indexed and queried
+ * The post's `mentions` are Oxy user ids, queried
  * by element for the mentions feed and for notification fan-out. An id array is
  * a junction table by the contract; it also gets the per-user index a `text[]`
  * could only approximate with GIN.
@@ -722,8 +712,7 @@ export const postClassificationTopicRefs = pgTable(
  * How many repliers the projection keeps per post.
  *
  * Lives next to the table it constrains and is the ONE declaration of the cap:
- * `PostRecentReplierService` enforces it on write and honours it on read, and
- * the (now write-dead) Mongoose model's array validator reads it from here. A
+ * `PostRecentReplierService` enforces it on write and honours it on read. A
  * CHECK cannot count sibling rows, so this is application-enforced by necessity
  * rather than by preference — which is exactly why it must not exist twice.
  */
@@ -732,11 +721,8 @@ export const POST_RECENT_REPLIER_LIMIT = 3;
 /**
  * `post_recent_repliers` — the ≤3 most recent distinct repliers, per post.
  *
- * Mongo kept one document per post holding an ORDERED array with a `≤3`
- * validator, maintained by a hand-written aggregation update pipeline
- * (`buildRecentReplierUpdatePipeline`). Here it is one ROW per (post, replier)
- * with the cap enforced by the writer, because the pipeline existed only to
- * splice an array in place — a thing Postgres never needs to do.
+ * One ROW per (post, replier), with the cap enforced by the writer rather than
+ * an ordered array spliced in place.
  */
 export const postRecentRepliers = pgTable(
   'post_recent_repliers',

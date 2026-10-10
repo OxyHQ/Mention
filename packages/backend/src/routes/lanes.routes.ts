@@ -459,17 +459,14 @@ router.patch(
 /**
  * DELETE /lanes/:id
  *
- * ONE statement, because the three writes the Mongo handler had to sequence by
- * hand are now the database's own: `posts.lane_id` is `ON DELETE SET NULL` and
+ * ONE statement, because the three writes are the database's own: `posts.lane_id` is `ON DELETE SET NULL` and
  * `lane_mutes.lane_id` is `ON DELETE CASCADE`, so deleting the row releases the
  * posts and drops the readers' mutes atomically. There is no order left to get
  * wrong, and no interruption that can leave a post pointing at a lane that no
  * longer exists.
  *
- * The FK also covers a case the Mongo version did not: its `updateMany` was
- * scoped to the lane's publisher, so a post carrying the lane but written under
- * a different publisher kept a dangling `laneId`. `SET NULL` is unscoped, which
- * is what the invariant actually says.
+ * The FK also covers a post carrying the lane but written under a different
+ * publisher: `SET NULL` is unscoped, which is what the invariant actually says.
  */
 router.delete(
   '/:id',

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * hydration never re-fetches them), and each branch soft-fails independently.
  *
  * The models/services the loader touches are mocked so this focuses purely on the
- * graph-resolution contract (no Mongo / no server.ts side effects).
+ * graph-resolution contract (no database / no server.ts side effects).
  */
 
 // privacyHelpers (imported by feedContext for the extract* helpers) pulls in the

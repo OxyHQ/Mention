@@ -42,13 +42,10 @@ interface RawPost {
 /**
  * A lean document from THIS service's own two queries, as a {@link RawPost}.
  *
- * The Mongoose `Post` model yielded `_id` and had no stored `is_reply`, while
- * `RawPost` speaks the ported vocabulary. Bridging them with a bare cast
- * produced objects whose `id` was `undefined`, and the damage was silent:
- * `_sliceKey` became `"undefined+…"`, `additionalPostIds` handed hydration an
- * `undefined` id, and the `seenPostIds` guard deduped every fetched parent
+ * A record whose `id` is `undefined` does silent damage: `_sliceKey` becomes
+ * `"undefined+…"`, `additionalPostIds` hands hydration an `undefined` id, and the `seenPostIds` guard dedupes every fetched parent
  * against the single key `undefined` — so on a page with two replies to two
- * DIFFERENT parents, only the first reply got its parent prepended.
+ * DIFFERENT parents, only the first reply gets its parent prepended.
  *
  * Deriving `isReply` is correct only because these documents predate the stored
  * column; it goes through the shared {@link derivesReplyIntent} so the two
@@ -225,9 +222,8 @@ class ThreadSlicingService {
         and(
           eq(postsTable.threadId, threadId),
           eq(postsTable.oxyUserId, oxyUserId),
-          // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a missing
-          // field, while SQL's `<>` against NULL is NULL and matches nothing — the
-          // literal translation would return no continuations at all and silently
+          // `is not null`, NOT `<> null`: SQL's `<>` against NULL is NULL and
+          // matches nothing — that would return no continuations at all and silently
           // un-thread every self-thread in the feed.
           isNotNull(postsTable.parentPostId),
         ) as SQL,

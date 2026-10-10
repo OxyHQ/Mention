@@ -43,12 +43,11 @@ import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassificati
  * does not.
  *
  * `is not true` — equivalently `is distinct from true` — rather than `<> true`
- * or `= false`, is the whole translation of Mongo's `$ne: true`: two of the three
- * columns are NULLABLE (a post that was never classified, a local post with no
+ * or `= false`, is required: two of the three columns are NULLABLE (a post that was never classified, a local post with no
  * federation subdocument), and `<>` against NULL yields NULL, so a `where` built
  * that way would silently DROP every unclassified post from every discovery
  * surface. `is not true` is TRUE for both `false` and NULL, which is exactly the
- * set `$ne: true` matched.
+ * set that must pass.
  *
  * Every column reference is `qualified()`, and these are the clauses where that
  * matters most: they are SHARED, so unlike a predicate written inline they have
@@ -75,16 +74,16 @@ export function sensitiveExcludeSql(): SQL {
  * Excludes posts carrying an NSFW/adult hashtag from `posts`.
  *
  * `&&` is array OVERLAP, so `not (hashtags && blocklist)` is "no stored hashtag is
- * on the blocklist" — Mongo's `$nin` over a multikey field. Hashtags are stored
+ * on the blocklist". Hashtags are stored
  * canonically (lowercase, `#`-stripped), matching the blocklist slugs, so the
  * overlap is exact.
  *
  * The `coalesce(…, false)` is load-bearing, not defensive noise: `posts.hashtags`
- * is NULLABLE (`default: undefined` in Mongo meant "absent", which the schema
- * preserves as a column with no default), `NULL && ARRAY[…]` is NULL, and a bare
+ * is NULLABLE (NULL means "absent"; the column has no default),
+ * `NULL && ARRAY[…]` is NULL, and a bare
  * `NOT NULL` is NULL — so without it every post that never got a hashtag, the
  * overwhelming majority, silently vanishes from every discovery feed with no
- * error. Mongo's `$nin` INCLUDED exactly those documents.
+ * error. Those posts must be INCLUDED.
  *
  * The blocklist is rendered as SQL literals from the same `NSFW_HASHTAGS` set the
  * in-memory predicate reads, so the two cannot drift. `inList` is safe here for
@@ -102,7 +101,7 @@ export function discoverySafeSql(): SQL {
 }
 
 /**
- * The minimal post shape the in-memory predicate reads. A lean Mongo document
+ * The minimal post shape the in-memory predicate reads. Any post object
  * carrying any of the sensitive flags and/or `hashtags` satisfies it; every field
  * is optional so it works for native, federated, baselined, and not-yet-classified
  * posts alike.

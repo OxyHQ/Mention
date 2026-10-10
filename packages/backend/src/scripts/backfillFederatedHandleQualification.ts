@@ -80,9 +80,7 @@ export interface HandleQualificationResult {
 
 /**
  * The backfill itself. The CALLER owns the connection lifecycle, which is what
- * makes this runnable in-process from a test against real rows — the property
- * the Mongo original never had, and the reason its wrong-store bug could only
- * have been caught by reading the file.
+ * makes this runnable in-process from a test against real rows.
  */
 export async function backfillFederatedHandleQualification(
   opts: { dryRun?: boolean; max?: number } = {},
@@ -122,10 +120,8 @@ export async function backfillFederatedHandleQualification(
   if (domainByUser.size > 0) {
     // The VARIANT is the unit, not the post: `post_content_variants` is one row
     // per rendition, so a post with three translations is three candidate bodies
-    // and each is written on its own primary key. The Mongo version rewrote a
-    // whole `content.variants` array in one `$set`, which is what made a stale
-    // spread able to carry the original text back in — a shape this schema
-    // cannot express.
+    // and each is written on its own primary key, so a stale spread of a whole
+    // variants array can never carry the original text back in.
     const rows = await db
       .select({
         id: postContentVariants.id,
@@ -158,10 +154,8 @@ export async function backfillFederatedHandleQualification(
         // Counted from what POSTGRES REPORTS, never from "we called update".
         // `returning()` yields one row per row actually updated, so a write that
         // matched nothing — a variant deleted since the read above — counts as
-        // matched: 0 rather than as work done. The Mongo original made this
-        // distinction with `modifiedCount`; the reason for making it is the
-        // same, and it is why the first run logged 213 written while modifying
-        // nothing.
+        // matched: 0 rather than as work done. Without this distinction a run
+        // once logged 213 written while modifying nothing.
         const updated = await db
           .update(postContentVariants)
           .set({ body: next })

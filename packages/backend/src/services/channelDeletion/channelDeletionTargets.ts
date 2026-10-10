@@ -67,9 +67,8 @@ const CHANNEL_ROW_COLUMNS = {
  * authorship owner entry.
  *
  * The two are kept in sync by the write path, but a cascade is the wrong place to
- * depend on that having held for every row — and unlike Mongo's `$elemMatch` this
- * is a real join, so the authorship half costs an index lookup rather than a
- * document scan.
+ * depend on that having held for every row — and this is a real join, so the
+ * authorship half costs an index lookup rather than a scan.
  */
 function ownedByChannel(channelOxyUserId: string): SQL {
   const byAuthorship = sql`exists (select 1 from ${postAuthorships} where ${qualified(postAuthorships.postId)} = ${qualified(posts.id)} and ${qualified(postAuthorships.oxyUserId)} = ${channelOxyUserId} and ${qualified(postAuthorships.role)} = 'owner')`;

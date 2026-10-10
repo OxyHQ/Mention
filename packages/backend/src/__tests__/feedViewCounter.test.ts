@@ -17,7 +17,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  *  - the visibility/status predicate is on BOTH the eligibility read and the
  *    increment. A forged `postUri` for a private, followers-only or draft post
  *    must allocate no dedupe key and move no counter.
- *  - the RETURNED number is the post-increment total. Mongo needed `new: true`
+ *  - the RETURNED number is the post-increment total. The legacy store needed `new: true`
  *    for that and a mock could only assert the option was passed; `RETURNING`
  *    gives the value the row actually holds, so the test compares the returned
  *    number against the stored one instead of against a mock's script.

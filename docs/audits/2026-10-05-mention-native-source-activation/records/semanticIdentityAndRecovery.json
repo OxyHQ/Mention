@@ -13,7 +13,7 @@
   "evidence": [
     {
       "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-05-mention-native-wiring/proof.json",
-      "sha256": "d28d6db0a9100b1aa06bebb4cd8d24f37741e45a98f91e95422130e1d1b98b3d"
+      "sha256": "514006c9756bac856f7c5155c3a8128ddc9d38c316ba8c5833d136708d4a138d"
     },
     {
       "path": "/home/nate/Oxy/Mention/.worktrees/1572-shadow-production-wiring-20261005/docs/audits/2026-10-05-mention-native-wiring/narrowing/proof.json",
@@ -100,7 +100,7 @@
     "sourceCommit": "f1fb265eee0febb5e0e90fb1afd839073a7d39aa",
     "proofRef": {
       "path": "/home/nate/Oxy/Mention/.worktrees/1572-native-source-approval-20261005/docs/audits/2026-10-05-mention-baseline-off-shadow/proof.json",
-      "sha256": "e749cc2037887f18ec82abe93d1e0b5b3940331867d597ac2168624b6181d9c4"
+      "sha256": "47c1789e33d082222ee4e7fa33bfb1db27ed93ecaa76f9d9f6b39e0e9805e173"
     },
     "independentReview": {
       "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-baseline-off-independent-review-20261005/review.json",

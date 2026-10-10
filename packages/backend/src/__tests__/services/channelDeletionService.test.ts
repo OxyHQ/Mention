@@ -7,7 +7,7 @@ import { eq, like, sql } from 'drizzle-orm';
  * ## Why this file was rewritten rather than repaired
  *
  * The version this replaces carried 56 `vi.mock` calls, one of them
- * `vi.mock('mongoose')`. Every assertion in it was about a mock of a store the
+ * a wholesale module mock. Every assertion in it was about a mock of a store the
  * application no longer reads: it could not tell a cascade that ran from one that
  * matched nothing, because nothing it asserted on was ever in a database. A check
  * pointed at the abandoned store passes forever, and this cascade is exactly the

@@ -72,10 +72,9 @@ type UserProfile = PostUser;
 /**
  * A case-insensitive substring match against ANY element of a `text[]` column.
  *
- * Mongo's `{ keywords: /term/i }` matched a document when any element of the
- * array matched, which `ilike` on the column itself cannot express.
- * `unnest(NULL)` yields no rows, so a feed with no keywords simply does not
- * match — exactly what a missing field did.
+ * A feed matches when any element of the array matches, which `ilike` on the
+ * column itself cannot express. `unnest(NULL)` yields no rows, so a feed with no
+ * keywords simply does not match.
  *
  * Takes an already-{@link qualified} column. See the note on the
  * `excludeSubscribed` predicate below for what that buys and what it does not.
@@ -139,19 +138,18 @@ async function resolveUserProfiles(oxyUserIds: string[]): Promise<Map<string, Us
 /**
  * A feed exactly as it goes on the wire.
  *
- * The Mongo handlers spread a `.lean()` document and added `id`, so the response
- * carried `_id` AND `id` plus every persisted field — including the seven LEGACY
+ * The response carries `_id` AND `id` plus every persisted field — including the seven LEGACY
  * filter fields, which `db/schema/feeds.ts` keeps precisely because the running
  * code still reads them (`legacyCustomFeedToDefinition` derives a runnable
  * definition from them for any feed the backfill has not reached).
  *
- * Two rules, both from the batch-0 `LabelService` port:
- *  - an absent optional is OMITTED, not `null` — Mongoose left it `undefined`,
- *    which `JSON.stringify` drops, and drizzle's `null` would not;
- *  - an array whose Mongoose default was `[]` stays `[]`, never `null`.
+ * Two rules, both shared with `LabelService`:
+ *  - an absent optional is OMITTED, not `null` — drizzle hands back `null`,
+ *    which `JSON.stringify` would keep;
+ *  - an array that defaults to `[]` stays `[]`, never `null`.
  *
- * `__v` is the one Mongoose artefact not reproduced (`schema/CONVENTIONS.md`
- * forbids carrying it), and nothing has ever read it.
+ * There is no `__v` (`schema/CONVENTIONS.md` forbids the column), and nothing
+ * has ever read it.
  */
 function serializeFeed(row: FeedRow, relations: FeedRelations) {
   const definition = definitionOf(row, relations);
@@ -254,9 +252,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { mine, publicOnly, search } = req.query;
-    // The owner filter used to be a Mongo query VALUE, so `?userId[$ne]=<viewer>`
-    // could reach the query as an operator. A bound parameter cannot be an
-    // operator, but the reader stays: a non-string must still be treated as
+    // `?userId[$ne]=<viewer>` arrives as an object. A bound parameter cannot be
+    // an operator, but the reader stays: a non-string must still be treated as
     // absent rather than coerced into a plausible-looking value.
     const queryUserId = queryString(req.query.userId);
     const conditions: Array<SQL | undefined> = [];
@@ -279,8 +276,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       conditions.push(or(eq(customFeeds.ownerOxyUserId, userId), eq(customFeeds.isPublic, true)));
     }
 
-    // Add search functionality. Mongo wrapped this in `$and` alongside the
-    // mine-or-public `$or`; `and(...)` of the two disjunctions is the same thing.
+    // Add search functionality, ANDed with the mine-or-public disjunction.
     if (search && typeof search === 'string' && search.trim()) {
       // One definition, shared with `GET /search/overview` — see
       // `db/search/searchPredicates.ts`.
@@ -386,7 +382,7 @@ router.get('/marketplace/categories', async (_req: AuthRequest, res: Response) =
       .from(customFeeds)
       .where(and(eq(customFeeds.isPublic, true), isNotNull(customFeeds.category)))
       .groupBy(customFeeds.category)
-      // Mongo sorted on the count alone, which left equal counts in plan order.
+      // The category name breaks count ties, so equal counts are not in plan order.
       .orderBy(desc(count()), asc(customFeeds.category));
     const categories = results
       .filter(
@@ -448,8 +444,8 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     }
 
     if (category !== undefined) {
-      // A category outside the closed set matched no document in Mongo; the
-      // column's CHECK means no row can carry one, so say so directly rather
+      // A category outside the closed set matches nothing; the column's CHECK
+      // means no row can carry one, so say so directly rather
       // than handing drizzle a value its enum type does not admit.
       const known = FEED_CATEGORIES.find((value) => value === category);
       conditions.push(known ? eq(customFeeds.category, known) : sql`false`);
@@ -1038,8 +1034,7 @@ router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res:
       // `greatest(… - 1, 0)`, not a bare decrement: `custom_feeds_counts_check`
       // forbids a negative count, so a legacy row whose counter had already
       // drifted below its real subscriber set would turn an unlike into a 500.
-      // Mongo went to -1 and the handler hid it with `Math.max` on the way out;
-      // clamping in SQL keeps the column itself honest.
+      // Clamping in SQL keeps the column itself honest.
       const [updated] = await tx
         .update(customFeeds)
         .set({
@@ -1144,9 +1139,7 @@ router.post(
        * client is under no obligation to respect either. `4.5` is refused by the
        * driver before the constraint is even consulted (`invalid input syntax for
        * type integer`), and `9` by the constraint — both as a 500 on a path where
-       * the request is simply malformed. Mongoose declared the same bounds and
-       * never enforced them, so this is a rule that was written down and is only
-       * now actually applied.
+       * the request is simply malformed.
        */
       if (
         typeof rating !== 'number' ||
@@ -1158,10 +1151,9 @@ router.post(
           error: `rating must be a whole number between ${RATING_MIN} and ${RATING_MAX}`,
         });
       }
-      // Mongoose stripped an `undefined` from the update document, so submitting a
-      // review with no text NEVER cleared the text a previous submission had left.
-      // An omitted `set` key does the same thing; writing `null` unconditionally
-      // would not.
+      // Submitting a review with no text NEVER clears the text a previous
+      // submission left. An omitted `set` key does that; writing `null`
+      // unconditionally would not.
       const text: string | null =
         typeof reviewText === 'string' && reviewText.length > 0 ? reviewText : null;
 

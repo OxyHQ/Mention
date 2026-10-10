@@ -3,7 +3,7 @@
  *
  * Three things are asserted, and only the last is ordinary port coverage.
  *
- * **The ranking.** Mongo's `gif_search_text` index weights `searchTerms` FIVE
+ * **The ranking.** The legacy store's `gif_search_text` index weights `searchTerms` FIVE
  * times `title`. Postgres's default `ts_rank` weights are `{0.1, 0.2, 0.4, 1.0}`
  * and reproduce nothing of the sort — a default-ranked search compiles, runs, and
  * hands back a DIFFERENT order with no error anywhere. The order test below is
@@ -123,7 +123,7 @@ describe('the search vector carries the labels GIF_RANK_WEIGHTS is derived from'
   });
 });
 
-describe("searchLocal ranking — Mongo's 5:1 searchTerms:title weighting", () => {
+describe('searchLocal ranking — 5:1 searchTerms:title weighting', () => {
   it('ranks ONE searchTerms hit above THREE title hits', async () => {
     /**
      * THE order test, and the documents are chosen because the two weightings
@@ -132,7 +132,7 @@ describe("searchLocal ranking — Mongo's 5:1 searchTerms:title weighting", () =
      *   correct `{1.0, 0, 0.2, 0}`  →  terms 0.2026 vs title 0.1216  → terms wins
      *   default `{0.1, 0.2, 0.4, 1.0}` → terms 0.2026 vs title 0.2432 → TITLE wins
      *
-     * One hit in `searchTerms` must beat three in `title` because Mongo said a
+     * One hit in `searchTerms` must beat three in `title` because the legacy store said a
      * searchTerms hit is worth five title hits. A single hit against a single hit
      * would pass under BOTH weightings and prove nothing.
      */

@@ -8,7 +8,7 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+      "sha256": "868dcdcc2768760870da447846991fd85ff95e513f851e554800e52c4c53ca13"
     },
     {
       "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
@@ -38,7 +38,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/baseline-lint.json",
-      "sha256": "0daad1ee3a04448143c7b6ac21ae4f0dd51a8967deb1f4a7d6dca02883001072"
+      "sha256": "8a6d90e00cb0c348385e9555406a1ac95ab45b158b0a3576b7312c8f750d2e67"
     },
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/biome.log",
@@ -50,7 +50,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/current-lint.json",
-      "sha256": "0070c66c5e302281e9ed69d85d9d3e9e48c20b4cceb5dd6e12ecf26a8dadce26"
+      "sha256": "dce597a058546cc60faf50f504a652b460fc152a14796403f47094b90837d37d"
     },
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/first-red-focused.txt",
@@ -66,7 +66,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/frozen-test.ts",
-      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+      "sha256": "868dcdcc2768760870da447846991fd85ff95e513f851e554800e52c4c53ca13"
     },
     {
       "path": "docs/audits/2026-10-05-mention-baseline-off-shadow/records/green-focused.txt",

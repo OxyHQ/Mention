@@ -15,42 +15,6 @@ import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomain
  * unchanged. Only real rows can distinguish "did not delete it" from "was never
  * asked about it".
  *
- * ## What the Postgres port changed, and what this suite could not see before
- *
- * The known gap this file's header used to declare is closed. It read:
- *
- *   > This script still reads and deletes MONGO collections, but the deletion
- *   > preflight it runs probes POSTGRES — so the preflight is asking a different
- *   > store than the script deletes from, and it passes here for that reason
- *   > rather than because the corpus is clean.
- *
- * That is exactly the shape a green suite cannot report. Fourteen deletes named
- * collections nothing had written since those entities moved, so each removed
- * nothing and reported a truthful-looking zero — and `assertPostsSafeToDelete`
- * WAIVES those very probes on the strength of the cascade
- * (`CASCADED_POST_REFERENCES`), so the gate did not block either. The suite was
- * green because it seeded the same empty store the script deleted from.
- *
- * The fixture is Postgres now, and the reference rows below are seeded and then
- * asserted GONE — which is the assertion the old suite had no way to make.
- *
- * ## Mongo is gone from this file
- *
- * It used to run a real in-memory Mongo for exactly one entity:
- * `feed_interactions`, whose live writer was still
- * `mtn/feed/FeedInteractionTracker.ts` writing the Mongo collection while its
- * Postgres table was backfilled, indexed, swept and probed. The cascade deleted
- * both stores and this file proved it deleted both.
- *
- * That writer now writes Postgres, so the Mongo half of the cascade is gone and
- * the whole apparatus went with it — the `MongoMemoryServer`, the `unmock`, the
- * connection, and the second seed. The file is Postgres-only, which is what
- * every other entity in the cascade already was.
- *
- * Pre-port rows still sitting in the Mongo collection are no longer purged by
- * anything; nothing reads them and their 90-day TTL expires them. See
- * `purgeFeedInteractions` for why that is recorded rather than silent.
- *
  * ## What is mocked, and why only this
  *
  * The Oxy S3 object store, because deleting cached media bytes is a network call
@@ -408,7 +372,7 @@ async function seed(): Promise<void> {
       type: 'text',
       parentPostId: P.blockedPost,
       // `posts_reply_discriminator_check` is `parent_post_id is null or is_reply`
-      // — a constraint the Mongo document had no counterpart for, so a fixture
+      // — a constraint the legacy-store document had no counterpart for, so a fixture
       // translated field-for-field is refused rather than quietly wrong.
       isReply: true,
       threadId: P.blockedPost,
@@ -427,7 +391,7 @@ async function seed(): Promise<void> {
   await db.insert(postMedia).values([
     { postId: P.blockedPost, position: 0, mediaId: BLOCKED_MEDIA_URL, type: 'image' },
     // The media cache already rewrote this one, so the origin URL survives only
-    // in `remote_url` — the case a literal port of the Mongo `media[].id` read
+    // in `remote_url` — the case a literal port of the legacy-store `media[].id` read
     // would miss, and the one with bytes in our S3.
     {
       postId: P.blockedPost,
@@ -771,7 +735,7 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     /**
      * The delete that could never have matched. It read
      * `{ postId: { $in: … } }` inside the POST cascade, and `PostSubscription`
-     * is `(subscriberId, authorId)` — it has no `postId`. Mongoose passes an
+     * is `(subscriberId, authorId)` — it has no `postId`. The legacy ODM passes an
      * unknown path straight through, so the query was well-formed, matched
      * nothing, and reported `postSubscriptions: 0` on every run since the script
      * was written.
@@ -907,7 +871,7 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
 
     /**
      * `parent_post_id` and `thread_id` are `ON DELETE SET NULL`, so the reference
-     * is ERASED by the database rather than left dangling as it was in Mongo.
+     * is ERASED by the database rather than left dangling as it was in the legacy store.
      * That is the trade `allowDanglingReplyReferences` exists to state, and it is
      * why the post itself surviving is the assertion: hydration soft-fails a
      * missing parent, so the reply renders and loses its "Replying to @…" handle.
@@ -1048,10 +1012,10 @@ describe('purgeBlockedDomainContent — re-running', () => {
 
   it('RESUMES from an opaque cursor rather than restarting the sweep', async () => {
     /**
-     * What replaced the `toMongoCursor` tripwire.
+     * What replaced the ObjectId-cursor tripwire.
      *
      * Two tests used to live here, both pinning the LOUD half of a transition
-     * that has now happened: a Mongo-paged phase THREW on a cursor that was not
+     * that has now happened: an ObjectId-paged phase THREW on a cursor that was not
      * an ObjectId, and a boost target whose id could not be cast was COUNTED as a
      * run issue. Both guarded the moment `posts` moved, and both said in their own
      * docblocks that they had to go WITH the port rather than be relaxed — the

@@ -39,7 +39,7 @@ function shortHash(input: string): string {
  * BullMQ rejects a custom jobId that contains a `:` unless it splits into
  * exactly 3 parts (a deprecated compat path). Producer jobIds must therefore
  * carry NO colon at all — a `<prefix>:<hash>` (2-part) id threw at enqueue time
- * and every job silently fell back to the Mongo queue. This asserts the real
+ * and every job silently fell back to the legacy-store queue. This asserts the real
  * invariant the mocked `add` cannot enforce for us.
  */
 function expectValidBullmqJobId(jobId: unknown): void {
@@ -155,7 +155,7 @@ describe('enqueueDelivery', () => {
 
   it('builds a colon-free jobId even though the inbox URL and activity id contain colons', async () => {
     // Regression: the raw inputs are full URLs (`https://…`), so a naive jobId
-    // carried colons and BullMQ rejected it — every delivery fell back to Mongo.
+    // carried colons and BullMQ rejected it — every delivery fell back to the legacy store.
     const ok = await enqueueDelivery({
       activityJson: { id: 'https://local.example/users/alice/statuses/1', type: 'Create' },
       targetInbox: 'https://remote.example:8443/users/bob/inbox',

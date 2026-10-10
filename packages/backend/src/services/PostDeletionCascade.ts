@@ -219,9 +219,8 @@ export const POST_REFERENCES_KEPT_BY_POLICY: readonly PostReferenceProbeName[] =
 /**
  * The fields the cascade reads off a post — every key it can be named BY.
  *
- * `boost_of`, a poll id and an article id are deliberately absent, where main's
- * Mongo shape carried all three: each is `ON DELETE CASCADE` on `posts.id`
- * here, so the row goes with the post, and a field carried for a leg that does
+ * `boost_of`, a poll id and an article id are deliberately absent: each is
+ * `ON DELETE CASCADE` on `posts.id`, so the row goes with the post, and a field carried for a leg that does
  * not exist is a field somebody will later write a leg for.
  */
 export interface CascadedPostRow {
@@ -246,8 +245,8 @@ const CASCADE_ROW_COLUMNS = {
  *
  * The closure is unbounded in principle — a widely boosted post has as many
  * boosts as it has boosters — and a live HTTP request is the wrong place to
- * discover that. It means something narrower here than it did on Mongo, and the
- * difference matters: Postgres deletes every boost whatever this says, because
+ * discover that. It means something narrow, and the difference matters:
+ * Postgres deletes every boost whatever this says, because
  * the FK cascades. What the cap bounds is how many rows this module can CLEAN
  * UP AFTER. Past it the deletion is refused outright rather than committed
  * half-cleaned, and the operator is told.
@@ -465,8 +464,7 @@ export interface DeletedPostSubtree {
  * specific and silent: `posts.parent_post_id` is `ON DELETE SET NULL`, so
  * deleting the parent row alone leaves every direct reply alive with a null
  * parent and `is_reply: true` — a ROOT POST in every feed, written by somebody
- * who never posted it. Mongo deleted them, so the MIGRATION introduces this
- * rather than inheriting it.
+ * who never posted it. Replies must go with their parent.
  *
  * The ORDER inside the transaction is the fix and is not a preference:
  *

@@ -83,7 +83,7 @@ function nextAttemptAt(attempts: number, now: Date): Date {
  *
  * Every error `@crowdsource.you/core` throws carries `retryable`, which is the only
  * thing a delivery worker needs from it. Anything else — a bug in this code, a
- * Mongo error — is treated as retryable, because assuming a defect is permanent
+ * database error — is treated as retryable, because assuming a defect is permanent
  * is how a recoverable outage becomes lost moderation work.
  */
 export function isRetryableDeliveryError(error: unknown): boolean {

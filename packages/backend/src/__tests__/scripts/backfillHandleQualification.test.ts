@@ -84,19 +84,19 @@ describe('backfill: which bodies change', () => {
 /**
  * The bug that made the first production run a silent no-op.
  *
- * The cursor was opened WITHOUT `.lean()`, so each variant was a Mongoose
+ * The cursor was opened WITHOUT `.lean()`, so each variant was a legacy-ODM
  * subdocument. Its own enumerable properties are internals — `_doc` among them,
  * holding the ORIGINAL values — so `{ ...variant, text }` carried the original
  * text along, the cast on the way back in preferred it, and the update wrote a
  * document identical to the one already stored. Exit 0, no error, nothing
  * changed, and the script reported 213 written.
  *
- * Reproduced here with an object shaped like a Mongoose subdocument, so the
+ * Reproduced here with an object shaped like a legacy-ODM subdocument, so the
  * regression is pinned by behaviour rather than by remembering to keep a
  * `.lean()` call.
  */
 describe('backfill: the spread must not carry stale values', () => {
-  /** What a non-lean Mongoose subdocument looks like to a spread. */
+  /** What a non-lean legacy-ODM subdocument looks like to a spread. */
   const subdocLike = (text: string) => {
     const doc = { source: 'author', text, tag: 'es' };
     return Object.defineProperty({ $__: {}, _doc: doc, $isNew: false }, 'text', {

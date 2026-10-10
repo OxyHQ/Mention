@@ -12,7 +12,7 @@
  *    same millisecond straddle the page boundary and one is silently dropped —
  *    pinned explicitly below against rows that really do share an instant.
  *  - **The cursor accepts BOTH live id shapes.** The `ObjectId.isValid` check the
- *    Mongo version ran on the id half fails open (⇒ page one), so keeping it
+ *    legacy-store version ran on the id half fails open (⇒ page one), so keeping it
  *    would have made every post-cutover scroll loop over the first page forever.
  *
  * Only the Oxy identity resolver is stubbed; the subscriptions themselves are

@@ -2,19 +2,10 @@
  * The recent-replier read model: the ≤3 newest DISTINCT public repliers per post,
  * newest first, used to render reply avatars on a feed card.
  *
- * ## `buildRecentReplierUpdatePipeline` is gone, and nothing replaces it
+ * ## One ROW per (post, replier)
  *
- * Mongo kept one document per post holding an ORDERED array with a `≤3`
- * validator, and maintaining it needed a hand-written aggregation update
- * pipeline — a `$let` over `$filter`/`$concatArrays`/`$slice` that spliced the
- * candidate into the array in place while preserving a NEWER existing entry from
- * the same user. That pipeline existed only because an array cannot be updated
- * any other way; with one ROW per (post, replier) there is nothing to splice.
- * `mergeRecentRepliers`, the pure reference implementation that existed to make
- * the pipeline testable in isolation, is gone with it — the behaviour it modelled
- * is now asserted against real rows.
- *
- * The three rules it encoded all survive, as SQL:
+ * With one row per (post, replier) there is no array to splice; the behaviour
+ * is asserted against real rows. The three rules, as SQL:
  *
  * - **Newest wins per user** — `greatest(excluded.replied_at, …)` in the upsert,
  *   so historical federation/backfill arriving out of order cannot demote a
@@ -370,8 +361,7 @@ export async function loadRecentReplierIds(postIds: string[]): Promise<RecentRep
       // existed — or by a concurrent trim — must not widen the page's avatar row.
       if (existing.length >= POST_RECENT_REPLIER_LIMIT) continue;
       // No de-duplication pass: `post_recent_repliers_post_id_oxy_user_id_key`
-      // makes a repeated author for one post unrepresentable, where the Mongo
-      // array could hold one.
+      // makes a repeated author for one post unrepresentable.
       existing.push(row.oxyUserId);
       perPostRepliers.set(row.postId, existing);
       allReplierIds.add(row.oxyUserId);

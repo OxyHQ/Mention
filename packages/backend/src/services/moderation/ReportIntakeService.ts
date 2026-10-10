@@ -233,10 +233,6 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
      * route answers `500 Error creating report` — telling somebody their report
      * failed when it is already filed, and inviting the retry that cannot succeed.
      *
-     * Mongo declared no such index, so this state is one the Postgres schema made
-     * REACHABLE rather than one that was always here: there, the double-tap stored
-     * two reports and delivered both.
-     *
      * The winner's row is exactly what the loser should have found, so read it and
      * give the answer the sequential path gives. Read OUTSIDE the transaction —
      * `tx` is aborted by the time the violation surfaces, and any query on it would

@@ -5,7 +5,7 @@
  *
  * ## What went wrong, once, in five places at the same time
  *
- * oxy-api minted Mongo ObjectIds until its Postgres cutover on 2026-07-31; every
+ * oxy-api minted 24-hex ObjectIds until 2026-07-31; every
  * id it has minted since is a uuid v7, and the ids that existed before came
  * across verbatim. Five gates here were written as `/^[a-f0-9]{24}$/`, and none
  * of them failed, threw, or logged when that stopped being true. They just began
@@ -98,8 +98,8 @@ const RULES = [
     name: 'objectid-validator',
     pattern: /\b(?:ObjectId\.isValid|isValidObjectId)\s*\(/g,
     message:
-      "an ObjectId validity check. Mention is Mongo-free and Oxy's ids are uuid " +
-      'v7; this rejects every id minted since the cutover.',
+      "an ObjectId validity check. Oxy's ids are uuid v7; this rejects " +
+      'every id minted since 2026-07-31.',
   },
 ];
 

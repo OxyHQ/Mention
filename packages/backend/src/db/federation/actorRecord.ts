@@ -9,8 +9,7 @@
  *
  * ## `outboxBackfill` is always present, and that is a simplification, not a change
  *
- * Mongo stored it as an optional subdocument, so every reader already spells the
- * access `actor.outboxBackfill?.status`. The Postgres columns backing the
+ * Readers spell the access `actor.outboxBackfill?.status`. The Postgres columns backing the
  * counters are `NOT NULL DEFAULT 0`, so a "missing" subdocument and a
  * never-written one are indistinguishable by any predicate a caller writes: both
  * answer `undefined` for `status`/`outboxUrl`/`cursorUrl` and `0` for every
@@ -167,8 +166,8 @@ export interface FederatedActorRecord {
  * `connectors/activitypub/actor.service.ts` and
  * `connectors/activitypub/delivery.service.ts` — and nowhere else in Mention. The
  * clean fix is a store-agnostic id on the engine's own store interfaces, which is
- * an `@oxy.so/federation` change and a breaking one for the Oxy apps still on
- * Mongo.
+ * an `@oxy.so/federation` change and a breaking one for the other Oxy apps
+ * that consume those interfaces.
  */
 export type EngineFederatedActorRecord = FederatedActorRecord & { _id: string };
 

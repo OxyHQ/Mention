@@ -102,19 +102,16 @@ export class FollowerSnapshotJob {
    *
    * ## `nulls first` is the whole point of the ordering
    *
-   * Mongo ran `Post.distinct(...)` and `.slice(0, MAX)`: no ordering at all, so
-   * with more active authors than the cap the same arbitrary prefix was resampled
-   * every six hours and the rest were never sampled — silently, forever. An
-   * unordered `limit` in Postgres is just as arbitrary and additionally
-   * non-deterministic between runs, so the bound is made FAIR here rather than
-   * ported as-is: sample whoever has waited longest.
+   * An unordered `limit` is arbitrary and non-deterministic between runs: with
+   * more active authors than the cap, some would never be sampled — silently,
+   * forever. So the bound is made FAIR: sample whoever has waited longest.
    *
    * That makes the NULL ordering load-bearing. A never-snapshotted author has no
    * last snapshot at all, and Postgres sorts NULLs LAST by default — so under the
    * default they would sink behind every already-sampled author and, past the
    * cap, never be reached. `nulls first` puts "never sampled" ahead of "sampled
    * long ago", which is the only ordering that lets a new author ever enter the
-   * series. Mongo's own rule (missing sorts FIRST) says the same thing.
+   * series.
    *
    * `oxy_user_id` is the final tiebreak: the last `at` alone is not a total order
    * (a whole batch of authors is written with one identical `at`), so without it
@@ -247,8 +244,8 @@ export class FollowerSnapshotJob {
       const at = new Date();
       // A count must be a non-negative INTEGER, not merely finite: the column is
       // `integer` with a `>= 0` CHECK, and one bad value would abort the whole
-      // sweep's insert — where Mongoose's per-document validation under
-      // `{ ordered: false }` only dropped that one author.
+      // sweep's insert, so it is filtered out here and only that one author is
+      // dropped.
       const rows = authorIds.flatMap((oxyUserId) => {
         const followerCount = summaries.get(oxyUserId)?.followerCount;
         if (typeof followerCount !== 'number') return [];
@@ -258,8 +255,8 @@ export class FollowerSnapshotJob {
 
       if (rows.length === 0) return;
 
-      // Mongo's `{ ordered: false }` bought per-document resilience; there are no
-      // constraints on this table for a row to violate, so one INSERT is the
+      // Beyond the filter above there are no constraints on this table for a
+      // row to violate, so one INSERT is the
       // whole write and a failure is a real failure rather than a partial batch.
       await getDb().insert(authorFollowerSnapshots).values(rows);
       logger.info('[FollowerSnapshotJob] recorded follower snapshots', { count: rows.length });

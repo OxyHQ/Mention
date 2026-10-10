@@ -23,7 +23,7 @@
  * ## Batched, because this runs on every deploy
  *
  * The policy read and both writes are constant-round-trip regardless of how many
- * domains the blocklist holds. Measured before the Mongo version was batched:
+ * domains the blocklist holds. Measured unbatched:
  * 2.0ms per domain, dead linear from 118 to 944 domains. Keeping it constant is
  * not an optimisation so much as removing a reason for the policy to ever be
  * kept small.
@@ -41,8 +41,7 @@ import { blockedDomainPurges, blockedDomainPurgeRuns } from '../schema/blocklist
  * the numbers that answer "what was lost" rather than every internal tally.
  * Widening the script's counters must not silently change a persisted shape.
  *
- * Declared here rather than on the deleted Mongoose model, for the reason it was
- * declared there: both the script and the reconciler satisfy {@link PurgeTallies}
+ * Declared here because both the script and the reconciler satisfy {@link PurgeTallies}
  * BY SHAPE, so the persisted record can be written from either without this
  * module depending on a script or the script depending on the reconciler.
  */
@@ -165,8 +164,7 @@ export interface PolicyObservation {
  * Record that every named domain is in the policy, at the state the caller
  * computed. ONE write.
  *
- * `first_observed_at` is supplied only in the INSERT branch — Mongo's
- * `$setOnInsert` — so a domain observed again keeps the moment it was first
+ * `first_observed_at` is supplied only in the INSERT branch, so a domain observed again keeps the moment it was first
  * seen. `state` comes from `excluded`, which is what lets one statement carry a
  * different state per domain.
  */
@@ -205,9 +203,9 @@ export async function observePolicyDomains(
  * blocked again, because content can have arrived while it was allowed.
  *
  * An EMPTY `wanted` means the policy is empty and every in-policy domain has
- * departed. That is a real case (Mongo's `$nin: []` matches everything) and it
+ * departed. That is a real case and it
  * is handled explicitly, because SQL `not in ()` is a syntax error rather than a
- * predicate — a naive port would crash on exactly the input that matters.
+ * predicate — a naive query would crash on exactly the input that matters.
  *
  * @returns The domains that departed.
  */

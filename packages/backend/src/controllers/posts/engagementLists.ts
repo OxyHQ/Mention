@@ -57,8 +57,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     }
 
     // `(created_at DESC, id DESC)`, not `_id DESC`. `likes.id` is `text` holding
-    // an ObjectId hex for a row migrated from Mongo and a uuid v7 for anything
-    // written since, and the two spaces interleave under text collation — so an
+    // a 24-hex id for a legacy row and a uuid v7 for anything newer, and the two spaces interleave under text collation — so an
     // id-only bound behind an id-only sort is neither chronological nor stable
     // across the boundary, and would skip and repeat rows at every page edge.
     // Same keyset `getPostBoosts` below already uses.
@@ -138,8 +137,7 @@ const MAX_KNOWN_LIKER_CANDIDATES = 5000;
  * bounded by a `$in` PLUS an exact `postId`: together they let the unique
  * `{ userId: 1, postId: 1 }` index answer with one seek per followed id, so the
  * work scales with the viewer's FOLLOW COUNT — bounded below — instead of with
- * the post's like count. (The order of the keys in the filter document is
- * irrelevant; MongoDB's planner picks an index by cost, not by BSON order.)
+ * the post's like count.
  *
  * Measured on a 150k-like post with a 5000-wide graph and no matches, which is
  * both the common case and the one no `limit` can short-circuit: 5000 keys and

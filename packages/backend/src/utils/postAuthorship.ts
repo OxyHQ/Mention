@@ -117,10 +117,9 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
 }
 
 /**
- * "This post is authored by one of `authorIds`" — the port of Mongo's
- * `authorship: { $elemMatch: { oxyUserId: { $in: … }, status: 'accepted' } }`.
+ * "This post is authored by one of `authorIds`" with `status = 'accepted'`.
  *
- * `$elemMatch` means the two conditions must hold on the SAME array element, and
+ * The two conditions must hold on the SAME authorship row, and
  * a correlated `EXISTS` over the `post_authorships` child table is that exact
  * semantics — a plain join would let a post match by pairing one collaborator's
  * id with a DIFFERENT entry's `accepted` status, which is the bug `$elemMatch`
@@ -136,7 +135,7 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
  * raising nothing (`@oxy.so/db`).
  *
  * Returns a predicate matching NOTHING for an empty id list, which is the honest
- * answer and matches Mongo's `$in: []`.
+ * answer for "one of nobody".
  *
  * ## There is deliberately NO channel exclusion here, and re-adding one would be a symptom rather than a fix
  *
@@ -204,7 +203,7 @@ export function followedAuthorsSql(authorIds: readonly string[]): SQL {
  * ## The correctness half
  *
  * `insertChildRows` writes authorship rows only `if (authorship.length > 0)`, so
- * a post created with an empty authorship list — and any Mongo document that
+ * a post created with an empty authorship list — including any legacy row
  * backfilled from one — has an `oxy_user_id` and NO `post_authorships` row at
  * all. The `EXISTS` alone cannot see those, so they are invisible on their own
  * author's profile. This term is what serves them.

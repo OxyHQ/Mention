@@ -757,7 +757,7 @@ describe('the authored source (the profile feed)', () => {
   /**
    * The author's own lane curation.
    *
-   * The SQL here is not a transliteration of the Mongo `$nin` it replaces, and
+   * The SQL here is not a transliteration of the legacy-store `$nin` it replaces, and
    * the difference is the whole reason these are row assertions. `$nin` matched
    * a document with NO `laneId` at all; `lane_id not in (…)` evaluates to NULL —
    * not true — for a NULL column and would drop every post outside every lane,
@@ -911,9 +911,9 @@ describe('the lane source', () => {
   });
 
   /**
-   * `main` carried a case here asserting the lane query's Mongo `$or` keyset
+   * `main` carried a case here asserting the lane query's legacy-store `$or` keyset
    * literal (`{createdAt: {$lt}}` / `{createdAt, _id: {$lt}}`). It is NOT ported:
-   * its subject was the SHAPE of a Mongo match object, and `laneSource` builds no
+   * its subject was the SHAPE of a legacy-store match object, and `laneSource` builds no
    * match object — it calls the shared `fetchChrono`, so the keyset is
    * `chronoCursorSql` + `chronoOrderBy` and is exercised for every source at once
    * by `feedCursor.test.ts` and `chronoCursor.test.ts`. Re-expressing it here
@@ -929,7 +929,7 @@ describe('the saved source', () => {
 
   /**
    * The saved feed pages over the RELATIONSHIP, not the post: its order is the
-   * bookmark's `(created_at, id)`. The Mongo original filtered `_id < cursor`
+   * bookmark's `(created_at, id)`. The legacy-store original filtered `_id < cursor`
    * while sorting by `createdAt` — two different axes, which only appeared to
    * work because an ObjectId encodes creation time. Neither half survives, so
    * this asserts the whole two-page walk.

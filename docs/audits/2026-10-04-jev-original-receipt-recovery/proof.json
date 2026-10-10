@@ -159,7 +159,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/records/package.json.candidate",
-      "sha256": "b1dec6fb9c597391594ca30efb3711cc21d2c674b7e736ecf48e5f62ee0d4121",
+      "sha256": "fe0bc038ee48a1bfd91e2da847b82ce8a10660be6bfb7b577950620fb76a6e24",
       "classification": "candidateEvidence"
     },
     {

@@ -184,8 +184,8 @@ router.put(
       if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
       // Per-labeler REPLACE, not a whole-array rewrite: overrides for labelers this
-      // request does not name are left exactly as they are. The read-merge-write the
-      // Mongo version used lost one of two concurrent saves.
+      // request does not name are left exactly as they are. A read-merge-write
+      // would lose one of two concurrent saves.
       const labelActions: LabelActionPreference[] = req.body.labelActions;
       await LabelService.setLabelActions(userId, labelActions);
 

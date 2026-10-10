@@ -184,8 +184,7 @@ export const getPostCorrections = async (req: AuthRequest, res: Response) => {
  */
 export function buildPostsByHashtagFilter(hashtag: string): SQL {
   return and(
-    // `@>` on the `text[]`, GIN-indexed — the analogue of Mongo matching a
-    // multikey array by element equality.
+    // `@>` on the `text[]`, GIN-indexed — array membership by element equality.
     arrayContains(postsTable.hashtags, [hashtag.toLowerCase()]),
     eq(postsTable.status, 'published'),
     eq(postsTable.visibility, 'public'),

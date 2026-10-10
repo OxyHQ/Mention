@@ -267,7 +267,7 @@ describe('computeStarterPackScores — batching + fail-softness', () => {
 
   it('is FAIL-SOFT: an aggregation failure degrades to NO scores (neutral), never throws', async () => {
     const deps: StarterPackCurationDeps = {
-      loadCurationEdges: vi.fn().mockRejectedValue(new Error('mongo unreachable')),
+      loadCurationEdges: vi.fn().mockRejectedValue(new Error('database unreachable')),
       loadCuratorFollowerCounts: vi.fn(),
     };
 
@@ -298,7 +298,7 @@ describe('computeStarterPackScores — batching + fail-softness', () => {
 /**
  * The ACCESSOR, against real rows.
  *
- * The suite this replaces asserted that a Mongo pipeline was BUILT — six
+ * The suite this replaces asserted that a legacy-store pipeline was BUILT — six
  * `toContainEqual` checks over stage objects, none of which could tell a correct
  * query from one that returns nothing. What actually has to hold is a property of
  * the ROWS: the statement is a WORK BOUND, so it may never hand the policy more
@@ -432,7 +432,7 @@ describe('starterPackCurationDeps.loadCurationEdges — against real rows', () =
     /**
      * Every curator here has the SAME `use_count`, so the only thing SPECIFYING
      * which `maxCuratorsPerAuthor` of them survive is the window's secondary sort
-     * key — and this assertion names the exact subset the Mongo `$topN`'s
+     * key — and this assertion names the exact subset the legacy-store `$topN`'s
      * `'_id.curatorId': 1` produced.
      *
      * Be clear about what it can and cannot catch: it is a PIN, not a mutation

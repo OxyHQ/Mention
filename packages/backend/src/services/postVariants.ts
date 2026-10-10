@@ -156,23 +156,18 @@ export function applyDetectedPrimaryTag(
 /**
  * Remove a spammy 4+ consecutive-hashtag block from every AUTHOR rendition.
  *
- * This is the surviving half of the Mongoose `pre('validate')` hook that the
- * Postgres cutover retired. The hook ran on `.save()`, which is how BOTH native
- * write paths persisted a post (`new Post(...).save()` in `PostCreationService`,
- * `post.save()` in `updatePost`), so it fired on every native create and every
- * native edit right up to the cutover — it is a behaviour that was lost, not a
- * validator that never ran. The federated ingest path never depended on it
- * (`connectors/activitypub/apPostContent.ts` calls `normalizePostHashtags`
- * directly), which is why the gap presented as Mention cleaning other instances'
- * bodies while storing its own users' verbatim.
+ * It runs on every native create and every native edit. The federated ingest
+ * path does not depend on it (`connectors/activitypub/apPostContent.ts` calls
+ * `normalizePostHashtags` directly); without it Mention would clean other
+ * instances' bodies while storing its own users' verbatim.
  *
  * MACHINE renditions are deliberately untouched: a translation is produced FROM
  * the already-cleaned primary, so only the author's own words can carry a block
- * of their own — the same predicate the hook used.
+ * of their own.
  *
  * The `hashtags` COLUMN is not this function's business and never loses a tag to
  * the strip: both writers derive it with `mergeHashtags` over the RAW body before
- * the clean, which is exactly what the hook did (`normalizePostHashtags` returns
+ * the clean (`normalizePostHashtags` returns
  * the full tag set alongside the cleaned text, from the same call).
  *
  * Idempotent — a cleaned block leaves at most one hashtag behind, which is no
@@ -191,9 +186,8 @@ export function stripSpamHashtagBlocks(variants: PostContentVariant[]): PostCont
  * The API's content shape → the STORED one: renditions only.
  *
  * The single conversion, shared by every write path (`PostCreationService`, the
- * `POST /feed/reply` and `POST /feed/boost` paths). Two of those wrote
- * `content.text` straight to storage while Mongo tolerated an undeclared field;
- * `posts` has no text column at all, so a second spelling of this would not be a
+ * `POST /feed/reply` and `POST /feed/boost` paths). `posts` has no text column
+ * at all, so a second spelling of this would not be a
  * duplicate — it would be a post stored with no body.
  *
  * When the author declared variants, those ARE the renditions (the primary

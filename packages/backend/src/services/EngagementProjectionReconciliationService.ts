@@ -11,9 +11,8 @@
  *
  * ## The saves repair is one statement, not an aggregate plus a bulk write
  *
- * Mongo had to `$group` bookmarks in the application and then send back a
- * `bulkWrite` of per-post `$set`s, because it could not join. Here the count IS
- * the assignment. The correlated reference is written with `qualified()` on BOTH
+ * The count IS the assignment: one correlated UPDATE, no aggregate in the
+ * application and no per-post write batch. The correlated reference is written with `qualified()` on BOTH
  * sides, which is not decoration: a drizzle column interpolated into `sql`
  * renders BARE when its table is not in that statement's `FROM`, so
  * `where ${bookmarks.postId} = ${posts.id}` would render `where "post_id" = "id"`,
@@ -24,8 +23,8 @@
  * ## The replier repair delegates rather than re-deriving
  *
  * `PostRecentReplierService.recomputeRecentRepliers` is the single definition of
- * "the authoritative ≤3". Mongo carried a second copy of that aggregation here,
- * which is how a repair drifts from the thing it repairs.
+ * "the authoritative ≤3". A second copy of that aggregation here is how a
+ * repair would drift from the thing it repairs.
  *
  * ## Candidates are paged by keyset, never collected
  *

@@ -24,9 +24,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  * Nothing about the subject. What is measured is the content the CONTROLLER
  * composes and hands to `PostCreationService.create` — that is upstream of any
  * store, so the stub still captures it. It answers with a `PostRecord`-shaped
- * value (`id`, not a Mongoose `_id`) because that is what the controller now
+ * value (`id`, not a legacy-ODM `_id`) because that is what the controller now
  * chains and hydrates on, and the article write is `insertArticle` against the
- * `articles` table rather than a Mongoose save.
+ * `articles` table rather than a legacy-ODM save.
  */
 
 import type { PostContent } from '@mention/shared-types';

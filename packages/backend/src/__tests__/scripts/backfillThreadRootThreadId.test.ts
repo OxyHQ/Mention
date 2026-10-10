@@ -19,7 +19,7 @@
  * "root missing" guard is no longer reachable: `thread_id` is a real foreign key
  * with `ON DELETE SET NULL`, so a continuation cannot point at a root that does
  * not exist. The guard stays correct and is simply unreachable, which is a
- * better state than the Mongo one it replaces.
+ * better state than the legacy-store one it replaces.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

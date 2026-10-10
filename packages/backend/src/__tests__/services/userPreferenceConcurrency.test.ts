@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
  *
  * ## What the Postgres port changed here
  *
- * The mechanism is different, so these tests are different. Mongoose gave the
+ * The mechanism is different, so these tests are different. The legacy ODM gave the
  * write optimistic concurrency: the loser's `.save()` raised a `VersionError`
  * and the service caught it, re-read and re-applied, up to five times. The
  * previous version of this file staged those races on a mocked model — it

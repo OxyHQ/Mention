@@ -344,10 +344,7 @@ jobs:
             coverage: false
     steps:
       # fetch-depth: 0 because the scope diff below needs both ends of the
-      # comparison. It used to carry a second, independent reason — a gate that
-      # resolved deleted Mongoose models out of git history and refused on a
-      # shallow clone rather than pass vacuously — which retired with the models
-      # themselves.
+      # comparison.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0

@@ -11,7 +11,7 @@
  * `FeedRankingService.calculatePostScore` is the orchestrator: it builds one
  * `SignalContext` via {@link buildSignalContext}, iterates the registry, and
  * combines the contributions. This module owns the shapes every signal reads so
- * the signal files stay free of any orchestration or Mongoose coupling.
+ * the signal files stay free of any orchestration or database coupling.
  */
 
 import type { PostClassification } from '@mention/shared-types';

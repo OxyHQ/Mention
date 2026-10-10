@@ -6,7 +6,7 @@
  * space that quietly narrows back to hashtags, an author floor computed from
  * posts. None of them raises anything; they just produce a plausible list.
  *
- * The suite this replaces asserted the SHAPE of a Mongo `$match`/`$group`
+ * The suite this replaces asserted the SHAPE of a legacy-store `$match`/`$group`
  * object. It could tell you the pipeline named `metadata.isSensitive`, and
  * nothing at all about whether a sensitive post ever reached a trend. Every
  * assertion below is on the returned MEASUREMENT, computed from rows.
@@ -200,7 +200,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
 
   it('excludes a post the deterministic classifier already scored as spam', async () => {
     /**
-     * The clause has to be TOTAL. Mongo's `{ $not: { $gte: n } }` matched a post
+     * The clause has to be TOTAL. The legacy store's `{ $not: { $gte: n } }` matched a post
      * with no spam score at all; SQL's `< n` would DROP those, shrinking every
      * count. The unclassified post below is the one that proves `is not true`
      * was written rather than `<`.

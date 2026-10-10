@@ -64,7 +64,7 @@ let reportIds: string[];
  * `reports_reporter_reported_key` is unique on `(reporter, reported_id,
  * reported_type)` — one report per person per object — so the five reports of a
  * single case necessarily come from five different people, which is what a case
- * with five reporters IS. Mongo declared no such index, so the old fixture could
+ * with five reporters IS. The legacy store declared no such index, so the old fixture could
  * mint five rows from one reporter.
  */
 let reporterSeq = 0;

@@ -76,7 +76,7 @@ export function getInboxQueue(): Queue<InboxJobData> | null {
 
 /**
  * Get the outbound-delivery queue, or null when Redis is not configured
- * (callers fall back to the Mongo delivery queue).
+ * (callers fall back to the `federation_delivery_queue` table).
  */
 export function getDeliveryQueue(): Queue<DeliveryJobData> | null {
   if (!isQueueEnabled()) return null;

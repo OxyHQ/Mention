@@ -2,7 +2,7 @@
  * A poll created by the composer must come back on the post's DTO.
  *
  * This is the assertion the bug needed and did not have. The composer wrote the
- * poll to Mongo (`new Poll({...}).save()`) while `PostHydrationService` — the
+ * poll to the legacy store (`new Poll({...}).save()`) while `PostHydrationService` — the
  * single DTO producer for every post surface — reads polls from the Postgres
  * `polls` table. Both halves were individually correct and the write succeeded,
  * so nothing errored: the post simply carried a `pollId` that resolved to

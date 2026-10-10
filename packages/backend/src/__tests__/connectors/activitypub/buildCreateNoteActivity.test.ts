@@ -92,7 +92,7 @@ describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
     ]);
   });
 
-  it('normalizes a Mongoose Date createdAt to a canonical ISO 8601 published', () => {
+  it('normalizes a Date createdAt to a canonical ISO 8601 published', () => {
     const { activity, note } = noteFor({
       id: 'p1',
       content: body('hi'),

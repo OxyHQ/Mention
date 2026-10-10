@@ -148,7 +148,7 @@ export function clearsFloors(candidate: TrendCandidate): boolean {
  *
  * Ties break on `volume` and then on the term itself, so a batch is a pure
  * function of what it measured — two terms with identical statistics must not
- * swap places between batches on Mongo's document order, which would make a
+ * swap places between batches on the database's row order, which would make a
  * trend's rank jitter for no reason a reader could perceive.
  */
 export function rankTrendCandidates(candidates: readonly TrendCandidate[]): ScoredTrend[] {

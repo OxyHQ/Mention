@@ -75,18 +75,18 @@
     },
     {
       "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-workspace-final.log",
-      "sha256": "971c6ecd6bc4f33f35931ded58651c872741d2284e962833c0ae634d15ea9386",
-      "bytes": 18553
+      "sha256": "f74c80cd8cea4367b73cb343c0b8f40d4f69ab1c43de12c21bf0a8b7349acf22",
+      "bytes": 15262
     },
     {
       "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-pinned-workspace.log",
-      "sha256": "828a5f274d732d67ce0819d753e64e0a5aa7b1e59d61075aebc11cc4c7718d9a",
-      "bytes": 18361
+      "sha256": "3c317d0aaf64718394992d32ecb17501c5ce36df5bae7e49b72bd24a283d9154",
+      "bytes": 15070
     },
     {
       "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/catalog-workspace.log",
-      "sha256": "d13522c3de418b8f779b11bae1470ac8aa4cf3b49fd091c700e796c5efa9b577",
-      "bytes": 17948
+      "sha256": "39ea5483bcaa8bb02901829e10040abe155d1c6f7a6658f69a869b27c839a27c",
+      "bytes": 14657
     },
     {
       "path": "docs/audits/2026-10-04-catalog-and-bundle-followup/records/ci-bundle-report.json",

@@ -12,7 +12,7 @@
  *
  * ## The two properties that are easy to lose in this port
  *
- * **The order is CHRONOLOGICAL, not ranked.** Mongo's text index on
+ * **The order is CHRONOLOGICAL, not ranked.** The legacy store's text index on
  * `content.variants.text` was single-field, so every match scored identically
  * and `sort({createdAt:-1,_id:-1})` decided the whole order. Postgres offers
  * `ts_rank`, and adding it — or per-lexeme weights — would silently reorder the
@@ -247,7 +247,7 @@ describe('GET /search — what the query selects', () => {
   });
 
   it('matches a non-primary rendition, because the vector is per variant', async () => {
-    // The Spanish translation carries the term; the primary does not. Mongo's
+    // The Spanish translation carries the term; the primary does not. The legacy store's
     // text index covered `content.variants.text` as a multikey path, so this
     // matched there too — an EXISTS over one variant row is the port of that,
     // and a predicate bound to `position = 0` would silently narrow it.
@@ -798,7 +798,7 @@ describe('GET /search — sensitive-content gating', () => {
   it('never drops an UNCLASSIFIED post from a safe-mode page', async () => {
     // The `is not true` half of the gate. Two of the three flag columns are
     // nullable, and `<> true` against NULL is NULL — so a literal translation of
-    // Mongo's `$ne: true` would silently hide every post that was never
+    // the legacy store's `$ne: true` would silently hide every post that was never
     // classified, which is the overwhelming majority.
     const unclassified = await seedPost(scope, { content: body('never classified') });
     const [row] = await getDb()

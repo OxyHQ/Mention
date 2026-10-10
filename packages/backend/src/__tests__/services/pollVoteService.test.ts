@@ -3,7 +3,7 @@
  *
  * The previous version stubbed the `Poll` model and asserted the SHAPE of the
  * `findOneAndUpdate` filter — it proved a dedup guard was written, never that a
- * duplicate vote failed to land. Mongo supplied the atomicity; Postgres has to
+ * duplicate vote failed to land. The legacy store supplied the atomicity; Postgres has to
  * be shown supplying it, so the assertions here are on `poll_votes` rows.
  *
  * What is load-bearing:
@@ -14,7 +14,7 @@
  *    the first is held by the `select … for update` on the poll row, which the
  *    concurrency test below exercises directly.
  *  - **No voter identity ever comes back, from either side of the anonymity
- *    line.** `options[].votes` used to publish the array of voter ids Mongo
+ *    line.** `options[].votes` used to publish the array of voter ids the legacy store
  *    held for a visible poll (and, for an anonymous one, its own `.length`
  *    under the SAME field — the ambiguity that crashed the poll card). Both are
  *    gone: `voteCount` is unconditionally a number, and `viewerSelectedOptionIds`

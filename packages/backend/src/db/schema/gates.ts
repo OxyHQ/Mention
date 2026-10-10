@@ -1,9 +1,8 @@
 /**
  * `threadgates` and `postgates` — who may reply to, and who may quote, a post.
  *
- * Both key on `post_uri`, an MTN URI that embeds the post's Mongo `_id`
- * (`mtn://<oxyUserId>/app.mention.feed.post/<postId>`). Mongo made it UNIQUE and
- * it stays unique; `post_id` alongside it is the same id in bare form, kept
+ * Both key on `post_uri`, an MTN URI that embeds the post id
+ * (`mtn://<oxyUserId>/app.mention.feed.post/<postId>`). It is UNIQUE; `post_id` alongside it is the same id in bare form, kept
  * because different read paths use one or the other.
  *
  * NEITHER carries a foreign key to `posts`, and that is decided rather than
@@ -48,8 +47,8 @@ export const threadgates = pgTable(
 /**
  * `threadgate_allow_rules` — the `allow[]` array, one row per rule.
  *
- * Mongo embedded `{ type, list? }` objects. As rows the `listOnly` invariant
- * becomes expressible: a `listOnly` rule is meaningless without a list id, and
+ * Each rule is `{ type, list? }`. As rows the `listOnly` invariant
+ * is expressible: a `listOnly` rule is meaningless without a list id, and
  * every other rule is meaningless with one.
  */
 export const threadgateAllowRules = pgTable(

@@ -4,10 +4,10 @@
  * Small file, two real changes to hold down:
  *
  *  - **The id guard is gone and nothing replaced it.** `findById` threw a
- *    Mongoose `CastError` for anything that was not 24-char hex, and the catch
+ *    legacy-ODM `CastError` for anything that was not 24-char hex, and the catch
  *    turned that into a 500. A `text` primary key matches no row, so a malformed
  *    id and a deleted article now give the same honest 404.
- *  - **An absent optional is OMITTED, not `null`.** Mongoose left `postId`,
+ *  - **An absent optional is OMITTED, not `null`.** The legacy ODM left `postId`,
  *    `title` and `body` `undefined`, which `JSON.stringify` drops; drizzle hands
  *    back `null`, which it would not.
  *  - **The body follows the linked post's ACL.** The route used to hand any

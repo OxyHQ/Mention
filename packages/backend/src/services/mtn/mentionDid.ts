@@ -8,7 +8,7 @@ import { buildUserDid } from '@oxy.so/core';
  * matches EXACTLY the DID that `oxyServices.resolveDid(oxyUserId)` resolves
  * verification methods for — there is one canonical DID per Oxy account across
  * the whole ecosystem. {@link parseUserDid} is its inverse: it recovers the
- * `oxyUserId` from a subject DID so the Mention store can key its Mongo by the
+ * `oxyUserId` from a subject DID so the Mention store can key its rows by the
  * string id without re-deriving the apex.
  *
  * The prefix is derived from `buildUserDid('')` so it can never drift from

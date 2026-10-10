@@ -726,7 +726,7 @@ export function formatOnlineLines(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mongo / Oxy wiring (main only)
+// Database / Oxy wiring (main only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CliArgs {
@@ -807,11 +807,8 @@ async function main(): Promise<void> {
   );
 
   try {
-    // Postgres only. This script connected to Mongo as well until
-    // `trackFeedInteraction` ported: its online mode read the `FeedInteraction`
-    // collection, and the comment here still said "posts are still Mongo" long
-    // after they stopped being. Every read it now makes -- posts, federated
-    // actors, labels, interactions -- is Postgres.
+    // Postgres only. Every read it makes -- posts, federated actors, labels,
+    // interactions -- is Postgres.
     await connectPostgres();
     logger.info('[evalFeedQuality] connected');
 
@@ -878,9 +875,8 @@ async function main(): Promise<void> {
     logger.info(`[evalFeedQuality] resolved ${labeledPosts.length} labeled posts`);
 
     // ---- Bounded random federated sample ----
-    // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a MISSING
-    // subdocument, while SQL's `<>` against NULL matches nothing — the literal
-    // translation would draw an empty sample and silently evaluate nothing.
+    // `is not null`, never `<> null`: SQL's `<>` against NULL matches nothing —
+    // that spelling would draw an empty sample and silently evaluate nothing.
     const randomSample = await findPostRecords(
       and(
         isNotNull(posts.federationActivityId),
@@ -968,11 +964,9 @@ async function main(): Promise<void> {
     if (args.online) {
       const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment.js');
       const since = new Date(Date.now() - args.onlineWindowMs);
-      // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. This
-      // moved with the writer rather than after it: a reader left on Mongo would
-      // have gone on returning rows — the pre-cutover backfill's — and reported
-      // a shrinking engagement rate as its window slid past the last Mongo
-      // write, with nothing anywhere saying the store had changed underneath it.
+      // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. A reader
+      // and writer on different stores would report a shrinking engagement rate
+      // as its window slid past the last write, with nothing anywhere saying why.
       const grouped = await getDb()
         .select({
           userId: feedInteractions.userId,

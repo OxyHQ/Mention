@@ -13,8 +13,7 @@ x-backend-environment: &backend-environment
   # HOST side of the port mapping below uses; inside the container the two must
   # agree with the Dockerfile, so set it explicitly rather than inherit.
   PORT: "3000"
-  # The backend opens Postgres and Redis, and nothing else — there is no Mongo
-  # anywhere in this package to open.
+  # The backend opens Postgres and Redis, and nothing else.
   DATABASE_URL: postgres://mention:mention@postgres:5432/mention
   REDIS_URL: redis://valkey:6379
 
@@ -64,10 +63,8 @@ services:
 
   migrate:
     <<: *backend-image
-    # `dist/src/db/migrate.js`, not the top-level `dist/scripts/migrate.js` this
-    # used to run: that was the MONGO migration one-shot and it no longer exists.
-    # Until this line was fixed the stack failed before it could even reach a
-    # connection error, so the missing Postgres service below it was invisible.
+    # `dist/src/db/migrate.js` is the Postgres migrator; there is no top-level
+    # `dist/scripts/migrate.js`.
     #
     # `--target-database` is required by the migrator and is not a formality: it
     # asserts the URL still points where the caller thinks it does.

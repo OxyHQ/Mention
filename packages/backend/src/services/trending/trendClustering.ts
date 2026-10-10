@@ -16,7 +16,7 @@
  * carry.
  *
  * Pure and storage-free, like `termExtraction`: it takes counts and returns
- * groupings. Everything about windows, pipelines and Mongo lives in
+ * groupings. Everything about windows, queries and storage lives in
  * `TrendingService`.
  */
 
@@ -106,7 +106,7 @@ function isLinked(
  * Merge co-occurring candidate terms into stories.
  *
  * Links are applied STRONGEST FIRST so the result cannot depend on the order
- * Mongo happened to return pairs in — a batch that reorders its rows must not
+ * the database happened to return pairs in — a batch that reorders its rows must not
  * produce different trends. Ties break lexicographically for the same reason.
  *
  * Terms in no cluster are absent from the result; the caller keeps reporting

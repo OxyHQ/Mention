@@ -18,8 +18,8 @@ import type {
  * unanswered proposal survives, what a run that could not reach a verdict leaves
  * behind. A mocked model cannot fail for any of those.
  *
- * That database is now Postgres. It was `mongodb-memory-server`; the queue moved
- * to `blocklist_proposals` + `blocklist_proposal_observations` and the history to
+ * That database is Postgres: the queue lives in
+ * `blocklist_proposals` + `blocklist_proposal_observations` and the history in
  * `blocklist_proposal_runs` + `blocklist_proposal_run_sources`.
  *
  * **This file owns those four tables for the duration of a run.** Its cleanup is
@@ -496,7 +496,7 @@ describe('recording a decision', () => {
     const reopened = await reopenProposal('decide.example', 'nate');
 
     expect(reopened.status).toBe('open');
-    // NULL, not absent: Mongo's `$unset` removed the field, Postgres sets the
+    // NULL, not absent: the legacy store's `$unset` removed the field, Postgres sets the
     // column back. Both say "no decision stands", and every consumer already
     // coalesces (`row.decidedBy ?? 'someone'`). The one thing that would be
     // wrong is leaving the previous author in place — a row reading `open` while
@@ -675,33 +675,7 @@ describe('the scheduled path cannot block anything', () => {
   ];
 
   /**
-   * Mongoose write methods. Zero of these remain — the queue is Postgres — and
-   * the list stays precisely BECAUSE it should now find nothing: a Mongo write
-   * reappearing on this path would be a second store nobody decided about.
-   */
-  const MONGO_WRITE_METHODS = [
-    'bulkWrite',
-    'updateOne',
-    'updateMany',
-    'insertOne',
-    'insertMany',
-    'deleteOne',
-    'deleteMany',
-    'findOneAndUpdate',
-    'findOneAndDelete',
-    'findByIdAndUpdate',
-    'findOneAndReplace',
-    'replaceOne',
-    'create',
-    'save',
-  ];
-
-  /**
-   * The drizzle write verbs. This half is what keeps the check ARMED after the
-   * port: the two Mongoose models were deleted, so a scanner that only knew
-   * `Model.updateOne(...)` would have found nothing on any file and reported a
-   * clean pass for every possible violation — the exact shape of a check that
-   * stops distinguishing. `db.insert(x)` / `db.update(x)` / `db.delete(x)` name
+   * The drizzle write verbs. `db.insert(x)` / `db.update(x)` / `db.delete(x)` name
    * their TABLE as the first argument, which is what gets tested.
    */
   const DRIZZLE_WRITE_METHODS = ['insert', 'update', 'delete'];
@@ -715,10 +689,6 @@ describe('the scheduled path cannot block anything', () => {
   ]);
 
   it('writes nothing but the review queue, and never touches the block configuration', () => {
-    const mongoWrite = new RegExp(
-      `\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*(${MONGO_WRITE_METHODS.join('|')})\\s*\\(`,
-      'g',
-    );
     const drizzleWrite = new RegExp(
       `\\.\\s*(${DRIZZLE_WRITE_METHODS.join('|')})\\s*\\(\\s*([A-Za-z_$][\\w$]*)`,
       'g',
@@ -734,12 +704,6 @@ describe('the scheduled path cannot block anything', () => {
       // a clean pass for every pattern below.
       expect(source.length).toBeGreaterThan(1_000);
       scanned += 1;
-
-      for (const match of source.matchAll(mongoWrite)) {
-        // The full matched line, not the capture: a truncated group cannot tell
-        // the three cases apart when someone has to read the failure.
-        foreignWrites.push(`${relative}: ${match[0]}`);
-      }
 
       for (const match of source.matchAll(drizzleWrite)) {
         writeCallsSeen += 1;

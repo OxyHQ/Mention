@@ -189,7 +189,7 @@ describe('syncActorFeeds', () => {
   });
 
   it('CLEARS a description the remote view stopped carrying', async () => {
-    // Mongoose dropped `undefined` keys from an update, so a description deleted
+    // The legacy ODM dropped `undefined` keys from an update, so a description deleted
     // upstream survived here forever. A mirror that cannot un-set a field is not
     // mirroring it.
     mocks.xrpcGet.mockResolvedValue({ feeds: [generatorView('f1')] });

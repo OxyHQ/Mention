@@ -2,30 +2,24 @@
  * `UserSettingsRecord` — the ONE shape a user's settings have once they leave
  * the database.
  *
- * ## Why this type moved here
+ * ## Why this type lives in the storage layer
  *
- * These interfaces were declared in `models/UserSettings.ts`, next to the
- * Mongoose schema. That was fine while Mongoose was the store; it is not fine
- * now, because the type every consumer depends on would keep its home in the
- * file the port exists to delete, and "import a type from the Mongoose model"
- * is how a deleted model comes back.
+ * The type every consumer depends on lives beside the repository that assembles
+ * it, never beside a model.
  *
- * The shape is deliberately UNCHANGED from what `UserSettingsData` described:
+ * The shape is deliberately STABLE:
  * `extractPublicProfileData` and `buildSettingsResponseForViewer` build wire
- * DTOs straight off it, and the migration contract's hardest rule is that the
- * wire format does not change. So the nesting stays even though the table is
+ * DTOs straight off it, and the wire format does not change. So the nesting stays even though the table is
  * flat — the repository assembles it, exactly as `postRecord.ts` does for a
  * post's nine tables.
  *
- * ## The one structural difference from the Mongo document
+ * ## Most groups are always present
  *
- * Mongo let every subdocument be ABSENT. Most of these columns are `NOT NULL`
+ * Most of these columns are `NOT NULL`
  * with a default, so `appearance`, `privacy`, `profileCustomization`,
  * `notificationPreferences` and `feedSettings` are always present on a loaded
- * record. That removes the "is the subdoc there at all?" branch every reader
- * carried — and it is why a reader must not treat absence as "unset": a user
- * who never opened settings now reads back the DEFAULTS, which is what the
- * Mongoose schema's own defaults produced anyway.
+ * record. So no reader needs an "is the subdoc there at all?" branch — and it is why a reader must not treat absence as "unset": a user
+ * who never opened settings reads back the DEFAULTS.
  */
 
 import type { ExternalEmbedsSettings, FeedTuning } from '@mention/shared-types';
@@ -205,8 +199,7 @@ export interface UserSettingsRecord {
   profileCustomization: ProfileCustomization;
   /**
    * ABSENT unless this account is a channel — the presence of the object is
-   * what distinguishes a channel account from a person, exactly as the absent
-   * Mongo subdocument did. See `channel_account_sign_posts` in the schema.
+   * what distinguishes a channel account from a person. See `channel_account_sign_posts` in the schema.
    */
   channelAccount?: ChannelAccountSettings;
   interests?: InterestsSettings;

@@ -77,7 +77,7 @@ describe('PostCreationService.create — laneId', () => {
   it('stores NULL when there is no lane, which the partial index excludes', async () => {
     const id = await create({ content: { text: 'no lane' } });
 
-    // Mongo had to leave the field ABSENT: `post_lane_chrono_v1` was partial on
+    // The legacy store had to leave the field ABSENT: `post_lane_chrono_v1` was partial on
     // `{ laneId: { $exists: true } }`, which a stored `null` SATISFIED, so a null
     // would have indexed the whole collection. The Postgres filter is `lane_id is
     // not null`, so null is the state that stays out of it — absent and null are

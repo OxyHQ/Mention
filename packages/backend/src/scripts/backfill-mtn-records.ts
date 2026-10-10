@@ -129,10 +129,9 @@ async function backfillMtnRecords(): Promise<void> {
   // `app.mention.feed.repost` records, out of scope). The filter is immutable for
   // this run (we never mutate the columns it selects on), so the cursor is stable.
   //
-  // Every arm is `IS NULL` / `IS NOT NULL` rather than `<> null`: Mongo's
-  // `$exists: false` and `$ne: null` both matched an ABSENT field, while SQL's
-  // `<>` against NULL evaluates to NULL and matches nothing — the literal
-  // translation would select zero candidates and report a clean no-op run.
+  // Every arm is `IS NULL` / `IS NOT NULL` rather than `<> null`: SQL's `<>`
+  // against NULL evaluates to NULL and matches nothing — that spelling would
+  // select zero candidates and report a clean no-op run.
   const candidateFilter = and(
     isNull(posts.federationActivityId),
     isNotNull(posts.oxyUserId),

@@ -647,7 +647,7 @@ export class FeedRankingService {
     }
 
     // Calculate base scores for all posts in parallel (without diversity)
-    // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
+    // Preserve original index to maintain the source's createdAt sort order for tie-breaking
     const postsWithBaseScores = await Promise.all(
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
@@ -721,8 +721,8 @@ export class FeedRankingService {
       return { ...item, score: item.score * diversityPenalty };
     });
 
-    // Sort by score (descending), preserving MongoDB's createdAt order for ties
-    // MongoDB already sorted by createdAt: -1, so originalIndex reflects that order
+    // Sort by score (descending), preserving the source's createdAt order for ties
+    // The source query already sorted by createdAt DESC, so originalIndex reflects that order
     postsWithScores.sort((a, b) => {
       const scoreDiff = b.score - a.score;
       if (Math.abs(scoreDiff) > 0.001) {

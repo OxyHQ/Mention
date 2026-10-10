@@ -1,7 +1,7 @@
 /**
  * The PUBLIC log a node export serves, against real rows.
  *
- * The suite this replaces asserted the Mongo filter object and nothing else, so
+ * The suite this replaces asserted the legacy-store filter object and nothing else, so
  * it could not have caught either thing that actually matters here.
  *
  * **The bookmark collection must never leave.** `getPublicLogSince` is the only

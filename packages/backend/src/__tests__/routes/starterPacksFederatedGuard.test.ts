@@ -183,7 +183,7 @@ describe('native starter pack is unaffected by the federated guard', () => {
 
   it('omits `source` entirely rather than sending nulls', async () => {
     /**
-     * Mongoose left an absent subdocument `undefined`, which `JSON.stringify`
+     * The legacy ODM left an absent subdocument `undefined`, which `JSON.stringify`
      * drops. Three nullable columns would otherwise serialize as
      * `"source": {network: null, …}` — a different body for the same absent
      * value, and one an `if (pack.source)` guard reads as "federated".

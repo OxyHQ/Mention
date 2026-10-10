@@ -117,7 +117,7 @@ function buildPopularCursor(
  * lanes are most visible, and every future definition would have to remember to
  * opt in. The engine is the one place every definition passes through.
  *
- * **Why an in-memory predicate and not a Mongo `$nin`.** The muted set is
+ * **Why an in-memory predicate and not a query `NOT IN` clause.** The muted set is
  * per-reader and tiny (empty for almost everyone). A clause would have to be
  * threaded into a dozen query builders, cannot be applied selectively by index,
  * and would still have to avoid `match.$or` (which `ChronoCursor` clobbers). This

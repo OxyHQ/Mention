@@ -3,7 +3,7 @@
  *
  * Three things are asserted here, and the suite this replaces could only ever
  * see the first of them — it stubbed `EntityFollow.find` and `AccountList.find`
- * and asserted the PROJECTION object the service passed to Mongo.
+ * and asserted the PROJECTION object the service passed to the legacy store.
  *
  * **Visibility at the point of USE.** `POST /entity-follows` refuses to
  * subscribe a stranger to a private list, but that gate alone is not enough: a
@@ -15,7 +15,7 @@
  * their feed.
  *
  * **The counter guard that is gone.** Both counter methods used to begin with
- * `mongoose.Types.ObjectId.isValid(listId)` and return early. Every list created
+ * an `ObjectId.isValid(listId)` check and return early. Every list created
  * after the cutover has a uuid v7 id, so that guard would have skipped the
  * maintenance for all of them — `subscriberCount` frozen at 0 forever, with
  * nothing logged and no error anywhere. The counter block below fails the moment
@@ -222,7 +222,7 @@ describe('subscriberCount maintenance — no id-shape guard stands in front of i
     /**
      * `account_lists_subscriber_count_check` refuses a negative value, so an
      * unguarded decrement on a zeroed counter would be a constraint violation
-     * rather than a no-op. Mongo filtered on `subscriberCount > 0`; so does this,
+     * rather than a no-op. The legacy store filtered on `subscriberCount > 0`; so does this,
      * which also means `updated_at` — a sort key for `GET /lists` — does not move.
      */
     const listId = await makeList({ isPublic: true });

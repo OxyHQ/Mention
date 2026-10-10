@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
  * cutover `lanes.id` is uuid v7, so that answered `false` for EVERY real lane and
  * every assignment 404'd — nothing could be laned at all. A mocked `Lane.exists`
  * cannot see it: the mock reports whether it was CALLED, and the case that
- * asserted "without reaching Mongo" for a malformed id would have gone on passing
+ * asserted "without reaching the legacy store" for a malformed id would have gone on passing
  * while the same branch silently rejected every legitimate one. So the lanes here
  * are rows, with the ids the database mints.
  */

@@ -125,10 +125,8 @@ async function main(): Promise<void> {
     // Everything else writes the queue and asks for the script name first.
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun: action === 'list' });
 
-    // Postgres only. The review queue, the run history and the footprint census
-    // all moved, so there is no Mongo read left to open a connection for — and a
-    // live connection to a store nothing reads is how the next reader concludes
-    // that reading from it would still be valid.
+    // Postgres only: the review queue, the run history and the footprint census
+    // all live there.
     //
     // It has to be opened HERE: `closeAdminScriptResources` closes Postgres
     // unconditionally, so this script has been closing a pool it never opened.

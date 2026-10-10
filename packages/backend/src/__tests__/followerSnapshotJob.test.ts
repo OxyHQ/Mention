@@ -5,7 +5,7 @@
  *
  * The sweep is BOUNDED — it samples at most `FOLLOWER_SNAPSHOT_MAX_AUTHORS`
  * authors per run — so the ORDER it picks them in decides who gets sampled at
- * all. Mongo had no ordering (`Post.distinct(...)` then `.slice(0, MAX)`), which
+ * all. The legacy store had no ordering (`Post.distinct(...)` then `.slice(0, MAX)`), which
  * meant that past the cap an arbitrary set of authors was resampled forever and
  * the rest never entered the series at all, silently. The port orders by
  * least-recently-snapshotted, and that makes the NULL ordering load-bearing:
@@ -247,7 +247,7 @@ describe('runSnapshotSweep — what it stores', () => {
     /**
      * `follower_count` is `integer` with a `>= 0` CHECK, and one INSERT carries
      * the whole batch — so a single malformed count would abort every author's
-     * snapshot. Mongoose's per-document validation under `{ ordered: false }`
+     * snapshot. The legacy ODM's per-document validation under `{ ordered: false }`
      * dropped only the offending author, and that is the behaviour kept.
      */
     const good = authorId('good');

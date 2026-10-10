@@ -17,7 +17,7 @@ const { getOrFetchActor, getUsersByIds } = vi.hoisted(() => ({
 }));
 
 // PostHydrationService touches these at module load — stub them so importing the
-// module never starts the server, hits the network, or opens Redis/Mongo.
+// module never starts the server, hits the network, or opens Redis/the legacy store.
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
     users: { get: vi.fn(async () => ({})) },

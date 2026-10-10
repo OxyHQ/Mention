@@ -16,7 +16,7 @@
  *  - PRIVATE collections (`app.mention.feed.bookmark`) are NEVER served.
  *  - Only `verified` rows are read.
  *
- * Everything here reads Mention's OWN Mongo (the local chain). No node fetch, no
+ * Everything here reads Mention's OWN database (the local chain). No node fetch, no
  * remote I/O — the read path never touches a node (the MTN fault-isolation
  * invariant). The translation to `app.bsky.feed.*` is owned by `recordTranslator`.
  */
@@ -82,7 +82,7 @@ function clampLimit(limit: number | undefined): number {
  * The denormalized row shape this service reads from the ledger.
  *
  * The chain columns are `string | null` rather than optional: Postgres hands back
- * an explicit NULL where Mongoose omitted an absent field, and the consumers below
+ * an explicit NULL for an absent value, and the consumers below
  * test them for a non-empty string either way.
  */
 interface LedgerRow {
@@ -221,7 +221,7 @@ function reduceLiveRecords(
 /**
  * Keep only the post records whose AUTHORITATIVE `Post` row is still published
  * and public. The chain is append-only and carries no visibility of its own, so
- * `status`/`visibility` are read back from Mongo at every bridge read — the emitter
+ * `status`/`visibility` are read back from `posts` at every bridge read — the emitter
  * gate stops NEW records for unpublished/non-public posts, and this join is what
  * keeps the records already on existing chains off the public bridge.
  *

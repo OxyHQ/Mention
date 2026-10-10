@@ -37,13 +37,9 @@ function encodeSubscriptionCursor(createdAt: Date, id: string): string {
  * Parse a client-supplied cursor. A malformed token yields `undefined` (⇒ the
  * first page) rather than an error, exactly as before.
  *
- * The id half is taken VERBATIM. It used to be run through
- * `Types.ObjectId.isValid`, which only ever existed to keep a tampered cursor
- * from becoming a Mongoose CastError — and whose `false` branch silently means
- * "start from page one". Kept, that guard would have quietly restarted every
- * paginated scroll the moment ids became uuid v7: a legitimate cursor for a row
- * created after the cutover would fail the 24-hex test and the client would
- * loop over page one forever. An id that names no row simply matches nothing.
+ * The id half is taken VERBATIM, with no id-shape guard: a 24-hex test would
+ * fail every legitimate uuid v7 cursor and the client would loop over page one
+ * forever. An id that names no row simply matches nothing.
  */
 function parseSubscriptionCursor(raw: string | undefined): SubscriptionCursor | undefined {
   if (!raw) return undefined;
@@ -104,8 +100,7 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Cannot subscribe to yourself' });
 
     // `post_subscriptions_subscriber_id_author_id_key` makes the repeat a no-op
-    // inside the statement, which is what the Mongo `$setOnInsert` upsert plus
-    // its duplicate-key rescue were between them doing.
+    // inside the statement.
     await getDb()
       .insert(postSubscriptions)
       .values({ subscriberId: userId, authorId })

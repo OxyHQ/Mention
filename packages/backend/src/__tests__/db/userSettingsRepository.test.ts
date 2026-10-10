@@ -3,7 +3,7 @@
  *
  * ## The failure this file exists for is silence
  *
- * `user_settings` was split across two stores: four Mongoose writers, six
+ * `user_settings` was split across two stores: four legacy-ODM writers, six
  * Postgres readers. Nothing errored. A viewer toggled "show sensitive content"
  * and the gate that enforces it read a table nobody had written, so the
  * preference simply did not take effect — no exception, no log, no failing
@@ -13,7 +13,7 @@
  *
  * ## The dotted-path map is the part that fails silently one layer down
  *
- * The settings PUT builds a Mongo `$set`/`$unset` map of dotted paths. Handed
+ * The settings PUT builds a legacy-store `$set`/`$unset` map of dotted paths. Handed
  * to drizzle's `set()`, a dot path is an unknown property that drizzle IGNORES
  * — the write does nothing and throws nothing, which is the original bug
  * reintroduced inside its own fix. Hence `updateUserSettings` throws on an
@@ -68,7 +68,7 @@ describe('user settings — read after write', () => {
 
   it('creates a row carrying the SCHEMA defaults', async () => {
     // The defaults live in the schema and nowhere else, so an insert of nothing
-    // but the id has to produce the document the Mongoose writer used to. A
+    // but the id has to produce the document the legacy-ODM writer used to. A
     // second copy of them in the repository is what would drift.
     const user = userId('defaults');
 
@@ -94,7 +94,7 @@ describe('user settings — read after write', () => {
   });
 
   it('UPSERTS — a change made before any row exists still lands', async () => {
-    // Every Mongoose writer passed `{ upsert: true }`. A user whose first action
+    // Every legacy-ODM writer passed `{ upsert: true }`. A user whose first action
     // is changing a setting must end up with a row rather than a silent no-op.
     const user = userId('upsert');
 
@@ -298,7 +298,7 @@ describe('user settings — a change is VISIBLE to the readers that enforce it',
   it('reaches the sensitive-content gate through its own read path', async () => {
     // The bug, stated as a test. `loadShowSensitiveContent` is what every
     // discovery surface asks before relaxing the sensitivity gate; while the
-    // writer was on Mongoose this returned `false` no matter what the user
+    // writer was on the legacy ODM this returned `false` no matter what the user
     // chose, and nothing anywhere reported a problem.
     const user = userId('gate');
     expect(await loadShowSensitiveContent(user)).toBe(false);

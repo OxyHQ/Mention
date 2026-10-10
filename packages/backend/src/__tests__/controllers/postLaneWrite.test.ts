@@ -144,7 +144,7 @@ describe('PATCH /posts/:id/lane', () => {
     await updatePostLane(makeReq(post.id, { laneId: null }), res as never);
 
     expect(res.statusCode).toBe(200);
-    // Mongo needed `$unset` because `post_lane_chrono_v1` was partial on
+    // The legacy store needed `$unset` because `post_lane_chrono_v1` was partial on
     // `{ laneId: { $exists: true } }` and a stored `null` SATISFIED it, leaving a
     // laneless post indexed forever. The Postgres filter is `lane_id is not
     // null`, so null is exactly the state that stays out of the index — absent
@@ -279,7 +279,7 @@ describe('PATCH /posts/:id/lane', () => {
  * construction" cases would now pass for no reason at all.
  *
  * They are ROW assertions rather than "was the lookup called with these
- * arguments". `main` asserted the lane check's Mongo FILTER
+ * arguments". `main` asserted the lane check's legacy-store FILTER
  * (`{_id, ownerId: CHANNEL}`) and the update's filter; both spell a query that
  * no longer exists, and neither could tell a write that landed from one that
  * matched nothing. Seeding a lane under each owner and reading `lane_id` back

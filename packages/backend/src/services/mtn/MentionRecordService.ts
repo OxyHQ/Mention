@@ -130,7 +130,7 @@ async function findExistingEventAppend(input: {
  *
  * @param oxyUserId  The local author's Oxy account id (the chain subject).
  * @param collection The MTN collection NSID (`app.mention.feed.*`).
- * @param rkey       The record key (the Mongo `_id` of the post/like/etc.).
+ * @param rkey       The record key (the `id` of the post/like/etc.).
  * @param payload    The lexicon `record` payload (already in wire shape).
  */
 export async function signAndAppend(

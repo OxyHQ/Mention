@@ -31,8 +31,7 @@ export function normalizeTopicSlug(slug: string): string {
  * feed, and the two match rules can never drift onto different fields again
  * (which was the original "trends but no posts" bug).
  *
- * `= ANY(array)` is the array-membership test for the slug-only `text[]` column
- * — the direct analogue of Mongo matching an array field by element equality.
+ * `= ANY(array)` is the array-membership test for the slug-only `text[]` column.
  * Written through `arrayContains` rather than a hand-rolled `= any(${slug})`,
  * because a raw JS value interpolated on the right of `ANY` binds as a ROW
  * constructor and Postgres rejects it.

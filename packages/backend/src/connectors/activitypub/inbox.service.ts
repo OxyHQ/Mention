@@ -614,10 +614,9 @@ export class InboxProcessingService {
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
     // carries its own `published`; fall back to the Create activity's `published`
-    // (mirrors the outbox-backfill path). Mongoose 9's timestamps plugin honors a
-    // `createdAt` supplied on a NEW document (it only fills the default when the
-    // value is absent), so threading `createdAt`/`updatedAt` through
-    // PostCreationService persists the real date without disabling timestamps.
+    // (mirrors the outbox-backfill path). A `createdAt` supplied on a NEW row is
+    // honored (the default only fills an absent value), so threading
+    // `createdAt`/`updatedAt` through PostCreationService persists the real date.
     // Missing/invalid/future → undefined → schema timestamps fall back to now.
     const originalCreatedAt = parseApPublished(object.published ?? activity.published);
 
@@ -1021,9 +1020,8 @@ export class InboxProcessingService {
       // body is discarded — a translation of text that no longer exists is worse
       // than no translation.
       //
-      // `isEdited` is the top-level column. Mongo wrote `metadata.isEdited`, a
-      // loose key on a `Mixed` bag that `PostMetadata` never declared and no
-      // reader consulted; the schema has one edited flag and this is it.
+      // `isEdited` is the top-level column, never a loose `metadata.isEdited`
+      // key; the schema has one edited flag and this is it.
       // RE-CLASSIFY the edited body, exactly as the native edit path does
       // (`controllers/posts/updatePost.ts`).
       //

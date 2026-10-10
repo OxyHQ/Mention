@@ -32,7 +32,7 @@ import { eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /* -------------------------------------------------------------------------- */
-/*  Node-ingest mocks — the network, the Mongo-side node row, and the engine.  */
+/*  Node-ingest mocks — the network, the legacy-store-side node row, and the engine.  */
 /*  The MTN chain itself is NOT mocked: "which row is the incumbent" is a      */
 /*  question about a ROW, and a mock could only report that a query was built. */
 /* -------------------------------------------------------------------------- */

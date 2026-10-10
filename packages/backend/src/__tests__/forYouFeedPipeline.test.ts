@@ -5,7 +5,7 @@
  * Its one contract is that sensitive/NSFW content NEVER reaches it, whatever
  * the viewer's `showSensitiveContent` says: this is the page an anonymous
  * visitor and a starved personalized feed both land on, and neither has opted
- * in to anything. The old suite asserted the SHAPE of a Mongo `$match` object,
+ * in to anything. The old suite asserted the SHAPE of a legacy-store `$match` object,
  * which could not tell a correct predicate from one Postgres would evaluate
  * differently — and `sensitiveExcludeSql` is exactly where the literal
  * translation is wrong (`<> true` drops every NULL row). So the assertion here

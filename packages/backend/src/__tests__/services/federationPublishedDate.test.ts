@@ -10,9 +10,9 @@ import { parseApPublished } from '../../connectors/activitypub/helpers';
  *     and rejects missing / unparseable / implausibly-future values (so callers
  *     fall back to the schema default — now).
  *
- *  2. (retired) The second half asserted that the Mongoose `Post` schema HONORED
+ *  2. (retired) The second half asserted that the legacy-ODM `Post` schema HONORED
  *     a `createdAt` supplied on a new document rather than overwriting it with
- *     `now` — a Mongoose-9 save-time detail (`timestamps` fills the path only
+ *     `now` — an ODM save-time detail (`timestamps` fills the path only
  *     when it is absent) that the federated insert had to depend on. Postgres
  *     has no such plugin: `created_at` is a column the writer sets outright, and
  *     what it is set to is asserted end-to-end against real rows in

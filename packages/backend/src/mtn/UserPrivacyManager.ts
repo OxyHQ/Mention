@@ -58,12 +58,9 @@ export class UserPrivacyManager {
     userId: string,
     options: LoadPrivacyStateOptions = {},
   ): Promise<PrivacyState> {
-    // Postgres. This read the Mongo `Mute` collection until now, which nothing
-    // has written since mutes moved — so a mute created after the cutover was
-    // never applied, and the reader kept seeing an author they had explicitly
-    // silenced. The fail-soft below makes that especially worth naming: an empty
-    // result is indistinguishable from "no mutes", so the failure mode was a
-    // silently permissive privacy state rather than an error.
+    // Read from `mutes`, the table every mute is written to. The fail-soft below
+    // is worth naming: an empty result is indistinguishable from "no mutes", so
+    // its failure mode is a silently permissive privacy state, not an error.
     const mutedUsersPromise = getDb()
       .select({ mutedId: mutes.mutedId })
       .from(mutes)

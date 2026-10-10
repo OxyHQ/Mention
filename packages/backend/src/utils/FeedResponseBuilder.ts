@@ -23,7 +23,7 @@ import { logger } from './logger';
  *
  * `_id` is still accepted because callers pass records from both spellings, but
  * it is a `string` now: these rows come from Postgres, where `posts.id` is a
- * `text` column, not from a Mongo driver that hands back ObjectId instances.
+ * `text` column, never an object id instance.
  */
 export interface RawFeedPost {
   _id?: string;

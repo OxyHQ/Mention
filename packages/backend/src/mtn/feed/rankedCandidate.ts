@@ -32,14 +32,8 @@ export function readCandidateId(post: RankedCandidate): string {
 /**
  * Narrow a candidate to a ranked candidate — i.e. assert it has an id.
  *
- * This used to do real work, and it is worth recording what that work WAS so
- * nobody re-adds it. Mongo handed feed candidates ids of three different runtime
- * shapes (an `ObjectId`, a `string`, or an opaque `{ toString() }` from an
- * aggregation), so every score/cursor helper had to accept `_id: unknown` and
- * this function existed to coerce them into something stringifiable.
- *
- * `PostRecord.id` is a `string`, always. The three shapes collapse to one, so
- * the coercion is gone and only the presence check remains — a candidate with no
+ * `PostRecord.id` is a `string`, always, so no coercion is needed and only the
+ * presence check remains — a candidate with no
  * id cannot be cursored on and is dropped rather than silently cursored to `''`.
  */
 export function toRankedCandidate<

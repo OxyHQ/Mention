@@ -860,11 +860,9 @@ async function main(): Promise<void> {
 
     const domains = resolvePurgeTargets(options);
 
-    // No store is opened here. The comment that used to sit here said the cursor
-    // rows live in Mongo; they live in POSTGRES — `lib/adminScriptCursor` reads
-    // and writes them through the Postgres pool — and the purge itself happens
-    // entirely over the Oxy API. Nothing on this path has needed Mongo since the
-    // cursor was ported.
+    // No store is opened here. The cursor rows live in POSTGRES —
+    // `lib/adminScriptCursor` reads and writes them through the Postgres pool —
+    // and the purge itself happens entirely over the Oxy API.
     logger.info(`[${SCRIPT_NAME}] connected`, {
       dryRun: options.dryRun,
       domains: domains.size,

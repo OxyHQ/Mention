@@ -1,6 +1,6 @@
 /**
  * Filter modules — thin wrappers over the existing feed-safety / tuner helpers.
- * Each may contribute a Mongo `clause()` (pushed into source queries) and/or an
+ * Each may contribute a query `clause()` (pushed into source queries) and/or an
  * in-memory `keep()` predicate (applied to the merged candidate pool). No new
  * filtering logic — every rule mirrors a pre-existing feed behavior.
  */
@@ -26,8 +26,8 @@ import { escapeRegExp } from '@oxy.so/utils/text';
 /**
  * Read a field off a candidate without widening to `any`.
  *
- * `CandidatePost` is now a `PostRecord` — a declared shape rather than the
- * `Record<string, unknown>` bag the Mongo lean document was — so most callers
+ * `CandidatePost` is a `PostRecord` — a declared shape rather than a
+ * `Record<string, unknown>` bag — so most callers
  * should reach for the property directly and let `tsc` check it. This survives
  * only for the genuinely dynamic reads (a filter parameterized by field name).
  */
@@ -792,7 +792,7 @@ export const excludeSensitiveFilter: FilterModule = {
  * `PostUser.avatar` is documented as a bare Oxy file id OR an absolute URL, so
  * any non-blank string is a real picture and there is no shape to match. The
  * empty string is not hypothetical — Oxy records it as a state reaching the
- * column from its own Mongo backfill.
+ * column from its own backfill.
  */
 export const authorHasAvatarFilter: FilterModule = {
   id: 'authorHasAvatar',

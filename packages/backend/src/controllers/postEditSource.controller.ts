@@ -23,8 +23,7 @@ import { resolveAccountKind } from '../services/publishAsAccount';
  *
  * ## Two things the Postgres port removed
  *
- * **The `ObjectId.isValid` guard is gone.** It existed only to dodge a Mongoose
- * `CastError`, and the id column is `text` now: a uuid v7 matches its row, a
+ * **There is no id-shape guard.** The id column is `text`: a uuid v7 matches its row, a
  * pre-cutover ObjectId hex matches its row, and an id that is neither matches
  * nothing — which is already the 404 the guard was standing in for. Keeping it
  * would 404 every post created after the cutover.

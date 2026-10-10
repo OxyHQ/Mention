@@ -15,12 +15,9 @@
  * on the commit that adds it, which is the only mechanism that keeps this
  * honest.
  *
- * WHY THE GATE READS THE SCHEMA OBJECT AND NOT `src/models/*.ts`
+ * WHY THE GATE READS THE SCHEMA OBJECT
  *
- * It used to scan the Mongoose model tree with a regex. Post-cutover that tree
- * is the ABANDONED store — a check pointed at it can only ever describe rows
- * nothing reads, and it passes forever however wrong the cascade becomes. The
- * drizzle table objects are the thing that generates BOTH the migrations and the
+ * The drizzle table objects are the thing that generates BOTH the migrations and the
  * queries, so a manifest compared against them cannot desync from what the
  * database actually holds.
  *
@@ -165,9 +162,8 @@ export interface CascadeStep {
  *    not the channel's to destroy; NULL is exactly "the quoted post is gone",
  *    and `attachNestedContext` drops the card.
  *
- * The Mongo cascade performed both of those itself and had to argue for
- * unsetting rather than leaving a dangling pointer. That argument is now the
- * schema's, made once, for every caller: `SET NULL` is not a policy this file
+ * Unsetting rather than leaving a dangling pointer is the schema's decision,
+ * made once, for every caller: `SET NULL` is not a policy this file
  * chooses per deletion.
  *
  * `parent_post_id` and `thread_id` get the same `SET NULL`, with one caveat: a
@@ -281,9 +277,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'A queued engagement projection for a post that will not exist when it drains. Mongo held this ' +
-      'inside a `Mixed` payload with no index, so the live delete route could only cancel the PENDING ' +
-      'rows; here it is a real column with `ON DELETE CASCADE` on `posts.id` and the whole row goes.',
+      'A queued engagement projection for a post that will not exist when it drains. It is a real ' +
+      'column with `ON DELETE CASCADE` on `posts.id`, so the whole row goes.',
   },
   {
     table: 'post_authorships',
@@ -624,9 +619,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      "Other people's posts that @-mention the channel. Mongo held this as an array on the post and the " +
-      'cascade `$pull`ed the id; the array is a junction table now and the entry is a row, but the policy ' +
-      'is unchanged — the post is theirs and stays, and the mention would otherwise render a link to an ' +
+      "Other people's posts that @-mention the channel. The mention is a junction-table row and only " +
+      'that row goes — the post is theirs and stays, and the mention would otherwise render a link to an ' +
       'account that no longer resolves.',
   },
 
@@ -851,10 +845,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      "The channel inside ANOTHER viewer's affinity entries. Mongo held this as `preferredAuthors[]`, an " +
-      'array of subdocuments keyed on `authorId`, and the cascade `$pull`ed the matching element; the ' +
-      "array is a child table now, so the element is a row. The viewer's own behaviour row is theirs and " +
-      'stays.',
+      "The channel inside ANOTHER viewer's affinity entries (`preferredAuthors`), a child table keyed on " +
+      "`authorId`, so the entry is a row. The viewer's own behaviour row is theirs and stays.",
   },
   {
     table: 'user_behaviors',
@@ -953,9 +945,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      "The channel inside another post's replier projection; that post belongs to someone else. Mongo " +
-      'held the repliers as an array of subdocuments on the post and `$pull`ed one; the projection is a ' +
-      'child table now, so the element is a row.',
+      "The channel inside another post's replier projection; that post belongs to someone else. The " +
+      'projection is a child table, so the entry is a row.',
   },
   {
     table: 'entity_follows',
@@ -1038,9 +1029,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      "The channel's vote inside somebody else's poll. Mongo held votes as a `[String]` array inside " +
-      'each embedded option; here they are rows, so the entry is a row and the poll survives one fewer ' +
-      'vote. No counter to repair — the tally is a `GROUP BY`, never a denormalized column.',
+      "The channel's vote inside somebody else's poll. Votes are rows, so the entry is a row and the " +
+      'poll survives one fewer vote. No counter to repair — the tally is a `GROUP BY`, never a denormalized column.',
   },
   {
     table: 'articles',
@@ -1115,9 +1105,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'The channel recorded as having used a pack. Mongo held this as `usedByOxyUserIds` on the pack, so ' +
-      "the pack's `use_count` was the array length; the count is now its own column and is repaired " +
-      'nowhere — deliberately, since it is a lifetime tally rather than a live membership.',
+      "The channel recorded as having used a pack. The pack's `use_count` is its own column and is " +
+      'repaired nowhere — deliberately, since it is a lifetime tally rather than a live membership.',
   },
   {
     table: 'endorsement_outbox',
@@ -1160,8 +1149,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why:
       'A Claude connector bound to the channel. `isDelegatedActAsEligibleKind` refuses a channel as a session ' +
       'subject and the OAuth consent screen is authorized against a person, so this must be empty — swept ' +
-      'because a row here would be a live credential naming a deleted account. Absent from the Mongo-era ' +
-      'manifest entirely, which is what re-pointing the gate at the real schema surfaced.',
+      'because a row here would be a live credential naming a deleted account.',
   },
   {
     table: 'mcp_connections',
@@ -1437,11 +1425,9 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
  * for a complete one, and the next person to add an embedded reference has no way
  * to know this file wanted to hear about it.
  *
- * RE-AUDITED FOR POSTGRES, and the blind spot MOVED. Mongo's `Mixed` payloads on
- * `EngagementOutbox` and `ModerationOutbox` are first-class columns now
- * (`payload_post_id`, `payload_actor_oxy_user_id`, `payload_report_id`, …), so
- * the gate sees them and they are ordinary cascade steps — three former entries
- * deleted, not forgotten. `jsonb` survives in exactly four places
+ * The `engagement_outbox` and `moderation_outbox` payloads are first-class
+ * columns (`payload_post_id`, `payload_actor_oxy_user_id`, `payload_report_id`,
+ * …), so the gate sees them and they are ordinary cascade steps. `jsonb` survives in exactly four places
  * (CONVENTIONS.md names them) and only two can hold a channel reference.
  *
  * Each entry names how the cascade reaches it, or states that it deliberately
@@ -1491,10 +1477,9 @@ export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map(
   [
     'user_settings.privacy_restricted_users',
     "Another person's settings naming the channel as restricted. SCRUBBED by an explicit " +
-      '`pull-from-array` step, because their settings row is theirs and only the entry goes. Listed here ' +
-      'for continuity with the Mongo cascade, where it WAS a blind spot (a nested path under a `privacy` ' +
-      'subdocument); on Postgres it is a first-class `text[]` column the manifest names directly, so it is ' +
-      'no longer invisible — only un-flaggable, since `privacyRestrictedUsers` carries no id-shaped suffix.',
+      '`pull-from-array` step, because their settings row is theirs and only the entry goes. It is a ' +
+      'first-class `text[]` column the manifest names directly, so it is not invisible — only ' +
+      'un-flaggable, since `privacyRestrictedUsers` carries no id-shaped suffix.',
   ],
 ]);
 

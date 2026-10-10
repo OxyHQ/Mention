@@ -1014,10 +1014,6 @@ export const config = {
 
 /**
  * The variables a task cannot boot without.
- *
- * **No `MONGODB_*` variable is among them, and none may come back.** Mongo is
- * gone from this package — no driver, no models, no copier — so a variable
- * naming it could only ever be read by something that should not exist.
  */
 export function validateEnvironment(): void {
   const missing: string[] = [];

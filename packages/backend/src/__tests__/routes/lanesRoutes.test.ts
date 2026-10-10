@@ -8,7 +8,7 @@
  *
  * Four things here fail SILENTLY if they regress:
  *
- *  1. **Deleting a lane RELEASES its posts and drops its mutes.** In Mongo that
+ *  1. **Deleting a lane RELEASES its posts and drops its mutes.** In the legacy store that
  *     was three hand-sequenced writes whose order was load-bearing; here it is
  *     `posts.lane_id ON DELETE SET NULL` plus
  *     `lane_mutes.lane_id ON DELETE CASCADE`, so one statement does all three

@@ -116,10 +116,8 @@ function registerNotificationsHandlers(
           try {
             if (!socket.user?.id) return;
             if (!notificationId) return;
-            // Postgres, through the SAME helper the REST route uses. This used to
-            // write the Mongoose model, which nothing has read since notifications
-            // moved — so a notification marked read over the socket came back unread
-            // on the next load, for every user, with nothing in any log.
+            // Postgres, through the SAME helper the REST route uses, so a
+            // notification marked read over the socket stays read on the next load.
             // `[userId]` — the narrowing the block comment above argues for, spelled
             // out. The signature takes the recipient SCOPE so this stays a decision
             // somebody made rather than a default nobody noticed.

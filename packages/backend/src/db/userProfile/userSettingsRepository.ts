@@ -1,29 +1,27 @@
 /**
  * The ONE read/write path for `user_settings`.
  *
- * ## What this exists to close
+ * ## Why every writer and reader goes through here
  *
- * `user_settings` was SPLIT across two stores. Four writers
- * (`ensureUserSettings`, the settings PUT, the feed-tuning PUT, the federated
- * banner import) wrote the Mongoose model, while six readers — `viewerSafety`,
+ * Four writers (`ensureUserSettings`, the settings PUT, the feed-tuning PUT, the
+ * federated banner import) and six readers — `viewerSafety`,
  * `PostHydrationService`, `actorObject`, `ContentAffinityService`,
- * `statistics.controller` and `userSources` — already read the Postgres table.
- * Two self-consistent halves: the Mongo writers agreed with the Mongo readers,
- * and the Postgres readers observed an empty table. A user's sensitive-content
- * opt-in was written where nothing that enforces it could see it.
+ * `statistics.controller` and `userSources` — must agree on one table. A
+ * writer that misses it means a user's sensitive-content opt-in is written where
+ * nothing that enforces it can see it.
  *
- * The failure mode is why this is a repository rather than eleven ported call
+ * The failure mode is why this is a repository rather than eleven separate call
  * sites: nothing errors. A preference silently does not take effect, and the
  * only thing that catches that is a read-after-write test — which is what
  * `__tests__/db/userSettingsRepository.test.ts` and the reader suites do.
  *
  * ## The dotted-path map is the dangerous part, and it FAILS LOUD
  *
- * The settings PUT builds a Mongo `$set`/`$unset` map of DOTTED paths
+ * The settings PUT builds a `set`/`unset` map of DOTTED paths
  * (`privacy.showSensitiveContent`, `feedSettings.diversity.enabled`). A dot path
  * handed to drizzle's `set()` is an unknown property that drizzle **silently
  * ignores** — the write does nothing and throws nothing, which is the exact
- * failure this port is meant to end, reintroduced one layer down.
+ * silent failure this module exists to prevent.
  *
  * So {@link SETTINGS_COLUMN_BY_PATH} is an explicit, total map and an unknown
  * path THROWS. A new setting that forgets to register its path fails on its
@@ -46,7 +44,7 @@ type SettingsInsert = typeof userSettings.$inferInsert;
 type WritableColumn = Exclude<keyof SettingsInsert, 'id' | 'oxyUserId' | 'createdAt' | 'updatedAt'>;
 
 /**
- * Mongo dot path → column, for every path any writer can produce.
+ * Dot path → column, for every path any writer can produce.
  *
  * Deliberately explicit rather than derived from a naming convention: the
  * prefixes do not follow one (`privacy.*` → `privacy*`, but
@@ -121,13 +119,11 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
 });
 
 /**
- * What a column becomes when its path is `$unset`.
+ * What a column becomes when its path is unset.
  *
- * `NULL` is what "absent" means for a NULLABLE column, and it is what the Mongo
- * `$unset` produced. A column that is `NOT NULL` with a default cannot express
+ * `NULL` is what "absent" means for a NULLABLE column. A column that is `NOT NULL` with a default cannot express
  * absence at all, so unsetting it restores the DEFAULT — which is the value a
- * document that never carried the field read back as under Mongoose's own
- * schema defaults. Anything else would make "clear this setting" mean something
+ * user who never set the field reads back. Anything else would make "clear this setting" mean something
  * the user never asked for.
  */
 const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.freeze({
@@ -512,7 +508,7 @@ export async function lockProfileVisibility(
   );
 }
 
-/** A Mongo-shaped update, as the settings routes already build one. */
+/** A dotted-path set/unset update, as the settings routes build one. */
 export interface UserSettingsUpdate {
   set?: Record<string, unknown>;
   unset?: Record<string, unknown>;

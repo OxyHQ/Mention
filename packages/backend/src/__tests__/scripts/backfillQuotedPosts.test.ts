@@ -72,7 +72,7 @@ describe('the decision is structural, never the body', () => {
 });
 
 /**
- * The selection has to survive being expressed TWICE — once as a Mongo `$regex`
+ * The selection has to survive being expressed TWICE — once as a legacy-store `$regex`
  * that pre-filters, once in JS — and the two must not disagree.
  *
  * The reason it is expressed twice at all is measured, not stylistic: the rest

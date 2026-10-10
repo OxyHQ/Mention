@@ -251,7 +251,7 @@ describe('applyImpressionSignals', () => {
 });
 
 /**
- * The raw analytics row — the write that was still going to Mongo.
+ * The raw analytics row — the write that was still going to the legacy store.
  *
  * `applyImpressionSignals` above covers the DERIVED signals, which were already
  * Postgres. Nothing covered the raw row at all, which is how it stayed on a

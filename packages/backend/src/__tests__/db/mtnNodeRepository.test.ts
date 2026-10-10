@@ -5,7 +5,7 @@
  * seen by nobody. Three of these cases pin a translation that would have failed
  * exactly that way, and each is mutation-sensitive rather than illustrative:
  *
- *  - A never-probed / never-synced node must LEAD its sweep. Mongo sorted a
+ *  - A never-probed / never-synced node must LEAD its sweep. The legacy store sorted a
  *    missing field first; a bare Postgres `ASC` sorts NULLs last and starves it
  *    permanently, with no error and no log.
  *  - The ingest loop's `-1` "no chain yet" sentinel must reach the column as
@@ -143,7 +143,7 @@ describe('registering a node', () => {
   /**
    * A registration that omits `nodeDid` LEAVES the previously advertised one.
    *
-   * The Mongo `$set` was conditional on the field being present, and the DID is
+   * The legacy-store `$set` was conditional on the field being present, and the DID is
    * informational — dropping it on every re-registration that happens not to
    * carry one would quietly empty a field nothing else repopulates.
    */

@@ -13,7 +13,7 @@
  *     engagement there would poison author/topic affinity with engagement that
  *     never touched a post.
  *  2. They are low-cardinality COUNTERS, never per-row documents. A counter write
- *     is a Map update, so the hot path stays I/O-free (no Mongo, no Redis). The
+ *     is a Map update, so the hot path stays I/O-free (no database, no Redis). The
  *     labels are `kind`, `event` and the BASE descriptor — all fixed, small sets.
  *     A viewer id, a slot key or a target account id would make the label space
  *     unbounded, so none of them are ever emitted.

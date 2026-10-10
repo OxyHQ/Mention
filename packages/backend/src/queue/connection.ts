@@ -28,8 +28,8 @@ const REDIS_TLS_CONNECT_TIMEOUT_MS = 20_000;
  * Whether a usable Redis target is configured. True when an explicit
  * REDIS_URL/REDIS_URI is set, OR when an explicit REDIS_HOST is provided. A bare
  * default `localhost` (no env at all) is NOT considered configured so that local
- * dev without Redis cleanly falls back to the in-process scheduler + Mongo
- * delivery queue instead of crash-looping against a non-existent server.
+ * dev without Redis cleanly falls back to the in-process scheduler + the
+ * `federation_delivery_queue` table instead of crash-looping against a non-existent server.
  */
 export function isQueueEnabled(): boolean {
   return isRedisRuntimeConfigured();

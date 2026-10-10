@@ -71,7 +71,7 @@ export const POPULATION_FLOORS: readonly PopulationFloor[] = [
     table: 'posts',
     minimum: 100_000,
     why:
-      'The source holds 622,474 posts (counted on production Mongo, 2026-08-04). ' +
+      'The source holds 622,474 posts (counted on production, 2026-08-04). ' +
       'A floor of 1 was satisfied by 100 rows of smoke-test residue and let a ' +
       'trunk image serve a database with 0.016% of production in it — the check ' +
       'asked "is this literally empty" when the property is "does this hold ' +

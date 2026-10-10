@@ -32,7 +32,7 @@
  * property is different: this one walks the fallback WHILE A RANKED LANE IS
  * AVAILABLE, which is what the router has to keep declining.
  *
- * Deleted with the Mongo port: a describe that read the built aggregation and
+ * Deleted with the legacy-store port: a describe that read the built aggregation and
  * asserted `clauses[0]` equals `{engagementScore: {$lt: 9.25}}`. There is no
  * pipeline to read, and a shape assertion could not tell a correct keyset from
  * one that skips a row at every boundary — its row-level successor is the
@@ -56,7 +56,7 @@ import type { MediaItem } from '@mention/shared-types';
 /**
  * Deterministic stand-in for `FeedRankingService`: LIKES ARE THE SCORE.
  *
- * The real service reads `UserBehavior` from Mongo and the viewer's follow graph
+ * The real service reads `UserBehavior` from the legacy store and the viewer's follow graph
  * from Oxy, so it cannot run here. Scoring off a real column keeps the ranked
  * lane's order a property of the rows — and keeps every ranked score a small
  * number, orders of magnitude below the engagement sums the fallback cursors on.
@@ -75,7 +75,7 @@ vi.mock('../services/FeedRankingService', () => ({
 }));
 
 // One single-item slice per candidate, order preserved: the real slicer runs its
-// own Mongo queries for thread children, and grouping is not what is under test.
+// own legacy-store queries for thread children, and grouping is not what is under test.
 // A non-empty `slices` is also how a RANKED page is told apart from a fallback
 // one, which serves flat `items` and no slices at all.
 vi.mock('../services/ThreadSlicingService', () => ({

@@ -26,8 +26,8 @@
  *
  * `admin_script_cursors.cursor` holds a hex `_id` rather than an offset, and
  * ids are preserved VERBATIM by this migration, so the value keeps meaning the
- * same row after the cutover. Had it been a Mongo-specific position (a natural
- * order, a `$natural` skip) the ROW would have had to be excluded even though
+ * same row in either store. Had it been a store-specific position (a natural
+ * order skip) the ROW would have had to be excluded even though
  * the TABLE was required — the shape where not-copying is the more correct
  * answer. It is not that shape, so it copies.
  */

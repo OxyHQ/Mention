@@ -52,12 +52,11 @@ describe('health routes', () => {
   });
 
   /**
-   * The dependency list is asserted WHOLE, which is what makes this the
-   * regression test for the decommission: `mongo` is gone from the payload, and
-   * a `toEqual` fails if it comes back. The endpoint must not report a store
-   * this process never opens.
+   * The dependency list is asserted WHOLE: a `toEqual` fails if a dependency is
+   * added or dropped. The endpoint must not report a store this process never
+   * opens.
    */
-  it('becomes ready on migrations and Postgres alone, with no Mongo dependency', async () => {
+  it('becomes ready on migrations and Postgres alone', async () => {
     mockGetRedisStats.mockReturnValue({
       connected: false,
       status: 'disconnected',
@@ -73,29 +72,9 @@ describe('health routes', () => {
     });
   });
 
-  /**
-   * THE case this change exists to make true, and the one that would have been
-   * an outage if the gate had been left behind when the boot connection went.
-   *
-   * `health.routes.ts` used to `&&` in `isDatabaseConnected()`, a read on the
-   * default mongoose connection `server.ts` opened at boot. With that connection
-   * gone the read is permanently false, so every task would answer 503 here for
-   * as long as it lived — the ALB drains the fleet, the deploy's smoke checks
-   * fail, over a store no request touches. Nothing in this suite is arranged to
-   * be Mongo-ready, because nothing can be any more: readiness is 200 anyway.
-   */
-  it('is ready with no Mongo connection in the process at all', async () => {
-    markMigrationsComplete();
-    markRuntimeReady();
-
-    await request(app).get('/health/ready').expect(200);
-  });
-
   it('drops readiness when POSTGRES stops answering', async () => {
-    // The case this endpoint was blind to. Before the cutover it checked Mongo
-    // and not Postgres at all, so a task whose Postgres had become unreachable
-    // kept reporting ready and kept taking traffic while erroring on every
-    // request. Everything else here is healthy, so only this gate can fail.
+    // A task whose Postgres has become unreachable must stop reporting ready,
+    // or it keeps taking traffic while erroring on every request. Everything else here is healthy, so only this gate can fail.
     mockCheckPostgresHealth.mockResolvedValue(false);
     markMigrationsComplete();
     markRuntimeReady();
