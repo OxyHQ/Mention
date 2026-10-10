@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, type LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { useEventListener } from 'expo';
-import { VideoView, type VideoPlayer } from 'expo-video';
+import type { VideoPlayer } from 'expo-video';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxy.so/core/logger';
 import { videoSourceFor } from '@/utils/videoSource';
@@ -348,7 +349,7 @@ export function useReelChrome({
     // because the alternative — the pager moving and a different player mounting
     // — would leave the OS window showing a frozen frame of a player nothing is
     // driving any more.
-    const videoViewRef = useRef<VideoView | null>(null);
+    const videoViewRef = useRef<VideoViewHandle | null>(null);
 
     // The surface the viewer is actually watching: the slide the pager is on, or —
     // while the OS window is up — the session's owner, wherever the pager left it.

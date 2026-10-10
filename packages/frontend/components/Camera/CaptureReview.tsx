@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer } from 'expo-video';
+import { VideoView } from '@oxy.so/bloom/video-view';
 
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';

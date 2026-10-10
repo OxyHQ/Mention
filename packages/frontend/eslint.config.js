@@ -50,6 +50,16 @@ module.exports = defineConfig([
         }, {
           name: '@expo/vector-icons/Ionicons',
           message: 'Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.',
+        }, {
+          // iPhone Safari plays a web `<video>` inline only when it carries
+          // `playsinline`, and expo-video writes that only when the prop is
+          // passed — so every video here showed its poster and never started on
+          // iPhones. Bloom's VideoView defaults it on; the player itself
+          // (`useVideoPlayer`, `createVideoPlayer`) still comes from expo-video.
+          name: 'expo-video',
+          importNames: ['VideoView'],
+          message:
+            "Render VideoView from '@oxy.so/bloom/video-view' (VideoViewHandle for its ref type): it plays inline on iPhone Safari, where expo-video's own view shows only the poster.",
         }],
       }],
     },

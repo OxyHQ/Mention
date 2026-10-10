@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
-import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
+import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
+import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
 import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { PlayButton } from '@oxy.so/bloom/media-controls';
 import { useTranslation } from 'react-i18next';
@@ -259,7 +260,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     [onAspectRatio, reportedRatio],
   );
 
-  const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
+  const videoViewRef = useRef<VideoViewHandle>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<View>(null);
