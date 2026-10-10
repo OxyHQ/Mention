@@ -32,9 +32,14 @@ describe('the composer footer', () => {
     // Under `KeyboardProvider` Android is edge-to-edge and the window is never
     // resized; React Native's view with no behaviour (Android's old branch) did
     // nothing, and the Post button stayed behind the keyboard.
-    expect(screen).toMatch(/import \{ KeyboardAvoidingView \} from 'react-native-keyboard-controller';/);
+    expect(screen).toMatch(
+      /import \{ KeyboardAvoidingView \} from 'react-native-keyboard-controller';/,
+    );
     expect(screen).not.toMatch(/\bKeyboardAvoidingView,\s*\n[^}]*\} from 'react-native';/);
-    const open = screen.slice(screen.indexOf('<KeyboardAvoidingView'), screen.indexOf('>', screen.indexOf('<KeyboardAvoidingView')));
+    const open = screen.slice(
+      screen.indexOf('<KeyboardAvoidingView'),
+      screen.indexOf('>', screen.indexOf('<KeyboardAvoidingView')),
+    );
     expect(open).toContain('behavior="padding"');
     expect(open).not.toContain('Platform.OS');
   });
@@ -66,7 +71,10 @@ describe('the composer footer', () => {
 describe('the composer header', () => {
   it('gives the composer TAB a close control, not just the pushed composer', () => {
     // "New post" (the tab) had no way out; "Reply" (pushed) had a back arrow.
-    const header = screen.slice(screen.indexOf('{/* Header */}'), screen.indexOf('styles.headerTitle'));
+    const header = screen.slice(
+      screen.indexOf('{/* Header */}'),
+      screen.indexOf('styles.headerTitle'),
+    );
     expect(header).toMatch(/presentation === 'tab' \?/);
     expect(header).toContain('leadingIcon={RiCloseLine}');
     expect(header).toContain('testID="compose-close"');

@@ -24,7 +24,7 @@ const SNAKE_CASE = /^[a-z][a-z0-9_]*$/;
 function declaredTables(): PgTable[] {
   return Object.values(schema).filter(
     (value): value is PgTable =>
-      typeof value === 'object' && value !== null && Symbol.for('drizzle:Name') in value
+      typeof value === 'object' && value !== null && Symbol.for('drizzle:Name') in value,
   );
 }
 
@@ -121,7 +121,11 @@ describe('schema invariants', () => {
   });
 
   it('creates every date column as `timestamptz`', async () => {
-    const rows = await db.execute<{ table_name: string; column_name: string; data_type: string }>(sql`
+    const rows = await db.execute<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+    }>(sql`
       select table_name, column_name, data_type
       from information_schema.columns
       where table_schema = 'public'
@@ -163,7 +167,7 @@ describe('schema invariants', () => {
 
   it('installs PostGIS before the migration that names `geography`', async () => {
     const rows = await db.execute<{ extname: string }>(
-      sql`select extname from pg_extension where extname = 'postgis'`
+      sql`select extname from pg_extension where extname = 'postgis'`,
     );
     expect(rows).toHaveLength(1);
   });
@@ -173,7 +177,7 @@ describe('schema invariants', () => {
     // leaving work pending, every other suite would be querying a half-built
     // database and failing for the wrong reason.
     const rows = await db.execute<{ count: string }>(
-      sql`select count(*)::text as count from drizzle.__drizzle_migrations`
+      sql`select count(*)::text as count from drizzle.__drizzle_migrations`,
     );
     expect(Number(rows[0]?.count ?? 0)).toBeGreaterThan(0);
   });

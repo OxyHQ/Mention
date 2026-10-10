@@ -69,5 +69,5 @@ export const useLinksStore = create<LinksState>()(
       dbClearAllLinks();
       set((s) => ({ dataVersion: s.dataVersion + 1 }));
     },
-  }))
+  })),
 );

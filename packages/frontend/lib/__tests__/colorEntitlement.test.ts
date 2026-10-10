@@ -54,8 +54,11 @@ describe('colour entitlement', () => {
   it('offers only canonical Oxy presets for all viewers and rejects unsupported free colors', () => {
     for (const username of [undefined, 'oxy', 'faircoin', 'someone']) {
       for (const mentionMono of [false, true]) {
-        expect(entitledColorNames({ username, mentionMono }).every(name =>
-          (USER_PROFILE_COLOR_PRESETS as readonly string[]).includes(name))).toBe(true);
+        expect(
+          entitledColorNames({ username, mentionMono }).every((name) =>
+            (USER_PROFILE_COLOR_PRESETS as readonly string[]).includes(name),
+          ),
+        ).toBe(true);
       }
     }
     expect(entitledColorNames(NOBODY)).not.toContain('unsupported-free');
@@ -82,9 +85,37 @@ describe('central Mention capability', () => {
   });
   it('expires and cancels exactly, while individual unbounded authority remains', () => {
     const now = Date.now();
-    expect(colorViewerForUser({ personalization: { mentionMono: { allowed: true, expiresAt: new Date(now + 1).toISOString() } } }, now).mentionMono).toBe(true);
-    expect(colorViewerForUser({ personalization: { mentionMono: { allowed: true, expiresAt: new Date(now).toISOString() } } }, now).mentionMono).toBe(false);
-    expect(colorViewerForUser({ personalization: { mentionMono: { allowed: false, expiresAt: null } } }, now).mentionMono).toBe(false);
-    expect(colorViewerForUser({ personalization: { mentionMono: { allowed: true, expiresAt: null } } }, now).mentionMono).toBe(true);
+    expect(
+      colorViewerForUser(
+        {
+          personalization: {
+            mentionMono: { allowed: true, expiresAt: new Date(now + 1).toISOString() },
+          },
+        },
+        now,
+      ).mentionMono,
+    ).toBe(true);
+    expect(
+      colorViewerForUser(
+        {
+          personalization: {
+            mentionMono: { allowed: true, expiresAt: new Date(now).toISOString() },
+          },
+        },
+        now,
+      ).mentionMono,
+    ).toBe(false);
+    expect(
+      colorViewerForUser(
+        { personalization: { mentionMono: { allowed: false, expiresAt: null } } },
+        now,
+      ).mentionMono,
+    ).toBe(false);
+    expect(
+      colorViewerForUser(
+        { personalization: { mentionMono: { allowed: true, expiresAt: null } } },
+        now,
+      ).mentionMono,
+    ).toBe(true);
   });
 });

@@ -35,7 +35,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInteractionEventName(value: unknown): value is FeedInteractionEventName {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERACTION_EVENTS, value);
+  return (
+    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERACTION_EVENTS, value)
+  );
 }
 
 export type ParsedFeedInteractionBatch =
@@ -111,7 +113,10 @@ export function parseFeedInteractionBatch(body: unknown): ParsedFeedInteractionB
   }
 
   if (interactions.length > FEED_INTERACTION_BATCH_LIMIT) {
-    return { ok: false, error: `interactions exceeds the ${FEED_INTERACTION_BATCH_LIMIT} per-request limit` };
+    return {
+      ok: false,
+      error: `interactions exceeds the ${FEED_INTERACTION_BATCH_LIMIT} per-request limit`,
+    };
   }
 
   const parsed: FeedInteractionInput[] = [];

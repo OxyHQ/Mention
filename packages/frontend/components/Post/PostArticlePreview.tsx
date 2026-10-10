@@ -11,7 +11,13 @@ interface PostArticlePreviewProps {
   className?: string;
 }
 
-const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress, style, className }) => {
+const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({
+  title,
+  body,
+  onPress,
+  style,
+  className,
+}) => {
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
@@ -22,7 +28,8 @@ const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, on
       radius="radius-16"
       className={cn('w-[200px] min-h-[140px] p-4 justify-between', className)}
       style={style}
-      onPress={onPress} appearance="outline"
+      onPress={onPress}
+      appearance="outline"
     >
       <Text className="text-foreground text-lg font-bold mb-3" numberOfLines={2}>
         {trimmedTitle || 'Untitled article'}

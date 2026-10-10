@@ -22,7 +22,9 @@ describe('extractApLanguage', () => {
   });
 
   it('ignores an ambiguous multi-key contentMap', () => {
-    expect(extractApLanguage({ contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } })).toBeUndefined();
+    expect(
+      extractApLanguage({ contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
+    ).toBeUndefined();
   });
 
   it('returns undefined for unusable language values', () => {
@@ -42,15 +44,18 @@ describe('extractApLanguage', () => {
   });
 
   it('ignores a contentMap that is an array', () => {
-    expect(extractApLanguage({ contentMap: ['en'] as unknown as Record<string, unknown> })).toBeUndefined();
+    expect(
+      extractApLanguage({ contentMap: ['en'] as unknown as Record<string, unknown> }),
+    ).toBeUndefined();
   });
 });
 
 describe('extractApLanguages', () => {
   it('returns all languages from a multi-key contentMap', () => {
-    expect(
-      extractApLanguages({ contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
-    ).toEqual(['en', 'es']);
+    expect(extractApLanguages({ contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } })).toEqual([
+      'en',
+      'es',
+    ]);
   });
 
   it('includes the top-level language first, then every contentMap key (deduped)', () => {
@@ -61,7 +66,10 @@ describe('extractApLanguages', () => {
 
   it('normalizes every entry to its ISO 639-1 primary subtag', () => {
     expect(
-      extractApLanguages({ language: 'pt-BR', contentMap: { 'pt-BR': '<p>oi</p>', 'en-US': '<p>hi</p>' } }),
+      extractApLanguages({
+        language: 'pt-BR',
+        contentMap: { 'pt-BR': '<p>oi</p>', 'en-US': '<p>hi</p>' },
+      }),
     ).toEqual(['pt', 'en']);
   });
 
@@ -75,7 +83,10 @@ describe('extractApLanguages', () => {
 
   it('skips unusable codes but keeps the usable ones', () => {
     expect(
-      extractApLanguages({ language: 'english', contentMap: { es: '<p>hola</p>', xx9: '<p>?</p>' } }),
+      extractApLanguages({
+        language: 'english',
+        contentMap: { es: '<p>hola</p>', xx9: '<p>?</p>' },
+      }),
     ).toEqual(['es']);
   });
 

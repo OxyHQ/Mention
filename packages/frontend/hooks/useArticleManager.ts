@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 
 export interface ArticleData {
   title: string;
@@ -8,12 +8,12 @@ export interface ArticleData {
 export const useArticleManager = () => {
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [isArticleEditorVisible, setIsArticleEditorVisible] = useState(false);
-  const [articleDraftTitle, setArticleDraftTitle] = useState("");
-  const [articleDraftBody, setArticleDraftBody] = useState("");
+  const [articleDraftTitle, setArticleDraftTitle] = useState('');
+  const [articleDraftBody, setArticleDraftBody] = useState('');
 
   const openArticleEditor = useCallback(() => {
-    setArticleDraftTitle(article?.title || "");
-    setArticleDraftBody(article?.body || "");
+    setArticleDraftTitle(article?.title || '');
+    setArticleDraftBody(article?.body || '');
     setIsArticleEditorVisible(true);
   }, [article]);
 
@@ -34,8 +34,8 @@ export const useArticleManager = () => {
 
   const removeArticle = useCallback(() => {
     setArticle(null);
-    setArticleDraftTitle("");
-    setArticleDraftBody("");
+    setArticleDraftTitle('');
+    setArticleDraftBody('');
   }, []);
 
   const loadArticleFromDraft = useCallback((draftArticle: ArticleData | null) => {
@@ -44,8 +44,8 @@ export const useArticleManager = () => {
 
   const clearArticle = useCallback(() => {
     setArticle(null);
-    setArticleDraftTitle("");
-    setArticleDraftBody("");
+    setArticleDraftTitle('');
+    setArticleDraftBody('');
     setIsArticleEditorVisible(false);
   }, []);
 

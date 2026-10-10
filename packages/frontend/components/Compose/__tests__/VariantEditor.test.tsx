@@ -40,7 +40,8 @@ jest.mock('@/components/Post/PostArticlePreview', () => ({
 
 jest.mock('@/components/MentionTextInput', () => {
   const React = jest.requireActual<typeof import('react')>('react');
-  const { TextInput: RNTextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TextInput: RNTextInput } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   const MockMentionTextInput = React.forwardRef((props: Record<string, unknown>, ref) => {
     React.useImperativeHandle(ref, () => ({
       focus: jest.fn(),

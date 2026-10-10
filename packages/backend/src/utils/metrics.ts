@@ -475,18 +475,13 @@ class MetricsCollector {
     this.series.clear();
   }
 
-  private definitionFor(
-    metricName: MetricName,
-    expectedKind: MetricKind,
-  ): MetricDefinition {
+  private definitionFor(metricName: MetricName, expectedKind: MetricKind): MetricDefinition {
     const definition = DEFINITIONS[metricName] as MetricDefinition | undefined;
     if (!definition) {
       throw new Error(`Unknown metric: ${String(metricName)}`);
     }
     if (definition.kind !== expectedKind) {
-      throw new Error(
-        `Metric ${metricName} is a ${definition.kind}, not a ${expectedKind}`,
-      );
+      throw new Error(`Metric ${metricName} is a ${definition.kind}, not a ${expectedKind}`);
     }
     return definition;
   }
@@ -509,10 +504,7 @@ class MetricsCollector {
     const ceiling = definition.maxSeries ?? MAX_SERIES_PER_METRIC;
     // Reserve the final slot for the collapsed `other` series. Otherwise the
     // first overflow could create a 257th series before later values converge.
-    if (
-      !knownSeries.has(key) &&
-      knownSeries.size >= ceiling - 1
-    ) {
+    if (!knownSeries.has(key) && knownSeries.size >= ceiling - 1) {
       for (const label of definition.labelNames) normalized[label] = 'other';
     }
     knownSeries.add(seriesKey(normalized));

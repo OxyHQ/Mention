@@ -281,7 +281,9 @@ async function assertEmployerIsOxy(employerOxyUserId: string): Promise<void> {
  * Resolve one entry's place through Clarity and check it against what the
  * original listing said. Throws — a wrong or unresolvable place aborts the run.
  */
-async function resolveEntryLocation(entry: OxyCareersJobEntry): Promise<MentionJobLocation | undefined> {
+async function resolveEntryLocation(
+  entry: OxyCareersJobEntry,
+): Promise<MentionJobLocation | undefined> {
   if (!entry.location) return undefined;
   const location = await resolveJobLocation(entry.location);
 
@@ -400,7 +402,11 @@ export async function importOxyCareersJobs(
     if (match) {
       if (match.status === 'closed' || match.status === 'expired') {
         summary.skippedClosed += 1;
-        summary.entries.push({ sourceSlug: entry.sourceSlug, action: 'skip_closed', jobId: match.id });
+        summary.entries.push({
+          sourceSlug: entry.sourceSlug,
+          action: 'skip_closed',
+          jobId: match.id,
+        });
         logger.warn('[importOxyCareersJobs] a matching job is closed; leaving it closed', {
           sourceSlug: entry.sourceSlug,
           job: match.id,
@@ -422,7 +428,11 @@ export async function importOxyCareersJobs(
       // draft or paused: the import's contract is that these are live.
       summary.republished += 1;
       if (dryRun) {
-        summary.entries.push({ sourceSlug: entry.sourceSlug, action: 'republish', jobId: match.id });
+        summary.entries.push({
+          sourceSlug: entry.sourceSlug,
+          action: 'republish',
+          jobId: match.id,
+        });
         continue;
       }
       const republished = await setJobStatus(match.id, 'published');

@@ -217,9 +217,7 @@ async function contextResource(
     type: 'text',
     data: { text: body.text },
     ...(body.language === undefined ? {} : { language: body.language }),
-    ...(neighbour.createdAt === undefined
-      ? {}
-      : { createdAt: new Date(neighbour.createdAt) }),
+    ...(neighbour.createdAt === undefined ? {} : { createdAt: new Date(neighbour.createdAt) }),
   };
 }
 
@@ -290,9 +288,7 @@ function reachedAudience(post: SnapshotPost): number | undefined {
    * Omitted rather than coerced: a rounded or clamped value would be a number
    * Mention made up, which is the thing this field must never carry.
    */
-  return typeof views === 'number' && Number.isInteger(views) && views >= 0
-    ? views
-    : undefined;
+  return typeof views === 'number' && Number.isInteger(views) && views >= 0 ? views : undefined;
 }
 
 export function createPostSubjectProvider(input: {
@@ -348,7 +344,8 @@ export function createPostSubjectProvider(input: {
       const post = await loadPost(reportedId, reporterId);
       if (!post) return null;
 
-      const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
+      const ownerId =
+        getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
       const body = postText(post);
 
       const context: ModerationContextResource[] = [];

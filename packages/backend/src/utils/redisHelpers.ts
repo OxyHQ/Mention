@@ -50,9 +50,9 @@ const REDIS_CONNECTION_ERROR_MESSAGES = [
 export function isRedisConnectionError(error: unknown): boolean {
   const { code, message, name } = errorFields(error);
   return Boolean(
-    (code && REDIS_CONNECTION_ERROR_CODES.has(code))
-    || (name && REDIS_CONNECTION_ERROR_NAMES.has(name))
-    || REDIS_CONNECTION_ERROR_MESSAGES.some((fragment) => message?.includes(fragment)),
+    (code && REDIS_CONNECTION_ERROR_CODES.has(code)) ||
+      (name && REDIS_CONNECTION_ERROR_NAMES.has(name)) ||
+      REDIS_CONNECTION_ERROR_MESSAGES.some((fragment) => message?.includes(fragment)),
   );
 }
 
@@ -65,7 +65,7 @@ export async function withRedisFallback<T>(
   client: RedisClientType,
   operation: () => Promise<T>,
   fallback: T,
-  operationName?: string
+  operationName?: string,
 ): Promise<T> {
   if (!client.isReady) {
     return fallback;

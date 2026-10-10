@@ -184,10 +184,7 @@ async function loadTrendAppearances(
     const rows = await getDb()
       .select({ name: trending.name, calculatedAt: trending.calculatedAt })
       .from(trending)
-      .where(and(
-        inArray(trending.name, [...terms]),
-        gte(trending.calculatedAt, cutoff),
-      ));
+      .where(and(inArray(trending.name, [...terms]), gte(trending.calculatedAt, cutoff)));
 
     for (const row of rows) {
       const existing = byTerm.get(row.name);
@@ -229,17 +226,22 @@ async function resolveTrendLabels(
         calculatedAt: trending.calculatedAt,
       })
       .from(trending)
-      .where(and(
-        inArray(trending.name, ranked.map((trend) => trend.term)),
-        gte(trending.calculatedAt, new Date(earliestRun)),
-        sql`${trending.displayName} is not null`,
-        // Only a label THESE rules produced may be carried forward. An older
-        // one is re-derived, so a rules fix reaches a run already in progress
-        // instead of waiting for it to end. `=` is total here because the
-        // `is not null` above has already excluded the rows where a NULL
-        // `label_version` would make the comparison NULL.
-        eq(trending.labelVersion, TREND_LABEL_VERSION),
-      ))
+      .where(
+        and(
+          inArray(
+            trending.name,
+            ranked.map((trend) => trend.term),
+          ),
+          gte(trending.calculatedAt, new Date(earliestRun)),
+          sql`${trending.displayName} is not null`,
+          // Only a label THESE rules produced may be carried forward. An older
+          // one is re-derived, so a rules fix reaches a run already in progress
+          // instead of waiting for it to end. `=` is total here because the
+          // `is not null` above has already excluded the rows where a NULL
+          // `label_version` would make the comparison NULL.
+          eq(trending.labelVersion, TREND_LABEL_VERSION),
+        ),
+      )
       .orderBy(desc(trending.calculatedAt));
 
     for (const row of rows) {
@@ -261,10 +263,13 @@ async function resolveTrendLabels(
 
   const excerptsByTerm = await loadExcerptsByTerm(unlabelled.map((trend) => trend.term));
   for (const trend of unlabelled) {
-    labels.set(trend.term, deriveTrendLabel({
-      term: trend.term,
-      excerpts: excerptsByTerm.get(trend.term) ?? [],
-    }));
+    labels.set(
+      trend.term,
+      deriveTrendLabel({
+        term: trend.term,
+        excerpts: excerptsByTerm.get(trend.term) ?? [],
+      }),
+    );
   }
 
   // Anything past the per-batch labelling cap still needs a presentable name.

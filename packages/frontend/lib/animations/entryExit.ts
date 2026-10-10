@@ -1,10 +1,4 @@
-import {
-  Easing,
-  FadeInDown,
-  FadeInUp,
-  FadeOutDown,
-  FadeOutUp,
-} from 'react-native-reanimated';
+import { Easing, FadeInDown, FadeInUp, FadeOutDown, FadeOutUp } from 'react-native-reanimated';
 
 const easeOut = Easing.bezier(0.16, 1, 0.3, 1);
 

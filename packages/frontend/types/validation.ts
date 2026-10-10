@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { logger } from "@oxy.so/core/logger";
+import { z } from 'zod';
+import { logger } from '@oxy.so/core/logger';
 
 /**
  * Reject legacy fields that the profile-identity contract retired, so a shim
@@ -11,10 +11,7 @@ import { logger } from "@oxy.so/core/logger";
  * resurrected `handle` or `isLiked` would ride along and be read downstream.
  */
 const refuseLegacyFields =
-  (
-    kind: string,
-    fields: readonly string[],
-  ): ((value: object, context: z.RefinementCtx) => void) =>
+  (kind: string, fields: readonly string[]): ((value: object, context: z.RefinementCtx) => void) =>
   (value, context) => {
     for (const field of fields) {
       if (field in value) {
@@ -28,15 +25,10 @@ const refuseLegacyFields =
   };
 
 /** Identity shims replaced by `username` / `avatar` / `verified`. */
-const LEGACY_IDENTITY_FIELDS = ["handle", "avatarUrl", "isVerified"] as const;
+const LEGACY_IDENTITY_FIELDS = ['handle', 'avatarUrl', 'isVerified'] as const;
 
 /** Viewer-state shims that moved onto `viewerState`. */
-const LEGACY_VIEWER_FIELDS = [
-  "isLiked",
-  "isDownvoted",
-  "isBoosted",
-  "isSaved",
-] as const;
+const LEGACY_VIEWER_FIELDS = ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] as const;
 
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({
@@ -67,15 +59,15 @@ const embeddedUserShape = {
 
 export const ZEmbeddedUser = z
   .looseObject(embeddedUserShape)
-  .superRefine(refuseLegacyFields("identity", LEGACY_IDENTITY_FIELDS));
+  .superRefine(refuseLegacyFields('identity', LEGACY_IDENTITY_FIELDS));
 
 const ZEmbeddedAuthor = z
   .looseObject({
     ...embeddedUserShape,
-    role: z.enum(["owner", "collaborator"]),
-    status: z.enum(["pending", "accepted", "declined", "stopped"]),
+    role: z.enum(['owner', 'collaborator']),
+    status: z.enum(['pending', 'accepted', 'declined', 'stopped']),
   })
-  .superRefine(refuseLegacyFields("identity", LEGACY_IDENTITY_FIELDS));
+  .superRefine(refuseLegacyFields('identity', LEGACY_IDENTITY_FIELDS));
 
 // Embedded posts are hydrated by PostHydrationService. Keep the validator
 // aligned with that canonical contract so old identity/viewer shims cannot
@@ -110,7 +102,7 @@ export const ZEmbeddedPost = z
       isBoosted: z.boolean(),
       isSaved: z.boolean(),
       collabInvitePending: z.boolean().optional(),
-      viewerRole: z.enum(["owner", "collaborator"]).optional(),
+      viewerRole: z.enum(['owner', 'collaborator']).optional(),
     }),
     permissions: z.looseObject({
       canReply: z.boolean(),
@@ -125,7 +117,7 @@ export const ZEmbeddedPost = z
     }),
     parentPostId: z.string().optional(),
   })
-  .superRefine(refuseLegacyFields("viewer", LEGACY_VIEWER_FIELDS));
+  .superRefine(refuseLegacyFields('viewer', LEGACY_VIEWER_FIELDS));
 
 // Raw notification as received from API
 export const ZRawNotification = z.looseObject({
@@ -169,7 +161,7 @@ export const validateNotifications = (items: unknown): TRawNotification[] => {
     if (parsed.success) {
       valid.push(parsed.data);
     } else {
-      logger.warn("Dropping invalid notification", {
+      logger.warn('Dropping invalid notification', {
         issue: parsed.error?.issues?.[0],
       });
     }

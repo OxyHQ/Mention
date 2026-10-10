@@ -1,26 +1,18 @@
-import { mcpDeploymentIdentity } from "@mention/shared-types/deployment";
-import { oxyServiceClient } from "./oxy-service-client.js";
+import { mcpDeploymentIdentity } from '@mention/shared-types/deployment';
+import { oxyServiceClient } from './oxy-service-client.js';
 import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
-} from "@oxy.so/mcp";
-import type { McpHttpConfig } from "./config.js";
-import { type AuthenticatedMcpToken } from "./http-security.js";
+} from '@oxy.so/mcp';
+import type { McpHttpConfig } from './config.js';
+import { type AuthenticatedMcpToken } from './http-security.js';
 
-type TokenAuthConfig = Pick<
-  McpHttpConfig,
-  "oxyApiUrl" | "publicUrl" | "deploymentIdentity"
->;
+type TokenAuthConfig = Pick<McpHttpConfig, 'oxyApiUrl' | 'publicUrl' | 'deploymentIdentity'>;
 
-export type CentralTokenIntrospector = (
-  token: string,
-) => Promise<OxyMcpAccessTokenClaims | null>;
+export type CentralTokenIntrospector = (token: string) => Promise<OxyMcpAccessTokenClaims | null>;
 
 export function createCentralTokenIntrospector(
-  config: Pick<
-    McpHttpConfig,
-    "oxyApiUrl" | "oxyServiceApiKey" | "oxyServiceApiSecret"
-  >,
+  config: Pick<McpHttpConfig, 'oxyApiUrl' | 'oxyServiceApiKey' | 'oxyServiceApiSecret'>,
 ): CentralTokenIntrospector {
   const oxy = oxyServiceClient(config);
   return (token) =>
@@ -43,7 +35,7 @@ export async function authenticateMcpAccessToken(
     introspectCentral: CentralTokenIntrospector;
   },
 ): Promise<AuthenticatedMcpToken | null> {
-  if (jwtAlgorithm(token) !== "EdDSA") return null;
+  if (jwtAlgorithm(token) !== 'EdDSA') return null;
   const claims = await options.introspectCentral(token);
   return claims ? centralPrincipal(claims, options.config) : null;
 }
@@ -52,7 +44,9 @@ function centralPrincipal(
   claims: OxyMcpAccessTokenClaims,
   config: TokenAuthConfig,
 ): AuthenticatedMcpToken | null {
-  const identity = config.deploymentIdentity ?? mcpDeploymentIdentity({ MENTION_MCP_PUBLIC_URL: config.publicUrl });
+  const identity =
+    config.deploymentIdentity ??
+    mcpDeploymentIdentity({ MENTION_MCP_PUBLIC_URL: config.publicUrl });
   if (
     claims.iss !== config.oxyApiUrl ||
     claims.aud !== identity.audience ||
@@ -66,10 +60,10 @@ function centralPrincipal(
     sub: claims.sub,
     jti: claims.jti,
     client_id: claims.client_id,
-    scope: [...scopes].sort().join(" "),
+    scope: [...scopes].sort().join(' '),
     scopes,
     accountId: claims.account_id,
-    authMode: "central",
+    authMode: 'central',
   };
 }
 
@@ -79,13 +73,13 @@ function scopeSet(value: string | string[]): ReadonlySet<string> {
 }
 
 function jwtAlgorithm(token: string): string | undefined {
-  const encodedHeader = token.split(".", 1)[0];
+  const encodedHeader = token.split('.', 1)[0];
   if (!encodedHeader) return undefined;
   try {
-    const header = JSON.parse(
-      Buffer.from(encodedHeader, "base64url").toString("utf8"),
-    ) as { alg?: unknown };
-    return typeof header.alg === "string" ? header.alg : undefined;
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8')) as {
+      alg?: unknown;
+    };
+    return typeof header.alg === 'string' ? header.alg : undefined;
   } catch {
     return undefined;
   }

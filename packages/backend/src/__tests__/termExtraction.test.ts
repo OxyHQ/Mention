@@ -259,13 +259,17 @@ describe('extractTrendTerms — a bare word must NAME something', () => {
   });
 
   it('drops the ordinary words that reached the live list', () => {
-    expect(extractTrendTerms({ text: 'i love this so much, love is all you need' })).not.toContain('love');
+    expect(extractTrendTerms({ text: 'i love this so much, love is all you need' })).not.toContain(
+      'love',
+    );
     expect(extractTrendTerms({ text: 'i hope so, hope everyone is well' })).not.toContain('hope');
     expect(extractTrendTerms({ text: 'worth a mention i suppose' })).not.toContain('mention');
   });
 
   it('selects German nouns without knowing the text is German', () => {
-    const terms = extractTrendTerms({ text: 'wenn du von zwei Jahren ausgehst, nenne ich dich einen Optimisten' });
+    const terms = extractTrendTerms({
+      text: 'wenn du von zwei Jahren ausgehst, nenne ich dich einen Optimisten',
+    });
     expect(terms).toContain('jahren');
     expect(terms).toContain('optimisten');
   });
@@ -297,16 +301,17 @@ describe('extractTrendTerms — a bare word must NAME something', () => {
   });
 
   it('still keeps a short alias when the author writes it as a complete name', () => {
-    expect(extractTrendTerms({ text: 'the latest statement from Trump today' }))
-      .toContain('trump');
-    expect(extractTrendTerms({ text: 'the latest statement from Donald Trump today' }))
-      .toContain('donald trump');
+    expect(extractTrendTerms({ text: 'the latest statement from Trump today' })).toContain('trump');
+    expect(extractTrendTerms({ text: 'the latest statement from Donald Trump today' })).toContain(
+      'donald trump',
+    );
   });
 
   it('still keeps a hashtag the author chose, whatever its case', () => {
     // An explicit tag is the author naming the subject; it needs no capital.
-    expect(extractTrendTerms({ text: 'watching #frightclub', hashtags: ['frightclub'] }))
-      .toContain('frightclub');
+    expect(extractTrendTerms({ text: 'watching #frightclub', hashtags: ['frightclub'] })).toContain(
+      'frightclub',
+    );
   });
 });
 
@@ -342,8 +347,9 @@ describe('extractTrendTerms — the tests above are not vacuous', () => {
   });
 
   it('extracts something from ordinary prose', () => {
-    expect(extractTrendTerms({ text: 'Orioles trading Dean Kremer to Minnesota Twins' }).length)
-      .toBeGreaterThan(1);
+    expect(
+      extractTrendTerms({ text: 'Orioles trading Dean Kremer to Minnesota Twins' }).length,
+    ).toBeGreaterThan(1);
   });
 });
 
@@ -362,8 +368,7 @@ describe('isTrendStopWord — the detection-time filter', () => {
   });
 
   it('refuses calendar words across the supported languages', () => {
-    expect(['martes', 'martedì', 'terça', 'mardi', 'dienstag'].every(isTrendStopWord))
-      .toBe(true);
+    expect(['martes', 'martedì', 'terça', 'mardi', 'dienstag'].every(isTrendStopWord)).toBe(true);
   });
 
   it('keeps a phrase where a stop word is only part of it', () => {
@@ -399,8 +404,9 @@ describe('capitalization is only evidence where it discriminates', () => {
   });
 
   it('still reads the same capital as a name in English', () => {
-    expect(extractTrendTerms({ text: 'a great day for Zelensky today', languages: ['en'] }))
-      .toContain('zelensky');
+    expect(
+      extractTrendTerms({ text: 'a great day for Zelensky today', languages: ['en'] }),
+    ).toContain('zelensky');
   });
 
   it('leaves a German post its author-chosen hashtags', () => {
@@ -436,7 +442,9 @@ describe('collectTrendPhraseEntries — the case evidence labelling reads', () =
   });
 
   it('has one flag per word', () => {
-    for (const entry of collectTrendPhraseEntries('a note about Todd Blanche and the Senate today')) {
+    for (const entry of collectTrendPhraseEntries(
+      'a note about Todd Blanche and the Senate today',
+    )) {
       expect(entry.names).toHaveLength(entry.text.split(' ').length);
     }
   });

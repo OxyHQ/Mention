@@ -8,8 +8,7 @@ import { isHlsSource } from '../hlsSource';
  * where every federated video silently keeps failing.
  */
 describe('isHlsSource', () => {
-  const BSKY_PLAYLIST =
-    'https://video.bsky.app/watch/did%3Aplc%3Aabc/bafkrei123/playlist.m3u8';
+  const BSKY_PLAYLIST = 'https://video.bsky.app/watch/did%3Aplc%3Aabc/bafkrei123/playlist.m3u8';
 
   it('recognises a bare playlist url', () => {
     expect(isHlsSource(BSKY_PLAYLIST)).toBe(true);
@@ -44,6 +43,10 @@ describe('isHlsSource', () => {
 
   it('is not fooled by a playlist named in some other query parameter', () => {
     // Only the proxy's own `url` parameter names an upstream we will fetch.
-    expect(isHlsSource('https://api.mention.earth/media/proxy?poster=a/playlist.m3u8&url=https%3A%2F%2Fcdn.example%2Fclip.mp4')).toBe(false);
+    expect(
+      isHlsSource(
+        'https://api.mention.earth/media/proxy?poster=a/playlist.m3u8&url=https%3A%2F%2Fcdn.example%2Fclip.mp4',
+      ),
+    ).toBe(false);
   });
 });

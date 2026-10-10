@@ -112,9 +112,9 @@ function buildResponse() {
  * identity, not a claim about linkage, so taking it from the response costs the
  * assertions nothing.
  */
-async function storedThread(
-  payload: { value?: { posts: unknown[] } },
-): Promise<Array<typeof posts.$inferSelect>> {
+async function storedThread(payload: {
+  value?: { posts: unknown[] };
+}): Promise<Array<typeof posts.$inferSelect>> {
   const rows = await readScopePosts(scope);
   const byId = new Map(rows.map((row) => [row.id, row]));
   const ordered = (payload.value?.posts ?? []).map((post) => byId.get((post as { id: string }).id));

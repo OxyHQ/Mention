@@ -82,15 +82,9 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
     // an ABSENT field while SQL's `<>` against NULL matches nothing, so the
     // literal translation would report zero orphans on a corpus full of them.
-    const baseFilter = and(
-      isNotNull(posts.federationInReplyTo),
-      isNull(posts.parentPostId),
-    ) as SQL;
+    const baseFilter = and(isNotNull(posts.federationInReplyTo), isNull(posts.parentPostId)) as SQL;
 
-    const [totals] = await getDb()
-      .select({ count: count() })
-      .from(posts)
-      .where(baseFilter);
+    const [totals] = await getDb().select({ count: count() }).from(posts).where(baseFilter);
     const totalCount = totals?.count ?? 0;
     logger.info(`[backfillFederatedThreadLinks] ${totalCount} orphan federated replies to scan`);
 
@@ -144,11 +138,7 @@ async function backfillFederatedThreadLinks(): Promise<void> {
           // the reply on its parent like every other linking path.
           await linkReplyToParent(eq(posts.id, post.id), link, db);
         }
-        if (
-          post.oxyUserId &&
-          post.visibility === 'public' &&
-          post.status === 'published'
-        ) {
+        if (post.oxyUserId && post.visibility === 'public' && post.status === 'published') {
           projectionReplies.push({
             parentPostId: link.parentPostId,
             oxyUserId: post.oxyUserId,

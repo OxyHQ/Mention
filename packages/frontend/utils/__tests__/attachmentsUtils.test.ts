@@ -24,7 +24,14 @@ describe('buildAttachmentsPayload', () => {
         includeRoom: true,
       },
     );
-    expect(result.map((d) => d.type)).toEqual(['poll', 'article', 'event', 'location', 'sources', 'room']);
+    expect(result.map((d) => d.type)).toEqual([
+      'poll',
+      'article',
+      'event',
+      'location',
+      'sources',
+      'room',
+    ]);
   });
 
   it('drops a non-media key from the order when its flag is not set', () => {
@@ -90,11 +97,11 @@ describe('buildAttachmentsPayload', () => {
 
   it('mixes every attachment kind together in one coherent, deduplicated payload', () => {
     const media = [mediaItem('m1')];
-    const result = buildAttachmentsPayload(
-      ['poll', 'media:m1', 'podcast', 'job'],
-      media,
-      { includePoll: true, podcastId: 'show-1', jobId: 'job-1' },
-    );
+    const result = buildAttachmentsPayload(['poll', 'media:m1', 'podcast', 'job'], media, {
+      includePoll: true,
+      podcastId: 'show-1',
+      jobId: 'job-1',
+    });
     expect(result).toEqual([
       { type: 'poll' },
       { type: 'media', id: 'm1', mediaType: 'image' },

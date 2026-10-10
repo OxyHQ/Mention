@@ -102,5 +102,4 @@ export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 60 * SECONDS_PER_MINUTE * MS_PER
  * running that way. Set `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=false` to close
  * the write side again.
  */
-export const MEDIA_CACHE_WRITE_ENABLED =
-  config.federation.mediaCacheWriteEnabled;
+export const MEDIA_CACHE_WRITE_ENABLED = config.federation.mediaCacheWriteEnabled;

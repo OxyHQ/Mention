@@ -23,13 +23,17 @@ import { deleteCachedMedia, isMediaCacheEnabled, isMediaStoreThrottled } from '.
 function describeDeleteFailure(error: unknown): Record<string, unknown> {
   if (typeof error !== 'object' || error === null) return { reason: String(error) };
   const fields = error as { message?: unknown; statusCode?: unknown; status?: unknown };
-  const status = typeof fields.statusCode === 'number'
-    ? fields.statusCode
-    : (typeof fields.status === 'number' ? fields.status : undefined);
+  const status =
+    typeof fields.statusCode === 'number'
+      ? fields.statusCode
+      : typeof fields.status === 'number'
+        ? fields.status
+        : undefined;
   return {
-    reason: typeof fields.message === 'string' && fields.message.length > 0
-      ? fields.message.slice(0, 300)
-      : 'unknown failure',
+    reason:
+      typeof fields.message === 'string' && fields.message.length > 0
+        ? fields.message.slice(0, 300)
+        : 'unknown failure',
     ...(status !== undefined ? { status } : {}),
   };
 }
@@ -96,7 +100,9 @@ export async function runEvictionOnce(): Promise<void> {
     // Every remaining delete this sweep would only buy another refusal: the
     // budget is per application and per window. Measured before this: 50
     // eviction deletes failing per sweep, every sweep, with a warn line each.
-    if (settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')) {
+    if (
+      settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')
+    ) {
       logger.info('[MediaCache] Eviction stopping early; media-write budget spent', {
         remaining: candidates.length - (i + batch.length),
       });

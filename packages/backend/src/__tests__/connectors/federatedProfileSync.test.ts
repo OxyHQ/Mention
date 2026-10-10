@@ -25,13 +25,13 @@ const scope = federationScope('federated-profile-sync');
  *    before any network call settles.
  */
 
-
 /** Resolves only when the test lets it — proves the request path never awaits it. */
 let releaseOutboxSync: (() => void) | undefined;
 const syncOutboxPostsDetailed = vi.fn(
-  () => new Promise<{ syncedCount: number; shouldStampCooldown: boolean }>((resolve) => {
-    releaseOutboxSync = () => resolve({ syncedCount: 0, shouldStampCooldown: true });
-  }),
+  () =>
+    new Promise<{ syncedCount: number; shouldStampCooldown: boolean }>((resolve) => {
+      releaseOutboxSync = () => resolve({ syncedCount: 0, shouldStampCooldown: true });
+    }),
 );
 const refreshActorInBackground = vi.fn();
 const fetchRemoteActor = vi.fn(async () => null);
@@ -203,19 +203,23 @@ describe('federatedProfileSync.syncOnProfileView', () => {
   });
 
   it('does NOT report pending once the outbox backfill is complete', async () => {
-    await seedCachedActor(federatedActor({
-      outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
-      outboxBackfillStatus: 'complete',
-    }));
+    await seedCachedActor(
+      federatedActor({
+        outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
+        outboxBackfillStatus: 'complete',
+      }),
+    );
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
 
   it('does NOT report pending when the outbox is permanently unavailable', async () => {
-    await seedCachedActor(federatedActor({
-      outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
-      outboxBackfillStatus: 'unavailable',
-    }));
+    await seedCachedActor(
+      federatedActor({
+        outboxBackfillOutboxUrl: `${AP_ACTOR_URI}/outbox`,
+        outboxBackfillStatus: 'unavailable',
+      }),
+    );
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
   });
@@ -337,18 +341,12 @@ describe('federatedProfileSync author backfill', () => {
   }
 
   /** Let the detached background task reach the author backfill and finish it. */
-  async function runSyncAndAwaitBackfill(
-    oxyUserId: string,
-    claimed: string,
-  ): Promise<void> {
+  async function runSyncAndAwaitBackfill(oxyUserId: string, claimed: string): Promise<void> {
     syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
     await federatedProfileSync.syncOnProfileView(oxyUserId);
     // Wait on the ROW the backfill is supposed to write, not on a spy: the task
     // is detached, so there is no promise to await and no call to count.
-    await vi.waitFor(
-      async () => expect(await ownerOf(claimed)).toBe(oxyUserId),
-      { timeout: 3000 },
-    );
+    await vi.waitFor(async () => expect(await ownerOf(claimed)).toBe(oxyUserId), { timeout: 3000 });
   }
 
   it("claims ONLY the synced actor's orphaned posts, never a username-prefix sibling's", async () => {
@@ -371,11 +369,13 @@ describe('federatedProfileSync author backfill', () => {
     // A dot in the remote username is a wildcard to any pattern-based match, so
     // `@a.ice` would claim `@alice`'s posts — and the pattern would run over an
     // unindexable scan. A range bound compares bytes and cannot do either.
-    await seedCachedActor(federatedActor({
-      uri: `${scope.origin}/users/a.ice`,
-      acct: `a.ice@${scope.domain}`,
-      outboxUrl: `${scope.origin}/users/a.ice/outbox`,
-    }));
+    await seedCachedActor(
+      federatedActor({
+        uri: `${scope.origin}/users/a.ice`,
+        acct: `a.ice@${scope.domain}`,
+        outboxUrl: `${scope.origin}/users/a.ice/outbox`,
+      }),
+    );
     const alicePost = await seedOrphan(`${AP_ACTOR_URI}/statuses/1`);
 
     syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
@@ -383,7 +383,9 @@ describe('federatedProfileSync author backfill', () => {
     // The sync stamps the actor AFTER the claim would have run, so waiting on the
     // stamp proves the backfill finished rather than merely not having started.
     await vi.waitFor(async () =>
-      expect((await readActor(`${scope.origin}/users/a.ice`))?.lastOutboxSyncAt).toBeInstanceOf(Date),
+      expect((await readActor(`${scope.origin}/users/a.ice`))?.lastOutboxSyncAt).toBeInstanceOf(
+        Date,
+      ),
     );
 
     expect(await ownerOf(alicePost)).toBeNull();

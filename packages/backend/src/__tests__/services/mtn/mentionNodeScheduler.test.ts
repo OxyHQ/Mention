@@ -115,7 +115,10 @@ describe('MentionNodeScheduler', () => {
     // be skipped by the re-entrancy guard rather than starting a 2nd sweep.
     let releaseSweep: (() => void) | undefined;
     mockSweepLiveness.mockImplementation(
-      () => new Promise<void>((resolve) => { releaseSweep = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSweep = resolve;
+        }),
     );
 
     const scheduler = new MentionNodeScheduler();
@@ -144,7 +147,10 @@ describe('MentionNodeScheduler', () => {
     mockFindNodesToSync.mockResolvedValue([{ oxyUserId: 'u-pull', mode: 'pull' }]);
     let releaseIngest: (() => void) | undefined;
     mockIngest.mockImplementation(
-      () => new Promise<void>((resolve) => { releaseIngest = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          releaseIngest = resolve;
+        }),
     );
 
     const scheduler = new MentionNodeScheduler();
@@ -270,10 +276,10 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
       if (ts.isIdentifier(node)) {
         if (FORBIDDEN.includes(node.text)) found.add(node.text);
       } else if (
-        ts.isStringLiteralLike(node)
-        || ts.isTemplateHead(node)
-        || ts.isTemplateMiddle(node)
-        || ts.isTemplateTail(node)
+        ts.isStringLiteralLike(node) ||
+        ts.isTemplateHead(node) ||
+        ts.isTemplateMiddle(node) ||
+        ts.isTemplateTail(node)
       ) {
         for (const token of FORBIDDEN) {
           if (node.text.includes(token)) found.add(token);
@@ -320,8 +326,8 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
       (entry) =>
         HOT_PATH_DIRS.some(
           (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
-        )
-        && !NOT_A_READ_PATH.some(
+        ) &&
+        !NOT_A_READ_PATH.some(
           (dir) => entry.relative === dir || entry.relative.startsWith(`${dir}${path.sep}`),
         ),
     );

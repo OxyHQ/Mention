@@ -18,13 +18,10 @@ const routingProfileIdName = 'OXY_INFERENCE_ROUTING_PROFILE_ID';
 const routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
 const fixtureMode = process.env.INFERENCE_BOUNDARY_FIXTURE === '1';
 
-const productionSourceRoots = [
-  'packages/backend/src/',
-  'packages/frontend/',
-  'packages/mcp/',
-];
+const productionSourceRoots = ['packages/backend/src/', 'packages/frontend/', 'packages/mcp/'];
 const sourceExtension = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
-const nonProductionSource = /(?:^|\/)(?:__tests__|__mocks__|tests?|fixtures?|dist|coverage)(?:\/|$)|\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs|cjs)$|(?:^|\/)test-[^/]*\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
+const nonProductionSource =
+  /(?:^|\/)(?:__tests__|__mocks__|tests?|fixtures?|dist|coverage)(?:\/|$)|\.(?:test|spec)\.(?:ts|tsx|js|jsx|mjs|cjs)$|(?:^|\/)test-[^/]*\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
 
 const providerCredentialNames = [
   'OPENAI_API_KEY',
@@ -59,9 +56,7 @@ const providerCredentialNames = [
   'ASSEMBLYAI_API_KEY',
   'DEEPGRAM_API_KEY',
 ];
-const providerCredentialPattern = new RegExp(
-  `(?:${providerCredentialNames.join('|')})\\b`,
-);
+const providerCredentialPattern = new RegExp(`(?:${providerCredentialNames.join('|')})\\b`);
 
 const providerPackages = new Set([
   'openai',
@@ -120,7 +115,8 @@ if (listed.exitCode !== 0) {
   throw new Error(`git ls-files failed: ${listed.stderr.toString()}`);
 }
 
-const trackedFiles = listed.stdout.toString()
+const trackedFiles = listed.stdout
+  .toString()
   .split('\n')
   .filter((file) => existsSync(resolve(repositoryRoot, file)));
 const sourceFiles = trackedFiles
@@ -138,7 +134,8 @@ if (!fixtureMode) {
     ['packages/mcp/', 25],
   ]) {
     const count = sourceFiles.filter((file) => file.startsWith(root)).length;
-    if (count < minimum) failures.push(`${root} production source listing is unexpectedly small (${count} files)`);
+    if (count < minimum)
+      failures.push(`${root} production source listing is unexpectedly small (${count} files)`);
   }
 }
 
@@ -146,9 +143,18 @@ const forbiddenSourcePatterns = [
   [providerCredentialPattern, 'provider credential environment variable'],
   [/\bALIA_API_(?:KEY|URL)\b/, 'retired Alia provider gateway variable'],
   [/\bOXY_SERVICE_TOKEN\b/, 'retired static Oxy service-token fallback'],
-  [/\b(?:RELAY_BASE_URL|ALIA_RELAY_CLIENT_ENABLED|KAANA_BASE_URL|KAANA_EDGE_SIGNING_KEY_ID|KAANA_EDGE_SIGNING_PRIVATE_KEY)\b/, 'direct or retired data-plane configuration'],
-  [/(?:https?|wss?):\/\/(?:kaana\.ai|relay\.oxy\.so)(?=[:/\s'"`]|$)/i, 'direct Kaana/Relay data-plane endpoint'],
-  [/(?:api\.openai\.com|api\.anthropic\.com|api\.groq\.com|api\.cerebras\.ai|openrouter\.ai\/api|api\.x\.ai|generativelanguage\.googleapis\.com|aiplatform\.googleapis\.com|api\.elevenlabs\.io|api\.cohere\.ai|api\.replicate\.com|api\.mistral\.ai|api\.deepseek\.com|api\.together\.xyz|api\.fireworks\.ai|api\.perplexity\.ai|api\.deepinfra\.com|api\.novita\.ai|api\.z\.ai|integrate\.api\.nvidia\.com|api-inference\.huggingface\.co|bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com|api\.fal\.ai)/i, 'direct provider endpoint'],
+  [
+    /\b(?:RELAY_BASE_URL|ALIA_RELAY_CLIENT_ENABLED|KAANA_BASE_URL|KAANA_EDGE_SIGNING_KEY_ID|KAANA_EDGE_SIGNING_PRIVATE_KEY)\b/,
+    'direct or retired data-plane configuration',
+  ],
+  [
+    /(?:https?|wss?):\/\/(?:kaana\.ai|relay\.oxy\.so)(?=[:/\s'"`]|$)/i,
+    'direct Kaana/Relay data-plane endpoint',
+  ],
+  [
+    /(?:api\.openai\.com|api\.anthropic\.com|api\.groq\.com|api\.cerebras\.ai|openrouter\.ai\/api|api\.x\.ai|generativelanguage\.googleapis\.com|aiplatform\.googleapis\.com|api\.elevenlabs\.io|api\.cohere\.ai|api\.replicate\.com|api\.mistral\.ai|api\.deepseek\.com|api\.together\.xyz|api\.fireworks\.ai|api\.perplexity\.ai|api\.deepinfra\.com|api\.novita\.ai|api\.z\.ai|integrate\.api\.nvidia\.com|api-inference\.huggingface\.co|bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com|api\.fal\.ai)/i,
+    'direct provider endpoint',
+  ],
   [providerImportPattern, 'direct provider SDK import'],
   [/(?:from\s+|require\()['"][^'"]*\/utils\/alia['"]/, 'retired Alia inference utility import'],
   [/\bOXY_INFERENCE_ROUTING_PROFILE\b/, 'retired mutable routing-profile selector'],
@@ -192,7 +198,8 @@ for (const relativePath of [
     ...(manifest.optionalDependencies ?? {}),
   };
   const forbiddenPackages = Object.keys(packages).filter((name) => providerPackages.has(name));
-  for (const name of forbiddenPackages) failures.push(`${relativePath}: direct provider dependency ${name}`);
+  for (const name of forbiddenPackages)
+    failures.push(`${relativePath}: direct provider dependency ${name}`);
 }
 
 for (const relativePath of [
@@ -215,7 +222,9 @@ const environmentExamplePath = resolve(repositoryRoot, 'packages/backend/.env.ex
 if (existsSync(environmentExamplePath)) {
   const environmentExample = await readFile(environmentExamplePath, 'utf8');
   if (!environmentExample.includes(`${routingProfileIdName}=${routingProfileId}`)) {
-    failures.push('packages/backend/.env.example: must pin Mention\'s exact opaque routing-profile ID');
+    failures.push(
+      "packages/backend/.env.example: must pin Mention's exact opaque routing-profile ID",
+    );
   }
 }
 
@@ -223,7 +232,9 @@ const workflowPath = resolve(repositoryRoot, '.github/workflows/deploy-aws.yml')
 if (existsSync(workflowPath)) {
   const workflow = await readFile(workflowPath, 'utf8');
   if (/secrets\.ALIA_API_KEY/.test(workflow)) {
-    failures.push('.github/workflows/deploy-aws.yml: still reads the retired ALIA_API_KEY GitHub secret');
+    failures.push(
+      '.github/workflows/deploy-aws.yml: still reads the retired ALIA_API_KEY GitHub secret',
+    );
   }
   /**
    * Read the VALUE, not the line.
@@ -242,18 +253,23 @@ if (existsSync(workflowPath)) {
         .split('\n')
         // A folded block ends at the first line indented no further than the key.
         .slice(1)
-        .reduce((lines, line) => {
-          if (lines.done || (line.trim() !== '' && !/^\s{2,}\S/.test(line))) {
-            return { ...lines, done: true };
-          }
-          return { ...lines, values: [...lines.values, line.trim()] };
-        }, { values: [], done: false }).values
-        .join(' ')
+        .reduce(
+          (lines, line) => {
+            if (lines.done || (line.trim() !== '' && !/^\s{2,}\S/.test(line))) {
+              return { ...lines, done: true };
+            }
+            return { ...lines, values: [...lines.values, line.trim()] };
+          },
+          { values: [], done: false },
+        )
+        .values.join(' ')
     : (removalsLine?.[1] ?? '');
   const removals = folded.split(/\s+/).filter(Boolean);
   for (const retiredSecret of ['ALIA_API_KEY', 'OXY_SERVICE_TOKEN']) {
     if (!removals.includes(retiredSecret)) {
-      failures.push(`.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`);
+      failures.push(
+        `.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`,
+      );
     }
   }
   /**
@@ -278,12 +294,14 @@ if (existsSync(workflowPath)) {
     if (removals.includes(credentialPart) && !scopesBound) {
       failures.push(
         `.github/workflows/deploy-aws.yml: removing ${credentialPart} costs Mention every privileged scope its credential names. ` +
-          'Bind those scopes to the task role first, then record it here as `# workload-scopes-bound: YYYY-MM-DD`.'
+          'Bind those scopes to the task role first, then record it here as `# workload-scopes-bound: YYYY-MM-DD`.',
       );
     }
   }
   if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
-    failures.push('.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector');
+    failures.push(
+      '.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector',
+    );
   }
   // Scoped to the TASK_ENV_OVERRIDES_JSON block rather than the whole file, and
   // matched as a key/value pair rather than as a whole one-key object. The old
@@ -294,13 +312,19 @@ if (existsSync(workflowPath)) {
   // block that actually reaches the task definition.
   const taskEnvOverrides = workflow.match(/TASK_ENV_OVERRIDES_JSON:\s*>-\s*\n([\s\S]*?\})/)?.[1];
   if (!taskEnvOverrides?.includes(`"${routingProfileIdName}":"${routingProfileId}"`)) {
-    failures.push('.github/workflows/deploy-aws.yml: must inject Mention\'s exact opaque routing-profile ID durably');
+    failures.push(
+      ".github/workflows/deploy-aws.yml: must inject Mention's exact opaque routing-profile ID durably",
+    );
   }
 }
 
 if (failures.length > 0) {
-  console.error(`Inference boundary validation failed:\n\n${failures.map((failure) => `- ${failure}`).join('\n')}`);
+  console.error(
+    `Inference boundary validation failed:\n\n${failures.map((failure) => `- ${failure}`).join('\n')}`,
+  );
   process.exit(1);
 }
 
-console.log(`Validated Mention's Oxy/Kaana inference boundary across ${sourceFiles.length} backend/frontend/MCP production source files.`);
+console.log(
+  `Validated Mention's Oxy/Kaana inference boundary across ${sourceFiles.length} backend/frontend/MCP production source files.`,
+);

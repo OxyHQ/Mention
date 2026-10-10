@@ -11,9 +11,7 @@ describe('QueryClient query defaults', () => {
   // query that is not mounted at the moment of the write — the normal case, and
   // the reason a saved post used to need a page reload to appear. Freshness is
   // `staleTime`'s job; leaving this unset keeps both behaviours.
-  it('leaves refetch-on-mount to each query\'s own staleTime', () => {
-    expect(QUERY_CLIENT_CONFIG.defaultOptions.queries).not.toHaveProperty(
-      'refetchOnMount',
-    );
+  it("leaves refetch-on-mount to each query's own staleTime", () => {
+    expect(QUERY_CLIENT_CONFIG.defaultOptions.queries).not.toHaveProperty('refetchOnMount');
   });
 });

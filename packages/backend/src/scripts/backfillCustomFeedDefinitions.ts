@@ -38,10 +38,7 @@ import { customFeeds } from '../db/schema/feeds';
 import { loadFeedRelations, replaceDefinitionModules } from '../db/feeds/customFeedRepository';
 import { legacyCustomFeedToDefinition } from '../mtn/feed/definitions/legacyCustomFeed';
 import { logger } from '../utils/logger';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Feeds scanned per page (stable ascending `id` cursor pagination). */
@@ -94,7 +91,10 @@ export async function backfillCustomFeedDefinitions(
     // page rather than projected off each row — the mapper turns it into the
     // `accounts` source and dropping it would migrate a member feed into one
     // with no sources at all.
-    const relations = await loadFeedRelations(getDb(), page.map((feed) => feed.id));
+    const relations = await loadFeedRelations(
+      getDb(),
+      page.map((feed) => feed.id),
+    );
 
     for (const feed of page) {
       scanned += 1;

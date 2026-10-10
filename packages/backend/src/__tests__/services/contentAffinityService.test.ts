@@ -52,9 +52,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../db/userProfile/userBehaviorRepository', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../db/userProfile/userBehaviorRepository')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../db/userProfile/userBehaviorRepository')>();
   return {
     ...actual,
     loadUserBehavior: async (oxyUserId: string) => {
@@ -97,7 +96,10 @@ import {
 } from '../../db/userProfile/userBehaviorRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import type { OxyClient } from '../../utils/privacyHelpers';
-import { ContentAffinityService, type ContentCandidate } from '../../services/ContentAffinityService';
+import {
+  ContentAffinityService,
+  type ContentCandidate,
+} from '../../services/ContentAffinityService';
 
 /**
  * Namespace for every id, hashtag and topic this file writes. The coverage
@@ -259,7 +261,11 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.behaviorLoadError = null;
   // Redis disabled by default → every case measures a real computation.
-  mocks.getRedisClient.mockReturnValue({ isReady: false, get: mocks.redisGet, set: mocks.redisSet });
+  mocks.getRedisClient.mockReturnValue({
+    isReady: false,
+    get: mocks.redisGet,
+    set: mocks.redisSet,
+  });
   mocks.loadPrivacyState.mockResolvedValue({
     blockedUserIds: new Set(),
     mutedUserIds: new Set(),
@@ -278,7 +284,9 @@ afterEach(async () => {
   }
   await db.delete(entityFollows).where(eq(entityFollows.userId, VIEWER));
   if (createdSettingsOwners.length > 0) {
-    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdSettingsOwners.splice(0)));
+    await db
+      .delete(userSettings)
+      .where(inArray(userSettings.oxyUserId, createdSettingsOwners.splice(0)));
   }
 });
 
@@ -506,7 +514,9 @@ describe('exclusions and profile access', () => {
 
   it('batches the follow-graph read across every protected candidate', async () => {
     await followHashtag(id('rust'));
-    const protectedAuthors = Array.from({ length: 75 }, (_, index) => id(`private-author-${index}`));
+    const protectedAuthors = Array.from({ length: 75 }, (_, index) =>
+      id(`private-author-${index}`),
+    );
     await Promise.all(
       protectedAuthors.map((author) => createPost(author, { hashtags: [id('rust')] })),
     );

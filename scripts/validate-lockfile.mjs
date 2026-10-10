@@ -43,30 +43,30 @@
  * starts empty rather than carrying entries nothing can trip.
  */
 
-import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import semver from "semver";
+import semver from 'semver';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const lockfilePath = resolve(repositoryRoot, "bun.lock");
-const packagesDirectory = resolve(repositoryRoot, "packages");
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const lockfilePath = resolve(repositoryRoot, 'bun.lock');
+const packagesDirectory = resolve(repositoryRoot, 'packages');
 
 /**
  * Hosts a resolution may name. bun leaves this field empty for the default
  * registry and only writes a URL when a scope is pointed somewhere else, so an
  * empty registry field is the norm and any host at all is worth a decision.
  */
-const ALLOWED_REGISTRY_HOSTS = ["registry.npmjs.org"];
+const ALLOWED_REGISTRY_HOSTS = ['registry.npmjs.org'];
 
 /**
  * Non-registry resolution protocols. `workspace:` is this monorepo's own
  * packages. A git, tarball, `file:` or `link:` dependency bypasses registry
  * integrity entirely, so each one has to be added here deliberately.
  */
-const ALLOWED_NON_REGISTRY_PROTOCOLS = ["workspace:"];
+const ALLOWED_NON_REGISTRY_PROTOCOLS = ['workspace:'];
 
 /**
  * Aliases (`"alias": ["real-package@1.0.0", ...]`) that are known and accepted.
@@ -87,11 +87,11 @@ const ALLOWED_NON_REGISTRY_PROTOCOLS = ["workspace:"];
  * registry tarball, not an extra copy of the app's React.
  */
 const ALLOWED_PACKAGE_NAME_ALIASES = [
-  "string-width-cjs:string-width",
-  "strip-ansi-cjs:strip-ansi",
-  "wrap-ansi-cjs:wrap-ansi",
-  "@jest/react-is-18:react-is",
-  "@jest/react-is-19:react-is",
+  'string-width-cjs:string-width',
+  'strip-ansi-cjs:strip-ansi',
+  'wrap-ansi-cjs:wrap-ansi',
+  '@jest/react-is-18:react-is',
+  '@jest/react-is-19:react-is',
 ];
 
 // Bloom 1.x, Services 30 and Core 21 are one compatibility unit. Bun can
@@ -99,7 +99,7 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [
 // the Oxy release cadence, even though the root override is authoritative. That
 // leaves the bundle able to reach Services code importing removed Bloom APIs.
 // Keep this a lockfile property rather than trusting the hoisted package only.
-const OXY_RUNTIME_SINGLETONS = ["@oxy.so/bloom", "@oxy.so/core", "@oxy.so/services"];
+const OXY_RUNTIME_SINGLETONS = ['@oxy.so/bloom', '@oxy.so/core', '@oxy.so/services'];
 
 /**
  * Override-masked range violations that are deliberate, keyed
@@ -115,24 +115,31 @@ const OXY_RUNTIME_SINGLETONS = ["@oxy.so/bloom", "@oxy.so/core", "@oxy.so/servic
  * too, so this cannot rot into a list of claims nothing tests.
  */
 const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
-  "markdown-it -> linkify-it@^2.0.0":
-    "linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.",
-  "@tailwindcss/node -> lightningcss@1.32.0":
-    "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
-  "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
+  'markdown-it -> linkify-it@^2.0.0':
+    'linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.',
+  '@tailwindcss/node -> lightningcss@1.32.0':
+    'lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.',
+  'vite -> lightningcss@^1.32.0': 'Same single-copy native-binary pin as @tailwindcss/node.',
   // Oxy One adopts the owner-approved prereleases contracts 4.11.0-oxy-one.0,
   // core 4.5.0-oxy-one.1 and services 11.2.0-oxy-one.2. A caret range never
   // admits a prerelease, so every published dependent below would otherwise
   // nest a second, stable copy, and core/services are Oxy runtime singletons.
   // The prereleases are additive minors of the same majors. Each entry stops
   // firing, and must be deleted, once these pins move to stable releases.
-  "@oxy.so/protocol -> @oxy.so/contracts@^4.9.0": "Oxy One prerelease: contracts 4.11.0-oxy-one.0 is an additive 4.x minor; one contracts copy instead of a nested 4.10.0.",
-  "@oxy.so/mcp -> @oxy.so/contracts@^4.9.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
-  "@oxy.so/stickers -> @oxy.so/contracts@^4.3.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
-  "@oxy.so/federation -> @oxy.so/contracts@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
-  "@oxy.so/federation -> @oxy.so/core@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0": "Oxy One prerelease: core 4.5.0-oxy-one.1 is an additive 4.x minor and a runtime singleton; federation must not load a second core.",
-  "@alia.onl/sdk -> @oxy.so/core@^3.0.0 || ^4.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single core 4.5.0-oxy-one.1.",
-  "@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single services 11.2.0-oxy-one.2.",
+  '@oxy.so/protocol -> @oxy.so/contracts@^4.9.0':
+    'Oxy One prerelease: contracts 4.11.0-oxy-one.0 is an additive 4.x minor; one contracts copy instead of a nested 4.10.0.',
+  '@oxy.so/mcp -> @oxy.so/contracts@^4.9.0':
+    'Oxy One prerelease: same single contracts copy as @oxy.so/protocol.',
+  '@oxy.so/stickers -> @oxy.so/contracts@^4.3.0':
+    'Oxy One prerelease: same single contracts copy as @oxy.so/protocol.',
+  '@oxy.so/federation -> @oxy.so/contracts@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0':
+    'Oxy One prerelease: same single contracts copy as @oxy.so/protocol.',
+  '@oxy.so/federation -> @oxy.so/core@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0':
+    'Oxy One prerelease: core 4.5.0-oxy-one.1 is an additive 4.x minor and a runtime singleton; federation must not load a second core.',
+  '@alia.onl/sdk -> @oxy.so/core@^3.0.0 || ^4.0.0':
+    "Oxy One prerelease: the optional SDK peer shares the app's single core 4.5.0-oxy-one.1.",
+  '@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0':
+    "Oxy One prerelease: the optional SDK peer shares the app's single services 11.2.0-oxy-one.2.",
 };
 
 /**
@@ -149,14 +156,14 @@ const failures = [];
  * pattern would be corrupted silently.
  */
 function stripTrailingCommas(text) {
-  let output = "";
+  let output = '';
   let index = 0;
   while (index < text.length) {
     const character = text[index];
     if (character === '"') {
       let cursor = index + 1;
       while (cursor < text.length) {
-        if (text[cursor] === "\\") {
+        if (text[cursor] === '\\') {
           cursor += 2;
           continue;
         }
@@ -167,7 +174,7 @@ function stripTrailingCommas(text) {
       index = cursor + 1;
       continue;
     }
-    if (character === ",") {
+    if (character === ',') {
       const rest = text.slice(index + 1);
       const trailing = /^\s*[}\]]/.exec(rest);
       if (trailing) {
@@ -188,10 +195,10 @@ function stripTrailingCommas(text) {
  * `@babel/core/debug`, so the leaf is what the entry actually installs.
  */
 function resolutionChain(key) {
-  const tokens = key.split("/");
+  const tokens = key.split('/');
   const chain = [];
   for (let index = 0; index < tokens.length; index += 1) {
-    if (tokens[index].startsWith("@") && index + 1 < tokens.length) {
+    if (tokens[index].startsWith('@') && index + 1 < tokens.length) {
       chain.push(`${tokens[index]}/${tokens[index + 1]}`);
       index += 1;
     } else {
@@ -208,13 +215,13 @@ function resolutionChain(key) {
  * report the protocol as part of the package name.
  */
 function splitDescriptor(descriptor) {
-  const scopeEnd = descriptor.startsWith("@") ? descriptor.indexOf("/") : 0;
-  const separator = descriptor.indexOf("@", scopeEnd + 1);
-  if (separator <= 0) return { name: descriptor, spec: "" };
+  const scopeEnd = descriptor.startsWith('@') ? descriptor.indexOf('/') : 0;
+  const separator = descriptor.indexOf('@', scopeEnd + 1);
+  if (separator <= 0) return { name: descriptor, spec: '' };
   return { name: descriptor.slice(0, separator), spec: descriptor.slice(separator + 1) };
 }
 
-const source = await readFile(lockfilePath, "utf8");
+const source = await readFile(lockfilePath, 'utf8');
 
 let lockfile;
 try {
@@ -231,8 +238,8 @@ for (const match of source.matchAll(/\bhttp:\/\/[^\s"']+/g)) {
 }
 
 const packages = lockfile.packages;
-if (!packages || typeof packages !== "object") {
-  console.error("bun.lock has no `packages` map; this is not a bun text lockfile");
+if (!packages || typeof packages !== 'object') {
+  console.error('bun.lock has no `packages` map; this is not a bun text lockfile');
   process.exit(1);
 }
 
@@ -243,12 +250,12 @@ if (packageCount < MINIMUM_PACKAGES) {
   );
 }
 
-const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
+const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, 'package.json'), 'utf8'));
 
 const allowedAliases = new Set(ALLOWED_PACKAGE_NAME_ALIASES);
 
 for (const [key, entry] of Object.entries(packages)) {
-  if (!Array.isArray(entry) || typeof entry[0] !== "string") {
+  if (!Array.isArray(entry) || typeof entry[0] !== 'string') {
     failures.push(`${key}: resolution is not a bun lockfile entry`);
     continue;
   }
@@ -267,19 +274,19 @@ for (const [key, entry] of Object.entries(packages)) {
 
   if (!/^\d/.test(spec)) {
     failures.push(
-      `${key}: resolves from "${spec}", which is neither the registry nor an allowed protocol (${ALLOWED_NON_REGISTRY_PROTOCOLS.join(", ")}) — a git, tarball or link dependency has no registry integrity`,
+      `${key}: resolves from "${spec}", which is neither the registry nor an allowed protocol (${ALLOWED_NON_REGISTRY_PROTOCOLS.join(', ')}) — a git, tarball or link dependency has no registry integrity`,
     );
     continue;
   }
 
   const registry = entry[1];
-  if (typeof registry !== "string") {
+  if (typeof registry !== 'string') {
     failures.push(`${key}: registry field is ${typeof registry}, expected a string`);
-  } else if (registry !== "") {
+  } else if (registry !== '') {
     let host;
     try {
       const url = new URL(registry);
-      if (url.protocol !== "https:") {
+      if (url.protocol !== 'https:') {
         failures.push(`${key}: registry ${registry} is not https`);
       }
       host = url.host;
@@ -292,7 +299,10 @@ for (const [key, entry] of Object.entries(packages)) {
   }
 
   const integrity = entry.at(-1);
-  if (typeof integrity !== "string" || !/^sha(?:512|384|256|1)-[A-Za-z0-9+/]+={0,2}$/.test(integrity)) {
+  if (
+    typeof integrity !== 'string' ||
+    !/^sha(?:512|384|256|1)-[A-Za-z0-9+/]+={0,2}$/.test(integrity)
+  ) {
     failures.push(`${key}: has no integrity hash, so nothing verifies what gets installed`);
   }
 }
@@ -300,13 +310,15 @@ for (const [key, entry] of Object.entries(packages)) {
 let auditedOxyRuntimeSingletons = 0;
 for (const packageName of OXY_RUNTIME_SINGLETONS) {
   const resolutions = Object.entries(packages).filter(([key, entry]) => {
-    if (!Array.isArray(entry) || typeof entry[0] !== "string") return false;
-    return resolutionChain(key).at(-1) === packageName && splitDescriptor(entry[0]).name === packageName;
+    if (!Array.isArray(entry) || typeof entry[0] !== 'string') return false;
+    return (
+      resolutionChain(key).at(-1) === packageName && splitDescriptor(entry[0]).name === packageName
+    );
   });
   auditedOxyRuntimeSingletons += 1;
   if (resolutions.length !== 1) {
     failures.push(
-      `${packageName}: expected one Oxy runtime resolution, found ${resolutions.length} (${resolutions.map(([key]) => key).join(", ") || "none"}) — Bloom, Services and Core must move as one compatibility unit`,
+      `${packageName}: expected one Oxy runtime resolution, found ${resolutions.length} (${resolutions.map(([key]) => key).join(', ') || 'none'}) — Bloom, Services and Core must move as one compatibility unit`,
     );
     continue;
   }
@@ -314,13 +326,13 @@ for (const packageName of OXY_RUNTIME_SINGLETONS) {
   const [, [descriptor]] = resolutions[0];
   const installedVersion = splitDescriptor(descriptor).spec;
   const catalogRange = rootManifest.workspaces?.catalog?.[packageName];
-  if (typeof catalogRange !== "string" || !semver.satisfies(installedVersion, catalogRange)) {
+  if (typeof catalogRange !== 'string' || !semver.satisfies(installedVersion, catalogRange)) {
     failures.push(
       `${packageName}: resolved ${installedVersion}, which does not satisfy its catalog range ${String(catalogRange)}`,
     );
   }
 
-  if (["@oxy.so/core", "@oxy.so/services"].includes(packageName)) {
+  if (['@oxy.so/core', '@oxy.so/services'].includes(packageName)) {
     const overrideRange = rootManifest.overrides?.[packageName];
     if (overrideRange !== catalogRange) {
       failures.push(
@@ -341,20 +353,20 @@ for (const packageName of OXY_RUNTIME_SINGLETONS) {
 // ---------------------------------------------------------------------------
 
 const recordedWorkspaces = lockfile.workspaces;
-if (!recordedWorkspaces || typeof recordedWorkspaces !== "object") {
-  console.error("bun.lock has no `workspaces` map; this is not a bun text lockfile");
+if (!recordedWorkspaces || typeof recordedWorkspaces !== 'object') {
+  console.error('bun.lock has no `workspaces` map; this is not a bun text lockfile');
   process.exit(1);
 }
 
 /** Workspace directories the lockfile claims exist, root (`""`) excluded. */
 const workspacePaths = Object.keys(recordedWorkspaces)
-  .filter((path) => path !== "")
+  .filter((path) => path !== '')
   .sort();
 
 const onDiskWorkspacePaths = (await readdir(packagesDirectory, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => `packages/${entry.name}`)
-  .filter((path) => existsSync(resolve(repositoryRoot, path, "package.json")))
+  .filter((path) => existsSync(resolve(repositoryRoot, path, 'package.json')))
   .sort();
 
 for (const path of onDiskWorkspacePaths) {
@@ -371,14 +383,14 @@ for (const path of workspacePaths) {
 }
 
 for (const [path, recorded] of Object.entries(recordedWorkspaces)) {
-  const manifestPath = resolve(repositoryRoot, path, "package.json");
+  const manifestPath = resolve(repositoryRoot, path, 'package.json');
   if (!existsSync(manifestPath)) continue;
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  const location = path === "" ? "package.json" : `${path}/package.json`;
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  const location = path === '' ? 'package.json' : `${path}/package.json`;
 
   if (recorded.name !== manifest.name) {
     failures.push(
-      `bun.lock records workspace ${path || "(root)"} as "${recorded.name}", but ${location} says "${manifest.name}"`,
+      `bun.lock records workspace ${path || '(root)'} as "${recorded.name}", but ${location} says "${manifest.name}"`,
     );
   }
   // bun omits `version` for the root workspace, so only compare what it records.
@@ -400,30 +412,34 @@ for (const [path, recorded] of Object.entries(recordedWorkspaces)) {
  */
 function parseDockerfile(source) {
   const instructions = [];
-  let text = "";
+  let text = '';
   let startLine = 0;
   let lineNumber = 0;
-  for (const line of source.split("\n")) {
+  for (const line of source.split('\n')) {
     lineNumber += 1;
     const trimmed = line.trim();
-    if (trimmed === "" || trimmed.startsWith("#")) continue;
-    if (text === "") startLine = lineNumber;
-    const continued = trimmed.endsWith("\\");
-    text += (text === "" ? "" : " ") + (continued ? trimmed.slice(0, -1).trim() : trimmed);
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    if (text === '') startLine = lineNumber;
+    const continued = trimmed.endsWith('\\');
+    text += (text === '' ? '' : ' ') + (continued ? trimmed.slice(0, -1).trim() : trimmed);
     if (!continued) {
       instructions.push({ text, line: startLine });
-      text = "";
+      text = '';
     }
   }
-  if (text !== "") instructions.push({ text, line: startLine });
+  if (text !== '') instructions.push({ text, line: startLine });
   return instructions;
 }
 
 /** The workspaces whose package.json a single COPY makes available. */
 function workspacesCoveredByCopy(argumentText, candidates) {
-  const tokens = argumentText.split(/\s+/).filter((token) => token !== "" && !token.startsWith("--"));
+  const tokens = argumentText
+    .split(/\s+/)
+    .filter((token) => token !== '' && !token.startsWith('--'));
   // The final token is the destination; everything before it is a source.
-  const sources = tokens.slice(0, -1).map((source) => source.replace(/^\/app\//, "").replace(/^\.\//, ""));
+  const sources = tokens
+    .slice(0, -1)
+    .map((source) => source.replace(/^\/app\//, '').replace(/^\.\//, ''));
 
   const covered = [];
   for (const workspace of candidates) {
@@ -431,8 +447,10 @@ function workspacesCoveredByCopy(argumentText, candidates) {
       const manifest = `${workspace}/package.json`;
       const wholeDirectory = source === workspace || source === `${workspace}/`;
       const glob =
-        source.includes("*") &&
-        new RegExp(`^${source.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`).test(manifest);
+        source.includes('*') &&
+        new RegExp(`^${source.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')}$`).test(
+          manifest,
+        );
       if (source === manifest || wholeDirectory || glob) {
         covered.push(workspace);
         break;
@@ -449,7 +467,7 @@ const dockerfileNames = (await readdir(packagesDirectory, { withFileTypes: true 
   .sort();
 
 if (dockerfileNames.length === 0) {
-  failures.push("no Dockerfiles found under packages/ — the Dockerfile scan is probably broken");
+  failures.push('no Dockerfiles found under packages/ — the Dockerfile scan is probably broken');
 }
 
 let auditedInstalls = 0;
@@ -457,7 +475,9 @@ for (const dockerfileName of dockerfileNames) {
   const coverageByStage = new Map();
   let stage = null;
 
-  for (const { text, line } of parseDockerfile(await readFile(resolve(repositoryRoot, dockerfileName), "utf8"))) {
+  for (const { text, line } of parseDockerfile(
+    await readFile(resolve(repositoryRoot, dockerfileName), 'utf8'),
+  )) {
     const from = /^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/i.exec(text);
     if (from) {
       // `FROM <earlier stage>` inherits that stage's filesystem, manifests included.
@@ -470,11 +490,16 @@ for (const dockerfileName of dockerfileNames) {
 
     const copy = /^COPY\s+(.+)$/i.exec(text);
     if (copy) {
-      for (const workspace of workspacesCoveredByCopy(copy[1], workspacePaths)) stage.covered.add(workspace);
+      for (const workspace of workspacesCoveredByCopy(copy[1], workspacePaths))
+        stage.covered.add(workspace);
       continue;
     }
 
-    if (!/^RUN\b/i.test(text) || !/\bbun\s+install\b/.test(text) || !text.includes("--frozen-lockfile")) {
+    if (
+      !/^RUN\b/i.test(text) ||
+      !/\bbun\s+install\b/.test(text) ||
+      !text.includes('--frozen-lockfile')
+    ) {
       continue;
     }
 
@@ -482,14 +507,14 @@ for (const dockerfileName of dockerfileNames) {
     const missing = workspacePaths.filter((workspace) => !stage.covered.has(workspace));
     if (missing.length === 0) continue;
     failures.push(
-      `${dockerfileName}:${line}: \`bun install --frozen-lockfile\` runs in stage "${stage.name}" without a manifest for ${missing.join(", ")}. bun.lock records ${workspacePaths.length} workspaces and a frozen install needs all of them, so this fails with "lockfile had changes, but lockfile is frozen" inside the image build even though the lockfile is correct. Add \`COPY ${missing[0]}/package.json ${missing[0]}/\` before this RUN.`,
+      `${dockerfileName}:${line}: \`bun install --frozen-lockfile\` runs in stage "${stage.name}" without a manifest for ${missing.join(', ')}. bun.lock records ${workspacePaths.length} workspaces and a frozen install needs all of them, so this fails with "lockfile had changes, but lockfile is frozen" inside the image build even though the lockfile is correct. Add \`COPY ${missing[0]}/package.json ${missing[0]}/\` before this RUN.`,
     );
   }
 }
 
 if (auditedInstalls === 0) {
   failures.push(
-    "no frozen `bun install` found in any Dockerfile — the instruction parser is probably broken",
+    'no frozen `bun install` found in any Dockerfile — the instruction parser is probably broken',
   );
 }
 
@@ -505,7 +530,7 @@ if (auditedInstalls === 0) {
 
 const overriddenPackages = new Set(Object.keys(rootManifest.overrides ?? {}));
 if (overriddenPackages.size === 0) {
-  failures.push("root package.json declares no overrides — the override scan is probably broken");
+  failures.push('root package.json declares no overrides — the override scan is probably broken');
 }
 
 /**
@@ -514,9 +539,9 @@ if (overriddenPackages.size === 0) {
  * else the hoisted `dep`.
  */
 function resolveEdge(fromKey, dependencyName) {
-  const enclosing = fromKey === "" ? [] : resolutionChain(fromKey);
+  const enclosing = fromKey === '' ? [] : resolutionChain(fromKey);
   for (let depth = enclosing.length; depth >= 0; depth -= 1) {
-    const candidate = [...enclosing.slice(0, depth), dependencyName].join("/");
+    const candidate = [...enclosing.slice(0, depth), dependencyName].join('/');
     if (packages[candidate]) return packages[candidate];
   }
   return null;
@@ -527,20 +552,23 @@ let auditedOverrideEdges = 0;
 
 for (const [key, entry] of Object.entries(packages)) {
   if (!Array.isArray(entry)) continue;
-  const metadata = entry.find((field) => field && typeof field === "object" && !Array.isArray(field));
+  const metadata = entry.find(
+    (field) => field && typeof field === 'object' && !Array.isArray(field),
+  );
   if (!metadata) continue;
   const dependent = resolutionChain(key).at(-1);
 
-  for (const field of ["dependencies", "peerDependencies"]) {
+  for (const field of ['dependencies', 'peerDependencies']) {
     for (const [dependency, range] of Object.entries(metadata[field] ?? {})) {
-      if (!overriddenPackages.has(dependency) || typeof range !== "string") continue;
+      if (!overriddenPackages.has(dependency) || typeof range !== 'string') continue;
       // An optional peer is a capability the dependent runs without.
-      if (field === "peerDependencies" && (metadata.optionalPeers ?? []).includes(dependency)) continue;
+      if (field === 'peerDependencies' && (metadata.optionalPeers ?? []).includes(dependency))
+        continue;
       // `workspace:`, `npm:` and `catalog:` specs are not version ranges.
       if (!semver.validRange(range)) continue;
 
       const resolved = resolveEdge(key, dependency);
-      if (!Array.isArray(resolved) || typeof resolved[0] !== "string") continue;
+      if (!Array.isArray(resolved) || typeof resolved[0] !== 'string') continue;
       const { name, spec } = splitDescriptor(resolved[0]);
       if (name !== dependency || !semver.valid(spec)) continue;
 
@@ -561,7 +589,7 @@ for (const [key, entry] of Object.entries(packages)) {
 
 if (auditedOverrideEdges === 0) {
   failures.push(
-    "no overridden dependency edge was resolved — the override scan matched nothing and would pass regardless of the tree",
+    'no overridden dependency edge was resolved — the override scan matched nothing and would pass regardless of the tree',
   );
 }
 
@@ -573,9 +601,9 @@ for (const violation of Object.keys(ACCEPTED_OVERRIDE_RANGE_VIOLATIONS)) {
 }
 
 if (failures.length > 0) {
-  console.error("bun.lock validation failed:\n");
+  console.error('bun.lock validation failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);
-  console.error("");
+  console.error('');
   process.exit(1);
 }
 

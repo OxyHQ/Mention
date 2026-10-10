@@ -89,7 +89,6 @@ function offencesIn(file: string): Offence[] {
   return offences;
 }
 
-
 /** Every `dist/….js` path cited in a comment, with the source file it implies. */
 function citedDistPaths(): Array<{ file: string; line: number; cited: string; implied: string }> {
   const found: Array<{ file: string; line: number; cited: string; implied: string }> = [];
@@ -125,7 +124,7 @@ describe('ECS invocations written in comments name built paths', () => {
       } catch {
         return [];
       }
-    })
+    }),
   );
 
   /** The floor, first: a walk that finds nothing must fail rather than pass. */
@@ -148,9 +147,7 @@ describe('ECS invocations written in comments name built paths', () => {
    */
   it('cites no source path inside a containerOverrides command', () => {
     const offences = files.flatMap(offencesIn);
-    expect(
-      offences.map((o) => `${o.file}: ${o.cited} -> ${o.shouldBe}`),
-    ).toEqual([]);
+    expect(offences.map((o) => `${o.file}: ${o.cited} -> ${o.shouldBe}`)).toEqual([]);
   });
 });
 
@@ -191,7 +188,10 @@ describe('cited dist paths name a source file that exists', () => {
   it('every cited dist path implies a real source file', () => {
     const broken = cited
       .filter((entry) => !existsSync(path.join(BACKEND_ROOT, entry.implied)))
-      .map((entry) => `${entry.file}:${entry.line}: ${entry.cited} implies ${entry.implied}, which does not exist`);
+      .map(
+        (entry) =>
+          `${entry.file}:${entry.line}: ${entry.cited} implies ${entry.implied}, which does not exist`,
+      );
     expect(broken).toEqual([]);
   });
 });

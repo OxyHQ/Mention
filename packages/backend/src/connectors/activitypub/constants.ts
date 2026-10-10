@@ -9,7 +9,9 @@ import { OXY_IDENTITY_APEX } from './ownDomain';
 export const FEDERATION_DOMAIN = config.federation.domain;
 export const ACTOR_DOMAIN = config.federation.actorDomain;
 if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
-  logger.warn(`Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`);
+  logger.warn(
+    `Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`,
+  );
 }
 export const OXY_API_URL = config.oxyApiUrl;
 
@@ -120,9 +122,11 @@ export async function resolveOxyUser(username: string): Promise<User | null> {
     try {
       const response = await oxy.users.search(username);
       const results = Array.isArray(response) ? response : response?.data;
-      return results?.find?.((u: { username?: string }) =>
-        u.username?.toLowerCase() === username.toLowerCase()
-      ) || null;
+      return (
+        results?.find?.(
+          (u: { username?: string }) => u.username?.toLowerCase() === username.toLowerCase(),
+        ) || null
+      );
     } catch (searchErr) {
       logger.warn('[Federation] Oxy user resolution failed', searchErr);
       return null;

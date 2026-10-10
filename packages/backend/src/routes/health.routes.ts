@@ -43,10 +43,7 @@ router.get('/health/ready', async (_req, res) => {
   const runtime = getRuntimeHealthState();
   const postgresReady = await checkPostgresHealth();
   const redis = getRedisStats();
-  const ready =
-    runtime.phase === 'ready' &&
-    runtime.migrationsComplete &&
-    postgresReady;
+  const ready = runtime.phase === 'ready' && runtime.migrationsComplete && postgresReady;
 
   res.setHeader('Cache-Control', 'no-store');
   res.status(ready ? 200 : 503).json({

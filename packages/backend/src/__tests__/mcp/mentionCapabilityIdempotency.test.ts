@@ -30,11 +30,15 @@ const claims: CapabilityTicketClaims = {
   autonomy: 'execute_on_request',
 };
 
-function buildApp(reservation: { kind: 'reserved'; receiptId: string } | {
-  kind: 'duplicate';
-  status: 'succeeded';
-  responseStatus: number;
-}) {
+function buildApp(
+  reservation:
+    | { kind: 'reserved'; receiptId: string }
+    | {
+        kind: 'duplicate';
+        status: 'succeeded';
+        responseStatus: number;
+      },
+) {
   const reserve = vi.fn(async () => reservation);
   const finalize = vi.fn(async () => undefined);
   const effect = vi.fn((_request, response) => response.status(201).json({ ok: true }));
@@ -63,12 +67,14 @@ describe('Mention native capability effect idempotency', () => {
 
     expect(response.status).toBe(201);
     expect(effect).toHaveBeenCalledOnce();
-    expect(reserve).toHaveBeenCalledWith(expect.objectContaining({
-      oxyUserId: 'assigned-account',
-      clientId: 'capability:alia:alia-credential:agent-account',
-      toolName: 'create-post',
-      idempotencyKey: 'run-1:create-post',
-    }));
+    expect(reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oxyUserId: 'assigned-account',
+        clientId: 'capability:alia:alia-credential:agent-account',
+        toolName: 'create-post',
+        idempotencyKey: 'run-1:create-post',
+      }),
+    );
     expect(finalize).toHaveBeenCalledWith('receipt-1', 201, false);
   });
 

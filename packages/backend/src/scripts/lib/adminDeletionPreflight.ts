@@ -46,7 +46,12 @@ import {
   mentionSignedRecords,
   mentionUserNodes,
 } from '../../db/schema/mtn';
-import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
+import {
+  contentLabels,
+  labelers,
+  moderationEnforcements,
+  reports,
+} from '../../db/schema/moderation';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { pollVotes, polls } from '../../db/schema/polls';
 import {
@@ -142,10 +147,7 @@ export async function collectReferenceBlockers(
   return results.filter((result) => result.found).map((result) => result.name);
 }
 
-export function assertNoDeletionBlockers(
-  context: string,
-  blockers: readonly string[],
-): void {
+export function assertNoDeletionBlockers(context: string, blockers: readonly string[]): void {
   if (blockers.length > 0) {
     throw new DeletionPreflightError(context, blockers);
   }
@@ -253,10 +255,7 @@ function buildPostReferenceProbes(
   targets: readonly PostDeletionTarget[],
 ): Record<PostReferenceProbeName, () => Promise<boolean>> {
   const idStrings = unique(targets.map((target) => target.id));
-  const postKeys = unique([
-    ...idStrings,
-    ...targets.flatMap((target) => target.uris ?? []),
-  ]);
+  const postKeys = unique([...idStrings, ...targets.flatMap((target) => target.uris ?? [])]);
 
   return {
     'post_evaluations.post_id': () =>
@@ -545,10 +544,7 @@ export function actorReferenceProbes(
             reports.id,
             or(
               eq(reports.reporter, oxyUserId),
-              and(
-                eq(reports.reportedType, 'user'),
-                eq(reports.reportedId, oxyUserId),
-              ),
+              and(eq(reports.reportedType, 'user'), eq(reports.reportedId, oxyUserId)),
             ),
           ),
       },
@@ -666,10 +662,7 @@ export function actorReferenceProbes(
             contentLabels.id,
             or(
               eq(contentLabels.createdBy, oxyUserId),
-              and(
-                eq(contentLabels.targetType, 'user'),
-                eq(contentLabels.targetId, oxyUserId),
-              ),
+              and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, oxyUserId)),
             ),
           ),
       },
@@ -875,15 +868,13 @@ export function actorReferenceProbes(
           anyRow(
             notifications,
             notifications.id,
-            or(
-              eq(notifications.recipientId, oxyUserId),
-              eq(notifications.actorId, oxyUserId),
-            ),
+            or(eq(notifications.recipientId, oxyUserId), eq(notifications.actorId, oxyUserId)),
           ),
       },
       {
         name: 'user_settings.oxy_user_id',
-        hasReference: () => anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
+        hasReference: () =>
+          anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
       },
       {
         name: 'user_behaviors.oxy_user_id',

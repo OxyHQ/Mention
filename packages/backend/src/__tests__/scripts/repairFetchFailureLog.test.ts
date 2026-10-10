@@ -124,9 +124,7 @@ describe('recordRepairFetchFailures', () => {
     // real one — the CHECK bounding `status` to a plausible HTTP code — rather
     // than a stub told to reject.
     await expect(
-      recordRepairFetchFailures(SCRIPT, [
-        { postId: POST_ID, reason: 'httpStatus', status: 99 },
-      ]),
+      recordRepairFetchFailures(SCRIPT, [{ postId: POST_ID, reason: 'httpStatus', status: 99 }]),
     ).resolves.toBe(false);
 
     const [message, context] = vi.mocked(logger.warn).mock.calls[0] as [

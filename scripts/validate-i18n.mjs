@@ -16,34 +16,33 @@
  * catalog. It renders the key, or the placeholder, verbatim.
  */
 
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const repositoryRoot =
-  process.env.I18N_VALIDATOR_ROOT ??
-  resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const frontendRoot = resolve(repositoryRoot, "packages/frontend");
-const localesDirectory = resolve(frontendRoot, "locales");
-const baselinePath = resolve(repositoryRoot, "scripts/i18n-known-gaps.json");
+  process.env.I18N_VALIDATOR_ROOT ?? resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const frontendRoot = resolve(repositoryRoot, 'packages/frontend');
+const localesDirectory = resolve(frontendRoot, 'locales');
+const baselinePath = resolve(repositoryRoot, 'scripts/i18n-known-gaps.json');
 
 /** `en` is both `DEFAULT_LANGUAGE` and i18next's `fallbackLng` (`lib/i18n.ts`). */
-const SOURCE_LANGUAGE = "en";
+const SOURCE_LANGUAGE = 'en';
 
 /**
  * Directories whose code ships to users. Tests are excluded because they assert
  * on keys that deliberately do not exist.
  */
 const SOURCE_DIRECTORIES = [
-  "app",
-  "components",
-  "context",
-  "hooks",
-  "lib",
-  "modules",
-  "services",
-  "stores",
-  "utils",
+  'app',
+  'components',
+  'context',
+  'hooks',
+  'lib',
+  'modules',
+  'services',
+  'stores',
+  'utils',
 ];
 
 const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?)$/;
@@ -55,11 +54,11 @@ const EXCLUDED_PATH =
  * call passes `count`, and only then, so a key with plural forms and no base
  * form resolves for `t(key, {count})` and not for `t(key)`.
  */
-const PLURAL_SUFFIXES = ["_one", "_other"];
+const PLURAL_SUFFIXES = ['_one', '_other'];
 
 /** Any CLDR category, for mapping a translation's extra form back to its source. */
 const PLURAL_CATEGORY = /_(?:zero|one|two|few|many|other)$/;
-const ALL_PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+const ALL_PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 
 /**
  * i18next v3 spelled the plural form `key_plural`. This app is on v26, which
@@ -79,7 +78,7 @@ const LEGACY_PLURAL_SUFFIX = /_plural$/;
  * fixture trees hold a handful of files on purpose. The real floors still run
  * in that test's own case for them.
  */
-const fixtureFloors = process.env.I18N_VALIDATOR_FIXTURE_FLOORS === "1";
+const fixtureFloors = process.env.I18N_VALIDATOR_FIXTURE_FLOORS === '1';
 const MINIMUM_SCANNED_FILES = fixtureFloors ? 1 : 400;
 const MINIMUM_EXTRACTED_KEYS = fixtureFloors ? 1 : 900;
 const MINIMUM_CATALOG_ENTRIES = fixtureFloors ? 1 : 1000;
@@ -97,18 +96,18 @@ function resolveKey(catalog, key) {
   if (!catalog) return undefined;
   if (Object.prototype.hasOwnProperty.call(catalog, key)) return catalog[key];
 
-  const tokens = key.split(".");
+  const tokens = key.split('.');
   let current = catalog;
   for (let index = 0; index < tokens.length; ) {
-    if (!current || typeof current !== "object") return undefined;
+    if (!current || typeof current !== 'object') return undefined;
     let next;
-    let nextPath = "";
+    let nextPath = '';
     for (let end = index; end < tokens.length; ++end) {
-      if (end !== index) nextPath += ".";
+      if (end !== index) nextPath += '.';
       nextPath += tokens[end];
       next = current[nextPath];
       if (next !== undefined) {
-        if (typeof next === "string" && end < tokens.length - 1) continue;
+        if (typeof next === 'string' && end < tokens.length - 1) continue;
         index += end - index + 1;
         break;
       }
@@ -139,17 +138,17 @@ function resolveKey(catalog, key) {
 function findShadowedPaths(parsed) {
   const flatKeys = new Set(
     Object.entries(parsed)
-      .filter(([, value]) => value === null || typeof value !== "object" || Array.isArray(value))
+      .filter(([, value]) => value === null || typeof value !== 'object' || Array.isArray(value))
       .map(([key]) => key),
   );
   const shadowed = [];
   (function walk(node, prefix) {
     for (const [key, value] of Object.entries(node)) {
       const path = prefix ? `${prefix}.${key}` : key;
-      if (value !== null && typeof value === "object" && !Array.isArray(value)) walk(value, path);
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) walk(value, path);
       else if (prefix && flatKeys.has(path)) shadowed.push(path);
     }
-  })(parsed, "");
+  })(parsed, '');
   return shadowed;
 }
 
@@ -157,7 +156,7 @@ function findShadowedPaths(parsed) {
 function flattenCatalog(value, prefix, into) {
   for (const [key, entry] of Object.entries(value)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+    if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
       flattenCatalog(entry, path, into);
     } else {
       into.set(path, entry);
@@ -176,7 +175,7 @@ function findDuplicateKeys(source) {
   const duplicates = [];
   const seenByDepth = new Map();
   let lineNumber = 0;
-  for (const line of source.split("\n")) {
+  for (const line of source.split('\n')) {
     lineNumber += 1;
     const match = /^(\s*)"((?:[^"\\]|\\.)*)"\s*:/.exec(line);
     if (!match) continue;
@@ -211,8 +210,11 @@ function inspectPlaceholders(value) {
   const wellFormed = /\{\{([^{}]*)\}\}/g;
   let match;
   while ((match = wellFormed.exec(value)) !== null) {
-    const name = match[1].split(",")[0].replace(/^\s*-?\s*/, "").trim();
-    if (name === "") {
+    const name = match[1]
+      .split(',')[0]
+      .replace(/^\s*-?\s*/, '')
+      .trim();
+    if (name === '') {
       problems.push(`the empty placeholder \`${match[0]}\``);
       continue;
     }
@@ -223,9 +225,9 @@ function inspectPlaceholders(value) {
     names.add(name);
   }
 
-  const residue = value.replace(wellFormed, "");
-  if (residue.includes("{{")) problems.push("an unclosed `{{`");
-  if (residue.includes("}}")) problems.push("a `}}` with no opening `{{`");
+  const residue = value.replace(wellFormed, '');
+  if (residue.includes('{{')) problems.push('an unclosed `{{`');
+  if (residue.includes('}}')) problems.push('a `}}` with no opening `{{`');
 
   // `${name}` is JavaScript template-literal syntax, which i18next does not
   // interpolate — it prints the characters. Nine entries got here by having a
@@ -236,7 +238,9 @@ function inspectPlaceholders(value) {
   // ellipsis; harvesting the literal's SOURCE stored the six characters instead,
   // and i18next has no reason to decode them. Same shape as the `${}` case
   // below: source text mistaken for a string value.
-  for (const match of value.matchAll(/\\(?:u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[nrtbfv])/g)) {
+  for (const match of value.matchAll(
+    /\\(?:u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[nrtbfv])/g,
+  )) {
     problems.push(
       `the literal characters \`${match[0]}\`, which is a JavaScript escape sequence and not the character it stands for — write the character itself`,
     );
@@ -244,7 +248,7 @@ function inspectPlaceholders(value) {
 
   for (const match of value.matchAll(/\$\{([^{}]*)\}/g)) {
     problems.push(
-      `\`${match[0]}\`, which is JavaScript template-literal syntax — i18next prints it verbatim; use {{${match[1].trim() || "name"}}} and pass the value at the call site`,
+      `\`${match[0]}\`, which is JavaScript template-literal syntax — i18next prints it verbatim; use {{${match[1].trim() || 'name'}}} and pass the value at the call site`,
     );
   }
 
@@ -257,23 +261,23 @@ function unescapeLiteral(raw) {
     /\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])/g,
     (_escape, body) => {
       switch (body[0]) {
-        case "n":
-          return "\n";
-        case "t":
-          return "\t";
-        case "r":
-          return "\r";
-        case "b":
-          return "\b";
-        case "f":
-          return "\f";
-        case "v":
-          return "\v";
-        case "0":
-          return "\0";
-        case "u":
-        case "x":
-          return String.fromCodePoint(Number.parseInt(body.replace(/[ux{}]/g, ""), 16));
+        case 'n':
+          return '\n';
+        case 't':
+          return '\t';
+        case 'r':
+          return '\r';
+        case 'b':
+          return '\b';
+        case 'f':
+          return '\f';
+        case 'v':
+          return '\v';
+        case '0':
+          return '\0';
+        case 'u':
+        case 'x':
+          return String.fromCodePoint(Number.parseInt(body.replace(/[ux{}]/g, ''), 16));
         default:
           return body;
       }
@@ -288,18 +292,18 @@ function unescapeLiteral(raw) {
  */
 function readRemainingArguments(source, start) {
   let depth = 1;
-  let text = "";
+  let text = '';
   let cursor = start;
   while (cursor < source.length && depth > 0) {
     const character = source[cursor];
-    if (character === "'" || character === '"' || character === "`") {
+    if (character === "'" || character === '"' || character === '`') {
       text += character;
       cursor += 1;
       while (cursor < source.length) {
         const inner = source[cursor];
         text += inner;
-        if (inner === "\\") {
-          text += source[cursor + 1] ?? "";
+        if (inner === '\\') {
+          text += source[cursor + 1] ?? '';
           cursor += 2;
           continue;
         }
@@ -308,8 +312,8 @@ function readRemainingArguments(source, start) {
       }
       continue;
     }
-    if (character === "(" || character === "{" || character === "[") depth += 1;
-    else if (character === ")" || character === "}" || character === "]") {
+    if (character === '(' || character === '{' || character === '[') depth += 1;
+    else if (character === ')' || character === '}' || character === ']') {
       depth -= 1;
       if (depth === 0) break;
     }
@@ -330,28 +334,28 @@ function extractKeys(source) {
   const dynamicPrefixes = [];
 
   for (let index = 0; index < source.length; index += 1) {
-    if (source[index] !== "t" || source[index + 1] !== "(") continue;
+    if (source[index] !== 't' || source[index + 1] !== '(') continue;
 
     // `t(`, `.t(` only for `i18n.t(`; never the tail of another identifier.
     const before = source[index - 1];
     const isTranslateCall =
       before === undefined ||
-      (!/[A-Za-z0-9_$]/.test(before) && before !== ".") ||
-      source.slice(Math.max(0, index - 5), index) === "i18n.";
+      (!/[A-Za-z0-9_$]/.test(before) && before !== '.') ||
+      source.slice(Math.max(0, index - 5), index) === 'i18n.';
     if (!isTranslateCall) continue;
 
     let cursor = index + 2;
     while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
     const quote = source[cursor];
-    if (quote !== "'" && quote !== '"' && quote !== "`") continue;
+    if (quote !== "'" && quote !== '"' && quote !== '`') continue;
 
-    let raw = "";
+    let raw = '';
     cursor += 1;
     let terminated = false;
     for (; cursor < source.length; cursor += 1) {
       const character = source[cursor];
-      if (character === "\\") {
-        raw += character + (source[cursor + 1] ?? "");
+      if (character === '\\') {
+        raw += character + (source[cursor + 1] ?? '');
         cursor += 1;
         continue;
       }
@@ -359,13 +363,13 @@ function extractKeys(source) {
         terminated = true;
         break;
       }
-      if (character === "\n" && quote !== "`") break;
+      if (character === '\n' && quote !== '`') break;
       raw += character;
     }
     if (!terminated) continue;
 
-    if (quote === "`" && raw.includes("${")) {
-      const prefix = raw.slice(0, raw.indexOf("${"));
+    if (quote === '`' && raw.includes('${')) {
+      const prefix = raw.slice(0, raw.indexOf('${'));
       if (prefix) dynamicPrefixes.push(unescapeLiteral(prefix));
       continue;
     }
@@ -375,7 +379,7 @@ function extractKeys(source) {
 
     let hasDefault = false;
     let hasCount = false;
-    if (source[cursor] === ",") {
+    if (source[cursor] === ',') {
       const argumentText = readRemainingArguments(source, cursor + 1).trim();
       // `t(key, 'English')` is i18next's positional default, `t(key, {defaultValue})`
       // the object form. Either way the English text lives at the call site and a
@@ -415,12 +419,14 @@ function isPathShaped(key) {
 //    every interpolation in them is one i18next can substitute.
 // ---------------------------------------------------------------------------
 
-const catalogNames = (await readdir(localesDirectory)).filter((name) => name.endsWith(".json")).sort();
+const catalogNames = (await readdir(localesDirectory))
+  .filter((name) => name.endsWith('.json'))
+  .sort();
 
 const catalogs = new Map();
 for (const name of catalogNames) {
   const path = resolve(localesDirectory, name);
-  const source = await readFile(path, "utf8");
+  const source = await readFile(path, 'utf8');
 
   let parsed;
   try {
@@ -436,7 +442,7 @@ for (const name of catalogNames) {
     );
   }
 
-  for (const key of flattenCatalog(parsed, "", new Map()).keys()) {
+  for (const key of flattenCatalog(parsed, '', new Map()).keys()) {
     if (!LEGACY_PLURAL_SUFFIX.test(key)) continue;
     failures.push(
       `locales/${name}: key "${key}" uses i18next v3's \`_plural\` suffix, which this app's i18next does not read — spell the CLDR categories instead (\`_one\`, \`_other\`, plus whatever the language needs) and let i18next pick`,
@@ -455,11 +461,11 @@ for (const name of catalogNames) {
     );
   }
 
-  const entries = flattenCatalog(parsed, "", new Map());
+  const entries = flattenCatalog(parsed, '', new Map());
   for (const [key, value] of entries) {
-    if (typeof value !== "string") {
+    if (typeof value !== 'string') {
       failures.push(
-        `locales/${name}: key "${key}" is ${value === null ? "null" : typeof value}, not a string`,
+        `locales/${name}: key "${key}" is ${value === null ? 'null' : typeof value}, not a string`,
       );
       continue;
     }
@@ -468,7 +474,7 @@ for (const name of catalogNames) {
     }
   }
 
-  catalogs.set(name.replace(/\.json$/, ""), { name, parsed, entries });
+  catalogs.set(name.replace(/\.json$/, ''), { name, parsed, entries });
 }
 
 const sourceCatalog = catalogs.get(SOURCE_LANGUAGE);
@@ -493,7 +499,7 @@ if (sourceCatalog) {
     if (language === SOURCE_LANGUAGE) continue;
     const lexicalCategories = lexicalCountCategories(language);
     for (const [key, value] of catalog.entries) {
-      if (typeof value !== "string") continue;
+      if (typeof value !== 'string') continue;
       // A plural category English lacks (`_few`, `_many`) has no entry of its
       // own; its source is the English `_other` form.
       // A form English does not spell: try its `_other` sibling, then the bare
@@ -502,9 +508,9 @@ if (sourceCatalog) {
       // fallback that form would be checked against nothing.
       const englishValue =
         sourceCatalog.entries.get(key) ??
-        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, "_other")) ??
-        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, ""));
-      if (typeof englishValue !== "string") continue;
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, '_other')) ??
+        sourceCatalog.entries.get(key.replace(PLURAL_CATEGORY, ''));
+      if (typeof englishValue !== 'string') continue;
 
       // What the CALL SITE offers, which is the real test for an invented
       // placeholder: one options object is passed whatever plural category
@@ -514,11 +520,11 @@ if (sourceCatalog) {
       // "Исправлено {{count}} раз" there. Checking that form against the
       // English `_one` alone rejected it as invented and left Russian saying
       // "once" about 21 corrections, with no way to fix it from this side.
-      const base = key.replace(PLURAL_CATEGORY, "");
+      const base = key.replace(PLURAL_CATEGORY, '');
       const provided = new Set();
       for (const candidate of [base, ...ALL_PLURAL_SUFFIXES.map((suffix) => base + suffix)]) {
         const form = sourceCatalog.entries.get(candidate);
-        if (typeof form === "string") {
+        if (typeof form === 'string') {
           for (const name of inspectPlaceholders(form).names) provided.add(name);
         }
       }
@@ -546,7 +552,7 @@ if (sourceCatalog) {
       const countIsLexical = Boolean(category && lexicalCategories.has(category));
       for (const name of inspectPlaceholders(englishValue).names) {
         if (used.has(name)) continue;
-        if (countIsLexical && name === "count") continue;
+        if (countIsLexical && name === 'count') continue;
         failures.push(
           `locales/${catalog.name}: key "${key}" drops {{${name}}}, which its ${SOURCE_LANGUAGE} source interpolates — ${language} users never see what it stood for`,
         );
@@ -581,7 +587,7 @@ const callSites = [];
 const usedKeys = new Set();
 const dynamicPrefixes = new Set();
 for (const path of scannedFiles) {
-  const source = await readFile(path, "utf8");
+  const source = await readFile(path, 'utf8');
   const { keys, dynamicPrefixes: prefixes } = extractKeys(source);
   for (const prefix of prefixes) dynamicPrefixes.add(prefix);
   for (const { key, offset, hasDefault, hasCount } of keys) {
@@ -589,7 +595,7 @@ for (const path of scannedFiles) {
       key,
       hasDefault,
       hasCount,
-      location: `${relative(repositoryRoot, path)}:${source.slice(0, offset).split("\n").length}`,
+      location: `${relative(repositoryRoot, path)}:${source.slice(0, offset).split('\n').length}`,
     });
     usedKeys.add(key);
   }
@@ -602,7 +608,7 @@ if (usedKeys.size < MINIMUM_EXTRACTED_KEYS) {
   );
 }
 
-const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
+const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
 
 /**
  * The share of byte-identical-to-English entries at which a catalog stops
@@ -619,7 +625,7 @@ if (sourceCatalog) {
     if (reported.has(key)) continue;
 
     const resolved = resolveKey(sourceCatalog.parsed, key);
-    if (typeof resolved === "string") continue;
+    if (typeof resolved === 'string') continue;
     if (resolved !== undefined) {
       reported.add(key);
       failures.push(
@@ -630,7 +636,9 @@ if (sourceCatalog) {
     // With `count`, i18next looks the plural forms up instead of the base key.
     if (
       hasCount &&
-      PLURAL_SUFFIXES.some((suffix) => typeof resolveKey(sourceCatalog.parsed, key + suffix) === "string")
+      PLURAL_SUFFIXES.some(
+        (suffix) => typeof resolveKey(sourceCatalog.parsed, key + suffix) === 'string',
+      )
     ) {
       continue;
     }
@@ -679,7 +687,7 @@ if (sourceCatalog) {
  * translation and the cheapest way to a green build is a wrong one.
  */
 function isPluralFormOfEnglishKey(key) {
-  const base = key.replace(/_(?:zero|one|two|few|many|other)$/, "");
+  const base = key.replace(/_(?:zero|one|two|few|many|other)$/, '');
   if (base === key) return false;
   return (
     sourceCatalog.entries.has(base) ||
@@ -718,7 +726,7 @@ const englishPluralBases = sourceCatalog
       ...new Set(
         [...sourceCatalog.entries.keys()]
           .filter((key) => PLURAL_CATEGORY.test(key))
-          .map((key) => key.replace(PLURAL_CATEGORY, "")),
+          .map((key) => key.replace(PLURAL_CATEGORY, '')),
       ),
     ]
   : [];
@@ -752,7 +760,9 @@ if (sourceCatalog) {
       );
     }
 
-    const untranslated = [...sourceCatalog.entries.keys()].filter((key) => !catalog.entries.has(key));
+    const untranslated = [...sourceCatalog.entries.keys()].filter(
+      (key) => !catalog.entries.has(key),
+    );
     for (const key of untranslated) {
       failures.push(
         `locales/${catalog.name}: key "${key}" is missing — every supported locale must cover the complete app`,
@@ -815,7 +825,7 @@ if (sourceCatalog) {
       const absent = categories.filter((category) => !present.has(category));
       if (absent.length === 0) continue;
       failures.push(
-        `locales/${catalog.name}: "${base}" is missing the ${absent.map((c) => `\`_${c}\``).join(", ")} plural ${absent.length === 1 ? "form" : "forms"}, which ${language} uses — i18next falls back to the base key, so those counts read the wrong number silently`,
+        `locales/${catalog.name}: "${base}" is missing the ${absent.map((c) => `\`_${c}\``).join(', ')} plural ${absent.length === 1 ? 'form' : 'forms'}, which ${language} uses — i18next falls back to the base key, so those counts read the wrong number silently`,
       );
     }
 
@@ -854,10 +864,34 @@ if (sourceCatalog) {
  * out key is the generator's output and not a translation.
  */
 const SLOT_WORDS = new Set([
-  "a11y", "action", "body", "caption", "copy", "count", "cta", "desc",
-  "description", "error", "failed", "footer", "header", "heading", "hint",
-  "key", "label", "message", "name", "placeholder", "string", "subtitle",
-  "success", "summary", "text", "title", "tooltip", "value",
+  'a11y',
+  'action',
+  'body',
+  'caption',
+  'copy',
+  'count',
+  'cta',
+  'desc',
+  'description',
+  'error',
+  'failed',
+  'footer',
+  'header',
+  'heading',
+  'hint',
+  'key',
+  'label',
+  'message',
+  'name',
+  'placeholder',
+  'string',
+  'subtitle',
+  'success',
+  'summary',
+  'text',
+  'title',
+  'tooltip',
+  'value',
 ]);
 
 /** i18next appends a CLDR category to the key when the call passes `count`. */
@@ -866,20 +900,20 @@ const PLURAL_SUFFIX = /_(?:zero|one|two|few|many|other)$/;
 /** `signedOutTitle` -> ["signed", "Out", "Title"]; `hidden_words` -> ["hidden", "words"]. */
 function splitIdentifier(segment) {
   return segment
-    .replace(/[_-]+/g, " ")
-    .replace(/(?<=[a-z0-9])(?=[A-Z])/g, " ")
-    .split(" ")
+    .replace(/[_-]+/g, ' ')
+    .replace(/(?<=[a-z0-9])(?=[A-Z])/g, ' ')
+    .split(' ')
     .filter(Boolean);
 }
 
 /** The spelling-out a key-to-English generator produces. */
 function spellOutKey(parts) {
-  return parts.map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+  return parts.map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 }
 
 for (const [language, catalog] of catalogs) {
   for (const [key, value] of catalog.entries) {
-    if (typeof value !== "string") continue;
+    if (typeof value !== 'string') continue;
 
     // The blunt version of the same mistake: the value IS the dotted key. Four
     // entries reached production this way and rendered `notification.delete_error`
@@ -887,19 +921,19 @@ for (const [language, catalog] of catalogs) {
     // prose as keys ("Home": "Home"), and prose is not identifier-shaped.
     if (value === key && isPathShaped(key)) {
       failures.push(
-        `locales/${catalog.name}: key "${key}" is set to its own key path, which is what users read — write the real ${language === SOURCE_LANGUAGE ? "English text" : `${language} translation`}, or take the English from the call site's defaultValue`,
+        `locales/${catalog.name}: key "${key}" is set to its own key path, which is what users read — write the real ${language === SOURCE_LANGUAGE ? 'English text' : `${language} translation`}, or take the English from the call site's defaultValue`,
       );
       continue;
     }
 
-    const segment = key.split(".").at(-1).replace(PLURAL_SUFFIX, "");
+    const segment = key.split('.').at(-1).replace(PLURAL_SUFFIX, '');
     if (!/^[a-z][A-Za-z0-9_]*$/.test(segment)) continue;
     const parts = splitIdentifier(segment);
     if (parts.length < 2) continue;
     if (!SLOT_WORDS.has(parts.at(-1).toLowerCase())) continue;
     if (value !== spellOutKey(parts)) continue;
     failures.push(
-      `locales/${catalog.name}: key "${key}" is set to "${value}", which is the key spelled out rather than copy — write the real ${language === SOURCE_LANGUAGE ? "English text" : `${language} translation`}, or take the English from the call site's defaultValue`,
+      `locales/${catalog.name}: key "${key}" is set to "${value}", which is the key spelled out rather than copy — write the real ${language === SOURCE_LANGUAGE ? 'English text' : `${language} translation`}, or take the English from the call site's defaultValue`,
     );
   }
 }
@@ -907,9 +941,9 @@ for (const [language, catalog] of catalogs) {
 // ---------------------------------------------------------------------------
 
 if (failures.length > 0) {
-  console.error("Translation validation failed:\n");
+  console.error('Translation validation failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);
-  console.error("");
+  console.error('');
   process.exit(1);
 }
 

@@ -71,7 +71,7 @@ export function memGetPostsByIds(ids: string[]): Record<string, FeedItem> {
  */
 export function memUpdatePost(
   id: string,
-  updater: (prev: FeedItem) => FeedItem | null | undefined
+  updater: (prev: FeedItem) => FeedItem | null | undefined,
 ): FeedItem | null {
   if (!id) return null;
   const current = posts.get(id);
@@ -124,7 +124,7 @@ export function memSetFeedItems(feedKey: string, items: FeedItem[], meta: FeedMe
 export function memAppendFeedItems(
   feedKey: string,
   items: FeedItem[],
-  meta: Partial<FeedMetaData>
+  meta: Partial<FeedMetaData>,
 ): void {
   if (!feedKey || items.length === 0) return;
   memUpsertPosts(items);
@@ -196,7 +196,10 @@ export function memRemovePostFromAllFeeds(postId: string): void {
   if (!postId) return;
   for (const [feedKey, ids] of feedItems) {
     if (ids.includes(postId)) {
-      feedItems.set(feedKey, ids.filter((id) => id !== postId));
+      feedItems.set(
+        feedKey,
+        ids.filter((id) => id !== postId),
+      );
     }
   }
 }

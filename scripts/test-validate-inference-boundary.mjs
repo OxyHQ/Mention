@@ -10,12 +10,16 @@ const validator = resolve(repositoryRoot, 'scripts/validate-inference-boundary.m
 
 const cleanFiles = {
   'packages/backend/package.json': JSON.stringify({ dependencies: { '@oxy.so/core': '^23.2.0' } }),
-  'packages/backend/src/edge.ts': "import { OxyInferenceClient } from '@oxy.so/core';\nexport { OxyInferenceClient };\n",
+  'packages/backend/src/edge.ts':
+    "import { OxyInferenceClient } from '@oxy.so/core';\nexport { OxyInferenceClient };\n",
   // Alia is the intentional chat/agent boundary, not a provider SDK.
-  'packages/frontend/app/ai.tsx': "import { AliaChatScreen } from '@alia.onl/sdk';\nexport { AliaChatScreen };\n",
+  'packages/frontend/app/ai.tsx':
+    "import { AliaChatScreen } from '@alia.onl/sdk';\nexport { AliaChatScreen };\n",
   // Claude's MCP client origin is OAuth/browser infrastructure, not inference.
-  'packages/mcp/lib/config.ts': 'export const allowedOrigins = [\n  "https://api.anthropic.com",\n];\n',
-  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=01a06477-94f5-74f0-bc25-4c5c13b93ccd\n',
+  'packages/mcp/lib/config.ts':
+    'export const allowedOrigins = [\n  "https://api.anthropic.com",\n];\n',
+  'packages/backend/.env.example':
+    'OXY_INFERENCE_ROUTING_PROFILE_ID=01a06477-94f5-74f0-bc25-4c5c13b93ccd\n',
   '.github/workflows/deploy-aws.yml': [
     'env:',
     '  TASK_ENV_OVERRIDES_JSON: >-',
@@ -59,12 +63,17 @@ async function runCase(name, additions, expectedFailure) {
 }
 
 await runCase('clean Oxy edge and Alia agent consumers', {}, null);
-await runCase('provider names in docs and tests are not production-code false positives', {
-  'docs/inference-fixture.md': 'OPENAI_API_KEY=https://kaana.ai and import OpenAI from "openai"\n',
-  'packages/backend/src/__tests__/provider.test.ts': 'const key = process.env.GEMINI_API_KEY;\n',
-  'packages/frontend/__tests__/provider.test.ts': 'const key = process.env.ELEVENLABS_API_KEY;\n',
-  'packages/mcp/__tests__/provider.test.ts': 'const key = process.env.REPLICATE_API_TOKEN;\n',
-}, null);
+await runCase(
+  'provider names in docs and tests are not production-code false positives',
+  {
+    'docs/inference-fixture.md':
+      'OPENAI_API_KEY=https://kaana.ai and import OpenAI from "openai"\n',
+    'packages/backend/src/__tests__/provider.test.ts': 'const key = process.env.GEMINI_API_KEY;\n',
+    'packages/frontend/__tests__/provider.test.ts': 'const key = process.env.ELEVENLABS_API_KEY;\n',
+    'packages/mcp/__tests__/provider.test.ts': 'const key = process.env.REPLICATE_API_TOKEN;\n',
+  },
+  null,
+);
 
 for (const envName of [
   'OPENAI_API_KEY',
@@ -99,9 +108,13 @@ for (const envName of [
   'ASSEMBLYAI_API_KEY',
   'DEEPGRAM_API_KEY',
 ]) {
-  await runCase(`provider credential ${envName}`, {
-    'packages/backend/src/provider-env.ts': `export const credential = process.env.${envName};\n`,
-  }, 'provider credential environment variable');
+  await runCase(
+    `provider credential ${envName}`,
+    {
+      'packages/backend/src/provider-env.ts': `export const credential = process.env.${envName};\n`,
+    },
+    'provider credential environment variable',
+  );
 }
 
 for (const providerPackage of [
@@ -122,20 +135,37 @@ for (const providerPackage of [
   '@ai-sdk/perplexity',
   '@aws-sdk/client-bedrock-runtime',
 ]) {
-  await runCase(`provider SDK ${providerPackage}`, {
-    'packages/backend/src/provider-sdk.ts': `import Provider from '${providerPackage}';\nexport { Provider };\n`,
-  }, 'direct provider SDK import');
+  await runCase(
+    `provider SDK ${providerPackage}`,
+    {
+      'packages/backend/src/provider-sdk.ts': `import Provider from '${providerPackage}';\nexport { Provider };\n`,
+    },
+    'direct provider SDK import',
+  );
 }
 
-await runCase('side-effect provider SDK import', {
-  'packages/frontend/app/provider-side-effect.ts': "import 'openai/shims/node';\n",
-}, 'direct provider SDK import');
-await runCase('spaced provider SDK require', {
-  'packages/mcp/lib/provider-require.cjs': "const sdk = require ( '@anthropic-ai/sdk' );\nmodule.exports = sdk;\n",
-}, 'direct provider SDK import');
-await runCase('spaced dynamic provider SDK import', {
-  'packages/backend/src/provider-dynamic.ts': "export const sdk = import ( '@google/genai' );\n",
-}, 'direct provider SDK import');
+await runCase(
+  'side-effect provider SDK import',
+  {
+    'packages/frontend/app/provider-side-effect.ts': "import 'openai/shims/node';\n",
+  },
+  'direct provider SDK import',
+);
+await runCase(
+  'spaced provider SDK require',
+  {
+    'packages/mcp/lib/provider-require.cjs':
+      "const sdk = require ( '@anthropic-ai/sdk' );\nmodule.exports = sdk;\n",
+  },
+  'direct provider SDK import',
+);
+await runCase(
+  'spaced dynamic provider SDK import',
+  {
+    'packages/backend/src/provider-dynamic.ts': "export const sdk = import ( '@google/genai' );\n",
+  },
+  'direct provider SDK import',
+);
 
 for (const endpoint of [
   'https://api.openai.com/v1',
@@ -161,141 +191,222 @@ for (const endpoint of [
   'https://bedrock-runtime.us-west-2.amazonaws.com',
   'https://api.fal.ai/v1',
 ]) {
-  await runCase(`direct provider endpoint ${endpoint}`, {
-    'packages/backend/src/provider-endpoint.ts': `export const endpoint = '${endpoint}';\n`,
-  }, 'direct provider endpoint');
+  await runCase(
+    `direct provider endpoint ${endpoint}`,
+    {
+      'packages/backend/src/provider-endpoint.ts': `export const endpoint = '${endpoint}';\n`,
+    },
+    'direct provider endpoint',
+  );
 }
 
-await runCase('frontend direct Kaana endpoint', {
-  'packages/frontend/app/direct-kaana.ts': "export const url = 'https://kaana.ai/internal/v1/inference';\n",
-}, 'direct Kaana/Relay data-plane endpoint');
-await runCase('MCP direct legacy Relay endpoint', {
-  'packages/mcp/lib/direct-relay.ts': "export const url = 'https://relay.oxy.so/v1/chat/completions';\n",
-}, 'direct Kaana/Relay data-plane endpoint');
-await runCase('MCP provider credential', {
-  'packages/mcp/lib/provider.ts': 'export const key = process.env.ELEVENLABS_API_KEY;\n',
-}, 'provider credential environment variable');
-await runCase('frontend provider SDK dependency', {
-  'packages/frontend/package.json': JSON.stringify({ dependencies: { '@ai-sdk/google': '^3.0.0' } }),
-}, 'direct provider dependency @ai-sdk/google');
-await runCase('direct Kaana signing configuration', {
-  'packages/backend/src/direct-kaana.ts': 'export const baseUrl = process.env.KAANA_BASE_URL;\n',
-}, 'direct or retired data-plane configuration');
-await runCase('legacy gateway', {
-  'packages/backend/src/legacy.ts': 'export const url = process.env.ALIA_API_URL;\n',
-}, 'retired Alia provider gateway variable');
-await runCase('static Oxy service token', {
-  'packages/backend/src/legacy-token.ts': 'export const token = process.env.OXY_SERVICE_TOKEN;\n',
-}, 'retired static Oxy service-token fallback');
-await runCase('routing-profile slug selector', {
-  'packages/backend/src/legacy-routing.ts': "export const request = { routingProfile: 'mention-default' };\n",
-}, 'routing-profile slug request field');
-await runCase('retired routing-profile environment variable', {
-  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE=mention-default\n',
-}, 'retired mutable routing-profile selector');
-await runCase('wrong routing-profile ID', {
-  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=other-profile-id\n',
-}, 'must pin Mention\'s exact opaque routing-profile ID');
+await runCase(
+  'frontend direct Kaana endpoint',
+  {
+    'packages/frontend/app/direct-kaana.ts':
+      "export const url = 'https://kaana.ai/internal/v1/inference';\n",
+  },
+  'direct Kaana/Relay data-plane endpoint',
+);
+await runCase(
+  'MCP direct legacy Relay endpoint',
+  {
+    'packages/mcp/lib/direct-relay.ts':
+      "export const url = 'https://relay.oxy.so/v1/chat/completions';\n",
+  },
+  'direct Kaana/Relay data-plane endpoint',
+);
+await runCase(
+  'MCP provider credential',
+  {
+    'packages/mcp/lib/provider.ts': 'export const key = process.env.ELEVENLABS_API_KEY;\n',
+  },
+  'provider credential environment variable',
+);
+await runCase(
+  'frontend provider SDK dependency',
+  {
+    'packages/frontend/package.json': JSON.stringify({
+      dependencies: { '@ai-sdk/google': '^3.0.0' },
+    }),
+  },
+  'direct provider dependency @ai-sdk/google',
+);
+await runCase(
+  'direct Kaana signing configuration',
+  {
+    'packages/backend/src/direct-kaana.ts': 'export const baseUrl = process.env.KAANA_BASE_URL;\n',
+  },
+  'direct or retired data-plane configuration',
+);
+await runCase(
+  'legacy gateway',
+  {
+    'packages/backend/src/legacy.ts': 'export const url = process.env.ALIA_API_URL;\n',
+  },
+  'retired Alia provider gateway variable',
+);
+await runCase(
+  'static Oxy service token',
+  {
+    'packages/backend/src/legacy-token.ts': 'export const token = process.env.OXY_SERVICE_TOKEN;\n',
+  },
+  'retired static Oxy service-token fallback',
+);
+await runCase(
+  'routing-profile slug selector',
+  {
+    'packages/backend/src/legacy-routing.ts':
+      "export const request = { routingProfile: 'mention-default' };\n",
+  },
+  'routing-profile slug request field',
+);
+await runCase(
+  'retired routing-profile environment variable',
+  {
+    'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE=mention-default\n',
+  },
+  'retired mutable routing-profile selector',
+);
+await runCase(
+  'wrong routing-profile ID',
+  {
+    'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=other-profile-id\n',
+  },
+  "must pin Mention's exact opaque routing-profile ID",
+);
 // The workflow-side ID check had no mutation case, so the scoping change above
 // could have disarmed it silently. These two are what make that impossible: a
 // wrong ID in the block, and a right ID that never reaches the block.
-await runCase('wrong routing-profile ID in the task env overrides', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"00000000-0000-0000-0000-000000000000"}',
-    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
-    '',
-  ].join('\n'),
-}, 'must inject Mention\'s exact opaque routing-profile ID durably');
-await runCase('routing-profile ID only in a comment, not in the injected block', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  # {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"SOMETHING_ELSE":"value"}',
-    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
-    '',
-  ].join('\n'),
-}, 'must inject Mention\'s exact opaque routing-profile ID durably');
+await runCase(
+  'wrong routing-profile ID in the task env overrides',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"00000000-0000-0000-0000-000000000000"}',
+      '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+      '',
+    ].join('\n'),
+  },
+  "must inject Mention's exact opaque routing-profile ID durably",
+);
+await runCase(
+  'routing-profile ID only in a comment, not in the injected block',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  # {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"SOMETHING_ELSE":"value"}',
+      '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+      '',
+    ].join('\n'),
+  },
+  "must inject Mention's exact opaque routing-profile ID durably",
+);
 // A second, unrelated task env var must NOT break the assertion — that is the
 // regression this scoping fixes.
-await runCase('an additional task env var alongside the routing profile', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",',
-    '     "WEB_SHELL_ORIGIN":"https://shell.mention.earth"}',
-    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
-    '',
-  ].join('\n'),
-}, null);
+await runCase(
+  'an additional task env var alongside the routing profile',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",',
+      '     "WEB_SHELL_ORIGIN":"https://shell.mention.earth"}',
+      '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+      '',
+    ].join('\n'),
+  },
+  null,
+);
 // The list outgrew one line. A folded block is the same value written the other
 // way YAML offers, and the gate must read the VALUE — it once read the rest of
 // the line, found `>-`, and reported that a retired credential had stopped being
 // removed while the workflow removed it exactly as before.
-await runCase('the removals written as a folded block', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_SECRET_REMOVALS: >-',
-    '    ALIA_API_KEY',
-    '    OXY_SERVICE_TOKEN',
-    '',
-  ].join('\n'),
-}, null);
+await runCase(
+  'the removals written as a folded block',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  TASK_SECRET_REMOVALS: >-',
+      '    ALIA_API_KEY',
+      '    OXY_SERVICE_TOKEN',
+      '',
+    ].join('\n'),
+  },
+  null,
+);
 // Removing the Oxy service credential costs Mention every privileged scope its
 // credential names — measured as 313 `Missing required scope: federation:write`
 // in the nine hours the pair was off. The gate refuses it...
-await runCase('the Oxy credential named in the removals', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_SECRET_REMOVALS: >-',
-    '    ALIA_API_KEY',
-    '    OXY_SERVICE_TOKEN',
-    '    OXY_SERVICE_API_KEY',
-    '',
-  ].join('\n'),
-}, 'costs Mention every privileged scope');
+await runCase(
+  'the Oxy credential named in the removals',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  TASK_SECRET_REMOVALS: >-',
+      '    ALIA_API_KEY',
+      '    OXY_SERVICE_TOKEN',
+      '    OXY_SERVICE_API_KEY',
+      '',
+    ].join('\n'),
+  },
+  'costs Mention every privileged scope',
+);
 // ...and disarms itself once the binding carries those scopes, so the gate has a
 // way out that is not "delete the gate".
-await runCase('the removal once the binding carries the scopes', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  # workload-scopes-bound: 2026-09-19',
-    '  TASK_SECRET_REMOVALS: >-',
-    '    ALIA_API_KEY',
-    '    OXY_SERVICE_TOKEN',
-    '    OXY_SERVICE_API_KEY',
-    '    OXY_SERVICE_API_SECRET',
-    '',
-  ].join('\n'),
-}, null);
+await runCase(
+  'the removal once the binding carries the scopes',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  # workload-scopes-bound: 2026-09-19',
+      '  TASK_SECRET_REMOVALS: >-',
+      '    ALIA_API_KEY',
+      '    OXY_SERVICE_TOKEN',
+      '    OXY_SERVICE_API_KEY',
+      '    OXY_SERVICE_API_SECRET',
+      '',
+    ].join('\n'),
+  },
+  null,
+);
 // And the negative in the same shape: a folded block that DROPPED one still
 // fails, or the case above would only prove the gate stopped reading.
-await runCase('a folded block missing a retired credential', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_SECRET_REMOVALS: >-',
-    '    ALIA_API_KEY',
-    '    OXY_SERVICE_API_KEY',
-    '',
-  ].join('\n'),
-}, 'must re-assert removal of OXY_SERVICE_TOKEN');
-await runCase('lost retirement assertion', {
-  '.github/workflows/deploy-aws.yml': [
-    'env:',
-    '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '',
-  ].join('\n'),
-}, 'must re-assert removal of ALIA_API_KEY');
+await runCase(
+  'a folded block missing a retired credential',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  TASK_SECRET_REMOVALS: >-',
+      '    ALIA_API_KEY',
+      '    OXY_SERVICE_API_KEY',
+      '',
+    ].join('\n'),
+  },
+  'must re-assert removal of OXY_SERVICE_TOKEN',
+);
+await runCase(
+  'lost retirement assertion',
+  {
+    '.github/workflows/deploy-aws.yml': [
+      'env:',
+      '  TASK_ENV_OVERRIDES_JSON: >-',
+      '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '',
+    ].join('\n'),
+  },
+  'must re-assert removal of ALIA_API_KEY',
+);
 
 console.log(`Inference boundary mutation tests passed (${caseCount} cases).`);

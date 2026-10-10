@@ -99,7 +99,8 @@ export interface FollowFilter {
 
 function followClauses(filter: FollowFilter): SQL[] | null {
   const clauses: SQL[] = [];
-  if (filter.localUserId !== undefined) clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
+  if (filter.localUserId !== undefined)
+    clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
   if (filter.localUserIds !== undefined) {
     if (filter.localUserIds.length === 0) return null;
     clauses.push(inArray(federatedFollows.localUserId, [...filter.localUserIds]));
@@ -107,7 +108,8 @@ function followClauses(filter: FollowFilter): SQL[] | null {
   if (filter.remoteActorUri !== undefined) {
     clauses.push(eq(federatedFollows.remoteActorUri, filter.remoteActorUri));
   }
-  if (filter.direction !== undefined) clauses.push(eq(federatedFollows.direction, filter.direction));
+  if (filter.direction !== undefined)
+    clauses.push(eq(federatedFollows.direction, filter.direction));
   if (filter.statuses !== undefined) {
     // An empty status list means "no status can match", not "any status" — the
     // opposite of what dropping the clause would mean. `null` says so to the
@@ -269,7 +271,11 @@ export async function upsertInboundAccepted(
       activityId: activityId ?? null,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'accepted', activityId: activityId ?? null, updatedAt: new Date() },
     });
 }
@@ -291,7 +297,11 @@ export async function upsertOutboundPending(
       activityId: activityId ?? null,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'pending', activityId: activityId ?? null, updatedAt: new Date() },
     });
 }
@@ -318,7 +328,11 @@ export async function upsertOutboundAcceptedSubscription(
       network,
     })
     .onConflictDoUpdate({
-      target: [federatedFollows.localUserId, federatedFollows.remoteActorUri, federatedFollows.direction],
+      target: [
+        federatedFollows.localUserId,
+        federatedFollows.remoteActorUri,
+        federatedFollows.direction,
+      ],
       set: { status: 'accepted', network, updatedAt: new Date() },
     });
 }
@@ -444,7 +458,8 @@ export async function deleteFollowsFor(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<number> {
   const clauses: SQL[] = [];
-  if (filter.localUserId !== undefined) clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
+  if (filter.localUserId !== undefined)
+    clauses.push(eq(federatedFollows.localUserId, filter.localUserId));
   if (filter.remoteActorUri !== undefined) {
     clauses.push(eq(federatedFollows.remoteActorUri, filter.remoteActorUri));
   }

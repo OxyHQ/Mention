@@ -42,9 +42,9 @@ export function readCandidateId(post: RankedCandidate): string {
  * the coercion is gone and only the presence check remains — a candidate with no
  * id cannot be cursored on and is dropped rather than silently cursored to `''`.
  */
-export function toRankedCandidate<T extends { id?: string; oxyUserId?: string | null; finalScore?: number; isReply: boolean }>(
-  post: T,
-): (T & RankedCandidate) | null {
+export function toRankedCandidate<
+  T extends { id?: string; oxyUserId?: string | null; finalScore?: number; isReply: boolean },
+>(post: T): (T & RankedCandidate) | null {
   const id = post.id;
   if (typeof id !== 'string' || id.length === 0) return null;
   return { ...post, id };

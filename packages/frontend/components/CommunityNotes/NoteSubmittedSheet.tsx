@@ -19,7 +19,9 @@ export function NoteSubmittedSheet({ onDone, onManageNotes }: NoteSubmittedSheet
     <View className="bg-background gap-6 px-5 pb-6 pt-6">
       <View className="gap-1">
         <Text className="text-foreground text-center text-[22px] font-bold">
-          {t('communityNotes.submitted.title', { defaultValue: 'Your community note was submitted' })}
+          {t('communityNotes.submitted.title', {
+            defaultValue: 'Your community note was submitted',
+          })}
         </Text>
         <Text className="text-muted-foreground text-center text-[14px]">
           {t('communityNotes.submitted.subtitle', { defaultValue: "Here's what happens next" })}
@@ -29,18 +31,29 @@ export function NoteSubmittedSheet({ onDone, onManageNotes }: NoteSubmittedSheet
         tips={[
           {
             icon: RiThumbUpLine,
-            title: t('communityNotes.submitted.ratedTitle', { defaultValue: 'Your note can be rated' }),
-            body: t('communityNotes.submitted.ratedBody', { defaultValue: 'Other contributors can see your note and decide if it is helpful.' }),
+            title: t('communityNotes.submitted.ratedTitle', {
+              defaultValue: 'Your note can be rated',
+            }),
+            body: t('communityNotes.submitted.ratedBody', {
+              defaultValue: 'Other contributors can see your note and decide if it is helpful.',
+            }),
           },
           {
             icon: RiTeamLine,
-            title: t('communityNotes.submitted.shownTitle', { defaultValue: 'Ratings decide if it is shown' }),
-            body: t('communityNotes.submitted.shownBody', { defaultValue: "If people who usually disagree both find it helpful, it's added to the post and you'll get a notification." }),
+            title: t('communityNotes.submitted.shownTitle', {
+              defaultValue: 'Ratings decide if it is shown',
+            }),
+            body: t('communityNotes.submitted.shownBody', {
+              defaultValue:
+                "If people who usually disagree both find it helpful, it's added to the post and you'll get a notification.",
+            }),
           },
           {
             icon: RiSettings3Line,
             title: t('communityNotes.submitted.manageTitle', { defaultValue: 'Manage your notes' }),
-            body: t('communityNotes.submitted.manageBody', { defaultValue: 'See or delete the notes you wrote and rate notes from others.' }),
+            body: t('communityNotes.submitted.manageBody', {
+              defaultValue: 'See or delete the notes you wrote and rate notes from others.',
+            }),
           },
         ]}
       />

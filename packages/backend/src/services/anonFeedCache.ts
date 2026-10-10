@@ -106,9 +106,8 @@ class AnonFeedCache {
       : 'none';
     const namespacedType = input.namespace ? `${input.namespace}:${input.type}` : input.type;
     // SORTED, so two readers whose languages differ only in order share an entry.
-    const languageKey = input.languages && input.languages.length > 0
-      ? [...input.languages].sort().join(',')
-      : 'any';
+    const languageKey =
+      input.languages && input.languages.length > 0 ? [...input.languages].sort().join(',') : 'any';
     return [
       this.KEY_PREFIX + namespacedType,
       input.sort ?? 'default',
@@ -150,14 +149,18 @@ class AnonFeedCache {
    * Later callers JOIN and await the leader's answer; a `null` answer means
    * "build your own", which is exactly what they would have done without this.
    */
-  claimBuild(key: string):
+  claimBuild(
+    key: string,
+  ):
     | { role: 'lead'; settle: (response: CacheableFeedResponse | null) => void }
     | { role: 'join'; result: Promise<CacheableFeedResponse | null> } {
     const existing = this.inFlight.get(key);
     if (existing) return { role: 'join', result: existing };
 
     let resolve!: (response: CacheableFeedResponse | null) => void;
-    const result = new Promise<CacheableFeedResponse | null>((r) => { resolve = r; });
+    const result = new Promise<CacheableFeedResponse | null>((r) => {
+      resolve = r;
+    });
     this.inFlight.set(key, result);
     let settled = false;
     return {

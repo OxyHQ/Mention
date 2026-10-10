@@ -11,11 +11,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';
-import {
-  getBlockedUserIds,
-  getRestrictedUserIds,
-  type OxyClient,
-} from '../utils/privacyHelpers';
+import { getBlockedUserIds, getRestrictedUserIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 export interface PrivacyState {
@@ -84,9 +80,7 @@ export class UserPrivacyManager {
     ]);
 
     const blockedUserIds = new Set(blockedIds.filter(validId));
-    const mutedUserIds = new Set(
-      mutedUsers.map((mute) => mute.mutedId).filter(validId),
-    );
+    const mutedUserIds = new Set(mutedUsers.map((mute) => mute.mutedId).filter(validId));
     const restrictedUserIds = new Set(restrictedIds.filter(validId));
     const excludedUserIds = new Set<string>([
       ...blockedUserIds,
@@ -107,7 +101,7 @@ export class UserPrivacyManager {
    */
   static filterPosts<T extends { oxyUserId?: string }>(
     posts: T[],
-    privacyState: PrivacyState
+    privacyState: PrivacyState,
   ): T[] {
     if (privacyState.excludedUserIds.size === 0) return posts;
     return posts.filter((post) => {

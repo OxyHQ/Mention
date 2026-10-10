@@ -68,9 +68,12 @@ export function ExternalActorFollowButton({ actor }: ExternalActorFollowButtonPr
     try {
       const result = await feedService.followFederatedActor(actor.externalId);
       if (!result.success) {
-        toast(t('search.external.followFailed', { defaultValue: 'Could not follow this account' }), {
-          type: 'error',
-        });
+        toast(
+          t('search.external.followFailed', { defaultValue: 'Could not follow this account' }),
+          {
+            type: 'error',
+          },
+        );
         return;
       }
       setFollowing(true);
@@ -101,9 +104,11 @@ export function ExternalActorFollowButton({ actor }: ExternalActorFollowButtonPr
       loading={submitting}
       disabled={following || submitting}
       label={t('search.external.follow', { defaultValue: 'Follow' })}
-      followingLabel={requested
-        ? t('search.external.requested', { defaultValue: 'Requested' })
-        : t('search.external.following', { defaultValue: 'Following' })}
+      followingLabel={
+        requested
+          ? t('search.external.requested', { defaultValue: 'Requested' })
+          : t('search.external.following', { defaultValue: 'Following' })
+      }
     />
   );
 }

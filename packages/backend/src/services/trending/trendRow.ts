@@ -51,12 +51,14 @@ export function selectForAudience(
   region?: string,
 ): SerializedTrend[] {
   const wanted = new Set(languages);
-  const accepted = languages.length === 0
-    ? [...trends]
-    : trends.filter((trend) =>
-      trend.languages?.some((language) => wanted.has(language))
-      || (trend.scope === 'global' && Boolean(trend.conceptId)),
-    );
+  const accepted =
+    languages.length === 0
+      ? [...trends]
+      : trends.filter(
+          (trend) =>
+            trend.languages?.some((language) => wanted.has(language)) ||
+            (trend.scope === 'global' && Boolean(trend.conceptId)),
+        );
 
   if (!region) return accepted;
 

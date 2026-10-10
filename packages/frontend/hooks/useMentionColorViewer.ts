@@ -22,9 +22,19 @@ export function useMentionColorViewer() {
       if (result.id !== subject) throw new Error('Personalization subject changed');
       return result;
     },
-    staleTime: 0, gcTime: 0, retry: false, refetchInterval: 15000,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    refetchInterval: 15000,
     refetchOnWindowFocus: 'always',
   });
   // Missing or failed authority never retains a premium selection.
-  return colorViewerForUser(query.isError || !canUsePrivateApi ? { username: canUsePrivateApi ? user?.username : undefined } : query.data?.id === user?.id ? query.data : { username: user?.username }, now);
+  return colorViewerForUser(
+    query.isError || !canUsePrivateApi
+      ? { username: canUsePrivateApi ? user?.username : undefined }
+      : query.data?.id === user?.id
+        ? query.data
+        : { username: user?.username },
+    now,
+  );
 }

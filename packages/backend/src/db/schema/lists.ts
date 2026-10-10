@@ -15,7 +15,16 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, pgTable, text, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** The external networks a list/pack can be mirrored FROM. */
@@ -58,12 +67,12 @@ export const ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH = 128;
  * needs a wrapper function and these do not.
  */
 export const ACCOUNT_LISTS_SEARCH_TEXT = sql.raw(
-  "lower(coalesce(title, '') || ' ' || coalesce(description, ''))"
+  "lower(coalesce(title, '') || ' ' || coalesce(description, ''))",
 );
 
 /** As {@link ACCOUNT_LISTS_SEARCH_TEXT}, for `starter_packs` (`name`, not `title`). */
 export const STARTER_PACKS_SEARCH_TEXT = sql.raw(
-  "lower(coalesce(name, '') || ' ' || coalesce(description, ''))"
+  "lower(coalesce(name, '') || ' ' || coalesce(description, ''))",
 );
 
 export const accountLists = pgTable(
@@ -87,9 +96,7 @@ export const accountLists = pgTable(
   (t) => [
     check('account_lists_subscriber_count_check', sql`${t.subscriberCount} >= 0`),
     index('account_lists_owner_chrono_idx').on(t.ownerOxyUserId, t.createdAt.desc()),
-    index('account_lists_public_chrono_idx')
-      .on(t.createdAt.desc())
-      .where(sql`${t.isPublic}`),
+    index('account_lists_public_chrono_idx').on(t.createdAt.desc()).where(sql`${t.isPublic}`),
     /**
      * `GET /lists?search=` is `title ILIKE '%term%' OR description ILIKE
      * '%term%'` — a SUBSTRING match, which no b-tree can serve, so this
@@ -109,9 +116,9 @@ export const accountLists = pgTable(
      */
     index('account_lists_search_trgm_gin').using(
       'gin',
-      sql`${ACCOUNT_LISTS_SEARCH_TEXT} gin_trgm_ops`
+      sql`${ACCOUNT_LISTS_SEARCH_TEXT} gin_trgm_ops`,
     ),
-  ]
+  ],
 );
 
 /** `account_list_members` — the junction replacing `memberOxyUserIds`. */
@@ -133,7 +140,7 @@ export const accountListMembers = pgTable(
     unique('account_list_members_list_id_position_key').on(t.listId, t.position),
     // "Which lists is this account on" — the feed-merge direction.
     index('account_list_members_oxy_user_id_idx').on(t.oxyUserId),
-  ]
+  ],
 );
 
 /**
@@ -165,7 +172,7 @@ export const starterPacks = pgTable(
     check('starter_packs_use_count_check', sql`${t.useCount} >= 0`),
     check(
       'starter_packs_source_network_check',
-      sql`${t.sourceNetwork} is null or ${t.sourceNetwork} in (${sql.raw(inList(EXTERNAL_LIST_NETWORKS))})`
+      sql`${t.sourceNetwork} is null or ${t.sourceNetwork} in (${sql.raw(inList(EXTERNAL_LIST_NETWORKS))})`,
     ),
     // Mongo stored `source` as a subdocument, so its three fields arrived or
     // were absent together. Flattened into columns they could diverge; the CHECK
@@ -173,7 +180,7 @@ export const starterPacks = pgTable(
     check(
       'starter_packs_source_complete_check',
       sql`(${t.sourceNetwork} is null and ${t.sourceUri} is null and ${t.sourceSyncedAt} is null)
-        or (${t.sourceNetwork} is not null and ${t.sourceUri} is not null and ${t.sourceSyncedAt} is not null)`
+        or (${t.sourceNetwork} is not null and ${t.sourceUri} is not null and ${t.sourceSyncedAt} is not null)`,
     ),
     // Mongo's `{ 'source.uri': 1 }, { unique: true, sparse: true }` — one Mention
     // pack per remote pack, which is what closes the concurrent-import race.
@@ -185,9 +192,9 @@ export const starterPacks = pgTable(
     /** As `account_lists_search_trgm_gin`, for `GET /starter-packs?search=`. */
     index('starter_packs_search_trgm_gin').using(
       'gin',
-      sql`${STARTER_PACKS_SEARCH_TEXT} gin_trgm_ops`
+      sql`${STARTER_PACKS_SEARCH_TEXT} gin_trgm_ops`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -215,7 +222,7 @@ export const starterPackMembers = pgTable(
     unique('starter_pack_members_pack_id_position_key').on(t.packId, t.position),
     // The curation entry point: "which packs curate these authors".
     index('starter_pack_members_oxy_user_id_idx').on(t.oxyUserId),
-  ]
+  ],
 );
 
 /**
@@ -241,5 +248,5 @@ export const starterPackUses = pgTable(
     unique('starter_pack_uses_pack_id_oxy_user_id_key').on(t.packId, t.oxyUserId),
     // "Packs I have already used" — the recommendation exclusion.
     index('starter_pack_uses_oxy_user_id_idx').on(t.oxyUserId),
-  ]
+  ],
 );

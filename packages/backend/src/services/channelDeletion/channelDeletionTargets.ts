@@ -149,7 +149,11 @@ export async function readPostBatch(
   const channelPosts = await db
     .select(CHANNEL_ROW_COLUMNS)
     .from(posts)
-    .where(after === null ? ownedByChannel(channelOxyUserId) : and(ownedByChannel(channelOxyUserId), gt(posts.id, after)))
+    .where(
+      after === null
+        ? ownedByChannel(channelOxyUserId)
+        : and(ownedByChannel(channelOxyUserId), gt(posts.id, after)),
+    )
     .orderBy(posts.id)
     .limit(POST_BATCH_SIZE);
 

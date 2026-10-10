@@ -31,7 +31,10 @@ jest.mock('react-i18next', () => ({
 jest.mock('@/context/BottomSheetContext', () => {
   const { createContext } = jest.requireActual('react');
   return {
-    BottomSheetContext: createContext({ setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() }),
+    BottomSheetContext: createContext({
+      setBottomSheetContent: jest.fn(),
+      openBottomSheet: jest.fn(),
+    }),
   };
 });
 jest.mock('@/components/report/ReportModal', () => ({ ReportModal: () => null }));
@@ -43,7 +46,11 @@ jest.mock('@/services/reportService', () => ({ reportService: { reportUser: jest
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 
 const profileData = { id: 'u1', username: 'ana' } as ProfileData;
-const channelSettings: ActionMenuAction = { icon: null, label: 'Channel settings', onPress: jest.fn() };
+const channelSettings: ActionMenuAction = {
+  icon: null,
+  label: 'Channel settings',
+  onPress: jest.fn(),
+};
 
 let latest: (() => void) | null = null;
 function Probe(props: Omit<ProfileMoreMenuOptions, 'profileData'>) {

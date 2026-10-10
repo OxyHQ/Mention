@@ -90,7 +90,9 @@ export function validateFacets(facets: Facet[], textByteLength: number): string[
       errors.push(`Facet ${i}: byteStart must be >= 0`);
     }
     if (facet.index.byteEnd > textByteLength) {
-      errors.push(`Facet ${i}: byteEnd (${facet.index.byteEnd}) exceeds text length (${textByteLength})`);
+      errors.push(
+        `Facet ${i}: byteEnd (${facet.index.byteEnd}) exceeds text length (${textByteLength})`,
+      );
     }
     if (facet.index.byteStart >= facet.index.byteEnd) {
       errors.push(`Facet ${i}: byteStart must be < byteEnd`);

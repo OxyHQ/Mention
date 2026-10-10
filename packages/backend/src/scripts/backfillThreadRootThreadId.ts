@@ -111,13 +111,15 @@ async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
       authors: sql<string[]>`array_agg(distinct ${posts.oxyUserId})`,
     })
     .from(posts)
-    .where(and(
-      // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
-      // MISSING field, while SQL's `<>` against NULL matches nothing.
-      isNotNull(posts.threadId),
-      // Native posts only — federated posts carry a federation activity id.
-      isNull(posts.federationActivityId),
-    ))
+    .where(
+      and(
+        // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
+        // MISSING field, while SQL's `<>` against NULL matches nothing.
+        isNotNull(posts.threadId),
+        // Native posts only — federated posts carry a federation activity id.
+        isNull(posts.federationActivityId),
+      ),
+    )
     .groupBy(posts.threadId)
     // Exactly one distinct author. `array_agg(distinct …)` drops NULLs, so a
     // group of author-less posts yields an EMPTY array rather than `[null]` —
@@ -126,9 +128,7 @@ async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
     .having(sql`count(distinct ${posts.oxyUserId}) = 1`);
 
   return rows.flatMap((row) =>
-    row.threadId
-      ? [{ _id: row.threadId, count: row.count, authors: row.authors }]
-      : [],
+    row.threadId ? [{ _id: row.threadId, count: row.count, authors: row.authors }] : [],
   );
 }
 

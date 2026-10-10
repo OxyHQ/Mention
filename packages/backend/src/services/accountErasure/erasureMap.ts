@@ -125,7 +125,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why:
       "The account's posts, replies, boosts, quotes, drafts and scheduled posts. Walked in keyset batches; " +
       'each batch sends `Delete(Note)`, runs `PostDeletionCascade.cascadePostReferences`, repairs counters ' +
-      'on surviving posts and deletes the rows in one transaction. Other people\'s BOOSTS of these posts go ' +
+      "on surviving posts and deletes the rows in one transaction. Other people's BOOSTS of these posts go " +
       "with them (`boost_of` cascades; a boost is an empty card). Other people's REPLIES and QUOTES stay: " +
       'they wrote those words. `parent_post_id`/`quote_of` become NULL and `is_reply` stays true, so an ' +
       'orphaned reply is never promoted into a root feed.',
@@ -145,7 +145,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'unset-field',
     phase: 'account',
     why:
-      'The account as the human WRITER of a channel post. The post is the channel\'s and stays; the pointer ' +
+      "The account as the human WRITER of a channel post. The post is the channel's and stays; the pointer " +
       'to the person goes. NULL is the same state as a channel post written before writers were recorded.',
   },
   {
@@ -155,7 +155,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     phase: 'account',
     why:
       "The account as the host of a live room shared in someone else's post. The post stays; the host " +
-      'pointer goes. On the account\'s own posts it goes with the row.',
+      "pointer goes. On the account's own posts it goes with the row.",
   },
   {
     table: 'post_corrections',
@@ -164,8 +164,8 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     phase: 'account',
     why:
       "Corrections the account made to someone else's (a channel's) post. The correction trail is that " +
-      'post\'s public history and stays; it never serves who corrected it, and the column is NOT NULL, so ' +
-      'the id is replaced by the sentinel. Corrections on the account\'s own posts go with the posts.',
+      "post's public history and stays; it never serves who corrected it, and the column is NOT NULL, so " +
+      "the id is replaced by the sentinel. Corrections on the account's own posts go with the posts.",
   },
   {
     table: 'post_imports',
@@ -181,8 +181,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'oxyUserId',
     disposition: 'delete-entry',
     phase: 'account',
-    why:
-      "Other people's posts that mention the account. The mention link goes; their text stays theirs.",
+    why: "Other people's posts that mention the account. The mention link goes; their text stays theirs.",
   },
   {
     table: 'post_recent_repliers',
@@ -205,7 +204,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'authorId',
     disposition: 'delete-row',
     phase: 'account',
-    why: 'Other people\'s subscriptions to the account. There is nothing left to be notified about.',
+    why: "Other people's subscriptions to the account. There is nothing left to be notified about.",
   },
   {
     table: 'polls',
@@ -256,7 +255,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'userId',
     disposition: 'delete-row',
     phase: 'engagement',
-    why: 'The account\'s saves, with `stats_saves_count` repaired in the same statement.',
+    why: "The account's saves, with `stats_saves_count` repaired in the same statement.",
   },
   {
     table: 'poll_votes',
@@ -306,7 +305,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'oxyUserId',
     disposition: 'delete-row',
     phase: 'account',
-    why: 'The ranking profile inferred from the account\'s behaviour. Its author/topic/region rows cascade.',
+    why: "The ranking profile inferred from the account's behaviour. Its author/topic/region rows cascade.",
   },
   {
     table: 'user_behavior_authors',
@@ -362,7 +361,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'userId',
     disposition: 'delete-row',
     phase: 'account',
-    why: 'The account\'s muted words.',
+    why: "The account's muted words.",
   },
   {
     table: 'bookmark_folders',
@@ -370,7 +369,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'delete-row',
     phase: 'account',
     why:
-      'The account\'s bookmark folders. After `engagement`, which deleted the bookmarks filed in them — ' +
+      "The account's bookmark folders. After `engagement`, which deleted the bookmarks filed in them — " +
       'the bookmark foreign key does not let a folder go while a bookmark still names it.',
   },
   {
@@ -393,7 +392,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'delete-row',
     phase: 'account',
     why:
-      'Hashtags and lists the account follows. Other people\'s follows of the account\'s LISTS are removed ' +
+      "Hashtags and lists the account follows. Other people's follows of the account's LISTS are removed " +
       'with the lists, before the list rows go.',
   },
   {
@@ -409,7 +408,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'delete-row',
     phase: 'account',
     why:
-      "Notifications the account caused in other people's inboxes. \"X liked your post\" names a person who " +
+      'Notifications the account caused in other people\'s inboxes. "X liked your post" names a person who ' +
       'asked to be forgotten, so it goes.',
   },
   {
@@ -463,8 +462,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'oxyUserId',
     disposition: 'delete-entry',
     phase: 'account',
-    why:
-      'The record that the account used a pack. `use_count` is a lifetime tally and stays an anonymous count.',
+    why: 'The record that the account used a pack. `use_count` is a lifetime tally and stays an anonymous count.',
   },
   {
     table: 'custom_feeds',
@@ -510,7 +508,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     phase: 'account',
     why:
       'Labelers the account created, with their label definitions and every label they applied (both ' +
-      'cascade). An OFFICIAL labeler is Mention\'s moderation infrastructure, not the person\'s: it is kept ' +
+      "cascade). An OFFICIAL labeler is Mention's moderation infrastructure, not the person's: it is kept " +
       'and its creator is anonymised instead.',
   },
   {
@@ -565,7 +563,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'payloadActorOxyUserId',
     disposition: 'delete-row',
     phase: 'account',
-    why: 'Queued side effects (MTN record, notification, federation) of the account\'s own likes.',
+    why: "Queued side effects (MTN record, notification, federation) of the account's own likes.",
   },
   {
     table: 'engagement_outbox',
@@ -696,7 +694,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     disposition: 'anonymise',
     phase: 'account',
     why:
-      'A staff member\'s decision on a federation blocklist proposal. The decision is an audit record and ' +
+      "A staff member's decision on a federation blocklist proposal. The decision is an audit record and " +
       'stays; "a person decided" survives as the sentinel.',
   },
 
@@ -719,14 +717,14 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'oxyUserId',
     disposition: 'delete-row',
     phase: 'account',
-    why: "The chain head. Its `subject_did` embeds the account id.",
+    why: 'The chain head. Its `subject_did` embeds the account id.',
   },
   {
     table: 'mention_node_ingest_witnesses',
     column: 'oxyUserId',
     disposition: 'delete-row',
     phase: 'account',
-    why: 'Counter-signatures over records ingested from the account\'s node.',
+    why: "Counter-signatures over records ingested from the account's node.",
   },
   {
     table: 'mention_user_nodes',
@@ -792,7 +790,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     column: 'oxyUserId',
     disposition: 'retain',
     why:
-      'The erasure ledger: the idempotency key for Oxy\'s at-least-once events and the proof the erasure ' +
+      "The erasure ledger: the idempotency key for Oxy's at-least-once events and the proof the erasure " +
       'ran. It holds the id, the event id and per-table COUNTS, never content. Its temporary `username` ' +
       'is cleared 14 days after completion.',
   },
@@ -825,9 +823,15 @@ export const ACCOUNT_REFERENCE_EXTRAS: ReadonlyMap<string, string> = new Map([
  * account id, each with what it does hold. Dismissed once, here, in writing.
  */
 export const NOT_AN_ACCOUNT_COLUMN: ReadonlyMap<string, string> = new Map([
-  ['posts.contentPodcastAuthor', 'the display name of a podcast\'s author from Syra\'s catalog'],
-  ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account, never an Oxy account id'],
-  ['user_settings.profileMediaAuthor', 'the display name of a podcast\'s author from Syra\'s catalog'],
+  ['posts.contentPodcastAuthor', "the display name of a podcast's author from Syra's catalog"],
+  [
+    'federated_actors.instagramGraphUserId',
+    "Meta's Instagram user id of a remote account, never an Oxy account id",
+  ],
+  [
+    'user_settings.profileMediaAuthor',
+    "the display name of a podcast's author from Syra's catalog",
+  ],
   ['posts.metadataAuthorBlocked', 'a boolean flag on the post'],
   ['posts.metadataAuthorMuted', 'a boolean flag on the post'],
   ['posts.metadataIsFollowingAuthor', 'a boolean flag on the post'],
@@ -853,7 +857,7 @@ export const EMBEDDED_ACCOUNT_REFERENCES: ReadonlyMap<string, string> = new Map(
   ],
   [
     'federation_delivery_queue.activity_json',
-    'The account\'s actor URL inside queued activities. REACHED for the account\'s own rows (drained by ' +
+    "The account's actor URL inside queued activities. REACHED for the account's own rows (drained by " +
       'sender); the `Delete` rows this erasure queues keep the actor URL, which is what a Delete must name.',
   ],
   [
@@ -897,7 +901,7 @@ export const OUTSIDE_THE_MAP: ReadonlyMap<string, string> = new Map([
   [
     'CrowdSource (delivered reports, community notes and ratings)',
     "CrowdSource holds what was delivered to it under the account's id. Mention has no erasure call into " +
-      'CrowdSource today; that is CrowdSource\'s to erase and is tracked as a follow-up.',
+      "CrowdSource today; that is CrowdSource's to erase and is tracked as a follow-up.",
   ],
   [
     'A self-hosted MTN node',

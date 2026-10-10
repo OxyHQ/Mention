@@ -50,8 +50,8 @@ export function entitledColorNames(viewer: ColorViewer): readonly AppColorName[]
   return [
     ...FREE_COLOR_NAMES,
     ...HANDLE_COLOR_NAMES.filter((name) => name === handle),
-    ...(viewer.mentionMono ? PREMIUM_COLOR_NAMES.filter(name => name === 'mono') : []),
-  ].filter(name => supported.has(name));
+    ...(viewer.mentionMono ? PREMIUM_COLOR_NAMES.filter((name) => name === 'mono') : []),
+  ].filter((name) => supported.has(name));
 }
 
 export function isColorEntitled(name: AppColorName, viewer: ColorViewer): boolean {
@@ -59,7 +59,16 @@ export function isColorEntitled(name: AppColorName, viewer: ColorViewer): boolea
 }
 
 /** Oxy resolves individual and configured product sources; generic premium is not authority. */
-export function colorViewerForUser(user: { username?: string | null; personalization?: { mentionMono?: { allowed: boolean; expiresAt: string | null } } } | null | undefined, now = Date.now()): ColorViewer {
+export function colorViewerForUser(
+  user:
+    | {
+        username?: string | null;
+        personalization?: { mentionMono?: { allowed: boolean; expiresAt: string | null } };
+      }
+    | null
+    | undefined,
+  now = Date.now(),
+): ColorViewer {
   const grant = user?.personalization?.mentionMono;
   const expires = grant?.expiresAt === null ? Infinity : Date.parse(grant?.expiresAt ?? '');
   return { username: user?.username, mentionMono: grant?.allowed === true && expires > now };

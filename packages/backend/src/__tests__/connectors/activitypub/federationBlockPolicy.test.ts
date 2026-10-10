@@ -113,22 +113,24 @@ describe('resolveFederationBlocks', () => {
       ['urgent.invalid'],
     );
 
-    expect(resolved).toEqual([
-      {
-        source: 'operational',
-        domain: 'urgent.invalid',
-        severity: 'suspend',
-      },
-      {
-        source: 'policy',
-        domain: 'documented.invalid',
-        severity: 'suspend',
-        category: 'spam',
-        reason: 'Bulk automated posting into unrelated conversations.',
-        since: '2026-08-02',
-        corroboratingSources: ['mastodon.social'],
-      },
-    ].sort((a, b) => a.domain.localeCompare(b.domain)));
+    expect(resolved).toEqual(
+      [
+        {
+          source: 'operational',
+          domain: 'urgent.invalid',
+          severity: 'suspend',
+        },
+        {
+          source: 'policy',
+          domain: 'documented.invalid',
+          severity: 'suspend',
+          category: 'spam',
+          reason: 'Bulk automated posting into unrelated conversations.',
+          since: '2026-08-02',
+          corroboratingSources: ['mastodon.social'],
+        },
+      ].sort((a, b) => a.domain.localeCompare(b.domain)),
+    );
   });
 
   it('canonicalises case, surrounding space and a www. prefix', () => {

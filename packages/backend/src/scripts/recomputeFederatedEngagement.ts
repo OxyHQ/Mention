@@ -156,8 +156,7 @@ async function recomputeFederatedEngagement(): Promise<void> {
       const realByPost = await computeRealCounts(page.map((row) => row.id));
 
       for (const post of page) {
-        const real = realByPost.get(post.id)
-          ?? { likesCount: 0, boostsCount: 0, commentsCount: 0 };
+        const real = realByPost.get(post.id) ?? { likesCount: 0, boostsCount: 0, commentsCount: 0 };
         const current = {
           likesCount: post.likesCount,
           boostsCount: post.boostsCount,
@@ -202,7 +201,6 @@ async function recomputeFederatedEngagement(): Promise<void> {
         `${dryRun ? 'would-correct' : 'corrected'} ${dryRun ? changed : updated} posts, ` +
         `total drift ${dryRun ? 'found' : 'removed'} ${totalDriftCorrected} (${elapsedSeconds}s)`,
     );
-
   } catch (error) {
     logger.error('[recomputeFederatedEngagement] failed', error);
     process.exit(1);

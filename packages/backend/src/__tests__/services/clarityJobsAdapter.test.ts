@@ -21,7 +21,14 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {
-      summaries.set(id, { user: { id, username: 'acme', name: { displayName: 'Acme Inc.' }, avatar: 'https://cdn.example.com/acme.png' } });
+      summaries.set(id, {
+        user: {
+          id,
+          username: 'acme',
+          name: { displayName: 'Acme Inc.' },
+          avatar: 'https://cdn.example.com/acme.png',
+        },
+      });
     }
     return summaries;
   }),
@@ -30,7 +37,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 const recordClaritySync = vi.fn(async () => undefined);
 vi.mock('../../db/jobs/jobRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../db/jobs/jobRepository')>();
-  return { ...actual, recordClaritySync: (...args: unknown[]) => recordClaritySync(...(args as [])) };
+  return {
+    ...actual,
+    recordClaritySync: (...args: unknown[]) => recordClaritySync(...(args as [])),
+  };
 });
 
 import {
@@ -40,7 +50,11 @@ import {
 } from '../../services/clarityJobsAdapter';
 import type { MentionJobRow } from '../../db/jobs/jobRepository';
 
-const ORGANIZATION = { name: 'Mention', url: 'https://mention.earth/@mention', logo: 'https://mention.earth/logo.png' };
+const ORGANIZATION = {
+  name: 'Mention',
+  url: 'https://mention.earth/@mention',
+  logo: 'https://mention.earth/logo.png',
+};
 
 function job(overrides: Partial<MentionJobPosting> = {}): MentionJobPosting {
   return {
@@ -147,7 +161,11 @@ describe('buildJobPostingJsonLd', () => {
       ORGANIZATION,
     );
     const [place] = document.jobLocation as Array<{ address: Record<string, unknown> }>;
-    expect(place.address).toEqual({ '@type': 'PostalAddress', addressRegion: 'Catalonia', addressCountry: 'ES' });
+    expect(place.address).toEqual({
+      '@type': 'PostalAddress',
+      addressRegion: 'Catalonia',
+      addressCountry: 'ES',
+    });
     expect(JSON.stringify(document)).not.toContain('streetAddress');
   });
 
@@ -167,7 +185,10 @@ describe('buildJobPostingJsonLd', () => {
       other: 'OTHER',
     } as const;
     for (const [employmentType, schemaValue] of Object.entries(expected)) {
-      const document = buildJobPostingJsonLd(job({ employmentType: employmentType as keyof typeof expected }), ORGANIZATION);
+      const document = buildJobPostingJsonLd(
+        job({ employmentType: employmentType as keyof typeof expected }),
+        ORGANIZATION,
+      );
       expect(document.employmentType).toEqual([schemaValue]);
     }
   });
@@ -200,7 +221,10 @@ describe('buildJobPostingJsonLd', () => {
   });
 
   it('falls back to the creation date for datePosted when the job was never published', () => {
-    const document = buildJobPostingJsonLd(job({ status: 'draft', publishedAt: undefined }), ORGANIZATION);
+    const document = buildJobPostingJsonLd(
+      job({ status: 'draft', publishedAt: undefined }),
+      ORGANIZATION,
+    );
     expect(document.datePosted).toBe('2026-09-16');
   });
 });
@@ -220,7 +244,9 @@ describe('describeClaritySyncError', () => {
 
   it('keeps the plain message for any other failure', () => {
     expect(describeClaritySyncError(new Error('socket hang up'))).toBe('socket hang up');
-    expect(describeClaritySyncError(new FakeClarityError('Forbidden', 'forbidden', 403, 'req-2'))).toBe('Forbidden');
+    expect(
+      describeClaritySyncError(new FakeClarityError('Forbidden', 'forbidden', 403, 'req-2')),
+    ).toBe('Forbidden');
   });
 });
 
@@ -259,7 +285,11 @@ describe('syncJobToClarity', () => {
   } as MentionJobRow;
 
   it('ingests the contract payload with the employer resolved from Oxy', async () => {
-    ingest.mockResolvedValueOnce({ url: 'https://mention.earth/jobs/engineer-abc', status: 'indexed', job: { id: 'clarity-1' } });
+    ingest.mockResolvedValueOnce({
+      url: 'https://mention.earth/jobs/engineer-abc',
+      status: 'indexed',
+      job: { id: 'clarity-1' },
+    });
     await syncJobToClarity(row);
 
     expect(ingest).toHaveBeenCalledTimes(1);
@@ -271,19 +301,29 @@ describe('syncJobToClarity', () => {
     expect(request.jobPosting.jobLocation).toEqual([
       expect.objectContaining({ sameAs: 'https://www.geonames.org/3128760' }),
     ]);
-    expect(recordClaritySync).toHaveBeenCalledWith('job-row-1', { status: 'synced', clarityDocumentId: 'clarity-1' });
+    expect(recordClaritySync).toHaveBeenCalledWith('job-row-1', {
+      status: 'synced',
+      clarityDocumentId: 'clarity-1',
+    });
   });
 
   it('records the issues of a rejected payload as the sync error, without throwing', async () => {
     ingest.mockRejectedValueOnce(
       new FakeClarityError('Invalid job posting', 'invalid_job_posting', 400, 'req-3', {
-        issues: [{ path: 'jobLocation[0].sameAs', code: 'place_country_mismatch', message: 'Place is not in ES' }],
+        issues: [
+          {
+            path: 'jobLocation[0].sameAs',
+            code: 'place_country_mismatch',
+            message: 'Place is not in ES',
+          },
+        ],
       }),
     );
     await expect(syncJobToClarity(row)).resolves.toBeUndefined();
     expect(recordClaritySync).toHaveBeenCalledWith('job-row-1', {
       status: 'failed',
-      error: 'invalid_job_posting: jobLocation[0].sameAs: place_country_mismatch (Place is not in ES)',
+      error:
+        'invalid_job_posting: jobLocation[0].sameAs: place_country_mismatch (Place is not in ES)',
     });
   });
 });

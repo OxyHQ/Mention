@@ -257,9 +257,7 @@ describe('GET /search with a pasted URL', () => {
 
   it('treats a URL as a URL regardless of scheme case or trailing path', async () => {
     for (const pair of [SHORT_CIRCUIT.uppercaseScheme, SHORT_CIRCUIT.profileUrl]) {
-      // eslint-disable-next-line no-await-in-loop
       await seedBody(pair.body);
-      // eslint-disable-next-line no-await-in-loop
       const res = await searchPosts(pair.query);
       expect(res.status).toBe(200);
       expect(res.body.posts).toEqual([]);

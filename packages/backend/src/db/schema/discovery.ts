@@ -74,7 +74,13 @@ void _vocabularyCoversTrendingType;
 
 /** `TrendStatus` — present only while a trend is bursting hard enough to say so. */
 export const TREND_STATUSES = ['hot'] as const;
-export const TREND_SCOPES = ['global', 'multilingual', 'regional', 'language', 'community'] as const;
+export const TREND_SCOPES = [
+  'global',
+  'multilingual',
+  'regional',
+  'language',
+  'community',
+] as const;
 
 export const TREND_EVIDENCE_SOURCES = [
   'author-term',
@@ -288,14 +294,17 @@ export const trending = pgTable(
   },
   (t) => [
     check('trending_type_check', sql`${t.type} in (${sql.raw(inList(TRENDING_TYPES))})`),
-    check('trending_scope_check', sql`${t.scope} is null or ${t.scope} in (${sql.raw(inList(TREND_SCOPES))})`),
+    check(
+      'trending_scope_check',
+      sql`${t.scope} is null or ${t.scope} in (${sql.raw(inList(TREND_SCOPES))})`,
+    ),
     check(
       'trending_category_check',
-      sql`${t.category} is null or ${t.category} in (${sql.raw(inList(TREND_CATEGORIES))})`
+      sql`${t.category} is null or ${t.category} in (${sql.raw(inList(TREND_CATEGORIES))})`,
     ),
     check(
       'trending_status_check',
-      sql`${t.status} is null or ${t.status} in (${sql.raw(inList(TREND_STATUSES))})`
+      sql`${t.status} is null or ${t.status} in (${sql.raw(inList(TREND_STATUSES))})`,
     ),
     check('trending_volume_check', sql`${t.volume} >= 0`),
     unique('trending_name_calculated_at_type_key').on(t.name, t.calculatedAt, t.type),
@@ -304,10 +313,8 @@ export const trending = pgTable(
     // Required by the expiry sweep, and it doubles as the ascending range index
     // the history aggregation's `calculated_at >= cutoff` uses.
     index('trending_calculated_at_idx').on(t.calculatedAt),
-    index('trending_topic_id_idx')
-      .on(t.topicId)
-      .where(sql`${t.topicId} is not null`),
-  ]
+    index('trending_topic_id_idx').on(t.topicId).where(sql`${t.topicId} is not null`),
+  ],
 );
 
 /** Explicit, explainable membership of a post in one batch's story. */
@@ -315,14 +322,23 @@ export const trendStoryPosts = pgTable(
   'trend_story_posts',
   {
     id: generatedId(),
-    trendId: text().notNull().references(() => trending.id, { onDelete: 'cascade' }),
-    postId: text().notNull().references(() => posts.id, { onDelete: 'cascade' }),
+    trendId: text()
+      .notNull()
+      .references(() => trending.id, { onDelete: 'cascade' }),
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
     relevance: doublePrecision().notNull(),
     matchedTerms: text().array().notNull(),
     /** Auditable context. These signals reinforce membership but never originate it. */
     evidence: jsonb().$type<TrendStoryEvidence>().notNull().default({
-      sources: [], linkUrls: [], linkDomains: [], mentionsCount: 0,
-      repostsCount: 0, quotesCount: 0, repliesCount: 0,
+      sources: [],
+      linkUrls: [],
+      linkDomains: [],
+      mentionsCount: 0,
+      repostsCount: 0,
+      quotesCount: 0,
+      repliesCount: 0,
     }),
   },
   (t) => [
@@ -364,7 +380,7 @@ export const trendSummaries = pgTable(
     unique('trend_summaries_term_run_started_at_key').on(t.term, t.runStartedAt),
     // Required by the expiry sweep.
     index('trend_summaries_generated_at_idx').on(t.generatedAt),
-  ]
+  ],
 );
 
 /**
@@ -421,22 +437,22 @@ export const trendGraphs = pgTable(
   (t) => [
     // The unique constraint above already indexes `calculated_at`, which is what
     // the expiry sweep's `calculated_at <= now() - N` needs; no second index.
-    check('trend_graphs_dropped_edges_check', sql`${t.droppedEdges} is null or ${t.droppedEdges} >= 0`),
-  ]
+    check(
+      'trend_graphs_dropped_edges_check',
+      sql`${t.droppedEdges} is null or ${t.droppedEdges} >= 0`,
+    ),
+  ],
 );
 
 /** 7 days. Long enough to compare a few days of batches, short enough to stay small. */
 export const TREND_GRAPH_RETENTION_SECONDS = 7 * 24 * 60 * 60;
 
 /** `trend_batches` — one row per published batch, for the history index. */
-export const trendBatches = pgTable(
-  'trend_batches',
-  {
-    id: generatedId(),
-    calculatedAt: timestamptz().notNull().unique('trend_batches_calculated_at_key'),
-    summary: text().notNull().default(''),
-  }
-);
+export const trendBatches = pgTable('trend_batches', {
+  id: generatedId(),
+  calculatedAt: timestamptz().notNull().unique('trend_batches_calculated_at_key'),
+  summary: text().notNull().default(''),
+});
 
 /**
  * `topic_stats` — popularity and post count per Oxy topic.
@@ -458,7 +474,7 @@ export const topicStats = pgTable(
   (t) => [
     check('topic_stats_post_count_check', sql`${t.postCount} >= 0`),
     index('topic_stats_popularity_idx').on(t.popularity.desc()),
-  ]
+  ],
 );
 
 /**
@@ -485,7 +501,7 @@ export const authorFollowerSnapshots = pgTable(
     index('author_follower_snapshots_owner_chrono_idx').on(t.oxyUserId, t.at.desc()),
     // Required by the expiry sweep.
     index('author_follower_snapshots_at_idx').on(t.at),
-  ]
+  ],
 );
 
 /**
@@ -545,7 +561,7 @@ export const gifs = pgTable(
     lastUsedAt: timestamptz().notNull().defaultNow(),
     searchVector: tsvector().generatedAlwaysAs(
       sql`setweight(array_to_tsvector(search_terms), 'A')
-        || setweight(to_tsvector('simple', title), 'B')`
+        || setweight(to_tsvector('simple', title), 'B')`,
     ),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -558,7 +574,7 @@ export const gifs = pgTable(
     // Local-first ranking: most-posted, then most-recently-used as the tie-break.
     index('gifs_use_count_idx').on(t.useCount.desc()),
     index('gifs_last_used_at_idx').on(t.lastUsedAt.desc()),
-  ]
+  ],
 );
 
 /**
@@ -591,13 +607,10 @@ export const notifications = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check(
-      'notifications_type_check',
-      sql`${t.type} in (${sql.raw(inList(NOTIFICATION_TYPES))})`
-    ),
+    check('notifications_type_check', sql`${t.type} in (${sql.raw(inList(NOTIFICATION_TYPES))})`),
     check(
       'notifications_entity_type_check',
-      sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`
+      sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`,
     ),
     unique('notifications_dedup_key').on(t.recipientId, t.actorId, t.type, t.entityId),
     /**
@@ -622,7 +635,7 @@ export const notifications = pgTable(
       .where(sql`${t.read} = false`),
     // Required by the expiry sweep.
     index('notifications_created_at_idx').on(t.createdAt),
-  ]
+  ],
 );
 
 /** `push_tokens` — a device push registration for an Oxy user. */
@@ -653,11 +666,9 @@ export const pushTokens = pgTable(
     check('push_tokens_type_check', sql`${t.type} in (${sql.raw(inList(PUSH_TOKEN_TYPES))})`),
     check(
       'push_tokens_platform_check',
-      sql`${t.platform} in (${sql.raw(inList(PUSH_TOKEN_PLATFORMS))})`
+      sql`${t.platform} in (${sql.raw(inList(PUSH_TOKEN_PLATFORMS))})`,
     ),
     // The delivery fan-out: this user's enabled tokens.
-    index('push_tokens_user_enabled_idx')
-      .on(t.userId)
-      .where(sql`${t.enabled}`),
-  ]
+    index('push_tokens_user_enabled_idx').on(t.userId).where(sql`${t.enabled}`),
+  ],
 );

@@ -142,7 +142,10 @@ jest.mock('@/components/common/LinkifiedText', () => {
 });
 
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/components/Compose/CollabAcceptSheet', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Compose/CollabAcceptSheet', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock('@/assets/icons/done-all-icon', () => ({ DoneAllIcon: () => null }));
 jest.mock('@/assets/icons/trash-icon', () => ({ TrashIcon: () => null }));
 
@@ -273,10 +276,7 @@ async function renderRow(state: PostViewerState): Promise<{
   });
   // Seed the post-detail query the row reads. With the row's 60s staleTime the
   // seeded (fresh) data is served synchronously and `getPostById` is never hit.
-  queryClient.setQueryData(
-    viewerQueryKeys.post(VIEWER_ID, POST_ID),
-    collabPost(state),
-  );
+  queryClient.setQueryData(viewerQueryKeys.post(VIEWER_ID, POST_ID), collabPost(state));
 
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {

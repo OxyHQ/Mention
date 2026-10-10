@@ -32,7 +32,19 @@
  */
 
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
-import { and, eq, exists, gt, gte, inArray, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { postAttachments, postMedia, posts } from '../db/schema';
@@ -198,10 +210,7 @@ export class FeedQueryBuilder {
    * set semantics free. Rewriting that one to drive from `post_media` would trade
    * an index it uses for one it cannot order by.
    */
-  static buildVideosQuery(
-    seenPostIds: readonly string[],
-    options: VideosQueryOptions = {},
-  ): SQL {
+  static buildVideosQuery(seenPostIds: readonly string[], options: VideosQueryOptions = {}): SQL {
     const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
     const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
 

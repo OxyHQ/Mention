@@ -110,7 +110,9 @@ function isBucketEmpty(bucket: MuteWordBucket): boolean {
  * are all blank) so callers can skip the whole filtering step — and, with it, any
  * follow-graph lookup — on the common path.
  */
-export function compileMuteWords(rules: readonly MuteWordRule[] | undefined | null): CompiledMuteWords | null {
+export function compileMuteWords(
+  rules: readonly MuteWordRule[] | undefined | null,
+): CompiledMuteWords | null {
   if (!rules || rules.length === 0) return null;
 
   const always = emptyBucket();
@@ -145,7 +147,10 @@ function bucketMatches(bucket: MuteWordBucket, subject: MuteWordSubject): boolea
 
   if (bucket.tagValues.size > 0) {
     const hashtags = subject.hashtags;
-    if (Array.isArray(hashtags) && hashtags.some((tag) => bucket.tagValues.has(String(tag).toLowerCase()))) {
+    if (
+      Array.isArray(hashtags) &&
+      hashtags.some((tag) => bucket.tagValues.has(String(tag).toLowerCase()))
+    ) {
       return true;
     }
   }
@@ -173,7 +178,8 @@ export function isMutedSubject(
 
   if (compiled.needsFollowState) {
     const authorId = subject.authorId;
-    const isFollowed = typeof authorId === 'string' && authorId.length > 0 && followedAuthorIds.has(authorId);
+    const isFollowed =
+      typeof authorId === 'string' && authorId.length > 0 && followedAuthorIds.has(authorId);
     if (!isFollowed && bucketMatches(compiled.nonFollowedOnly, subject)) return true;
   }
 

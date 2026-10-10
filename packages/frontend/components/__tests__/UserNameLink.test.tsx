@@ -31,13 +31,22 @@ function render(element: React.ReactElement): TestRenderer.ReactTestRenderer {
   return renderer;
 }
 
-function textNode(renderer: TestRenderer.ReactTestRenderer, predicate: (props: Record<string, unknown>) => boolean): ReactTestInstance {
+function textNode(
+  renderer: TestRenderer.ReactTestRenderer,
+  predicate: (props: Record<string, unknown>) => boolean,
+): ReactTestInstance {
   return renderer.root.find((node) => String(node.type) === 'Text' && predicate(node.props));
 }
 
 describe('UserName as a link', () => {
   it('renders the name with a link to the profile inside it', () => {
-    const renderer = render(<UserName name="Nate" style={{ name: [{ fontSize: 20 }, { fontWeight: '800' }] }} href="/@nate" />);
+    const renderer = render(
+      <UserName
+        name="Nate"
+        style={{ name: [{ fontSize: 20 }, { fontWeight: '800' }] }}
+        href="/@nate"
+      />,
+    );
 
     const link = textNode(renderer, (props) => props.href === '/@nate');
     expect(link.props.role).toBe('link');
@@ -61,6 +70,9 @@ describe('UserName as a link', () => {
 
     const heading = textNode(renderer, (props) => props.role === 'heading');
     expect(heading.props.href).toBeUndefined();
-    expect(heading.find((node) => String(node.type) === 'Text' && node.props.href === '/@nate').props.role).toBe('link');
+    expect(
+      heading.find((node) => String(node.type) === 'Text' && node.props.href === '/@nate').props
+        .role,
+    ).toBe('link');
   });
 });

@@ -315,7 +315,7 @@
       "statements": 91,
       "branches": 68,
       "functions": 100,
-      "lines": 97
+      "lines": 96
     },
     "hooks/useFeedState.ts": {
       "statements": 96,
@@ -1347,7 +1347,7 @@
       "statements": 82,
       "branches": 76,
       "functions": 81,
-      "lines": 89
+      "lines": 88
     },
     "stores/videoMuteStore.ts": {
       "statements": 0,
@@ -1413,13 +1413,13 @@
       "statements": 50,
       "branches": 31,
       "functions": 35,
-      "lines": 58
+      "lines": 56
     },
     "utils/composeVariants.ts": {
       "statements": 86,
       "branches": 69,
       "functions": 88,
-      "lines": 94
+      "lines": 93
     },
     "utils/composerProfileLinks.ts": {
       "statements": 100,

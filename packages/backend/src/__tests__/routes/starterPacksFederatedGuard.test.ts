@@ -27,7 +27,9 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../services/userSummaryCache', () => ({
+  invalidate: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
@@ -52,7 +54,9 @@ let authUserId: string | undefined = VIEWER_ID;
 const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
-  (req as express.Request & { user?: { id: string } }).user = authUserId ? { id: authUserId } : undefined;
+  (req as express.Request & { user?: { id: string } }).user = authUserId
+    ? { id: authUserId }
+    : undefined;
   next();
 });
 app.use('/starter-packs', starterPacksRoutes);
@@ -118,19 +122,22 @@ describe('federated starter pack is read-only', () => {
     ['post', '/members', { userIds: ['c'] }],
     ['delete', '/members', { userIds: ['a'] }],
     ['delete', '', {}],
-  ] as const)('rejects %s /:id%s with 403 read-only, and the row is unchanged', async (method, suffix, body) => {
-    const packId = await seedFederatedPack();
-    const before = await readPack(packId);
+  ] as const)(
+    'rejects %s /:id%s with 403 read-only, and the row is unchanged',
+    async (method, suffix, body) => {
+      const packId = await seedFederatedPack();
+      const before = await readPack(packId);
 
-    const res = await request(app)[method](`/starter-packs/${packId}${suffix}`).send(body);
+      const res = await request(app)[method](`/starter-packs/${packId}${suffix}`).send(body);
 
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe(READONLY_MESSAGE);
-    const after = await readPack(packId);
-    expect(after.row.name).toBe(before.row.name);
-    expect(after.row.updatedAt.getTime()).toBe(before.row.updatedAt.getTime());
-    expect(after.memberIds).toEqual(['a', 'b']);
-  });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe(READONLY_MESSAGE);
+      const after = await readPack(packId);
+      expect(after.row.name).toBe(before.row.name);
+      expect(after.row.updatedAt.getTime()).toBe(before.row.updatedAt.getTime());
+      expect(after.memberIds).toEqual(['a', 'b']);
+    },
+  );
 
   it('rejects the federated pack before the ownership check, even for its own owner', async () => {
     // Read-only wins over "Not allowed" — the pack is never editable by anyone,
@@ -191,7 +198,10 @@ describe('native starter pack is unaffected by the federated guard', () => {
   it('is editable by its owner', async () => {
     const packId = await seedNativePack(VIEWER_ID);
 
-    const res = await request(app).put(`/starter-packs/${packId}`).send({ name: 'renamed' }).expect(200);
+    const res = await request(app)
+      .put(`/starter-packs/${packId}`)
+      .send({ name: 'renamed' })
+      .expect(200);
 
     expect(res.body.name).toBe('renamed');
     expect((await readPack(packId)).row.name).toBe('renamed');

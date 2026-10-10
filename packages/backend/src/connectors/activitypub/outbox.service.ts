@@ -20,10 +20,7 @@ import {
   loadPostRecord,
   replacePostContent,
 } from '../../db/posts/postRepository';
-import {
-  POST_CLASSIFICATION_PENDING,
-  type PostRecordInput,
-} from '../../db/posts/postRecord';
+import { POST_CLASSIFICATION_PENDING, type PostRecordInput } from '../../db/posts/postRecord';
 import { extractActorUriFromActivityId } from '@oxy.so/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
@@ -142,8 +139,18 @@ const MAX_ANCESTOR_DEPTH = 30;
  * of another actor's object.
  */
 type OutboxCandidate =
-  | { kind: 'note'; note: Record<string, unknown>; activity: Record<string, unknown>; activityId: string }
-  | { kind: 'announce'; activity: Record<string, unknown>; activityId: string; announcedUri: string };
+  | {
+      kind: 'note';
+      note: Record<string, unknown>;
+      activity: Record<string, unknown>;
+      activityId: string;
+    }
+  | {
+      kind: 'announce';
+      activity: Record<string, unknown>;
+      activityId: string;
+      announcedUri: string;
+    };
 
 /**
  * Typed reason describing why an outbox sync produced no posts (or only a
@@ -173,15 +180,20 @@ export type OutboxSyncFailureReason =
  * the actor as `unavailable`): a 404/410 on the outbox itself, or a non-empty
  * outbox that exposes no inspectable items/pages.
  */
-export const PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS: ReadonlySet<OutboxSyncFailureReason> = new Set<OutboxSyncFailureReason>([
-  'non-empty-outbox-without-items',
-  'outbox-http-404',
-  'outbox-http-410',
-]);
+export const PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS: ReadonlySet<OutboxSyncFailureReason> =
+  new Set<OutboxSyncFailureReason>([
+    'non-empty-outbox-without-items',
+    'outbox-http-404',
+    'outbox-http-410',
+  ]);
 
-export function isPermanentlyUnavailableOutboxReason(reason?: string): reason is OutboxSyncFailureReason {
-  return typeof reason === 'string'
-    && PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS.has(reason as OutboxSyncFailureReason);
+export function isPermanentlyUnavailableOutboxReason(
+  reason?: string,
+): reason is OutboxSyncFailureReason {
+  return (
+    typeof reason === 'string' &&
+    PERMANENTLY_UNAVAILABLE_OUTBOX_REASONS.has(reason as OutboxSyncFailureReason)
+  );
 }
 
 export interface OutboxSyncResult {
@@ -237,7 +249,6 @@ function isSameOriginHttpUrl(value: string, sourceUrl: string): boolean {
     return false;
   }
 }
-
 
 function normalizeActorUriForCompare(uri: string | null | undefined): string | null {
   if (!uri || !isAbsoluteHttpUrl(uri)) return null;
@@ -330,7 +341,10 @@ export class OutboxSyncService {
         classifiedAt: new Date(signals.classifiedAt),
       };
     } catch (error) {
-      logger.warn('[FedSync] baseline classification failed for federated note; seeding bare pending subdoc', error);
+      logger.warn(
+        '[FedSync] baseline classification failed for federated note; seeding bare pending subdoc',
+        error,
+      );
       return {
         status: POST_CLASSIFICATION_PENDING,
         attempts: 0,
@@ -344,7 +358,11 @@ export class OutboxSyncService {
         sensitive: input.sensitive,
         // Neutral, valid scores so ranking treats a defensive-fallback post as
         // unremarkable (not spam, mid quality) rather than skewing it.
-        scores: toClassificationScores({ spam: 0, quality: SPAM_QUALITY_CONFIG.quality.base, toxicity: 0 }),
+        scores: toClassificationScores({
+          spam: 0,
+          quality: SPAM_QUALITY_CONFIG.quality.base,
+          toxicity: 0,
+        }),
         version: 0,
         classifiedAt: new Date(),
       };
@@ -355,7 +373,13 @@ export class OutboxSyncService {
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async syncOutboxPosts(actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string }, limit = 20): Promise<number> {
+  async syncOutboxPosts(
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+      oxyUserId?: string;
+      type?: string;
+    },
+    limit = 20,
+  ): Promise<number> {
     const result = await this.syncOutboxPostsDetailed(actor, limit);
     return result.syncedCount;
   }
@@ -373,7 +397,10 @@ export class OutboxSyncService {
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
+    actor: Pick<FederatedActorRecord, 'outboxUrl' | 'acct' | 'uri'> & {
+      oxyUserId?: string;
+      type?: string;
+    },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     // Instance domain policy on the PULL path.
@@ -409,8 +436,9 @@ export class OutboxSyncService {
     // A `const` preserves the narrowing into those closures.
     const outboxUrl = actor.outboxUrl;
 
-    const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>>
-      & Pick<OutboxSyncOptions, 'startPageUrl'> = typeof limitOrOptions === 'number'
+    const options: Required<Pick<OutboxSyncOptions, 'limit' | 'maxPages' | 'startItemOffset'>> &
+      Pick<OutboxSyncOptions, 'startPageUrl'> =
+      typeof limitOrOptions === 'number'
         ? { limit: limitOrOptions, maxPages: 10, startItemOffset: 0 }
         : {
             limit: limitOrOptions.limit ?? 20,
@@ -442,10 +470,9 @@ export class OutboxSyncService {
       // stamped, so a transient bad response is retried on the next view.
       const collectionParse = parseOrderedCollection(rawCollection);
       if (!collectionParse.ok) {
-        logger.warn(
-          '[FedSync] outbox collection failed validation; aborting sync',
-          { error: collectionParse.error.message },
-        );
+        logger.warn('[FedSync] outbox collection failed validation; aborting sync', {
+          error: collectionParse.error.message,
+        });
         return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
       }
       // Keep reading raw fields below so every existing field access (including
@@ -457,7 +484,8 @@ export class OutboxSyncService {
         hasOrderedItems: Boolean(collection.orderedItems),
         hasFirst: Boolean(collection.first),
       });
-      const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
+      const remoteTotalItems =
+        typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
       const candidates: OutboxCandidate[] = [];
       let pagesFetched = 0;
@@ -482,7 +510,14 @@ export class OutboxSyncService {
         const items = activityPubItems(pageData);
         const normalizedOffset = Math.max(0, Math.min(startItemOffset, items.length));
         if (items.length > 0) {
-          const nextItemOffset = await this.extractCandidates(items, candidates, limit, pageUrl, actor.uri, normalizedOffset);
+          const nextItemOffset = await this.extractCandidates(
+            items,
+            candidates,
+            limit,
+            pageUrl,
+            actor.uri,
+            normalizedOffset,
+          );
           if (nextItemOffset < items.length) {
             nextCursor = { url: pageUrl, itemOffset: nextItemOffset };
             pausedMidPage = true;
@@ -499,7 +534,10 @@ export class OutboxSyncService {
         }
       };
 
-      const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number): Promise<void> => {
+      const fetchAndProcessPage = async (
+        pageUrl: string,
+        startItemOffset: number,
+      ): Promise<void> => {
         if (!isSameOriginHttpUrl(pageUrl, outboxUrl)) {
           logger.info('[FedSync] rejected cross-origin outbox page');
           paginationFailed = true;
@@ -540,10 +578,9 @@ export class OutboxSyncService {
           // fields, so only genuinely malformed pages fail.
           const pageParse = parseOrderedCollectionPage(rawPage);
           if (!pageParse.ok) {
-            logger.warn(
-              '[FedSync] outbox page failed validation; stopping pagination',
-              { error: pageParse.error.message },
-            );
+            logger.warn('[FedSync] outbox page failed validation; stopping pagination', {
+              error: pageParse.error.message,
+            });
             paginationFailed = true;
             nextCursor = undefined;
             return;
@@ -563,13 +600,17 @@ export class OutboxSyncService {
       const firstPageObject = asRecord(collection.first);
       const inlineItems = activityPubItems(collection);
       if (options.startPageUrl && isSameOriginHttpUrl(options.startPageUrl, outboxUrl)) {
-        nextCursor = { url: options.startPageUrl, itemOffset: Math.max(0, options.startItemOffset) };
+        nextCursor = {
+          url: options.startPageUrl,
+          itemOffset: Math.max(0, options.startItemOffset),
+        };
       } else if (inlineItems.length > 0) {
         await processPage(collection, outboxUrl, 0);
       } else if (firstPageObject && activityPubItems(firstPageObject).length > 0) {
         await processPage(firstPageObject, activityPubLinkUrl(firstPageObject.id) ?? outboxUrl, 0);
       } else {
-        const firstPageUrl = activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
+        const firstPageUrl =
+          activityPubLinkUrl(collection.first) ?? activityPubLinkUrl(collection.next);
         if (firstPageUrl && isSameOriginHttpUrl(firstPageUrl, outboxUrl)) {
           nextCursor = { url: firstPageUrl, itemOffset: 0 };
         }
@@ -580,11 +621,11 @@ export class OutboxSyncService {
       // exhaust the per-run page budget. The returned cursor is opaque remote
       // state: we persist it exactly and never synthesize pagination URLs.
       while (
-        nextCursor
-        && candidates.length < limit
-        && !reachedEnd
-        && !paginationFailed
-        && !pausedMidPage
+        nextCursor &&
+        candidates.length < limit &&
+        !reachedEnd &&
+        !paginationFailed &&
+        !pausedMidPage
       ) {
         const cursor = nextCursor;
         await fetchAndProcessPage(cursor.url, cursor.itemOffset);
@@ -603,12 +644,15 @@ export class OutboxSyncService {
         logger.debug('[FedSync] no candidate notes found');
         const hasInlineItems = inlineItems.length > 0;
         const hasFirstPage = Boolean(collection.first || collection.next);
-        const nonEmptyButNotInspectable = !options.startPageUrl
-          && !hasInlineItems
-          && !hasFirstPage
-          && typeof remoteTotalItems === 'number'
-          && remoteTotalItems > 0;
-        const reason: OutboxSyncFailureReason = nonEmptyButNotInspectable ? 'non-empty-outbox-without-items' : 'no-candidates';
+        const nonEmptyButNotInspectable =
+          !options.startPageUrl &&
+          !hasInlineItems &&
+          !hasFirstPage &&
+          typeof remoteTotalItems === 'number' &&
+          remoteTotalItems > 0;
+        const reason: OutboxSyncFailureReason = nonEmptyButNotInspectable
+          ? 'non-empty-outbox-without-items'
+          : 'no-candidates';
         return {
           syncedCount: 0,
           shouldStampCooldown: !paginationFailed && !isPermanentlyUnavailableOutboxReason(reason),
@@ -635,18 +679,19 @@ export class OutboxSyncService {
       // whether the post has media — so an existing post whose mentions were never
       // resolved (imported before the outbox mention fix) can be repaired from the
       // in-hand note without any extra query or fetch.
-      const allActivityIds = candidates.map(c => c.activityId);
-      const existingPosts = allActivityIds.length === 0
-        ? []
-        : await findPostRecords(
-          inArray(posts.federationActivityId, allActivityIds),
-          { orderBy: CHRONO_DESC },
-        );
-      const existingIds = new Set(
-        existingPosts.map(p => p.federation?.activityId),
-      );
+      const allActivityIds = candidates.map((c) => c.activityId);
+      const existingPosts =
+        allActivityIds.length === 0
+          ? []
+          : await findPostRecords(inArray(posts.federationActivityId, allActivityIds), {
+              orderBy: CHRONO_DESC,
+            });
+      const existingIds = new Set(existingPosts.map((p) => p.federation?.activityId));
       // activityId → the stored post's mention state, keyed for the self-heal pass.
-      const existingMentionStateByActivityId = new Map<string, { mentions: string[]; hasMedia: boolean }>();
+      const existingMentionStateByActivityId = new Map<
+        string,
+        { mentions: string[]; hasMedia: boolean }
+      >();
       for (const p of existingPosts) {
         const activityId = p.federation?.activityId;
         if (!activityId) continue;
@@ -684,12 +729,14 @@ export class OutboxSyncService {
         // Resolve missing actors with bounded concurrency to avoid fan-out.
         // Each resolution is bounded by a per-actor timeout so one unresponsive
         // remote instance can't stall the batch.
-        const missingUris = [...actorUris].filter(uri => !actorOxyMap.has(uri));
+        const missingUris = [...actorUris].filter((uri) => !actorOxyMap.has(uri));
         for (let i = 0; i < missingUris.length; i += OUTBOX_ACTOR_RESOLVE_CONCURRENCY) {
           const batch = missingUris.slice(i, i + OUTBOX_ACTOR_RESOLVE_CONCURRENCY);
-          const resolved = await Promise.all(batch.map(uri =>
-            runWithTimeout(actorService.fetchRemoteActor(uri), OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS)
-          ));
+          const resolved = await Promise.all(
+            batch.map((uri) =>
+              runWithTimeout(actorService.fetchRemoteActor(uri), OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS),
+            ),
+          );
           for (let j = 0; j < batch.length; j++) {
             const resolvedActor = resolved[j];
             if (resolvedActor?.oxyUserId) {
@@ -711,9 +758,7 @@ export class OutboxSyncService {
       // build loop below to rewrite each anchor into a `[mention:<id>]` placeholder
       // BEFORE the body is derived and to set the post's `mentions` allowlist,
       // mirroring the inbox Create path (the raw `insertMany` bypasses that path).
-      const pendingNoteCandidates = noteCandidates.filter(
-        (c) => !existingIds.has(c.activityId),
-      );
+      const pendingNoteCandidates = noteCandidates.filter((c) => !existingIds.has(c.activityId));
 
       // SELF-HEAL candidates: notes that match an EXISTING post whose stored body
       // still shows its @mentions as bare `@name` text. Such posts were imported
@@ -763,7 +808,11 @@ export class OutboxSyncService {
       );
       // Shared no-mention default for a note the map has no entry for (never
       // mutated; `applyMentionPlaceholders` treats an empty anchor map as a no-op).
-      const emptyMentions: ResolvedInboundMentions = { ids: [], localIds: [], anchorMap: new Map() };
+      const emptyMentions: ResolvedInboundMentions = {
+        ids: [],
+        localIds: [],
+        anchorMap: new Map(),
+      };
 
       // Build the rows for batch insert. Each carries a PRE-ASSIGNED id, so the
       // media-enrich pass below can address every post without reading anything
@@ -833,9 +882,7 @@ export class OutboxSyncService {
         const actorUri = actor.uri;
         const resolvedOxyUserId = actorOxyMap.get(actorUri);
         if (!resolvedOxyUserId) {
-          logger.info(
-            '[FedSync] skipped outbox note whose author is unresolved',
-          );
+          logger.info('[FedSync] skipped outbox note whose author is unresolved');
           continue;
         }
 
@@ -877,7 +924,8 @@ export class OutboxSyncService {
           });
           continue;
         }
-        const { text, media, attachments, hashtags, summary, sensitive, variants, linkPreviews } = built;
+        const { text, media, attachments, hashtags, summary, sensitive, variants, linkPreviews } =
+          built;
 
         // When this note QUOTES another post, link it — the SAME rule the inbox
         // `Create` path applies. This loop knew about `inReplyTo` and nothing
@@ -1032,7 +1080,9 @@ export class OutboxSyncService {
         if (unexpected.length > 0) {
           logger.warn('[FedSync] batch insert encountered unexpected errors', {
             count: unexpected.length,
-            errors: unexpected.map((error) => (error instanceof Error ? error.message : String(error))),
+            errors: unexpected.map((error) =>
+              error instanceof Error ? error.message : String(error),
+            ),
           });
         }
         const rejected = results.filter((result) => result.status === 'rejected').length;
@@ -1078,13 +1128,7 @@ export class OutboxSyncService {
       // thread ROOT via each post's stored `federation.inReplyTo`, so every reply
       // in the chain shares the same `threadId` regardless of intra-batch insert
       // order — identical to the native reply rule.
-      for (const {
-        activityId,
-        inReplyToUri,
-        oxyUserId,
-        visibility,
-        published,
-      } of repliesToLink) {
+      for (const { activityId, inReplyToUri, oxyUserId, visibility, published } of repliesToLink) {
         try {
           const link = await this.resolveThreadLink(inReplyToUri, 0, true);
           if (!link) continue;
@@ -1111,7 +1155,10 @@ export class OutboxSyncService {
       // Organic self-heal: repair EXISTING posts whose @mentions were never
       // resolved, using the in-hand notes (no extra fetch, mentions already
       // resolved in the shared bounded pass above). Idempotent + fail-soft.
-      const healedMentionCount = await this.healExistingMentions(mentionHealCandidates, mentionsByNote);
+      const healedMentionCount = await this.healExistingMentions(
+        mentionHealCandidates,
+        mentionsByNote,
+      );
 
       // Import boosts (Announce) attributed to the outbox owner. Each announce
       // ensures the boosted Note exists locally, then creates a boost Post that
@@ -1120,17 +1167,15 @@ export class OutboxSyncService {
       // Each import may fetch the boosted Note from a remote instance, so they
       // run with bounded concurrency rather than strictly sequentially.
       const boosterOxyUserId = actor.oxyUserId ?? actorOxyMap.get(actor.uri) ?? null;
-      const pendingAnnounces = announceCandidates.filter(a => !existingIds.has(a.activityId));
+      const pendingAnnounces = announceCandidates.filter((a) => !existingIds.has(a.activityId));
       let importedBoosts = 0;
       for (let i = 0; i < pendingAnnounces.length; i += OUTBOX_BOOST_IMPORT_CONCURRENCY) {
         const batch = pendingAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
-        const results = await Promise.all(batch.map(announce =>
-          this.importAnnounce(
-            announce.activity,
-            announce.announcedUri,
-            boosterOxyUserId,
-          )
-        ));
+        const results = await Promise.all(
+          batch.map((announce) =>
+            this.importAnnounce(announce.activity, announce.announcedUri, boosterOxyUserId),
+          ),
+        );
         importedBoosts += results.filter(Boolean).length;
       }
 
@@ -1233,20 +1278,24 @@ export class OutboxSyncService {
 
     // At most one row: `posts_federation_activity_id_key` is a partial UNIQUE
     // index on this column, so no ORDER BY has anything to decide.
-    const [stored] = await findPostRecords(
-      eq(posts.federationActivityId, candidate.activityId),
-      { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
-    );
+    const [stored] = await findPostRecords(eq(posts.federationActivityId, candidate.activityId), {
+      orderBy: UNIQUE_MATCH_NO_ORDER,
+      limit: 1,
+    });
     if (!stored) return false;
     // An unresolved source mention can now retain its href without adding an
     // identity. Repair it once, then compare bodies to keep later syncs inert.
-    const repairsSourceLink = variants.some((variant, index) =>
-      variant.text !== stored.content.variants?.[index]?.text
-      && scanTextEntities(variant.text, { kinds: ['mentionDisplay'] })
-        .some((entity) => /^https?:\/\//i.test(entity.value)),
+    const repairsSourceLink = variants.some(
+      (variant, index) =>
+        variant.text !== stored.content.variants?.[index]?.text &&
+        scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) =>
+          /^https?:\/\//i.test(entity.value),
+        ),
     );
     if (!addsIdentity && !repairsSourceLink) return false;
-    await replacePostContent(stored.id, { ...stored.content, variants }, [...new Set([...candidate.storedMentions, ...resolved.ids])]);
+    await replacePostContent(stored.id, { ...stored.content, variants }, [
+      ...new Set([...candidate.storedMentions, ...resolved.ids]),
+    ]);
     return true;
   }
 
@@ -1267,7 +1316,10 @@ export class OutboxSyncService {
     expectedActorUri: string,
     startIndex = 0,
   ): Promise<number> {
-    const maxIndexExclusive = Math.min(items.length, startIndex + OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE);
+    const maxIndexExclusive = Math.min(
+      items.length,
+      startIndex + OUTBOX_MAX_ITEMS_INSPECTED_PER_PAGE,
+    );
     for (let index = startIndex; index < maxIndexExclusive; index++) {
       if (candidates.length >= limit) return index;
 
@@ -1284,13 +1336,10 @@ export class OutboxSyncService {
       // (and `.loose()` extension passthrough) identical.
       const activityValid = parseInboundActivity(activity).ok || parseNote(activity).ok;
       if (!activityValid) {
-        logger.debug(
-          '[FedSync] skipped malformed outbox item',
-          {
-            itemIndex: index,
-            result: 'activity-or-note-validation-failed',
-          },
-        );
+        logger.debug('[FedSync] skipped malformed outbox item', {
+          itemIndex: index,
+          result: 'activity-or-note-validation-failed',
+        });
         continue;
       }
 
@@ -1313,10 +1362,9 @@ export class OutboxSyncService {
       // `object`), so it is independently untrusted — validate it too. A
       // malformed note is skipped, never trusted.
       if (!parseNote(note).ok) {
-        logger.debug(
-          '[FedSync] skipped malformed outbox note',
-          { result: 'note-validation-failed' },
-        );
+        logger.debug('[FedSync] skipped malformed outbox note', {
+          result: 'note-validation-failed',
+        });
         continue;
       }
       if (note.type !== 'Note' && note.type !== 'Article') continue;
@@ -1332,7 +1380,11 @@ export class OutboxSyncService {
 
       const attributedTo = extractActorUri(note.attributedTo);
       if (!actorUrisMatch(attributedTo, expectedActorUri)) continue;
-      if (activity.type === 'Create' && !actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)) continue;
+      if (
+        activity.type === 'Create' &&
+        !actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)
+      )
+        continue;
       if (!activityIdBelongsToActor(activityId, expectedActorUri)) continue;
 
       candidates.push({ kind: 'note', note, activity, activityId });
@@ -1341,7 +1393,10 @@ export class OutboxSyncService {
     return maxIndexExclusive;
   }
 
-  private async resolveOutboxActivity(item: unknown, sourcePageUrl: string): Promise<Record<string, unknown> | null> {
+  private async resolveOutboxActivity(
+    item: unknown,
+    sourcePageUrl: string,
+  ): Promise<Record<string, unknown> | null> {
     const inlineActivity = asRecord(item);
     if (inlineActivity) return inlineActivity;
 
@@ -1349,14 +1404,20 @@ export class OutboxSyncService {
     return fetchActivityPubObject(item);
   }
 
-  private async extractOutboxNote(activity: Record<string, unknown>, sourcePageUrl: string): Promise<Record<string, unknown> | null> {
+  private async extractOutboxNote(
+    activity: Record<string, unknown>,
+    sourcePageUrl: string,
+  ): Promise<Record<string, unknown> | null> {
     if (activity.type === 'Note' || activity.type === 'Article') return activity;
     if (activity.type !== 'Create') return null;
 
     const inlineObject = asRecord(activity.object);
     if (inlineObject) return inlineObject;
 
-    if (typeof activity.object === 'string' && isSameOriginHttpUrl(activity.object, sourcePageUrl)) {
+    if (
+      typeof activity.object === 'string' &&
+      isSameOriginHttpUrl(activity.object, sourcePageUrl)
+    ) {
       return fetchActivityPubObject(activity.object);
     }
 
@@ -1404,15 +1465,20 @@ export class OutboxSyncService {
     // Resolve the boosted post's local _id. A local or already-imported post is
     // resolved directly; otherwise fetch and store the remote Note. This also
     // lets remote actors boost OUR posts (announcedUri = our AP note URI).
-    const originalPostId = (await resolvePostIdFromObjectUri(announcedUri))
-      ?? (await this.ensureFederatedNote(announcedUri));
+    const originalPostId =
+      (await resolvePostIdFromObjectUri(announcedUri)) ??
+      (await this.ensureFederatedNote(announcedUri));
     if (!originalPostId) {
       logger.info('[FedSync] skipped boost whose object could not be resolved');
       return false;
     }
 
     const originalPost = await loadPostRecord(originalPostId);
-    if (!originalPost || originalPost.status !== 'published' || originalPost.visibility !== PostVisibility.PUBLIC) {
+    if (
+      !originalPost ||
+      originalPost.status !== 'published' ||
+      originalPost.visibility !== PostVisibility.PUBLIC
+    ) {
       logger.info('[FedSync] skipped non-public or unpublished boost');
       return false;
     }
@@ -1511,10 +1577,9 @@ export class OutboxSyncService {
     if (!parentPostId) {
       if (!allowBackfill) return null;
       if (depth >= MAX_ANCESTOR_DEPTH) {
-        logger.warn(
-          '[FedSync] ancestor backfill depth cap reached; leaving reply unlinked',
-          { maxDepth: MAX_ANCESTOR_DEPTH },
-        );
+        logger.warn('[FedSync] ancestor backfill depth cap reached; leaving reply unlinked', {
+          maxDepth: MAX_ANCESTOR_DEPTH,
+        });
         return null;
       }
       parentPostId = await this.ensureFederatedNote(inReplyToUri, depth + 1);
@@ -1532,7 +1597,11 @@ export class OutboxSyncService {
 
     const parentInReplyToUri = extractInReplyToUri(parent.federation?.inReplyTo);
     if (parentInReplyToUri && depth < MAX_ANCESTOR_DEPTH) {
-      const ancestorLink = await this.resolveThreadLink(parentInReplyToUri, depth + 1, allowBackfill);
+      const ancestorLink = await this.resolveThreadLink(
+        parentInReplyToUri,
+        depth + 1,
+        allowBackfill,
+      );
       if (ancestorLink) {
         return { parentPostId: parent.id, threadId: ancestorLink.threadId };
       }
@@ -1626,9 +1695,7 @@ export class OutboxSyncService {
     const authorActor = await actorService.getOrFetchActor(authorUri);
     const authorOxyUserId = authorActor?.oxyUserId;
     if (!authorOxyUserId) {
-      logger.info(
-        '[FedSync] skipped boosted object whose author is unresolved',
-      );
+      logger.info('[FedSync] skipped boosted object whose author is unresolved');
       return null;
     }
 
@@ -1662,7 +1729,9 @@ export class OutboxSyncService {
     // backfilling its OWN parent chain up to the root). The depth budget is
     // threaded through so the recursion stays bounded across the chain.
     const inReplyToUri = extractInReplyToUri(note.inReplyTo);
-    const threadLink = inReplyToUri ? await this.resolveThreadLink(inReplyToUri, depth, true) : null;
+    const threadLink = inReplyToUri
+      ? await this.resolveThreadLink(inReplyToUri, depth, true)
+      : null;
 
     // When this note itself QUOTES another post, link it — the same rule the
     // inbox `Create` path applies, because the ANSWER cannot depend on which
@@ -1678,13 +1747,12 @@ export class OutboxSyncService {
     const declaredQuote = extractDeclaredQuote(note, authorUri ?? undefined);
     const quoteOf = declaredQuote
       ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
-        depth < MAX_ANCESTOR_DEPTH ? this.ensureFederatedNote(uri, depth + 1) : Promise.resolve(null))
+          depth < MAX_ANCESTOR_DEPTH
+            ? this.ensureFederatedNote(uri, depth + 1)
+            : Promise.resolve(null),
+        )
       : null;
-    const quoteVariants = await stripQuoteMarkerFromVariants(
-      variants,
-      quoteOf,
-      declaredQuote?.uri,
-    );
+    const quoteVariants = await stripQuoteMarkerFromVariants(variants, quoteOf, declaredQuote?.uri);
 
     try {
       const created = await getPostCreator().create({

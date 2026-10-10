@@ -63,21 +63,24 @@ function normalizeTitle(value: unknown): string | { error: string } {
   if (typeof value !== 'string') return { error: 'Title is required' };
   const trimmed = value.trim();
   if (trimmed.length === 0) return { error: 'Title is required' };
-  if (trimmed.length > MAX_TITLE_LENGTH) return { error: `Title must be ${MAX_TITLE_LENGTH} characters or less` };
+  if (trimmed.length > MAX_TITLE_LENGTH)
+    return { error: `Title must be ${MAX_TITLE_LENGTH} characters or less` };
   return trimmed;
 }
 
 function normalizeDescription(value: unknown): string | { error: string } {
   if (typeof value !== 'string') return { error: 'Description must be a string' };
   const trimmed = value.trim();
-  if (trimmed.length > MAX_DESCRIPTION_LENGTH) return { error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less` };
+  if (trimmed.length > MAX_DESCRIPTION_LENGTH)
+    return { error: `Description must be ${MAX_DESCRIPTION_LENGTH} characters or less` };
   return trimmed;
 }
 
 function normalizeIcon(value: unknown): string | { error: string } {
   if (typeof value !== 'string') return { error: 'Icon must be a string' };
   const trimmed = value.trim();
-  if (trimmed.length > MAX_ICON_LENGTH) return { error: `Icon must be ${MAX_ICON_LENGTH} characters or less` };
+  if (trimmed.length > MAX_ICON_LENGTH)
+    return { error: `Icon must be ${MAX_ICON_LENGTH} characters or less` };
   return trimmed;
 }
 

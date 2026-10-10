@@ -114,7 +114,10 @@ export function getSharingCleanupQueue(): Queue<SharingCleanupJobData> | null {
   if (!sharingCleanupQueue) {
     sharingCleanupQueue = new Queue<SharingCleanupJobData>(
       FEDERATION_SHARING_CLEANUP_QUEUE,
-      baseQueueOptions(SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT, SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT),
+      baseQueueOptions(
+        SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT,
+        SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT,
+      ),
     );
   }
   return sharingCleanupQueue;
@@ -141,7 +144,10 @@ export function getAccountErasureQueue(): Queue<AccountErasureJobData> | null {
   if (!accountErasureQueue) {
     accountErasureQueue = new Queue<AccountErasureJobData>(
       ACCOUNT_ERASURE_QUEUE,
-      baseQueueOptions(ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT, ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT),
+      baseQueueOptions(
+        ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT,
+        ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT,
+      ),
     );
   }
   return accountErasureQueue;
@@ -153,7 +159,10 @@ export function getInstagramGraphSyncQueue(): Queue<InstagramGraphSyncJobData> |
   if (!instagramGraphSyncQueue) {
     instagramGraphSyncQueue = new Queue<InstagramGraphSyncJobData>(
       INSTAGRAM_GRAPH_SYNC_QUEUE,
-      baseQueueOptions(INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT, INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT),
+      baseQueueOptions(
+        INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT,
+        INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT,
+      ),
     );
   }
   return instagramGraphSyncQueue;

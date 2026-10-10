@@ -67,14 +67,12 @@ const h = vi.hoisted(() => {
 
   const isSigningEnabled = vi.fn(() => state.signingEnabled);
 
-  const emitPostCreated = vi.fn(
-    async (post: { id: string }, options?: { reply?: unknown }) => {
-      state.emitted.push({ postId: post.id, reply: options?.reply });
-      if (state.emitBehaviour === 'write') {
-        await writeChainRow(post.id);
-      }
-    },
-  );
+  const emitPostCreated = vi.fn(async (post: { id: string }, options?: { reply?: unknown }) => {
+    state.emitted.push({ postId: post.id, reply: options?.reply });
+    if (state.emitBehaviour === 'write') {
+      await writeChainRow(post.id);
+    }
+  });
 
   return { state, isSigningEnabled, emitPostCreated };
 });
@@ -111,32 +109,34 @@ const CHAIN_OWNER = 'oxy-backfill-mtn-suite';
  * so the hoisted emitter mock can close over it.
  */
 async function writeChainRow(postId: string): Promise<void> {
-  await getDb().insert(mentionSignedRecords).values({
-    subjectDid: `did:web:oxy.so:u:${CHAIN_OWNER}`,
-    oxyUserId: CHAIN_OWNER,
-    type: 'app_record',
-    envelope: {
-      version: 2,
+  await getDb()
+    .insert(mentionSignedRecords)
+    .values({
+      subjectDid: `did:web:oxy.so:u:${CHAIN_OWNER}`,
+      oxyUserId: CHAIN_OWNER,
       type: 'app_record',
-      subject: `did:web:oxy.so:u:${CHAIN_OWNER}`,
-      issuer: 'did:web:mention.earth',
-      record: { text: 'backfilled', createdAt: '2024-01-01T00:00:00.000Z' },
-      issuedAt: 1_700_000_000_000,
-      seq: 0,
-      prev: null,
-      collection: MENTION_POST_COLLECTION,
-      rkey: postId,
+      envelope: {
+        version: 2,
+        type: 'app_record',
+        subject: `did:web:oxy.so:u:${CHAIN_OWNER}`,
+        issuer: 'did:web:mention.earth',
+        record: { text: 'backfilled', createdAt: '2024-01-01T00:00:00.000Z' },
+        issuedAt: 1_700_000_000_000,
+        seq: 0,
+        prev: null,
+        collection: MENTION_POST_COLLECTION,
+        rkey: postId,
+        publicKey: '04abc',
+        alg: 'ES256K-DER-SHA256',
+        signature: 'signature',
+        // The envelope shape is validated on the write path, never here.
+      } as never,
       publicKey: '04abc',
-      alg: 'ES256K-DER-SHA256',
-      signature: 'signature',
-      // The envelope shape is validated on the write path, never here.
-    } as never,
-    publicKey: '04abc',
-    verified: true,
-    recordId: `rid-${postId}`,
-    nsid: MENTION_POST_COLLECTION,
-    rkey: postId,
-  });
+      verified: true,
+      recordId: `rid-${postId}`,
+      nsid: MENTION_POST_COLLECTION,
+      rkey: postId,
+    });
 }
 
 /**
@@ -210,90 +210,106 @@ describe('backfillMtnRecords', () => {
     expect(await hasChainRow(post.id)).toBe(false);
   });
 
-  it('signs ONLY local, published, public, authored, non-boost posts', async () => {
-    // A signed record is permanent and public. Each excluded shape below is one
-    // arm of the candidate filter, and each is separately capable of putting
-    // content into a user's repo that was never meant to be there. They share
-    // one sweep because the sweep is the expensive part, not the seeding.
-    const included = await seedCandidate();
-    const federated = await seedCandidate({
-      federation: { activityId: `https://${scope.name}.test/activities/1` },
-    });
-    const draft = await seedCandidate({ status: 'draft' });
-    const priv = await seedCandidate({ visibility: PostVisibility.PRIVATE });
-    const followersOnly = await seedCandidate({ visibility: PostVisibility.FOLLOWERS_ONLY });
-    const orphan = await seedCandidate({ oxyUserId: null });
-    const boost = await seedCandidate({
-      type: PostType.BOOST,
-      boostOf: included.id,
-      content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
-    });
-    const excluded = [federated.id, draft.id, priv.id, followersOnly.id, orphan.id, boost.id];
+  it(
+    'signs ONLY local, published, public, authored, non-boost posts',
+    async () => {
+      // A signed record is permanent and public. Each excluded shape below is one
+      // arm of the candidate filter, and each is separately capable of putting
+      // content into a user's repo that was never meant to be there. They share
+      // one sweep because the sweep is the expensive part, not the seeding.
+      const included = await seedCandidate();
+      const federated = await seedCandidate({
+        federation: { activityId: `https://${scope.name}.test/activities/1` },
+      });
+      const draft = await seedCandidate({ status: 'draft' });
+      const priv = await seedCandidate({ visibility: PostVisibility.PRIVATE });
+      const followersOnly = await seedCandidate({ visibility: PostVisibility.FOLLOWERS_ONLY });
+      const orphan = await seedCandidate({ oxyUserId: null });
+      const boost = await seedCandidate({
+        type: PostType.BOOST,
+        boostOf: included.id,
+        content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
+      });
+      const excluded = [federated.id, draft.id, priv.id, followersOnly.id, orphan.id, boost.id];
 
-    await backfillMtnRecords();
+      await backfillMtnRecords();
 
-    expect(emittedAmong([included.id, ...excluded])).toEqual([included.id]);
-    for (const id of excluded) {
-      expect(await hasChainRow(id), `expected no chain row for ${id}`).toBe(false);
-    }
-  }, SWEEP_TIMEOUT_MS);
+      expect(emittedAmong([included.id, ...excluded])).toEqual([included.id]);
+      for (const id of excluded) {
+        expect(await hasChainRow(id), `expected no chain row for ${id}`).toBe(false);
+      }
+    },
+    SWEEP_TIMEOUT_MS,
+  );
 
-  it('emits for a post lacking a record and skips one that already has one', async () => {
-    const needsRecord = await seedCandidate({ createdAt: new Date('2024-01-01T00:00:00Z') });
-    const hasRecord = await seedCandidate({ createdAt: new Date('2024-01-02T00:00:00Z') });
-    // A REAL chain row for the second post. The skip has to come from the query.
-    await writeChainRow(hasRecord.id);
+  it(
+    'emits for a post lacking a record and skips one that already has one',
+    async () => {
+      const needsRecord = await seedCandidate({ createdAt: new Date('2024-01-01T00:00:00Z') });
+      const hasRecord = await seedCandidate({ createdAt: new Date('2024-01-02T00:00:00Z') });
+      // A REAL chain row for the second post. The skip has to come from the query.
+      await writeChainRow(hasRecord.id);
 
-    await backfillMtnRecords();
+      await backfillMtnRecords();
 
-    expect(emittedAmong([needsRecord.id, hasRecord.id])).toEqual([needsRecord.id]);
-    expect(await hasChainRow(needsRecord.id)).toBe(true);
-  }, SWEEP_TIMEOUT_MS);
+      expect(emittedAmong([needsRecord.id, hasRecord.id])).toEqual([needsRecord.id]);
+      expect(await hasChainRow(needsRecord.id)).toBe(true);
+    },
+    SWEEP_TIMEOUT_MS,
+  );
 
-  it('emits oldest-first, with the reply context resolved from real parent and root rows', async () => {
-    // Two guarantees, one sweep. Genesis has to be the OLDEST post: the chain is
-    // a per-user sequence, and a backfill that appends newest-first produces a
-    // repo whose order contradicts the posts it describes. And a backfilled
-    // reply record has to be byte-identical to one the live path would emit,
-    // which means resolving the parent's and the thread root's OWNERS.
-    const rootAuthor = scope.user('root-author');
-    const root = await seedCandidate({
-      oxyUserId: rootAuthor,
-      createdAt: new Date('2024-01-01T00:00:00Z'),
-    });
-    const parent = await seedCandidate({
-      parentPostId: root.id,
-      threadId: root.id,
-      createdAt: new Date('2024-01-02T00:00:00Z'),
-    });
-    const reply = await seedCandidate({
-      parentPostId: parent.id,
-      threadId: root.id,
-      createdAt: new Date('2024-01-03T00:00:00Z'),
-    });
+  it(
+    'emits oldest-first, with the reply context resolved from real parent and root rows',
+    async () => {
+      // Two guarantees, one sweep. Genesis has to be the OLDEST post: the chain is
+      // a per-user sequence, and a backfill that appends newest-first produces a
+      // repo whose order contradicts the posts it describes. And a backfilled
+      // reply record has to be byte-identical to one the live path would emit,
+      // which means resolving the parent's and the thread root's OWNERS.
+      const rootAuthor = scope.user('root-author');
+      const root = await seedCandidate({
+        oxyUserId: rootAuthor,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      });
+      const parent = await seedCandidate({
+        parentPostId: root.id,
+        threadId: root.id,
+        createdAt: new Date('2024-01-02T00:00:00Z'),
+      });
+      const reply = await seedCandidate({
+        parentPostId: parent.id,
+        threadId: root.id,
+        createdAt: new Date('2024-01-03T00:00:00Z'),
+      });
 
-    await backfillMtnRecords();
+      await backfillMtnRecords();
 
-    expect(emittedAmong([root.id, parent.id, reply.id])).toEqual([root.id, parent.id, reply.id]);
-    expect(h.state.emitted.find((item) => item.postId === root.id)?.reply).toBeUndefined();
-    expect(h.state.emitted.find((item) => item.postId === reply.id)?.reply).toEqual({
-      root: { postId: root.id, oxyUserId: rootAuthor },
-      parent: { postId: parent.id, oxyUserId: AUTHOR },
-    });
-  }, SWEEP_TIMEOUT_MS);
+      expect(emittedAmong([root.id, parent.id, reply.id])).toEqual([root.id, parent.id, reply.id]);
+      expect(h.state.emitted.find((item) => item.postId === root.id)?.reply).toBeUndefined();
+      expect(h.state.emitted.find((item) => item.postId === reply.id)?.reply).toEqual({
+        root: { postId: root.id, oxyUserId: rootAuthor },
+        parent: { postId: parent.id, oxyUserId: AUTHOR },
+      });
+    },
+    SWEEP_TIMEOUT_MS,
+  );
 
-  it('counts a post as failed when the emitter swallowed the append', async () => {
-    // The confirmation read is the ONLY thing that distinguishes a written record
-    // from an emitter that absorbed its own failure — `assertAdminRunComplete`
-    // then makes the run exit non-zero rather than reporting a clean backfill.
-    h.state.emitBehaviour = 'swallow';
-    const post = await seedCandidate();
+  it(
+    'counts a post as failed when the emitter swallowed the append',
+    async () => {
+      // The confirmation read is the ONLY thing that distinguishes a written record
+      // from an emitter that absorbed its own failure — `assertAdminRunComplete`
+      // then makes the run exit non-zero rather than reporting a clean backfill.
+      h.state.emitBehaviour = 'swallow';
+      const post = await seedCandidate();
 
-    // The count is not pinned: this file does not own the corpus the sweep
-    // visits, and every post in it fails under `swallow`.
-    await expect(backfillMtnRecords()).rejects.toThrow(/run incomplete: failed=[1-9]/);
-    expect(await hasChainRow(post.id)).toBe(false);
-  }, SWEEP_TIMEOUT_MS);
+      // The count is not pinned: this file does not own the corpus the sweep
+      // visits, and every post in it fails under `swallow`.
+      await expect(backfillMtnRecords()).rejects.toThrow(/run incomplete: failed=[1-9]/);
+      expect(await hasChainRow(post.id)).toBe(false);
+    },
+    SWEEP_TIMEOUT_MS,
+  );
 
   it('advances its cursor past a post whose createdAt came from the DATABASE CLOCK', async () => {
     // The paging cursor is `(created_at, id)` ascending, carried between pages as

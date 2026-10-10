@@ -61,7 +61,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getMentionOxyClientId.mockReturnValue('app_1');
   // Redis not ready by default → cache disabled (miss + no write).
-  mocks.getRedisClient.mockReturnValue({ isReady: false, get: mocks.redisGet, set: mocks.redisSet });
+  mocks.getRedisClient.mockReturnValue({
+    isReady: false,
+    get: mocks.redisGet,
+    set: mocks.redisSet,
+  });
   mocks.rank.mockResolvedValue({ profiles: [], rawCount: 0 });
   // No content candidates by default → no boosts.
   mocks.getContentCandidates.mockResolvedValue([]);
@@ -110,7 +114,16 @@ describe('RecommendationService.getRecommendations', () => {
     });
     mocks.rank.mockResolvedValue({
       profiles: [
-        { id: 'r1', name: { displayName: 'Rec One' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'r1',
+          name: { displayName: 'Rec One' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       rawCount: 1,
     });
@@ -161,14 +174,27 @@ describe('RecommendationService.getRecommendations', () => {
   it('returns a cached page WITHOUT calling the ranking client (cache hit)', async () => {
     const cachedResult = {
       recommendations: [
-        { id: 'cached', name: { displayName: 'Cached' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'cached',
+          name: { displayName: 'Cached' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       nextCursor: 'Y3Vyc29y',
       nextOffset: 10,
       hasMore: true,
     };
     mocks.redisGet.mockResolvedValue(JSON.stringify(cachedResult));
-    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      get: mocks.redisGet,
+      set: mocks.redisSet,
+    });
 
     const service = makeService();
     const result = await service.getRecommendations({ limit: 10 });
@@ -187,18 +213,67 @@ describe('RecommendationService.getRecommendations', () => {
     });
     const cachedResult = {
       recommendations: [
-        { id: 'self_1', name: { displayName: 'Self' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'blocked-now', name: { displayName: 'Blocked' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'muted-now', name: { displayName: 'Muted' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'restricted-now', name: { displayName: 'Restricted' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'safe', name: { displayName: 'Safe' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'self_1',
+          name: { displayName: 'Self' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'blocked-now',
+          name: { displayName: 'Blocked' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'muted-now',
+          name: { displayName: 'Muted' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'restricted-now',
+          name: { displayName: 'Restricted' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'safe',
+          name: { displayName: 'Safe' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       nextCursor: 'MTA',
       nextOffset: 10,
       hasMore: true,
     };
     mocks.redisGet.mockResolvedValue(JSON.stringify(cachedResult));
-    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      get: mocks.redisGet,
+      set: mocks.redisSet,
+    });
     mocks.rank.mockResolvedValue({ profiles: cachedResult.recommendations, rawCount: 10 });
 
     const service = makeService();
@@ -222,23 +297,40 @@ describe('RecommendationService.getRecommendations', () => {
 
   it('does not return a cached page when current privacy exclusions cannot be resolved', async () => {
     mocks.loadPrivacyState.mockRejectedValue(new Error('privacy unavailable'));
-    mocks.redisGet.mockResolvedValue(JSON.stringify({
-      recommendations: [
-        { id: 'stale', name: { displayName: 'Stale' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-      ],
-      nextCursor: null,
-      nextOffset: null,
-      hasMore: false,
-    }));
-    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({
+        recommendations: [
+          {
+            id: 'stale',
+            name: { displayName: 'Stale' },
+            mutualCount: 0,
+            verified: false,
+            isFederated: false,
+            isAgent: false,
+            isAutomated: false,
+            _count: { followers: 0, following: 0 },
+          },
+        ],
+        nextCursor: null,
+        nextOffset: null,
+        hasMore: false,
+      }),
+    );
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      get: mocks.redisGet,
+      set: mocks.redisSet,
+    });
 
     const service = makeService();
 
-    await expect(service.getRecommendations({
-      viewerId: 'self_1',
-      oxyClient: { request: 'client' } as never,
-      limit: 10,
-    })).rejects.toThrow('privacy unavailable');
+    await expect(
+      service.getRecommendations({
+        viewerId: 'self_1',
+        oxyClient: { request: 'client' } as never,
+        limit: 10,
+      }),
+    ).rejects.toThrow('privacy unavailable');
     expect(mocks.rank).not.toHaveBeenCalled();
   });
 
@@ -251,9 +343,36 @@ describe('RecommendationService.getRecommendations', () => {
     });
     mocks.rank.mockResolvedValue({
       profiles: [
-        { id: 'self_1', name: { displayName: 'Self' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'blocked', name: { displayName: 'Blocked' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
-        { id: 'safe', name: { displayName: 'Safe' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'self_1',
+          name: { displayName: 'Self' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'blocked',
+          name: { displayName: 'Blocked' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
+        {
+          id: 'safe',
+          name: { displayName: 'Safe' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       rawCount: 3,
     });
@@ -271,10 +390,23 @@ describe('RecommendationService.getRecommendations', () => {
   it('writes the full result (with pagination metadata) to cache on a miss', async () => {
     mocks.redisGet.mockResolvedValue(null);
     mocks.redisSet.mockResolvedValue('OK');
-    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      get: mocks.redisGet,
+      set: mocks.redisSet,
+    });
     mocks.rank.mockResolvedValue({
       profiles: [
-        { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'r1',
+          name: { displayName: 'R1' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       rawCount: 1,
     });
@@ -296,7 +428,12 @@ describe('RecommendationService.getRecommendations', () => {
 
     const service = makeService();
     const result = await service.getRecommendations({ viewerId: 'self_1', limit: 10 });
-    expect(result).toEqual({ recommendations: [], nextCursor: null, nextOffset: null, hasMore: false });
+    expect(result).toEqual({
+      recommendations: [],
+      nextCursor: null,
+      nextOffset: null,
+      hasMore: false,
+    });
   });
 });
 
@@ -383,7 +520,11 @@ describe('RecommendationService pagination', () => {
   it('keys anonymous cache per offset so pages never collide', async () => {
     mocks.redisSet.mockResolvedValue('OK');
     mocks.redisGet.mockResolvedValue(null);
-    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      get: mocks.redisGet,
+      set: mocks.redisSet,
+    });
     mocks.rank.mockResolvedValue({ profiles: profiles(10), rawCount: 10 });
 
     const service = makeService();
@@ -468,7 +609,16 @@ describe('RecommendationService content-affinity boosts', () => {
     mocks.getContentCandidates.mockRejectedValue(new Error('affinity down'));
     mocks.rank.mockResolvedValue({
       profiles: [
-        { id: 'r1', name: { displayName: 'R1' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        {
+          id: 'r1',
+          name: { displayName: 'R1' },
+          mutualCount: 0,
+          verified: false,
+          isFederated: false,
+          isAgent: false,
+          isAutomated: false,
+          _count: { followers: 0, following: 0 },
+        },
       ],
       rawCount: 1,
     });

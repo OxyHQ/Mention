@@ -3,18 +3,10 @@ import {
   type RedisClientOptions,
   type RedisClientType as NodeRedisClientType,
 } from 'redis';
-import {
-  getRedisConnectionConfig,
-  type RedisConnectionConfig,
-} from '../config';
+import { getRedisConnectionConfig, type RedisConnectionConfig } from '../config';
 import { logger } from './logger';
 
-type RedisSupervisorStatus =
-  | 'not_initialized'
-  | 'connecting'
-  | 'ready'
-  | 'cooldown'
-  | 'stopped';
+type RedisSupervisorStatus = 'not_initialized' | 'connecting' | 'ready' | 'cooldown' | 'stopped';
 
 export interface RedisStats {
   connected: boolean;
@@ -214,11 +206,7 @@ function recordConnectionFailure(
 }
 
 function markReady(client: RedisClientType, generation: number): boolean {
-  if (
-    supervisorStopped ||
-    generation !== supervisorGeneration ||
-    sharedClient !== client
-  ) {
+  if (supervisorStopped || generation !== supervisorGeneration || sharedClient !== client) {
     return false;
   }
 
@@ -229,10 +217,7 @@ function markReady(client: RedisClientType, generation: number): boolean {
   return true;
 }
 
-function startConnectionAttempt(
-  client: RedisClientType,
-  generation: number,
-): void {
+function startConnectionAttempt(client: RedisClientType, generation: number): void {
   if (
     supervisorStopped ||
     generation !== supervisorGeneration ||
@@ -263,11 +248,7 @@ function startConnectionAttempt(
   let attempt: Promise<void>;
   attempt = connectPromise
     .then(() => {
-      if (
-        supervisorStopped ||
-        generation !== supervisorGeneration ||
-        sharedClient !== client
-      ) {
+      if (supervisorStopped || generation !== supervisorGeneration || sharedClient !== client) {
         if (client.isOpen) client.destroy();
         return;
       }
@@ -292,10 +273,7 @@ function startConnectionAttempt(
   connectionAttempt = attempt;
 }
 
-function registerClientHandlers(
-  client: RedisClientType,
-  generation: number,
-): void {
+function registerClientHandlers(client: RedisClientType, generation: number): void {
   client.on('ready', () => {
     if (markReady(client, generation)) {
       logger.info('Redis connected');
@@ -303,11 +281,7 @@ function registerClientHandlers(
   });
 
   client.on('error', (error: Error) => {
-    if (
-      supervisorStopped ||
-      generation !== supervisorGeneration ||
-      sharedClient !== client
-    ) {
+    if (supervisorStopped || generation !== supervisorGeneration || sharedClient !== client) {
       return;
     }
     logConnectionFailure(error);
@@ -353,15 +327,8 @@ export function getRedisClient(): RedisClientType {
  * pub/sub/test clients, shutdown, in-flight connects and an already-open
  * cooldown are deliberately ignored.
  */
-export function reportRedisConnectionFailure(
-  client: RedisClientType,
-  error: unknown,
-): void {
-  if (
-    supervisorStopped ||
-    sharedClient !== client ||
-    supervisorStatus !== 'ready'
-  ) {
+export function reportRedisConnectionFailure(client: RedisClientType, error: unknown): void {
+  if (supervisorStopped || sharedClient !== client || supervisorStatus !== 'ready') {
     return;
   }
   recordConnectionFailure(client, supervisorGeneration, error, true);

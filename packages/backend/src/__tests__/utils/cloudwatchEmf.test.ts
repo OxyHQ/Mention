@@ -56,11 +56,13 @@ describe('emitRequestMetrics', () => {
     expect(emfMetric.Namespace).toBe('Mention/Backend');
     // Low cardinality on purpose: each dimension set is a billed metric.
     expect(emfMetric.Dimensions).toEqual([['method']]);
-    expect(emfMetric.Metrics).toEqual(expect.arrayContaining([
-      { Name: 'HttpRequestDurationMs', Unit: 'Milliseconds' },
-      { Name: 'QueryCount', Unit: 'Count' },
-      { Name: 'OxyCallCount', Unit: 'Count' },
-    ]));
+    expect(emfMetric.Metrics).toEqual(
+      expect.arrayContaining([
+        { Name: 'HttpRequestDurationMs', Unit: 'Milliseconds' },
+        { Name: 'QueryCount', Unit: 'Count' },
+        { Name: 'OxyCallCount', Unit: 'Count' },
+      ]),
+    );
   });
 
   it('omits QueryCount/OxyCallCount when the caller has no tally for them', () => {

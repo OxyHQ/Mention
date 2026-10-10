@@ -47,16 +47,23 @@ export type ReencodeResult =
 export function buildReencodeArgs(inputPath: string, target: ReencodeTarget): string[] {
   const edge = REENCODED_MAX_EDGE_PX;
   return [
-    '-loglevel', 'error',
+    '-loglevel',
+    'error',
     '-nostdin',
-    '-protocol_whitelist', 'file',
-    '-i', inputPath,
-    '-frames:v', '1',
+    '-protocol_whitelist',
+    'file',
+    '-i',
+    inputPath,
+    '-frames:v',
+    '1',
     // Fit inside edge x edge, keep the aspect ratio, never upscale.
-    '-vf', `scale=w='min(${edge},iw)':h='min(${edge},ih)':force_original_aspect_ratio=decrease`,
-    '-c:v', target.codec,
+    '-vf',
+    `scale=w='min(${edge},iw)':h='min(${edge},ih)':force_original_aspect_ratio=decrease`,
+    '-c:v',
+    target.codec,
     ...target.quality,
-    '-f', target.format,
+    '-f',
+    target.format,
     '-',
   ];
 }
@@ -69,7 +76,9 @@ function runOnce(inputPath: string, target: ReencodeTarget): Promise<ReencodeRes
         stdio: ['ignore', 'pipe', 'ignore'],
       });
     } catch (error) {
-      logger.warn('[ImageReencode] ffmpeg spawn threw', { reason: error instanceof Error ? error.message : 'unknown' });
+      logger.warn('[ImageReencode] ffmpeg spawn threw', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
       resolve({ ok: false, reason: 'spawn-failed' });
       return;
     }
@@ -127,7 +136,12 @@ export async function reencodeFirstFrame(inputPath: string): Promise<ReencodeRes
   let last: ReencodeResult = { ok: false, reason: 'undecodable' };
   for (const target of REENCODE_TARGETS) {
     last = await runOnce(inputPath, target);
-    if (last.ok || last.reason === 'timeout' || last.reason === 'output-too-large' || last.reason === 'spawn-failed') {
+    if (
+      last.ok ||
+      last.reason === 'timeout' ||
+      last.reason === 'output-too-large' ||
+      last.reason === 'spawn-failed'
+    ) {
       return last;
     }
   }

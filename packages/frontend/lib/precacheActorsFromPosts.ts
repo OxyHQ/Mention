@@ -35,9 +35,7 @@ interface PostWithActors {
  * actor. Hydration may expose the same related post through `originalPost` and
  * the more specific quote/boost field, so precedence avoids duplicate upserts.
  */
-export function precacheActorsFromPosts(
-  posts: readonly unknown[] | null | undefined,
-): void {
+export function precacheActorsFromPosts(posts: readonly unknown[] | null | undefined): void {
   if (!Array.isArray(posts) || posts.length === 0) return;
 
   const users: CacheableUser[] = [];
@@ -45,8 +43,7 @@ export function precacheActorsFromPosts(
     if (!raw || typeof raw !== 'object') continue;
     const p = raw as PostWithActors;
     if (p.user?.id) users.push(p.user);
-    const relatedPost =
-      p.boost?.originalPost ?? p.quotedPost ?? p.originalPost;
+    const relatedPost = p.boost?.originalPost ?? p.quotedPost ?? p.originalPost;
     if (relatedPost?.user) users.push(relatedPost.user);
     if (p.boost?.actor) users.push(p.boost.actor);
   }

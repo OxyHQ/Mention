@@ -8,7 +8,11 @@ import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
-import { ProfilePageHeader, PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
+import {
+  ProfilePageHeader,
+  PROFILE_AVATAR_OVERLAP,
+  PROFILE_BANNER_HEIGHT,
+} from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
 import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
@@ -79,7 +83,11 @@ export interface ProfileShellProps {
  */
 export function ProfileShell(props: ProfileShellProps) {
   const { scrollPosition } = useLayoutScroll();
-  return <HeaderDockProvider scrollY={scrollPosition}><ProfileShellBody {...props} /></HeaderDockProvider>;
+  return (
+    <HeaderDockProvider scrollY={scrollPosition}>
+      <ProfileShellBody {...props} />
+    </HeaderDockProvider>
+  );
 }
 
 function ProfileShellBody({
@@ -103,18 +111,22 @@ function ProfileShellBody({
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
-  const nativeFeedOwnsScroll = tabs ? shouldFeedOwnProfileScroll({
-    tab: tabs.tab,
-    isWeb: IS_WEB,
-    isPrivate: tabs.isPrivate,
-    isOwnProfile: tabs.isOwnProfile,
-  }) : false;
-  const nativeGridOwnsScroll = tabs ? shouldGridOwnProfileScroll({
-    tab: tabs.tab,
-    isWeb: IS_WEB,
-    isPrivate: tabs.isPrivate,
-    isOwnProfile: tabs.isOwnProfile,
-  }) : false;
+  const nativeFeedOwnsScroll = tabs
+    ? shouldFeedOwnProfileScroll({
+        tab: tabs.tab,
+        isWeb: IS_WEB,
+        isPrivate: tabs.isPrivate,
+        isOwnProfile: tabs.isOwnProfile,
+      })
+    : false;
+  const nativeGridOwnsScroll = tabs
+    ? shouldGridOwnProfileScroll({
+        tab: tabs.tab,
+        isWeb: IS_WEB,
+        isPrivate: tabs.isPrivate,
+        isOwnProfile: tabs.isOwnProfile,
+      })
+    : false;
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
   // Banner, summary and the tab strip under them are ONE block with one
@@ -126,7 +138,7 @@ function ProfileShellBody({
   // every other feed.
   const listHeader = (
     <View
-      onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
+      onLayout={IS_WEB ? undefined : (event) => setSummaryHeight(event.nativeEvent.layout.height)}
       style={{ flexGrow: 0, flexShrink: 0, backgroundColor: surfaceFill }}
     >
       {banner ? (
@@ -138,7 +150,9 @@ function ProfileShellBody({
         >
           {summary}
         </CoverHeader>
-      ) : summary}
+      ) : (
+        summary
+      )}
     </View>
   );
   const stickyTabs = tabBar ? (
@@ -161,42 +175,73 @@ function ProfileShellBody({
   // out. It is painted in the surface fill, the colour of every other native
   // route (StackScene), not the theme background it used to name. Web leaves
   // the page to the content panel, like every other screen.
-  return <View className="flex-1 web:z-auto" style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}>
-    <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-    {IS_WEB ? <>
-      {/* Flat, fixed slots: `children` stays the last child in every state. */}
-      {active && loading ? <ProfileSkeleton variant={skeletonVariant} /> : null}
-      {active && !loading && !profileData ? <ProfileUnavailable notFound={notFound} onRetry={onRetry} /> : null}
-      {drawing ? <ProfilePageHeader profileData={drawing} actions={headerActions}
-        overMedia={Boolean(banner)} showBack={!isRootTab} /> : null}
-      {drawing ? listHeader : null}
-      {drawing ? stickyTabs : null}
-      {children ?? (drawing && tabs ? <ProfileTabs {...tabs} /> : null)}
-    </> : loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
-      <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
-    ) : <>
-      {nativeListOwnsScroll && tabs ? <View className="min-h-0 flex-1">
-        <ProfileTabs {...tabs} listOwnsScroll listContentHeaderComponent={listHeader}
-          listStickyHeaderComponent={stickyTabs}
-          listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
-          listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
-      </View> : <FlashList
-          ref={chrome.assignScrollRef}
-          data={['tabs', 'content'] as const}
-          keyExtractor={item => item}
-          renderItem={({ item }) => item === 'tabs' ? stickyTabs : nativeContent}
-          ListHeaderComponent={listHeader}
-          ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-          onScroll={chrome.onScroll}
-          scrollEventThrottle={16}
-          showsVerticalScrollIndicator={false}
-          // The tabs are the first data row; FlashList keeps ListHeaderComponent
-          // outside the data index space.
-          stickyHeaderIndices={tabBar ? [0] : undefined}
-          stickyHeaderConfig={{ offset: headerInset }}
-        />}
-      <ProfilePageHeader profileData={profileData} actions={headerActions}
-        overMedia={Boolean(banner)} showBack={!isRootTab} />
-    </>}
-  </View>;
+  return (
+    <View
+      className="flex-1 web:z-auto"
+      style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}
+    >
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
+      {IS_WEB ? (
+        <>
+          {/* Flat, fixed slots: `children` stays the last child in every state. */}
+          {active && loading ? <ProfileSkeleton variant={skeletonVariant} /> : null}
+          {active && !loading && !profileData ? (
+            <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
+          ) : null}
+          {drawing ? (
+            <ProfilePageHeader
+              profileData={drawing}
+              actions={headerActions}
+              overMedia={Boolean(banner)}
+              showBack={!isRootTab}
+            />
+          ) : null}
+          {drawing ? listHeader : null}
+          {drawing ? stickyTabs : null}
+          {children ?? (drawing && tabs ? <ProfileTabs {...tabs} /> : null)}
+        </>
+      ) : loading ? (
+        <ProfileSkeleton variant={skeletonVariant} />
+      ) : !profileData ? (
+        <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
+      ) : (
+        <>
+          {nativeListOwnsScroll && tabs ? (
+            <View className="min-h-0 flex-1">
+              <ProfileTabs
+                {...tabs}
+                listOwnsScroll
+                listContentHeaderComponent={listHeader}
+                listStickyHeaderComponent={stickyTabs}
+                listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
+                listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined}
+              />
+            </View>
+          ) : (
+            <FlashList
+              ref={chrome.assignScrollRef}
+              data={['tabs', 'content'] as const}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (item === 'tabs' ? stickyTabs : nativeContent)}
+              ListHeaderComponent={listHeader}
+              ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+              onScroll={chrome.onScroll}
+              scrollEventThrottle={16}
+              showsVerticalScrollIndicator={false}
+              // The tabs are the first data row; FlashList keeps ListHeaderComponent
+              // outside the data index space.
+              stickyHeaderIndices={tabBar ? [0] : undefined}
+              stickyHeaderConfig={{ offset: headerInset }}
+            />
+          )}
+          <ProfilePageHeader
+            profileData={profileData}
+            actions={headerActions}
+            overMedia={Boolean(banner)}
+            showBack={!isRootTab}
+          />
+        </>
+      )}
+    </View>
+  );
 }

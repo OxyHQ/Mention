@@ -78,7 +78,10 @@ export function buildJobPostingJsonLd(
   organization: ClarityHiringOrganization,
   now: Date = new Date(),
 ): Record<string, unknown> {
-  const hiringOrganization: Record<string, unknown> = { '@type': 'Organization', name: organization.name };
+  const hiringOrganization: Record<string, unknown> = {
+    '@type': 'Organization',
+    name: organization.name,
+  };
   if (organization.url) hiringOrganization.url = organization.url;
   if (organization.logo) hiringOrganization.logo = organization.logo;
 
@@ -125,7 +128,9 @@ export function buildJobPostingJsonLd(
 }
 
 /** The employer's name, profile URL and avatar, from the cached Oxy summary. Never throws. */
-export async function resolveHiringOrganization(employerOxyUserId: string): Promise<ClarityHiringOrganization> {
+export async function resolveHiringOrganization(
+  employerOxyUserId: string,
+): Promise<ClarityHiringOrganization> {
   const summary = await resolveUserSummaries([employerOxyUserId])
     .then((summaries) => summaries.get(employerOxyUserId))
     .catch(() => undefined);
@@ -151,10 +156,17 @@ export function describeClaritySyncError(error: unknown): string {
   if (isClarityError(error) && error.code === 'invalid_job_posting') {
     const issues = Array.isArray(error.details?.issues) ? error.details.issues : [];
     const described = issues.map((issue) => {
-      const { path, code, message } = (issue ?? {}) as { path?: unknown; code?: unknown; message?: unknown };
+      const { path, code, message } = (issue ?? {}) as {
+        path?: unknown;
+        code?: unknown;
+        message?: unknown;
+      };
       return `${String(path ?? '?')}: ${String(code ?? 'invalid')}${message ? ` (${String(message)})` : ''}`;
     });
-    const text = described.length > 0 ? `invalid_job_posting: ${described.join('; ')}` : `invalid_job_posting: ${error.message}`;
+    const text =
+      described.length > 0
+        ? `invalid_job_posting: ${described.join('; ')}`
+        : `invalid_job_posting: ${error.message}`;
     return text.slice(0, MAX_SYNC_ERROR_LENGTH);
   }
   return (error instanceof Error ? error.message : 'unknown').slice(0, MAX_SYNC_ERROR_LENGTH);

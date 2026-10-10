@@ -68,11 +68,13 @@ export function useProfileLinkMentions(
       );
       return response.data.links.flatMap((link) =>
         link.mention
-          ? [{
-              userId: link.mention.userId,
-              username: link.mention.handle,
-              displayName: link.mention.displayName,
-            }]
+          ? [
+              {
+                userId: link.mention.userId,
+                username: link.mention.handle,
+                displayName: link.mention.displayName,
+              },
+            ]
           : [],
       );
     },

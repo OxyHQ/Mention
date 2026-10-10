@@ -115,7 +115,10 @@ afterAll(async () => {
 
 describe('PostCollaborationService — invite resolution (no post required)', () => {
   it('returns validated unique collaborator ids', async () => {
-    await expect(postCollaborationService.validateInvites(OWNER, [C1, C2])).resolves.toEqual([C1, C2]);
+    await expect(postCollaborationService.validateInvites(OWNER, [C1, C2])).resolves.toEqual([
+      C1,
+      C2,
+    ]);
   });
 
   it('rejects self-invite', async () => {
@@ -129,10 +132,9 @@ describe('PostCollaborationService — invite resolution (no post required)', ()
   });
 
   it('passes through collaborator IDs', async () => {
-    await expect(postCollaborationService.resolveCollaboratorRefs(OWNER, [C1, C2])).resolves.toEqual([
-      C1,
-      C2,
-    ]);
+    await expect(
+      postCollaborationService.resolveCollaboratorRefs(OWNER, [C1, C2]),
+    ).resolves.toEqual([C1, C2]);
   });
 
   it('resolves local handles to IDs', async () => {

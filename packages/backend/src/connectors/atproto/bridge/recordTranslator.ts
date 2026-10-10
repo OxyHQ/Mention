@@ -39,11 +39,7 @@ import {
   type MtnMediaEmbed,
 } from '@mention/shared-types';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
-import {
-  BSKY_POST_COLLECTION,
-  BSKY_LIKE_COLLECTION,
-  BSKY_REPOST_COLLECTION,
-} from './constants';
+import { BSKY_POST_COLLECTION, BSKY_LIKE_COLLECTION, BSKY_REPOST_COLLECTION } from './constants';
 import { blobContentRef } from './blobUrl';
 
 /** The MTN feed collection → its served `app.bsky.feed.*` equivalent. */
@@ -246,7 +242,9 @@ function translateEmbed(embed: MtnMediaEmbed | undefined): AtprotoImagesEmbed | 
 }
 
 /** Translate an MTN reply ref (root/parent MTN URIs) to an `app.bsky.feed.post#replyRef`. */
-function translateReply(reply: { root: string; parent: string } | undefined): AtprotoReplyRef | undefined {
+function translateReply(
+  reply: { root: string; parent: string } | undefined,
+): AtprotoReplyRef | undefined {
   if (!reply) return undefined;
   const root = mtnUriToStrongRef(reply.root);
   const parent = mtnUriToStrongRef(reply.parent);
@@ -285,7 +283,9 @@ export function translateLikeRecord(record: MentionLikeRecord): AtprotoSubjectRe
 }
 
 /** Translate an `app.mention.feed.repost` payload into an `app.bsky.feed.repost` value. */
-export function translateRepostRecord(record: MentionRepostRecord): AtprotoSubjectRecordValue | null {
+export function translateRepostRecord(
+  record: MentionRepostRecord,
+): AtprotoSubjectRecordValue | null {
   const subject = mtnUriToStrongRef(record.subject);
   if (!subject) return null;
   return { $type: 'app.bsky.feed.repost', subject, createdAt: record.createdAt };

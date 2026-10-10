@@ -116,7 +116,9 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),
@@ -262,12 +264,17 @@ async function seedNotification(
  * person). The channel's post carries a writer, which is the fact the anonymity
  * cases are about.
  */
-async function seedInbox(options: { writtenBy?: string; channelText?: string } = {}): Promise<Inbox> {
-  const channelPostId = await seedReferencedPost(options.channelText ?? 'the channel published this', {
-    oxyUserId: CHANNEL,
-    authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
-    writtenByOxyUserId: options.writtenBy ?? WRITER_ID,
-  });
+async function seedInbox(
+  options: { writtenBy?: string; channelText?: string } = {},
+): Promise<Inbox> {
+  const channelPostId = await seedReferencedPost(
+    options.channelText ?? 'the channel published this',
+    {
+      oxyUserId: CHANNEL,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      writtenByOxyUserId: options.writtenBy ?? WRITER_ID,
+    },
+  );
   const ownPostId = await seedReferencedPost('my own post', { oxyUserId: OPERATOR_A });
 
   return {
@@ -325,7 +332,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listAccounts.mockImplementation(async (viewerId: string | undefined) => forestFor(viewerId));
+  mocks.listAccounts.mockImplementation(async (viewerId: string | undefined) =>
+    forestFor(viewerId),
+  );
   mocks.getUsersByIds.mockResolvedValue([
     { id: ACTOR, username: 'liker', name: { displayName: 'A Liker' } },
     { id: CHANNEL, username: 'techweekly', name: { displayName: 'Tech Weekly' } },
@@ -527,7 +536,9 @@ describe('the write surfaces honour the same scope', () => {
     expect(counted.body.count).toBe(2);
 
     await request(makeApp(OPERATOR_A)).patch(`/${inbox.channelNotificationId}/read`).expect(200);
-    expect((await request(makeApp(OPERATOR_A)).get('/unread-count').expect(200)).body.count).toBe(1);
+    expect((await request(makeApp(OPERATOR_A)).get('/unread-count').expect(200)).body.count).toBe(
+      1,
+    );
   });
 
   it('archives a channel notification', async () => {

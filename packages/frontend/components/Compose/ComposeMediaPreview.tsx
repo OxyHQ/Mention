@@ -16,7 +16,11 @@ interface ComposeMediaPreviewProps {
  * id), so it plays as a video exactly like it does in the feed — an `Image`
  * cannot decode an mp4 and rendered an empty box.
  */
-export const ComposeMediaPreview: React.FC<ComposeMediaPreviewProps> = ({ type, uri, imageStyle }) =>
+export const ComposeMediaPreview: React.FC<ComposeMediaPreviewProps> = ({
+  type,
+  uri,
+  imageStyle,
+}) =>
   type === 'image' ? (
     <Image source={{ uri }} style={imageStyle} resizeMode="cover" />
   ) : (

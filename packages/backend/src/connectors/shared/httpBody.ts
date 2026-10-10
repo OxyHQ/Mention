@@ -9,7 +9,10 @@ import type { IncomingMessage } from 'node:http';
  * JSON reads (e.g. WebFinger) and for bounded image reads (e.g. mirroring a
  * remote profile banner to Oxy).
  */
-export async function readBoundedResponseBody(response: IncomingMessage, maxBytes: number): Promise<ArrayBuffer> {
+export async function readBoundedResponseBody(
+  response: IncomingMessage,
+  maxBytes: number,
+): Promise<ArrayBuffer> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
 

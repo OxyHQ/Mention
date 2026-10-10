@@ -1,9 +1,6 @@
 import type { RedisClientType } from '../utils/redis';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  isRedisConnectionError,
-  withRedisFallback,
-} from '../utils/redisHelpers';
+import { isRedisConnectionError, withRedisFallback } from '../utils/redisHelpers';
 
 function redisClient(overrides: Record<string, unknown>): RedisClientType {
   return {
@@ -45,9 +42,13 @@ describe('redis hot-path fallback', () => {
     const client = redisClient({ isReady: true, isOpen: true });
 
     await expect(
-      withRedisFallback(client, async () => {
-        throw closed;
-      }, 0),
+      withRedisFallback(
+        client,
+        async () => {
+          throw closed;
+        },
+        0,
+      ),
     ).resolves.toBe(0);
   });
 
@@ -56,18 +57,28 @@ describe('redis hot-path fallback', () => {
     const client = redisClient({ isReady: true, isOpen: true });
 
     await expect(
-      withRedisFallback(client, async () => {
-        throw failure;
-      }, 0),
+      withRedisFallback(
+        client,
+        async () => {
+          throw failure;
+        },
+        0,
+      ),
     ).rejects.toBe(failure);
   });
 
   it('recognizes common transient Redis socket failures', () => {
-    expect(isRedisConnectionError(Object.assign(new Error('reset'), { code: 'ECONNRESET' }))).toBe(true);
+    expect(isRedisConnectionError(Object.assign(new Error('reset'), { code: 'ECONNRESET' }))).toBe(
+      true,
+    );
     expect(isRedisConnectionError(new Error('Socket closed unexpectedly'))).toBe(true);
-    expect(isRedisConnectionError(Object.assign(new Error('timed out'), {
-      name: 'SocketTimeoutError',
-    }))).toBe(true);
+    expect(
+      isRedisConnectionError(
+        Object.assign(new Error('timed out'), {
+          name: 'SocketTimeoutError',
+        }),
+      ),
+    ).toBe(true);
     expect(isRedisConnectionError(new Error('WRONGTYPE'))).toBe(false);
   });
 });

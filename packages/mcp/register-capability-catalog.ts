@@ -1,6 +1,6 @@
-import { OxyServer } from "@oxy.so/core/server";
-import { appCapabilityCatalogSchema } from "@oxy.so/contracts";
-import { MENTION_CAPABILITY_CATALOG } from "./lib/mention-catalog.js";
+import { OxyServer } from '@oxy.so/core/server';
+import { appCapabilityCatalogSchema } from '@oxy.so/contracts';
+import { MENTION_CAPABILITY_CATALOG } from './lib/mention-catalog.js';
 
 /**
  * Describe whatever this script failed on, in one line an operator can act on.
@@ -15,31 +15,39 @@ import { MENTION_CAPABILITY_CATALOG } from "./lib/mention-catalog.js";
  */
 export function describeRegistrationFailure(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error !== "object" || error === null) return String(error);
+  if (typeof error !== 'object' || error === null) return String(error);
 
-  const fields = error as { message?: unknown; code?: unknown; status?: unknown; statusCode?: unknown };
-  const status = typeof fields.status === "number"
-    ? fields.status
-    : (typeof fields.statusCode === "number" ? fields.statusCode : undefined);
+  const fields = error as {
+    message?: unknown;
+    code?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+  };
+  const status =
+    typeof fields.status === 'number'
+      ? fields.status
+      : typeof fields.statusCode === 'number'
+        ? fields.statusCode
+        : undefined;
   const parts = [
-    typeof fields.message === "string" && fields.message.length > 0 ? fields.message : undefined,
+    typeof fields.message === 'string' && fields.message.length > 0 ? fields.message : undefined,
     status !== undefined ? `status=${status}` : undefined,
-    typeof fields.code === "string" && fields.code.length > 0 ? `code=${fields.code}` : undefined,
+    typeof fields.code === 'string' && fields.code.length > 0 ? `code=${fields.code}` : undefined,
   ].filter((part): part is string => part !== undefined);
 
   // Never fall back to `[object Object]`: a shape nobody anticipated is still
   // worth its JSON, bounded so a large payload cannot flood the deploy log.
   if (parts.length === 0) {
     try {
-      return JSON.stringify(error)?.slice(0, 500) ?? "unknown failure";
+      return JSON.stringify(error)?.slice(0, 500) ?? 'unknown failure';
     } catch {
-      return "unknown failure (unserializable)";
+      return 'unknown failure (unserializable)';
     }
   }
-  return parts.join(" ");
+  return parts.join(' ');
 }
 
-const OXY_API_URL = (process.env.OXY_API_URL ?? "https://api.oxy.so").replace(/\/$/, "");
+const OXY_API_URL = (process.env.OXY_API_URL ?? 'https://api.oxy.so').replace(/\/$/, '');
 
 /**
  * The service credential, if this process was given one.
@@ -62,13 +70,16 @@ async function main(): Promise<void> {
   const credential = serviceCredentialPair();
   // Only when there is one: with none, `serviceToken()` attests the task
   // role, which is how this runs in the cluster.
-  const oxy = new OxyServer({ baseURL: OXY_API_URL, ...(credential ? { serviceAuth: credential } : {}) });
+  const oxy = new OxyServer({
+    baseURL: OXY_API_URL,
+    ...(credential ? { serviceAuth: credential } : {}),
+  });
   const serviceToken = await oxy.serviceToken();
   const response = await fetch(`${OXY_API_URL}/capabilities/catalogs/register`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       authorization: `Bearer ${serviceToken}`,
-      "content-type": "application/json",
+      'content-type': 'application/json',
     },
     body: JSON.stringify({ catalog, deployedAt: new Date().toISOString() }),
     signal: AbortSignal.timeout(15_000),
@@ -77,14 +88,14 @@ async function main(): Promise<void> {
   if (!response.ok) {
     // The body names WHICH rejection this is (a scope the credential lacks, a
     // catalog the API refused to parse); bounded so it cannot flood the log.
-    const detail = (await response.text().catch(() => "")).slice(0, 500);
+    const detail = (await response.text().catch(() => '')).slice(0, 500);
     throw new Error(
-      `Mention capability catalog registration failed (status=${response.status})${detail ? `: ${detail}` : ""}`,
+      `Mention capability catalog registration failed (status=${response.status})${detail ? `: ${detail}` : ''}`,
     );
   }
-  const body = await response.json() as { registration?: { digest?: string } };
+  const body = (await response.json()) as { registration?: { digest?: string } };
   const digest = body.registration?.digest;
-  if (!digest) throw new Error("Mention capability catalog registration returned no digest");
+  if (!digest) throw new Error('Mention capability catalog registration returned no digest');
   process.stdout.write(`Registered Mention capability catalog ${catalog.version} (${digest})\n`);
 }
 
@@ -95,7 +106,9 @@ async function main(): Promise<void> {
  */
 if (import.meta.main) {
   void main().catch((error: unknown) => {
-    process.stderr.write(`Mention capability catalog registration failed: ${describeRegistrationFailure(error)}\n`);
+    process.stderr.write(
+      `Mention capability catalog registration failed: ${describeRegistrationFailure(error)}\n`,
+    );
     process.exitCode = 1;
   });
 }

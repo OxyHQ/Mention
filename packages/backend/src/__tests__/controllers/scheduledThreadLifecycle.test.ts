@@ -68,7 +68,12 @@ vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor:
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimUnpublishedPost } from '../../db/posts/postRepository';
-import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { deletePost } from '../../controllers/posts/deletePost';
 import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 
@@ -253,17 +258,20 @@ describe('cancelling a scheduled thread', () => {
    * Tracked as task #141. If the answer is "scope it", these assertions flip and
    * `repairDeletedPostProjection` gains an author/status predicate.
    */
-  it('deletes a published post\'s replies too — current behaviour, see #141', async () => {
+  it("deletes a published post's replies too — current behaviour, see #141", async () => {
     await row('published-root', null, { status: 'published' });
     await row('reply', 'published-root', { status: 'published' });
     const { res } = buildResponse();
 
-    await deletePost(buildRequest(idByLabel.get('published-root') as string) as never, res as never);
+    await deletePost(
+      buildRequest(idByLabel.get('published-root') as string) as never,
+      res as never,
+    );
 
     expect(await remainingIds()).toEqual([]);
   });
 
-  it('reaches another author\'s scheduled reply — current behaviour, see #141', async () => {
+  it("reaches another author's scheduled reply — current behaviour, see #141", async () => {
     await row('root', null);
     await row('theirs', 'root', { owner: OTHER });
     const { res } = buildResponse();
@@ -287,7 +295,10 @@ describe('publishing a scheduled thread early', () => {
     await seedThread();
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('c1') as string) as never,
+      res as never,
+    );
 
     expect(claimedLabels()).toEqual(['root', 'c1', 'c2']);
     // The response is still about the post that was asked for.
@@ -303,7 +314,10 @@ describe('publishing a scheduled thread early', () => {
     });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('c1') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('c1') as string) as never,
+      res as never,
+    );
 
     expect(claimedLabels()).toEqual(['root']);
     expect(payload.status).toBe(404);
@@ -314,7 +328,10 @@ describe('publishing a scheduled thread early', () => {
     await row('mine', 'theirs');
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('mine') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('mine') as string) as never,
+      res as never,
+    );
 
     expect(payload.status).toBe(409);
     expect(hoisted.claim).not.toHaveBeenCalled();
@@ -324,7 +341,10 @@ describe('publishing a scheduled thread early', () => {
     await row('solo', null);
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('solo') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('solo') as string) as never,
+      res as never,
+    );
 
     expect(hoisted.claim).toHaveBeenCalledTimes(1);
     expect(payload.value?.id).toBe(idByLabel.get('solo'));
@@ -334,7 +354,10 @@ describe('publishing a scheduled thread early', () => {
     await row('done', null, { status: 'published' });
     const { res, payload } = buildResponse();
 
-    await publishScheduledPostNow(buildRequest(idByLabel.get('done') as string) as never, res as never);
+    await publishScheduledPostNow(
+      buildRequest(idByLabel.get('done') as string) as never,
+      res as never,
+    );
 
     expect(payload.status).toBe(409);
     expect(payload.value?.message).toBe('This post has already been published');

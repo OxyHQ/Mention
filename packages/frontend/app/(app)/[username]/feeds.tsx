@@ -3,6 +3,6 @@ import ProfileScreen from '@/components/ProfileScreen';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 export default function ProfileFeedsRoute() {
-    const username = useRoutedProfileUsername();
-    return <ProfileScreen username={username} tab="feeds" />;
+  const username = useRoutedProfileUsername();
+  return <ProfileScreen username={username} tab="feeds" />;
 }

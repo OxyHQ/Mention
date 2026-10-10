@@ -32,168 +32,156 @@ import { EmptyState } from '@/components/common/EmptyState';
  * writer, so naming one here would route around that setting.
  */
 export default function PostCorrectionsScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
-    const postId = String(id);
-    const safeBack = useSafeBack();
-    const { t } = useTranslation();
-    const { user } = useAuth();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const postId = String(id);
+  const safeBack = useSafeBack();
+  const { t } = useTranslation();
+  const { user } = useAuth();
 
-    const { data, isLoading, isError, refetch } = useQuery({
-        queryKey: publicQueryKeys.postCorrections(postId),
-        queryFn: () => feedService.getPostCorrections(postId),
-        enabled: Boolean(postId),
-    });
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: publicQueryKeys.postCorrections(postId),
+    queryFn: () => feedService.getPostCorrections(postId),
+    enabled: Boolean(postId),
+  });
 
-    // The live post supplies the newest version, and the shared post store is
-    // preferred over the query for it: an edit made in the composer writes the
-    // updated post straight back there (`cachePosts`) and nowhere else, so
-    // arriving here from a correction shows the text that was just saved. The
-    // query is only the loader for the case the store has nothing — a link
-    // opened cold — which is why it is disabled whenever the store answers.
-    const cachedPost = usePostSelector(postId);
-    const { data: fetchedPost } = useQuery({
-        queryKey: viewerQueryKeys.post(user?.id, postId),
-        queryFn: () => feedService.getPostById(postId),
-        enabled: Boolean(postId) && !cachedPost,
-    });
-    const currentText = (cachedPost ?? fetchedPost)?.content?.text ?? '';
+  // The live post supplies the newest version, and the shared post store is
+  // preferred over the query for it: an edit made in the composer writes the
+  // updated post straight back there (`cachePosts`) and nowhere else, so
+  // arriving here from a correction shows the text that was just saved. The
+  // query is only the loader for the case the store has nothing — a link
+  // opened cold — which is why it is disabled whenever the store answers.
+  const cachedPost = usePostSelector(postId);
+  const { data: fetchedPost } = useQuery({
+    queryKey: viewerQueryKeys.post(user?.id, postId),
+    queryFn: () => feedService.getPostById(postId),
+    enabled: Boolean(postId) && !cachedPost,
+  });
+  const currentText = (cachedPost ?? fetchedPost)?.content?.text ?? '';
 
-    const corrections = data?.corrections ?? [];
-    // `total` counts corrections MADE and never goes down; retention bounds how
-    // many superseded bodies are still readable. The difference is versions this
-    // screen cannot show, and saying so is the honest alternative to a trail that
-    // silently skips revision numbers.
-    const droppedVersions = Math.max((data?.total ?? 0) - corrections.length, 0);
-    const title = t('post.corrections.title', { defaultValue: 'Correction history' });
+  const corrections = data?.corrections ?? [];
+  // `total` counts corrections MADE and never goes down; retention bounds how
+  // many superseded bodies are still readable. The difference is versions this
+  // screen cannot show, and saying so is the honest alternative to a trail that
+  // silently skips revision numbers.
+  const droppedVersions = Math.max((data?.total ?? 0) - corrections.length, 0);
+  const title = t('post.corrections.title', { defaultValue: 'Correction history' });
 
-    return (
-        <View className="flex-1">
-            <SEO
-                title={title}
-                description={t('post.corrections.description', {
-                    defaultValue: 'Every version of this post on Mention',
+  return (
+    <View className="flex-1">
+      <SEO
+        title={title}
+        description={t('post.corrections.description', {
+          defaultValue: 'Every version of this post on Mention',
+        })}
+      />
+      <PageHeader
+        title={title}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+      />
+
+      <ScrollView className="flex-1" contentContainerClassName="pb-16">
+        <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">
+          {t('post.corrections.intro', {
+            defaultValue:
+              'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
+          })}
+        </Text>
+
+        {isLoading ? (
+          <View className="items-center py-10">
+            <SpinnerIcon size={20} className="text-primary" />
+          </View>
+        ) : isError ? (
+          // An unreachable trail must not render as an empty one: "no
+          // corrections" over an outage would say the post was never
+          // changed, which is the opposite of what the marker promised.
+          <View className="items-center gap-3 px-4 py-10">
+            <Text className="text-center text-sm text-muted-foreground">
+              {t('post.corrections.error', {
+                defaultValue: "Couldn't load this post's correction history.",
+              })}
+            </Text>
+            <Button onPress={() => void refetch()}>
+              {t('post.corrections.retry', { defaultValue: 'Try again' })}
+            </Button>
+          </View>
+        ) : corrections.length === 0 ? (
+          <EmptyState
+            title={t('post.corrections.empty', {
+              defaultValue: 'This post has not been corrected.',
+            })}
+            sticker="postCorrections"
+            containerStyle={{ paddingTop: 40 }}
+          />
+        ) : (
+          <>
+            {droppedVersions > 0 ? (
+              <Text className="px-4 pb-3 text-[13px] text-muted-foreground">
+                {t('post.corrections.truncated', {
+                  count: droppedVersions,
+                  defaultValue:
+                    '{{count}} versions in between are no longer kept. The version numbers below skip them.',
                 })}
-            />
-            <PageHeader
-                title={title}
-                onBack={() => safeBack()}
-                backLabel={t('common.back', { defaultValue: 'Back' })}
-            />
+              </Text>
+            ) : null}
 
-            <ScrollView className="flex-1" contentContainerClassName="pb-16">
-                <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">
-                    {t('post.corrections.intro', {
-                        defaultValue:
-                            'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
-                    })}
-                </Text>
+            {corrections.map((correction) => (
+              <Version
+                key={correction.revision}
+                title={
+                  // Revision 1 is the body the post was
+                  // PUBLISHED with, and it is exempt from
+                  // retention eviction, so this is the one
+                  // label the trail can always say plainly.
+                  correction.revision === 1
+                    ? t('post.corrections.originalVersion', {
+                        defaultValue: 'As first published',
+                      })
+                    : t('post.corrections.version', {
+                        revision: correction.revision,
+                        defaultValue: 'Version {{revision}}',
+                      })
+                }
+                // `correctedAt` is when this body was REPLACED,
+                // not when it was written, so the date reads
+                // "Replaced …" — labelling it as the version's
+                // own date would tell the reader the post said
+                // this FROM then on, which is backwards.
+                subtitle={t('post.corrections.replaced', {
+                  timestamp: formatFullTimestamp(correction.correctedAt),
+                  defaultValue: 'Replaced {{timestamp}}',
+                })}
+                text={correction.previousText}
+              />
+            ))}
 
-                {isLoading ? (
-                    <View className="items-center py-10">
-                        <SpinnerIcon size={20} className="text-primary" />
-                    </View>
-                ) : isError ? (
-                    // An unreachable trail must not render as an empty one: "no
-                    // corrections" over an outage would say the post was never
-                    // changed, which is the opposite of what the marker promised.
-                    <View className="items-center gap-3 px-4 py-10">
-                        <Text className="text-center text-sm text-muted-foreground">
-                            {t('post.corrections.error', {
-                                defaultValue: "Couldn't load this post's correction history.",
-                            })}
-                        </Text>
-                        <Button onPress={() => void refetch()}>
-                            {t('post.corrections.retry', { defaultValue: 'Try again' })}
-                        </Button>
-                    </View>
-                ) : corrections.length === 0 ? (
-                    <EmptyState
-                        title={t('post.corrections.empty', {
-                            defaultValue: 'This post has not been corrected.',
-                        })}
-                        sticker="postCorrections"
-                        containerStyle={{ paddingTop: 40 }}
-                    />
-                ) : (
-                    <>
-                        {droppedVersions > 0 ? (
-                            <Text className="px-4 pb-3 text-[13px] text-muted-foreground">
-                                {t('post.corrections.truncated', {
-                                    count: droppedVersions,
-                                    defaultValue:
-                                        '{{count}} versions in between are no longer kept. The version numbers below skip them.',
-                                })}
-                            </Text>
-                        ) : null}
-
-                        {corrections.map((correction) => (
-                            <Version
-                                key={correction.revision}
-                                title={
-                                    // Revision 1 is the body the post was
-                                    // PUBLISHED with, and it is exempt from
-                                    // retention eviction, so this is the one
-                                    // label the trail can always say plainly.
-                                    correction.revision === 1
-                                        ? t('post.corrections.originalVersion', {
-                                              defaultValue: 'As first published',
-                                          })
-                                        : t('post.corrections.version', {
-                                              revision: correction.revision,
-                                              defaultValue: 'Version {{revision}}',
-                                          })
-                                }
-                                // `correctedAt` is when this body was REPLACED,
-                                // not when it was written, so the date reads
-                                // "Replaced …" — labelling it as the version's
-                                // own date would tell the reader the post said
-                                // this FROM then on, which is backwards.
-                                subtitle={t('post.corrections.replaced', {
-                                    timestamp: formatFullTimestamp(correction.correctedAt),
-                                    defaultValue: 'Replaced {{timestamp}}',
-                                })}
-                                text={correction.previousText}
-                            />
-                        ))}
-
-                        {currentText ? (
-                            <Version
-                                title={t('post.corrections.currentVersion', {
-                                    defaultValue: 'Current version',
-                                })}
-                                subtitle={t('post.corrections.since', {
-                                    timestamp: formatFullTimestamp(
-                                        corrections[corrections.length - 1].correctedAt,
-                                    ),
-                                    defaultValue: 'Since {{timestamp}}',
-                                })}
-                                text={currentText}
-                            />
-                        ) : null}
-                    </>
-                )}
-            </ScrollView>
-        </View>
-    );
+            {currentText ? (
+              <Version
+                title={t('post.corrections.currentVersion', {
+                  defaultValue: 'Current version',
+                })}
+                subtitle={t('post.corrections.since', {
+                  timestamp: formatFullTimestamp(corrections[corrections.length - 1].correctedAt),
+                  defaultValue: 'Since {{timestamp}}',
+                })}
+                text={currentText}
+              />
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
 }
 
 /** One entry in the trail: what it was called, when, and what it said. */
-function Version({
-    title,
-    subtitle,
-    text,
-}: {
-    title: string;
-    subtitle: string;
-    text: string;
-}) {
-    return (
-        <View className="border-border border-t px-4 py-4">
-            <Text className="text-[15px] font-semibold text-foreground">{title}</Text>
-            <Text className="text-[13px] text-muted-foreground">
-                {subtitle}
-            </Text>
-            <LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />
-        </View>
-    );
+function Version({ title, subtitle, text }: { title: string; subtitle: string; text: string }) {
+  return (
+    <View className="border-border border-t px-4 py-4">
+      <Text className="text-[15px] font-semibold text-foreground">{title}</Text>
+      <Text className="text-[13px] text-muted-foreground">{subtitle}</Text>
+      <LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />
+    </View>
+  );
 }

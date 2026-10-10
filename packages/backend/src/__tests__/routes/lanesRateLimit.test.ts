@@ -160,7 +160,7 @@ describe('GET /lanes/mine rate limiting', () => {
     expect((await request(app).get('/lanes/mine')).status).toBe(429);
   });
 
-  it('keys per CALLER — one caller\'s spend never throttles another', async () => {
+  it("keys per CALLER — one caller's spend never throttles another", async () => {
     const noisy = await buildApp();
     await hammer(noisy, '/lanes/mine', LIMIT + 1);
 

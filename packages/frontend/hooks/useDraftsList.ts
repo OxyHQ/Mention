@@ -31,18 +31,22 @@ function serverUpdatedAt(post: HydratedPost): number {
  */
 export function mergeDrafts(deviceDrafts: Draft[], serverDrafts: HydratedPost[]): DraftListItem[] {
   const items: DraftListItem[] = [
-    ...serverDrafts.map((post): DraftListItem => ({
-      origin: 'server',
-      id: post.id,
-      updatedAt: serverUpdatedAt(post),
-      post,
-    })),
-    ...deviceDrafts.map((draft): DraftListItem => ({
-      origin: 'device',
-      id: draft.id,
-      updatedAt: draft.updatedAt,
-      draft,
-    })),
+    ...serverDrafts.map(
+      (post): DraftListItem => ({
+        origin: 'server',
+        id: post.id,
+        updatedAt: serverUpdatedAt(post),
+        post,
+      }),
+    ),
+    ...deviceDrafts.map(
+      (draft): DraftListItem => ({
+        origin: 'device',
+        id: draft.id,
+        updatedAt: draft.updatedAt,
+        draft,
+      }),
+    ),
   ];
   return items
     .map((item, index) => ({ item, index }))
@@ -65,12 +69,7 @@ export function mergeDrafts(deviceDrafts: Draft[], serverDrafts: HydratedPost[])
  * beside the rows it has.
  */
 export function useDraftsList() {
-  const {
-    drafts: deviceDrafts,
-    isLoading: deviceLoading,
-    deleteDraft,
-    loadDrafts,
-  } = useDrafts();
+  const { drafts: deviceDrafts, isLoading: deviceLoading, deleteDraft, loadDrafts } = useDrafts();
   const {
     serverDrafts,
     isLoading: serverLoading,

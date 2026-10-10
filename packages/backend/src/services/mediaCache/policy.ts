@@ -178,9 +178,7 @@ export function maxBytesForDownload(contentType: string, policy?: MediaDownloadP
  * failure), decide whether the entry should give up (`failed`) or be retried
  * after an exponential backoff.
  */
-export type FailureOutcome =
-  | { giveUp: true }
-  | { giveUp: false; nextAttemptInMs: number };
+export type FailureOutcome = { giveUp: true } | { giveUp: false; nextAttemptInMs: number };
 
 export function classifyFailure(failCountAfterIncrement: number): FailureOutcome {
   if (failCountAfterIncrement >= MEDIA_CACHE_MAX_FAIL_COUNT) {
@@ -188,9 +186,6 @@ export function classifyFailure(failCountAfterIncrement: number): FailureOutcome
   }
   // Exponential backoff: base * 2^(n-1), capped.
   const exponent = Math.max(0, failCountAfterIncrement - 1);
-  const backoff = Math.min(
-    MEDIA_CACHE_BACKOFF_BASE_MS * 2 ** exponent,
-    MEDIA_CACHE_BACKOFF_MAX_MS,
-  );
+  const backoff = Math.min(MEDIA_CACHE_BACKOFF_BASE_MS * 2 ** exponent, MEDIA_CACHE_BACKOFF_MAX_MS);
   return { giveUp: false, nextAttemptInMs: backoff };
 }

@@ -51,7 +51,10 @@ const REDIS_COMMAND_TIMEOUT_MS = 1_000;
 function withTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Redis lock command timed out')), REDIS_COMMAND_TIMEOUT_MS);
+    timer = setTimeout(
+      () => reject(new Error('Redis lock command timed out')),
+      REDIS_COMMAND_TIMEOUT_MS,
+    );
   });
   return Promise.race([operation, timeout]).finally(() => clearTimeout(timer));
 }
@@ -72,10 +75,12 @@ export function createRedisLock(
 
       const token = randomUUID();
       try {
-        const result = await withTimeout(client.set(key, token, {
-          condition: 'NX',
-          expiration: { type: 'PX', value: ttlMs },
-        }));
+        const result = await withTimeout(
+          client.set(key, token, {
+            condition: 'NX',
+            expiration: { type: 'PX', value: ttlMs },
+          }),
+        );
         if (result !== 'OK') return { status: 'held' };
       } catch (error) {
         logger.warn('[redisLock] Failed to acquire lock', { key, error });

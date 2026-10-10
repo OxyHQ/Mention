@@ -38,7 +38,12 @@ function displayUrl(url: string): string {
  *
  * It never names who wrote it: the byline is the community, by design.
  */
-export function CommunityNoteCard({ note, variant = 'post', onPressAbout, onRate }: CommunityNoteCardProps) {
+export function CommunityNoteCard({
+  note,
+  variant = 'post',
+  onPressAbout,
+  onRate,
+}: CommunityNoteCardProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const [expanded, setExpanded] = useState(false);
@@ -72,7 +77,10 @@ export function CommunityNoteCard({ note, variant = 'post', onPressAbout, onRate
       )}
 
       <Pressable disabled={!collapsed} onPress={() => setExpanded(true)}>
-        <Text className="text-foreground text-[14px] leading-5" numberOfLines={collapsed ? 3 : undefined}>
+        <Text
+          className="text-foreground text-[14px] leading-5"
+          numberOfLines={collapsed ? 3 : undefined}
+        >
           {note.text}
         </Text>
         {collapsed ? (
@@ -96,8 +104,12 @@ export function CommunityNoteCard({ note, variant = 'post', onPressAbout, onRate
         note.viewerRating ? (
           <Text className="text-muted-foreground text-[13px]">
             {note.viewerRating === 'helpful'
-              ? t('communityNotes.card.ratedHelpful', { defaultValue: 'You rated this note helpful' })
-              : t('communityNotes.card.ratedNotHelpful', { defaultValue: 'You rated this note not helpful' })}
+              ? t('communityNotes.card.ratedHelpful', {
+                  defaultValue: 'You rated this note helpful',
+                })
+              : t('communityNotes.card.ratedNotHelpful', {
+                  defaultValue: 'You rated this note not helpful',
+                })}
           </Text>
         ) : onRate ? (
           <View className="mt-1 flex-row gap-2">
@@ -131,7 +143,10 @@ export function CommunityNoteCard({ note, variant = 'post', onPressAbout, onRate
               <RiLinkM width={14} height={14} fill={colors.text} />
               <Text className="text-foreground text-[13px] font-semibold">
                 {note.sourceUrls.length > 1
-                  ? t('communityNotes.card.sourcesCount', { defaultValue: 'Sources ({{count}})', count: note.sourceUrls.length })
+                  ? t('communityNotes.card.sourcesCount', {
+                      defaultValue: 'Sources ({{count}})',
+                      count: note.sourceUrls.length,
+                    })
                   : t('communityNotes.card.source', { defaultValue: 'Source' })}
               </Text>
             </Pressable>

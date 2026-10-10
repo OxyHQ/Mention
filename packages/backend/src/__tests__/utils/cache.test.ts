@@ -92,7 +92,9 @@ describe('cache.get / set', () => {
   });
 
   it('reports a CONNECTION failure to the supervisor and stays quiet at warn', async () => {
-    client.get.mockRejectedValue(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }));
+    client.get.mockRejectedValue(
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+    );
 
     await expect(cache.get('k')).resolves.toBeUndefined();
 
@@ -222,10 +224,7 @@ describe('cache.getOrCompute', () => {
   it('deduplicates per key, not across keys', async () => {
     const compute = vi.fn(async () => 'v');
 
-    await Promise.all([
-      cache.getOrCompute('ka', compute),
-      cache.getOrCompute('kb', compute),
-    ]);
+    await Promise.all([cache.getOrCompute('ka', compute), cache.getOrCompute('kb', compute)]);
 
     expect(compute).toHaveBeenCalledTimes(2);
   });

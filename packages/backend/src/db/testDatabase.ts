@@ -84,8 +84,8 @@ export async function createTestDatabase(): Promise<string> {
   if (!baseUrl) {
     throw new Error(
       'TEST_DATABASE_URL (or DATABASE_URL) must point at a Postgres server so ' +
-      'a throwaway test database can be created on it. Start one with: ' +
-      'docker compose -f docker-compose.postgres.yml up -d postgres'
+        'a throwaway test database can be created on it. Start one with: ' +
+        'docker compose -f docker-compose.postgres.yml up -d postgres',
     );
   }
 

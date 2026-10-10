@@ -13,11 +13,19 @@ import type { MentionPostRecord } from '@mention/shared-types';
 
 // Service-scoped Oxy client: the reverse `sha256 → fileId` existence pre-check.
 const oxyMock = vi.hoisted(() => ({
-  metadataBySha256: vi.fn<
-    (sha256s: string[]) => Promise<
-      Array<{ sha256: string; id: string; mime: string; size: number; status: 'active' | 'trash'; url?: string }>
-    >
-  >(),
+  metadataBySha256:
+    vi.fn<
+      (sha256s: string[]) => Promise<
+        Array<{
+          sha256: string;
+          id: string;
+          mime: string;
+          size: number;
+          status: 'active' | 'trash';
+          url?: string;
+        }>
+      >
+    >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ assets: { metadataBySha256: oxyMock.metadataBySha256 } }),
@@ -26,24 +34,39 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 // Durable federated-media upload + the write-side enable flag.
 const storeMock = vi.hoisted(() => ({
   isMediaCacheEnabled: vi.fn<() => boolean>(),
-  uploadFederatedMedia: vi.fn<
-    (source: { filePath: string; contentType: string; ownerUserId: string; sizeBytes?: number }) => Promise<{
-      oxyFileId: string;
-    }>
-  >(),
+  uploadFederatedMedia:
+    vi.fn<
+      (source: {
+        filePath: string;
+        contentType: string;
+        ownerUserId: string;
+        sizeBytes?: number;
+      }) => Promise<{
+        oxyFileId: string;
+      }>
+    >(),
 }));
 vi.mock('../../../services/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: storeMock.isMediaCacheEnabled,
   uploadFederatedMedia: storeMock.uploadFederatedMedia,
 }));
 
-import { mirrorNodeBlobsForRecord, type NodeBlobFetcher } from '../../../services/mtn/mtnNodeBlobMirror';
+import {
+  mirrorNodeBlobsForRecord,
+  type NodeBlobFetcher,
+} from '../../../services/mtn/mtnNodeBlobMirror';
 
 const OWNER = '650000000000000000000abc';
 
 /** Build a post record carrying a media embed with the given blob items. */
 function makeRecord(
-  items: Array<{ sha256: string; mediaType: 'image' | 'video' | 'gif'; mime?: string; size?: number; alt?: string }>,
+  items: Array<{
+    sha256: string;
+    mediaType: 'image' | 'video' | 'gif';
+    mime?: string;
+    size?: number;
+    alt?: string;
+  }>,
 ): MentionPostRecord {
   return {
     text: 'a post with media',
@@ -78,7 +101,9 @@ describe('mirrorNodeBlobsForRecord', () => {
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(bytes);
 
     await mirrorNodeBlobsForRecord(
-      makeRecord([{ sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: bytes.length }]),
+      makeRecord([
+        { sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: bytes.length },
+      ]),
       OWNER,
       getBlob,
     );
@@ -101,7 +126,11 @@ describe('mirrorNodeBlobsForRecord', () => {
     storeMock.isMediaCacheEnabled.mockReturnValue(false);
     const getBlob = vi.fn<NodeBlobFetcher>();
 
-    await mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-x', mediaType: 'image' }]), OWNER, getBlob);
+    await mirrorNodeBlobsForRecord(
+      makeRecord([{ sha256: 'sha-x', mediaType: 'image' }]),
+      OWNER,
+      getBlob,
+    );
 
     // No existence check, no node fetch, no upload.
     expect(oxyMock.metadataBySha256).not.toHaveBeenCalled();
@@ -115,7 +144,11 @@ describe('mirrorNodeBlobsForRecord', () => {
     ]);
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(Buffer.from('x'));
 
-    await mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-have', mediaType: 'image' }]), OWNER, getBlob);
+    await mirrorNodeBlobsForRecord(
+      makeRecord([{ sha256: 'sha-have', mediaType: 'image' }]),
+      OWNER,
+      getBlob,
+    );
 
     expect(getBlob).not.toHaveBeenCalled();
     expect(storeMock.uploadFederatedMedia).not.toHaveBeenCalled();
@@ -145,7 +178,11 @@ describe('mirrorNodeBlobsForRecord', () => {
   it('does not upload when the node has no bytes for the blob (getBlob → null)', async () => {
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(null);
 
-    await mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-gone', mediaType: 'image' }]), OWNER, getBlob);
+    await mirrorNodeBlobsForRecord(
+      makeRecord([{ sha256: 'sha-gone', mediaType: 'image' }]),
+      OWNER,
+      getBlob,
+    );
 
     expect(getBlob).toHaveBeenCalledWith('sha-gone');
     expect(storeMock.uploadFederatedMedia).not.toHaveBeenCalled();
@@ -154,7 +191,11 @@ describe('mirrorNodeBlobsForRecord', () => {
   it('falls back to a per-kind content type when the blob carries no mime', async () => {
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(Buffer.from('gif-bytes'));
 
-    await mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-gif', mediaType: 'gif' }]), OWNER, getBlob);
+    await mirrorNodeBlobsForRecord(
+      makeRecord([{ sha256: 'sha-gif', mediaType: 'gif' }]),
+      OWNER,
+      getBlob,
+    );
 
     expect(storeMock.uploadFederatedMedia).toHaveBeenCalledTimes(1);
     expect(storeMock.uploadFederatedMedia.mock.calls[0][0].contentType).toBe('image/gif');
@@ -180,7 +221,11 @@ describe('mirrorNodeBlobsForRecord', () => {
     storeMock.uploadFederatedMedia.mockRejectedValue(new Error('upload boom'));
 
     await expect(
-      mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-img', mediaType: 'image' }]), OWNER, getBlob),
+      mirrorNodeBlobsForRecord(
+        makeRecord([{ sha256: 'sha-img', mediaType: 'image' }]),
+        OWNER,
+        getBlob,
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -188,7 +233,11 @@ describe('mirrorNodeBlobsForRecord', () => {
     const getBlob = vi.fn<NodeBlobFetcher>().mockRejectedValue(new Error('node down'));
 
     await expect(
-      mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-img', mediaType: 'image' }]), OWNER, getBlob),
+      mirrorNodeBlobsForRecord(
+        makeRecord([{ sha256: 'sha-img', mediaType: 'image' }]),
+        OWNER,
+        getBlob,
+      ),
     ).resolves.toBeUndefined();
     expect(storeMock.uploadFederatedMedia).not.toHaveBeenCalled();
   });

@@ -135,10 +135,7 @@ export async function backfillFederatedHandleQualification(
       })
       .from(postContentVariants)
       .innerJoin(posts, eq(posts.id, postContentVariants.postId))
-      .where(and(
-        isNotNull(posts.oxyUserId),
-        inArray(posts.oxyUserId, [...domainByUser.keys()]),
-      ))
+      .where(and(isNotNull(posts.oxyUserId), inArray(posts.oxyUserId, [...domainByUser.keys()])))
       .limit(MAX);
 
     for (const row of rows) {

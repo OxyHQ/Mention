@@ -6,8 +6,7 @@ const CENTRAL_AUTHORIZATION_SERVER = 'https://api.oxy.so';
 function legacyRetired(res: Response): Response {
   return res.status(410).json({
     error: 'legacy_mcp_oauth_retired',
-    error_description:
-      'New Mention MCP authorizations use the central Oxy authorization server.',
+    error_description: 'New Mention MCP authorizations use the central Oxy authorization server.',
     authorization_server: CENTRAL_AUTHORIZATION_SERVER,
   });
 }

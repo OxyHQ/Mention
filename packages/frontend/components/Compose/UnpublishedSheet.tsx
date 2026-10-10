@@ -136,23 +136,26 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
    * post, so it is edited in place and stays a draft. It is published from here,
    * not from the composer, whose Save on an existing post is an edit.
    */
-  const editPost = useCallback((post: HydratedPost) => {
-    onClose();
-    router.push(`/compose?editPostId=${encodeURIComponent(post.id)}`);
-  }, [onClose, router]);
+  const editPost = useCallback(
+    (post: HydratedPost) => {
+      onClose();
+      router.push(`/compose?editPostId=${encodeURIComponent(post.id)}`);
+    },
+    [onClose, router],
+  );
 
   // Held by ID, not by value: a refetch (or the cancel that drops a row) must be
   // able to take the preview down or refresh it, which a captured object could
   // not do — it would keep rendering a post the server no longer has.
-  const previewPost = previewPostId === null
-    ? undefined
-    : scheduledPosts.find((post) => post.id === previewPostId);
+  const previewPost =
+    previewPostId === null ? undefined : scheduledPosts.find((post) => post.id === previewPostId);
 
   // By id, like the scheduled preview, so publishing or deleting it from the row
   // (or a refetch that no longer has it) takes the preview down.
-  const previewServerDraft = previewServerDraftId === null
-    ? undefined
-    : serverDrafts.find((post) => post.id === previewServerDraftId);
+  const previewServerDraft =
+    previewServerDraftId === null
+      ? undefined
+      : serverDrafts.find((post) => post.id === previewServerDraftId);
 
   if (previewServerDraft) {
     return (
@@ -206,7 +209,8 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
         safeArea={false}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}

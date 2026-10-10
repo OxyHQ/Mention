@@ -21,7 +21,8 @@ export interface ColdEvidence {
   forbiddenBioText: string[];
 }
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Expected evidence object');
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Expected evidence object');
   return value as Record<string, unknown>;
 }
 function string(value: unknown): string {
@@ -33,37 +34,55 @@ function equal(actual: unknown, expected: unknown, field: string): void {
 }
 function timestamp(value: unknown, now: number): void {
   const time = Date.parse(string(value));
-  if (!Number.isFinite(time) || time > now || now - time > 30 * 60_000) throw new Error('Inspection must precede discovery by at most 30 minutes');
+  if (!Number.isFinite(time) || time > now || now - time > 30 * 60_000)
+    throw new Error('Inspection must precede discovery by at most 30 minutes');
 }
 function zeroes(value: unknown, fields: string[]): void {
   const counts = object(value);
   for (const key of fields) equal(counts[key], 0, key);
 }
 /** Validate local inspection artifacts without resolving or fetching any identity. */
-export function validateColdEvidence(raw: unknown, read: (path: string) => unknown, now = Date.now()): ColdEvidence {
+export function validateColdEvidence(
+  raw: unknown,
+  read: (path: string) => unknown,
+  now = Date.now(),
+): ColdEvidence {
   const manifest = object(raw);
-  for (const key of ['oxySha', 'mentionSha']) if (!/^[0-9a-f]{40}$/.test(string(manifest[key]))) throw new Error('Invalid source SHA');
-  for (const key of ['oxyDigest', 'mentionDigest']) if (!/^sha256:[0-9a-f]{64}$/.test(string(manifest[key]))) throw new Error('Invalid image digest');
-  if (!Array.isArray(manifest.sources) || manifest.sources.length < 1 || manifest.sources.length > 2) throw new Error('Supply one or two source identities');
+  for (const key of ['oxySha', 'mentionSha'])
+    if (!/^[0-9a-f]{40}$/.test(string(manifest[key]))) throw new Error('Invalid source SHA');
+  for (const key of ['oxyDigest', 'mentionDigest'])
+    if (!/^sha256:[0-9a-f]{64}$/.test(string(manifest[key])))
+      throw new Error('Invalid image digest');
+  if (
+    !Array.isArray(manifest.sources) ||
+    manifest.sources.length < 1 ||
+    manifest.sources.length > 2
+  )
+    throw new Error('Supply one or two source identities');
   const sources = manifest.sources.map((rawSource) => {
     const source = object(rawSource);
     const actorUri = string(source.actorUri);
     const url = new URL(actorUri);
-    if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw new Error('Invalid actor URI');
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash)
+      throw new Error('Invalid actor URI');
     const canonicalAcct = string(source.canonicalAcct);
     const transportAcct = string(source.transportAcct);
-    for (const acct of [canonicalAcct, transportAcct]) if (!/^[a-z0-9_][a-z0-9_.-]*@[a-z0-9][a-z0-9.-]+$/.test(acct)) throw new Error('Invalid source acct');
+    for (const acct of [canonicalAcct, transportAcct])
+      if (!/^[a-z0-9_][a-z0-9_.-]*@[a-z0-9][a-z0-9.-]+$/.test(acct))
+        throw new Error('Invalid source acct');
     const oxyRunReport = string(source.oxyRunReport);
     const oxySummaryReport = string(source.oxySummaryReport);
     const mentionReport = string(source.mentionReport);
     const oxyRun = object(read(oxyRunReport));
     const oxy = object(read(oxySummaryReport));
     const mention = object(read(mentionReport));
-    for (const report of [oxyRun, oxy, mention]) equal(report.operation, 'inspect_cache', 'operation');
+    for (const report of [oxyRun, oxy, mention])
+      equal(report.operation, 'inspect_cache', 'operation');
     for (const report of [oxyRun, mention]) {
       equal(report.dryRun, true, 'dryRun');
       const identifiers = object(report.identifiers);
-      for (const [key, value] of Object.entries({ actorUri, canonicalAcct, transportAcct })) equal(identifiers[key], value, key);
+      for (const [key, value] of Object.entries({ actorUri, canonicalAcct, transportAcct }))
+        equal(identifiers[key], value, key);
     }
     equal(oxyRun.expectedSourceSha, manifest.oxySha, 'Oxy run SHA');
     equal(oxyRun.imageDigest, manifest.oxyDigest, 'Oxy run digest');
@@ -74,31 +93,56 @@ export function validateColdEvidence(raw: unknown, read: (path: string) => unkno
     equal(mention.exitCode, 0, 'Mention exit code');
     equal(oxy.absent, true, 'Oxy absent');
     zeroes(oxy.counts, ['users', 'registryActors', 'registryIdentities']);
-    zeroes(mention.report, ['actorUriMatches', 'canonicalAcctMatches', 'transportAcctMatches', 'postSourceMatches']);
+    zeroes(mention.report, [
+      'actorUriMatches',
+      'canonicalAcctMatches',
+      'transportAcctMatches',
+      'postSourceMatches',
+    ]);
     timestamp(oxy.observedAt, now);
     timestamp(mention.observedAt, now);
-    return { actorUri, canonicalAcct, transportAcct, oxyRunReport, oxySummaryReport, mentionReport };
+    return {
+      actorUri,
+      canonicalAcct,
+      transportAcct,
+      oxyRunReport,
+      oxySummaryReport,
+      mentionReport,
+    };
   });
-  if (new Set(sources.map(source => source.actorUri)).size !== sources.length || new Set(sources.map(source => source.canonicalAcct)).size !== sources.length) throw new Error('Distinct source identities required');
-  if (!Array.isArray(manifest.forbiddenBioText) || manifest.forbiddenBioText.length === 0) throw new Error('Supply reviewed bridge boilerplate to exclude');
+  if (
+    new Set(sources.map((source) => source.actorUri)).size !== sources.length ||
+    new Set(sources.map((source) => source.canonicalAcct)).size !== sources.length
+  )
+    throw new Error('Distinct source identities required');
+  if (!Array.isArray(manifest.forbiddenBioText) || manifest.forbiddenBioText.length === 0)
+    throw new Error('Supply reviewed bridge boilerplate to exclude');
   return {
     forbiddenBioText: manifest.forbiddenBioText.map(string),
-    sources, oxySha: string(manifest.oxySha), oxyDigest: string(manifest.oxyDigest),
-    mentionSha: string(manifest.mentionSha), mentionDigest: string(manifest.mentionDigest),
-    expectedBioText: string(manifest.expectedBioText), expectedMentionLabel: string(manifest.expectedMentionLabel),
+    sources,
+    oxySha: string(manifest.oxySha),
+    oxyDigest: string(manifest.oxyDigest),
+    mentionSha: string(manifest.mentionSha),
+    mentionDigest: string(manifest.mentionDigest),
+    expectedBioText: string(manifest.expectedBioText),
+    expectedMentionLabel: string(manifest.expectedMentionLabel),
     expectedMentionHandle: string(manifest.expectedMentionHandle),
   };
 }
 export function loadColdEvidence(): ColdEvidence {
-  if (process.env.MENTION_E2E_COLD_IDENTITY !== '1') throw new Error('Live cold gate requires explicit MENTION_E2E_COLD_IDENTITY=1');
+  if (process.env.MENTION_E2E_COLD_IDENTITY !== '1')
+    throw new Error('Live cold gate requires explicit MENTION_E2E_COLD_IDENTITY=1');
   const file = resolve(string(process.env.MENTION_E2E_COLD_EVIDENCE));
-  const read = (path: string): unknown => JSON.parse(readFileSync(resolve(file, '..', path), 'utf8'));
+  const read = (path: string): unknown =>
+    JSON.parse(readFileSync(resolve(file, '..', path), 'utf8'));
   return validateColdEvidence(JSON.parse(readFileSync(file, 'utf8')), read);
 }
 
 /** A static preview cannot prove the deployed server's public-profile boundary. */
 export function validateColdAppOrigin(candidateOrigin: string, appOrigin: string): void {
   if (candidateOrigin !== appOrigin) {
-    throw new Error('Cold acceptance must use the deployed app origin to exercise initial server HTML.');
+    throw new Error(
+      'Cold acceptance must use the deployed app origin to exercise initial server HTML.',
+    );
   }
 }

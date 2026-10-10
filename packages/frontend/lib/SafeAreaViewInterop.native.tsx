@@ -1,4 +1,7 @@
-import { SafeAreaView as RawSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
+import {
+  SafeAreaView as RawSafeAreaView,
+  type SafeAreaViewProps,
+} from 'react-native-safe-area-context';
 import { styled } from 'nativewind';
 import type { ComponentType } from 'react';
 

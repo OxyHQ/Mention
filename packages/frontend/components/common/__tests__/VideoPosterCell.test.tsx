@@ -151,7 +151,7 @@ describe('VideoPosterCell metadata row', () => {
     unmount(scrimmed, plain);
   });
 
-  it('keeps the metadata row out of the grid cell\'s tap target', async () => {
+  it("keeps the metadata row out of the grid cell's tap target", async () => {
     const renderer = await render({ ...BASE, views: 12, durationSec: 5 });
     const row = hostNodes(renderer, 'View').find(
       (node) => (node.props as { pointerEvents?: string }).pointerEvents === 'none',
@@ -190,9 +190,7 @@ describe('VideoPosterCell poster fallback', () => {
     expect(renderer.root.findAllByType(Image)).toHaveLength(0);
 
     await act(async () => {
-      renderer.update(
-        <VideoPosterCell {...BASE} posterUri="https://cdn.example/other.jpg" />,
-      );
+      renderer.update(<VideoPosterCell {...BASE} posterUri="https://cdn.example/other.jpg" />);
     });
 
     expect(renderer.root.findAllByType(Image)).toHaveLength(1);

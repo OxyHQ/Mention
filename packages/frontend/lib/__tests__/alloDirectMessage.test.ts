@@ -64,7 +64,9 @@ describe('getAlloStoreUrl', () => {
   });
 
   it('refuses a listing that is not https', () => {
-    expect(getAlloStoreUrl('android', { ios: undefined, android: 'market://details?id=com.allo.app' })).toBeUndefined();
+    expect(
+      getAlloStoreUrl('android', { ios: undefined, android: 'market://details?id=com.allo.app' }),
+    ).toBeUndefined();
     expect(getAlloStoreUrl('android', { ios: undefined, android: '   ' })).toBeUndefined();
     expect(getAlloStoreUrl('ios', { ios: '', android: PLAY })).toBeUndefined();
   });

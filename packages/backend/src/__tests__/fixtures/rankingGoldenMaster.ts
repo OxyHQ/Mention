@@ -57,11 +57,7 @@ export interface GoldenCase {
 
 /** The minimal service surface the harness calls — satisfied by FeedRankingService. */
 export interface ScoringService {
-  calculatePostScore(
-    post: Post,
-    userId: string | undefined,
-    context: Context,
-  ): Promise<number>;
+  calculatePostScore(post: Post, userId: string | undefined, context: Context): Promise<number>;
 }
 
 /** Base post skeleton; overrides win. Mirrors the shape the ranking code reads. */
@@ -84,13 +80,15 @@ function pinnedEngagement(id: string, value: number): Map<string, number> {
 }
 
 /** A full behaviorSets object with the given hidden topics / preferred topic ids. */
-function behaviorSets(overrides: Partial<{
-  hiddenAuthors: string[];
-  mutedAuthors: string[];
-  blockedAuthors: string[];
-  hiddenTopics: string[];
-  preferredTopicIds: string[];
-}> = {}) {
+function behaviorSets(
+  overrides: Partial<{
+    hiddenAuthors: string[];
+    mutedAuthors: string[];
+    blockedAuthors: string[];
+    hiddenTopics: string[];
+    preferredTopicIds: string[];
+  }> = {},
+) {
   return {
     hiddenAuthors: new Set<string>(overrides.hiddenAuthors ?? []),
     mutedAuthors: new Set<string>(overrides.mutedAuthors ?? []),
@@ -136,20 +134,40 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'high-engagement-computed',
     userId: undefined,
-    post: makePost({ stats: { likesCount: 40, boostsCount: 12, commentsCount: 8, viewsCount: 300 } }),
+    post: makePost({
+      stats: { likesCount: 40, boostsCount: 12, commentsCount: 8, viewsCount: 300 },
+    }),
     context: {},
   },
   {
     name: 'fresh-under-1h',
     userId: undefined,
-    post: makePost({ createdAt: aged(0.5), stats: { likesCount: 5, boostsCount: 1, commentsCount: 2, viewsCount: 40 } }),
+    post: makePost({
+      createdAt: aged(0.5),
+      stats: { likesCount: 5, boostsCount: 1, commentsCount: 2, viewsCount: 40 },
+    }),
     context: {},
   },
   { name: 'aged-12h', userId: undefined, post: makePost({ createdAt: aged(12) }), context: {} },
   { name: 'aged-2d', userId: undefined, post: makePost({ createdAt: aged(48) }), context: {} },
-  { name: 'older-than-maxage', userId: undefined, post: makePost({ createdAt: aged(24 * 8) }), context: {} },
-  { name: 'invalid-createdAt', userId: undefined, post: makePost({ createdAt: 'not-a-date' }), context: {} },
-  { name: 'missing-createdAt', userId: undefined, post: makePost({ createdAt: undefined }), context: {} },
+  {
+    name: 'older-than-maxage',
+    userId: undefined,
+    post: makePost({ createdAt: aged(24 * 8) }),
+    context: {},
+  },
+  {
+    name: 'invalid-createdAt',
+    userId: undefined,
+    post: makePost({ createdAt: 'not-a-date' }),
+    context: {},
+  },
+  {
+    name: 'missing-createdAt',
+    userId: undefined,
+    post: makePost({ createdAt: undefined }),
+    context: {},
+  },
   { name: 'missing-stats', userId: undefined, post: makePost({ stats: undefined }), context: {} },
 
   // --- Relationship / authority ---
@@ -157,7 +175,10 @@ export const GOLDEN_CASES: GoldenCase[] = [
     name: 'following-author',
     userId: 'viewer-1',
     post: makePost({ oxyUserId: 'followed' }),
-    context: { followingIdsSet: new Set(['followed']), engagementScoreCache: pinnedEngagement('post', 1) },
+    context: {
+      followingIdsSet: new Set(['followed']),
+      engagementScoreCache: pinnedEngagement('post', 1),
+    },
   },
   {
     name: 'strong-affinity',
@@ -187,20 +208,28 @@ export const GOLDEN_CASES: GoldenCase[] = [
     name: 'authority-large-account',
     userId: undefined,
     post: makePost({ oxyUserId: 'whale' }),
-    context: { authorFollowerCounts: new Map([['whale', 500_000]]), engagementScoreCache: pinnedEngagement('post', 1) },
+    context: {
+      authorFollowerCounts: new Map([['whale', 500_000]]),
+      engagementScoreCache: pinnedEngagement('post', 1),
+    },
   },
   {
     name: 'authority-small-account',
     userId: undefined,
     post: makePost({ oxyUserId: 'small' }),
-    context: { authorFollowerCounts: new Map([['small', 3]]), engagementScoreCache: pinnedEngagement('post', 1) },
+    context: {
+      authorFollowerCounts: new Map([['small', 3]]),
+      engagementScoreCache: pinnedEngagement('post', 1),
+    },
   },
 
   // --- Quality (engagement-rate heuristic tiers) ---
   {
     name: 'quality-high-rate',
     userId: undefined,
-    post: makePost({ stats: { likesCount: 20, boostsCount: 20, commentsCount: 0, viewsCount: 20 } }),
+    post: makePost({
+      stats: { likesCount: 20, boostsCount: 20, commentsCount: 0, viewsCount: 20 },
+    }),
     context: {},
   },
   {
@@ -220,7 +249,12 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { name: 'ai-high-quality', userId: undefined, post: CLASSIFIED({ quality: 0.9 }), context: {} },
   { name: 'ai-low-quality', userId: undefined, post: CLASSIFIED({ quality: 0.2 }), context: {} },
   { name: 'ai-high-spam', userId: undefined, post: CLASSIFIED({ spam: 0.9 }), context: {} },
-  { name: 'ai-high-toxicity', userId: undefined, post: CLASSIFIED({ toxicity: 0.85 }), context: {} },
+  {
+    name: 'ai-high-toxicity',
+    userId: undefined,
+    post: CLASSIFIED({ toxicity: 0.85 }),
+    context: {},
+  },
   {
     name: 'ai-malformed-scores',
     userId: undefined,
@@ -235,7 +269,14 @@ export const GOLDEN_CASES: GoldenCase[] = [
         status: 'pending',
         topics: [],
         version: 999,
-        scores: { spam: 0.9, toxicity: 0, quality: 0.5, constructiveness: 0, controversy: 0, negativity: 0 },
+        scores: {
+          spam: 0.9,
+          toxicity: 0,
+          quality: 0.5,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     }),
     context: {},
@@ -248,7 +289,14 @@ export const GOLDEN_CASES: GoldenCase[] = [
         status: 'pending',
         topics: [],
         version: 1,
-        scores: { spam: 0.99, toxicity: 0.99, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 },
+        scores: {
+          spam: 0.99,
+          toxicity: 0.99,
+          quality: 0,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     }),
     context: {},
@@ -317,7 +365,14 @@ export const GOLDEN_CASES: GoldenCase[] = [
       postClassification: {
         status: 'classified',
         topics: [],
-        scores: { spam: 0.9, toxicity: 0, quality: 0.5, constructiveness: 0, controversy: 0, negativity: 0 },
+        scores: {
+          spam: 0.9,
+          toxicity: 0,
+          quality: 0.5,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     }),
     context: {
@@ -331,7 +386,13 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'topicid-match',
     userId: 'viewer-1',
-    post: makePost({ postClassification: { status: 'baseline', topics: ['nba'], topicRefs: [{ name: 'nba', topicId: 'topic-nba' }] } }),
+    post: makePost({
+      postClassification: {
+        status: 'baseline',
+        topics: ['nba'],
+        topicRefs: [{ name: 'nba', topicId: 'topic-nba' }],
+      },
+    }),
     context: {
       userBehavior: { preferredTopics: [{ topic: 'nba', weight: 0.9, topicId: 'topic-nba' }] },
       behaviorSets: behaviorSets({ preferredTopicIds: ['topic-nba'] }),
@@ -360,7 +421,9 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'language-match',
     userId: 'viewer-1',
-    post: makePost({ postClassification: { status: 'baseline', topics: [], languages: ['en', 'es'] } }),
+    post: makePost({
+      postClassification: { status: 'baseline', topics: [], languages: ['en', 'es'] },
+    }),
     context: {
       userBehavior: {},
       viewerBaseLanguages: ['es'],
@@ -370,7 +433,9 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'language-miss',
     userId: 'viewer-1',
-    post: makePost({ postClassification: { status: 'baseline', topics: [], languages: ['de', 'fr'] } }),
+    post: makePost({
+      postClassification: { status: 'baseline', topics: [], languages: ['de', 'fr'] },
+    }),
     context: {
       userBehavior: {},
       viewerBaseLanguages: ['es'],
@@ -382,25 +447,47 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'thread-root-with-replies',
     userId: undefined,
-    post: makePost({ threadId: 't1', stats: { likesCount: 2, boostsCount: 0, commentsCount: 5, viewsCount: 30 } }),
+    post: makePost({
+      threadId: 't1',
+      stats: { likesCount: 2, boostsCount: 0, commentsCount: 5, viewsCount: 30 },
+    }),
     context: {},
   },
   {
     name: 'trending-density',
     userId: undefined,
-    post: makePost({ createdAt: aged(1), stats: { likesCount: 60, boostsCount: 10, commentsCount: 10, viewsCount: 200 } }),
+    post: makePost({
+      createdAt: aged(1),
+      stats: { likesCount: 60, boostsCount: 10, commentsCount: 10, viewsCount: 200 },
+    }),
     context: {},
   },
   {
     name: 'federated-boosts-dampened',
     userId: undefined,
-    post: makePost({ stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 5, commentsCount: 0, viewsCount: 0 } }),
+    post: makePost({
+      stats: {
+        likesCount: 0,
+        boostsCount: 5,
+        federatedBoostsCount: 5,
+        commentsCount: 0,
+        viewsCount: 0,
+      },
+    }),
     context: {},
   },
   {
     name: 'native-boosts',
     userId: undefined,
-    post: makePost({ stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 } }),
+    post: makePost({
+      stats: {
+        likesCount: 0,
+        boostsCount: 5,
+        federatedBoostsCount: 0,
+        commentsCount: 0,
+        viewsCount: 0,
+      },
+    }),
     context: {},
   },
 
@@ -513,7 +600,9 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'optin-novelty-on',
     userId: 'viewer-1',
-    post: makePost({ postClassification: { status: 'baseline', topics: ['space'], topicRefs: [{ name: 'space' }] } }),
+    post: makePost({
+      postClassification: { status: 'baseline', topics: ['space'], topicRefs: [{ name: 'space' }] },
+    }),
     context: {
       enabledSignals: new Set(['noveltyBoost']),
       viewerRecentTopics: new Set(['cooking']),
@@ -539,7 +628,14 @@ export const GOLDEN_CASES: GoldenCase[] = [
         status: 'classified',
         topics: [],
         sentiment: 'positive',
-        scores: { toxicity: 0, constructiveness: 1, spam: 0, quality: 0.5, controversy: 0, negativity: 0 },
+        scores: {
+          toxicity: 0,
+          constructiveness: 1,
+          spam: 0,
+          quality: 0.5,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     }),
     context: {
@@ -555,14 +651,34 @@ export const GOLDEN_CASES: GoldenCase[] = [
       oxyUserId: 'combo-author',
       createdAt: aged(0.25),
       content: { media: [{ id: 'm1' }] },
-      postClassification: { status: 'classified', topics: ['space'], topicRefs: [{ name: 'space' }], sentiment: 'positive', scores: { toxicity: 0, constructiveness: 0.8, spam: 0, quality: 0.9, controversy: 0, negativity: 0 } },
+      postClassification: {
+        status: 'classified',
+        topics: ['space'],
+        topicRefs: [{ name: 'space' }],
+        sentiment: 'positive',
+        scores: {
+          toxicity: 0,
+          constructiveness: 0.8,
+          spam: 0,
+          quality: 0.9,
+          controversy: 0,
+          negativity: 0,
+        },
+      },
       stats: { likesCount: 3, boostsCount: 1, commentsCount: 4, viewsCount: 50 },
     }),
     context: {
       enabledSignals: new Set([
-        'mediaBoost', 'positivity', 'conversational', 'coldStartBoost',
-        'penalizeSeen', 'verifiedBoost', 'dwellTime', 'socialProof',
-        'reciprocityBoost', 'noveltyBoost',
+        'mediaBoost',
+        'positivity',
+        'conversational',
+        'coldStartBoost',
+        'penalizeSeen',
+        'verifiedBoost',
+        'dwellTime',
+        'socialProof',
+        'reciprocityBoost',
+        'noveltyBoost',
       ]),
       userBehavior: {
         preferredAuthors: [{ authorId: 'combo-author', weight: 0.9 }],
@@ -594,9 +710,22 @@ export const GOLDEN_CASES: GoldenCase[] = [
         topics: ['technology'],
         topicRefs: [{ name: 'technology', topicId: 'topic-tech' }],
         languages: ['en'],
-        scores: { toxicity: 0.05, constructiveness: 0.7, spam: 0.02, quality: 0.8, controversy: 0.1, negativity: 0.05 },
+        scores: {
+          toxicity: 0.05,
+          constructiveness: 0.7,
+          spam: 0.02,
+          quality: 0.8,
+          controversy: 0.1,
+          negativity: 0.05,
+        },
       },
-      stats: { likesCount: 12, boostsCount: 3, federatedBoostsCount: 1, commentsCount: 6, viewsCount: 120 },
+      stats: {
+        likesCount: 12,
+        boostsCount: 3,
+        federatedBoostsCount: 1,
+        commentsCount: 6,
+        viewsCount: 120,
+      },
     }),
     context: {
       followingIdsSet: new Set(['followed-2']),

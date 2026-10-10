@@ -74,7 +74,9 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(federatedActors).where(like(federatedActors.acct, `${SCOPE_PREFIX}%`));
+  await getDb()
+    .delete(federatedActors)
+    .where(like(federatedActors.acct, `${SCOPE_PREFIX}%`));
   await clearServiceScope(scope);
 });
 

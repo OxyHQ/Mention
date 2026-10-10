@@ -85,11 +85,7 @@ function setup(): FakeSocket {
     publicNamespace: new StubNamespace(),
   };
 
-  registerSocketHandlers(
-    io as never,
-    namespaces as never,
-    presence as never,
-  );
+  registerSocketHandlers(io as never, namespaces as never, presence as never);
 
   const socket = new FakeSocket();
   connectionHandler(socket);

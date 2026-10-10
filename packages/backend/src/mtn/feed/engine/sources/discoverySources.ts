@@ -251,14 +251,18 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
     | undefined;
 
   const topics = (behavior?.preferredTopics ?? [])
-    .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
+    .filter(
+      (t): t is { topic: string; weight?: number } =>
+        typeof t.topic === 'string' && t.topic.length > 0,
+    )
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
     .slice(0, candidateCfg.maxPreferredTopics)
     .map((t) => t.topic.toLowerCase());
 
-  const region = typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
-    ? ctx.viewerRegion
-    : undefined;
+  const region =
+    typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
+      ? ctx.viewerRegion
+      : undefined;
 
   if (topics.length === 0 && !region) return NEUTRAL;
 
@@ -356,7 +360,8 @@ export const exploreSource: SourceModule = {
 
     const conditions: SQL[] = [
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       // Freeze both ends of the candidate window for the whole cursor session:
       // advancing the wall clock or publishing a new post cannot move existing
       // candidates across a page boundary.
@@ -438,7 +443,8 @@ export const popularSource: SourceModule = {
   gather: async (ctx, _params, cap) => {
     const baseConditions: SQL[] = [
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       discoverySafeSql(),
       eq(posts.isReply, false),
       notABoostSql(),
@@ -504,7 +510,11 @@ function popularOrder(engagementScore: SQL<number>): SQL[] {
 }
 
 /** Run one popular scan, stamping the engagement score each candidate sorted on. */
-async function runPopular(where: SQL, engagementScore: SQL<number>, cap: number): Promise<CandidatePost[]> {
+async function runPopular(
+  where: SQL,
+  engagementScore: SQL<number>,
+  cap: number,
+): Promise<CandidatePost[]> {
   const db = getDb();
   const rows = await db
     .select({ ...getTableColumns(posts), engagementScore })

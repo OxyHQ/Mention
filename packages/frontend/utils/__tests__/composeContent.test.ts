@@ -47,7 +47,9 @@ describe('hasPublishableContent', () => {
 
   it('accepts every other attachment a post can be made of', () => {
     expect(hasPublishableContent({ ...empty, room: { roomId: 'r', title: 'Room' } })).toBe(true);
-    expect(hasPublishableContent({ ...empty, podcast: { syraPodcastId: 'p', title: 'Show' } })).toBe(true);
+    expect(
+      hasPublishableContent({ ...empty, podcast: { syraPodcastId: 'p', title: 'Show' } }),
+    ).toBe(true);
     expect(hasPublishableContent({ ...empty, article: { title: 'Title', body: '' } })).toBe(true);
     expect(hasPublishableContent({ ...empty, pollOptions: ['', 'yes'] })).toBe(true);
     expect(hasPublishableContent({ ...empty, location: { latitude: 1, longitude: 2 } })).toBe(true);
@@ -56,8 +58,12 @@ describe('hasPublishableContent', () => {
   it('counts a linked source, the same in every box, and not a source with no link', () => {
     // (A link with no title still cannot be posted — `useComposeValidation`'s
     // invalid-sources check says so — but it is content.)
-    expect(hasPublishableContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }] })).toBe(true);
-    expect(hasPublishableContent({ ...empty, sources: [{ id: 's', title: 'Only a title', url: '' }] })).toBe(false);
+    expect(
+      hasPublishableContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }] }),
+    ).toBe(true);
+    expect(
+      hasPublishableContent({ ...empty, sources: [{ id: 's', title: 'Only a title', url: '' }] }),
+    ).toBe(false);
   });
 });
 
@@ -69,7 +75,13 @@ describe('hasDraftContent', () => {
   });
 
   it('keeps half-written sources, which are not publishable yet', () => {
-    expect(hasDraftContent({ ...empty, sources: [{ id: 's', title: 'Only a title', url: '' }], variants })).toBe(true);
+    expect(
+      hasDraftContent({
+        ...empty,
+        sources: [{ id: 's', title: 'Only a title', url: '' }],
+        variants,
+      }),
+    ).toBe(true);
   });
 
   it('keeps nothing for an empty composer', () => {
@@ -82,12 +94,17 @@ describe('attachment keys and order', () => {
 
   it('lists a card only for an attachment that counts', () => {
     expect(attachmentKeysOf({ ...box, event: { name: ' ', date: '2026-10-01' } })).toEqual([]);
-    expect(attachmentKeysOf({ ...box, event: EVENT, mediaIds: [{ id: 'm', type: 'image' }] }))
-      .toEqual(['event', 'media:m']);
+    expect(
+      attachmentKeysOf({ ...box, event: EVENT, mediaIds: [{ id: 'm', type: 'image' }] }),
+    ).toEqual(['event', 'media:m']);
   });
 
   it('keeps a chosen order, drops vanished cards and appends new ones once', () => {
-    expect(reconcileAttachmentOrder(['media:m', 'poll', 'media:m', 'event'], ['event', 'media:m', 'room']))
-      .toEqual(['media:m', 'event', 'room']);
+    expect(
+      reconcileAttachmentOrder(
+        ['media:m', 'poll', 'media:m', 'event'],
+        ['event', 'media:m', 'room'],
+      ),
+    ).toEqual(['media:m', 'event', 'room']);
   });
 });

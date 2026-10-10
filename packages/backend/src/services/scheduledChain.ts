@@ -189,11 +189,13 @@ export async function loadScheduledChain(
     const children = await getDb()
       .select(CHAIN_COLUMNS)
       .from(posts)
-      .where(and(
-        eq(posts.parentPostId, post.id),
-        eq(posts.oxyUserId, ownerId),
-        eq(posts.status, 'scheduled'),
-      ))
+      .where(
+        and(
+          eq(posts.parentPostId, post.id),
+          eq(posts.oxyUserId, ownerId),
+          eq(posts.status, 'scheduled'),
+        ),
+      )
       .orderBy(asc(posts.createdAt));
     pending.push(...children);
   }

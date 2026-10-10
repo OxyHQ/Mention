@@ -164,15 +164,8 @@ const PostActions: React.FC<Props> = ({
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
         >
           <View className="flex-row items-center gap-1">
-            <AnimatedLikeIcon
-              isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled}
-            />
-            <CountWheel
-              likeCount={likes}
-              isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled}
-            />
+            <AnimatedLikeIcon isLiked={!!isLiked} hasBeenToggled={hasBeenToggled} />
+            <CountWheel likeCount={likes} isLiked={!!isLiked} hasBeenToggled={hasBeenToggled} />
           </View>
         </PressableScale>
       )}
@@ -335,9 +328,7 @@ const PostActions: React.FC<Props> = ({
               ))}
             </View>
           )}
-          <Text className="text-muted-foreground text-[13px]">
-            {summaryParts.join(' \u00B7 ')}
-          </Text>
+          <Text className="text-muted-foreground text-[13px]">{summaryParts.join(' \u00B7 ')}</Text>
         </View>
       )}
     </>

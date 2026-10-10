@@ -217,21 +217,23 @@ export async function backfillQuotedPosts(
       postContentVariants,
       and(eq(postContentVariants.postId, posts.id), eq(postContentVariants.position, 0)),
     )
-    .where(and(
-      isNotNull(posts.federationActivityId),
-      isNull(posts.quoteOf),
-      // EITHER signal, and the first is far better than the second.
-      //
-      // `status = 'incomplete'` is not a guess: ingest writes it only when the
-      // note DECLARED a quote and the resolve failed, so every such row is known
-      // to be a quote and is the reason this script now promotes as well as
-      // links. The body pattern stays for the rows written before that state
-      // existed, where the rendered marker is the only signal available.
-      or(
-        eq(posts.status, 'incomplete'),
-        sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
+    .where(
+      and(
+        isNotNull(posts.federationActivityId),
+        isNull(posts.quoteOf),
+        // EITHER signal, and the first is far better than the second.
+        //
+        // `status = 'incomplete'` is not a guess: ingest writes it only when the
+        // note DECLARED a quote and the resolve failed, so every such row is known
+        // to be a quote and is the reason this script now promotes as well as
+        // links. The body pattern stays for the rows written before that state
+        // existed, where the rendered marker is the only signal available.
+        or(
+          eq(posts.status, 'incomplete'),
+          sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
+        ),
       ),
-    ))
+    )
     .limit(MAX);
 
   let candidates = 0;
@@ -280,8 +282,8 @@ export async function backfillQuotedPosts(
     const quoteUri = declared.uri;
     withQuoteField += 1;
 
-    let quotedId = (await resolvePostIdFromObjectUri(quoteUri))
-      ?? (await resolvePostIdFromNoteUrl(quoteUri));
+    let quotedId =
+      (await resolvePostIdFromObjectUri(quoteUri)) ?? (await resolvePostIdFromNoteUrl(quoteUri));
     if (!quotedId && declared.fetchable) {
       notHeldLocally += 1;
       // OURS, and it survives the fan-out unchanged: `ensureQuotedNote` STORES

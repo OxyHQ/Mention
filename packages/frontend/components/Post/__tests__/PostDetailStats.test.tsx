@@ -91,8 +91,9 @@ function render(post: HydratedPostSummary) {
 
 describe('PostDetailStats — the reply-restriction line', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   it('says NOTHING about replies when only the server refused them', () => {
@@ -141,7 +142,7 @@ describe('PostDetailStats — the reply-restriction line', () => {
    * even to a reader who falls outside it — that is precisely who benefits from
    * reading it rather than discovering it from a rejected reply.
    */
-  it('still reports the author\'s narrowed audience to a viewer outside it', () => {
+  it("still reports the author's narrowed audience to a viewer outside it", () => {
     const tree = render(makePost({ canReply: false, replyPermission: ['following'] }));
 
     expect(textContent(tree)).toContain('post.restrictions.repliesLimited');

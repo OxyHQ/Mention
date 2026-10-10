@@ -262,9 +262,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         const isPerson = a.kind === undefined || a.kind === 'personal';
         const wholeName = a.name?.displayName?.trim();
         const firstName = isPerson
-          ? a.name?.first?.trim() ||
-            wholeName?.split(/\s+/)?.[0] ||
-            (handle ? `@${handle}` : '')
+          ? a.name?.first?.trim() || wholeName?.split(/\s+/)?.[0] || (handle ? `@${handle}` : '')
           : wholeName || (handle ? `@${handle}` : '');
         return { firstName, handle, href: profileHrefForUser(a) };
       }),
@@ -443,7 +441,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                     <React.Fragment key={`${a.handle || 'author'}-${i}`}>
                       {separator}
                       {linkAuthors && a.href ? (
-                        <Link href={a.href} push onPress={stopAtLink} accessibilityLabel={a.firstName}>
+                        <Link
+                          href={a.href}
+                          push
+                          onPress={stopAtLink}
+                          accessibilityLabel={a.firstName}
+                        >
                           {a.firstName}
                         </Link>
                       ) : (
@@ -465,7 +468,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             >
               <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
                 <UserName
-                  name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
+                  name={
+                    hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined
+                  }
                   verified={user.verified}
                   href={userHref}
                   asHeading={nameAsHeading}
@@ -491,19 +496,23 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               </View>
             </ProfileHoverCard>
           )}
-          {timeSlot ?? (timeText && (postHref ? (
-            <Link
-              href={postHref}
-              push
-              asChild
-              onPress={(event) => {
-                stopAtLink(event);
-                onPressTime?.();
-              }}
-            >
-              {timeText}
-            </Link>
-          ) : timeText))}
+          {timeSlot ??
+            (timeText &&
+              (postHref ? (
+                <Link
+                  href={postHref}
+                  push
+                  asChild
+                  onPress={(event) => {
+                    stopAtLink(event);
+                    onPressTime?.();
+                  }}
+                >
+                  {timeText}
+                </Link>
+              ) : (
+                timeText
+              )))}
           {isEdited ? (
             // `flexShrink: 0` because an indicator glyph has no width to give up
             // and the identity line's other children are already shrink-ranked
@@ -520,9 +529,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
               hitSlop={HIT_SLOP_MD}
               style={{ flexShrink: 0, alignSelf: 'center' }}
-              onPress={() =>
-                toast(t('post.editedToast', { defaultValue: 'This post was edited' }))
-              }
+              onPress={() => toast(t('post.editedToast', { defaultValue: 'This post was edited' }))}
             >
               <DrawIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
             </TouchableOpacity>

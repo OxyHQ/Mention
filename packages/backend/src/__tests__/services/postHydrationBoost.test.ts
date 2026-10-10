@@ -89,7 +89,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
  * a fail-open cache, so keeping it real costs nothing and cannot drift again.
  */
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
+  ...(await importOriginal<typeof import('../../utils/privacyHelpers')>()),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
 }));
@@ -195,7 +195,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       const [hydrated] = await hydrate(boost, undefined);
       expect(hydrated, `iteration ${i}: boost post missing`).toBeTruthy();
       expect(hydrated.boost, `iteration ${i}: boost context missing`).toBeTruthy();
-      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(original.id);
+      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(
+        original.id,
+      );
       expect(hydrated.originalPost?.id).toBe(original.id);
     }
   });
@@ -217,7 +219,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     for (let i = 0; i < 25; i++) {
       const [hydrated] = await hydrate(boost, VIEWER_ID);
-      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded (authed)`).toBe(original.id);
+      expect(
+        hydrated.boost?.originalPost?.id,
+        `iteration ${i}: original not embedded (authed)`,
+      ).toBe(original.id);
     }
   });
 
@@ -260,8 +265,14 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       expect(hydrated, `maxDepth ${depth}: boost post missing`).toBeTruthy();
       expect(hydrated.boost, `maxDepth ${depth}: boost context should not be null`).toBeTruthy();
       expect(hydrated.boost?.unavailable, `maxDepth ${depth}: unavailable flag`).toBe(true);
-      expect(hydrated.boost?.originalPost, `maxDepth ${depth}: originalPost should be null`).toBeNull();
-      expect(hydrated.originalPost, `maxDepth ${depth}: top-level originalPost should be null`).toBeNull();
+      expect(
+        hydrated.boost?.originalPost,
+        `maxDepth ${depth}: originalPost should be null`,
+      ).toBeNull();
+      expect(
+        hydrated.originalPost,
+        `maxDepth ${depth}: top-level originalPost should be null`,
+      ).toBeNull();
     }
   });
 
@@ -270,7 +281,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // excluded for an anonymous viewer. The boost must stay `null` (its existence
     // is never revealed) and must NOT be flagged `unavailable` — that marker is
     // reserved for genuinely-gone originals.
-    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE, status: 'published' });
+    const original = await seedOriginal({
+      visibility: PostVisibility.PRIVATE,
+      status: 'published',
+    });
     const boost = await seedBoost(original.id);
 
     const [hydrated] = await hydrate(boost, undefined);
@@ -309,8 +323,12 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     for (const depth of [0, 1, 2]) {
       const [hydrated] = await hydrate(boost, undefined, depth);
-      expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(original.id);
-      expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(original.id);
+      expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(
+        original.id,
+      );
+      expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(
+        original.id,
+      );
     }
   });
 
@@ -367,10 +385,15 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       avatarUrl: 'https://mastodon.online/a.png',
     });
 
-    cacheStore.set(ORIGINAL_AUTHOR_OXY_ID, { user: {
-      id: ORIGINAL_AUTHOR_OXY_ID, username: 'kaleidotrope@mastodon.online',
-      name: { displayName: 'Oxy public name' }, avatar: null, isFederated: true,
-    } });
+    cacheStore.set(ORIGINAL_AUTHOR_OXY_ID, {
+      user: {
+        id: ORIGINAL_AUTHOR_OXY_ID,
+        username: 'kaleidotrope@mastodon.online',
+        name: { displayName: 'Oxy public name' },
+        avatar: null,
+        isFederated: true,
+      },
+    });
     const [hydrated] = await hydrate(boost, undefined);
 
     const originalUser = hydrated.boost?.originalPost?.user;

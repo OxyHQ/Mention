@@ -63,11 +63,15 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  await getDb().delete(feedGenerators).where(like(feedGenerators.uri, `at://${CREATOR_DID}/%`));
+  await getDb()
+    .delete(feedGenerators)
+    .where(like(feedGenerators.uri, `at://${CREATOR_DID}/%`));
 });
 
 afterEach(async () => {
-  await getDb().delete(feedGenerators).where(like(feedGenerators.uri, `at://${CREATOR_DID}/%`));
+  await getDb()
+    .delete(feedGenerators)
+    .where(like(feedGenerators.uri, `at://${CREATOR_DID}/%`));
 });
 
 afterAll(async () => {
@@ -85,7 +89,9 @@ async function storedGenerators() {
 
 describe('mapGeneratorView', () => {
   it('maps a generator view to the normalized fields', () => {
-    const generator = mapGeneratorView(generatorView('t-videogames', { avatar: 'https://cdn/a.jpg' }));
+    const generator = mapGeneratorView(
+      generatorView('t-videogames', { avatar: 'https://cdn/a.jpg' }),
+    );
     expect(generator).toEqual({
       uri: genUri('t-videogames'),
       serviceDid: 'did:web:feeds.example.com',
@@ -105,7 +111,13 @@ describe('mapGeneratorView', () => {
   });
 
   it('rejects a non-generator URI, a missing service DID, and a missing name', () => {
-    expect(mapGeneratorView({ uri: `at://${CREATOR_DID}/app.bsky.feed.post/x`, did: 'did:web:x', displayName: 'n' })).toBeNull();
+    expect(
+      mapGeneratorView({
+        uri: `at://${CREATOR_DID}/app.bsky.feed.post/x`,
+        did: 'did:web:x',
+        displayName: 'n',
+      }),
+    ).toBeNull();
     expect(mapGeneratorView(generatorView('f', { did: undefined }))).toBeNull();
     expect(mapGeneratorView(generatorView('f', { displayName: '   ' }))).toBeNull();
     expect(mapGeneratorView(undefined)).toBeNull();
@@ -115,7 +127,10 @@ describe('mapGeneratorView', () => {
 describe('syncActorFeeds', () => {
   it('writes a row the feed engine will accept as atproto-backed', async () => {
     mocks.xrpcGet.mockResolvedValue({
-      feeds: [generatorView('f1'), generatorView('f2', { displayName: 'Second', avatar: 'https://cdn/a.jpg' })],
+      feeds: [
+        generatorView('f1'),
+        generatorView('f2', { displayName: 'Second', avatar: 'https://cdn/a.jpg' }),
+      ],
     });
 
     const count = await syncActorFeeds(CREATOR_DID, OWNER);
@@ -144,7 +159,9 @@ describe('syncActorFeeds', () => {
     await syncActorFeeds(CREATOR_DID, OWNER);
     const first = await loadFeedGeneratorByUri(genUri('f1'));
 
-    mocks.xrpcGet.mockResolvedValue({ feeds: [generatorView('f1', { displayName: 'Renamed', likeCount: 99 })] });
+    mocks.xrpcGet.mockResolvedValue({
+      feeds: [generatorView('f1', { displayName: 'Renamed', likeCount: 99 })],
+    });
     await syncActorFeeds(CREATOR_DID, OWNER);
 
     const rows = await storedGenerators();

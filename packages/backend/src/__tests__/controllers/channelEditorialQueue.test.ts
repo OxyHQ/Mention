@@ -108,7 +108,10 @@ vi.mock('../../utils/privacyHelpers', () => ({
   // either way, just fetched by a different caller.
   resolveViewerPrivacyAndGraph: vi.fn(async (viewerId?: string) =>
     viewerId
-      ? { viewerPrivacy: { blockedIds: [], restrictedIds: [] }, viewerGraph: { followingIds: [], followerIds: [] } }
+      ? {
+          viewerPrivacy: { blockedIds: [], restrictedIds: [] },
+          viewerGraph: { followingIds: [], followerIds: [] },
+        }
       : undefined,
   ),
 }));
@@ -234,7 +237,10 @@ function forestFor(viewerId: string | undefined): AccountNode[] {
   const own = node(viewerId ?? '', 'personal', null);
   const channelRow = CHANNEL_ROSTER.find((row) => row.member === viewerId);
   if (!channelRow) return [own];
-  const forest = [own, node(CHANNEL, 'channel', membership(CHANNEL, viewerId ?? '', channelRow.status))];
+  const forest = [
+    own,
+    node(CHANNEL, 'channel', membership(CHANNEL, viewerId ?? '', channelRow.status)),
+  ];
   if (channelRow.status === 'active') {
     forest.push(node(ORGANIZATION, 'organization', membership(ORGANIZATION, viewerId ?? '')));
   }
@@ -267,7 +273,9 @@ async function seedScheduled(options: {
     ...(options.writtenBy ? { writtenByOxyUserId: options.writtenBy } : {}),
     status: 'scheduled',
     scheduledFor: later(options.inMinutes ?? 60),
-    content: { variants: [{ source: 'author', text: options.text ?? 'a queued story', tag: 'en' }] },
+    content: {
+      variants: [{ source: 'author', text: options.text ?? 'a queued story', tag: 'en' }],
+    },
   });
   return record.id;
 }
@@ -785,10 +793,7 @@ describe('the id-based surfaces resolve current channel authority', () => {
 
   async function fetchPost(viewerId: string | undefined, postId: string): Promise<Captured> {
     const { res, captured } = buildResponse();
-    await getPostById(
-      { ...buildRequest(viewerId), params: { id: postId } } as never,
-      res as never,
-    );
+    await getPostById({ ...buildRequest(viewerId), params: { id: postId } } as never, res as never);
     return captured;
   }
 

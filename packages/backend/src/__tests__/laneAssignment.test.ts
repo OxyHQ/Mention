@@ -99,12 +99,12 @@ describe('assertLaneAssignable — replies and boosts', () => {
 });
 
 describe('assertLaneAssignable — ownership', () => {
-  it('scopes the lookup to the post\'s OWNER', async () => {
+  it("scopes the lookup to the post's OWNER", async () => {
     const laneId = await lane();
     await expect(assertLaneAssignable({ laneId, authorId: AUTHOR })).resolves.toBeUndefined();
   });
 
-  it('scopes it to the CHANNEL when the channel is the post\'s owner', async () => {
+  it("scopes it to the CHANNEL when the channel is the post's owner", async () => {
     // A channel is an Oxy account and authors its own posts, so the caller passes
     // the channel as `authorId` and the same single comparison applies — a lane of
     // the WRITER'S is not eligible, which is what stops a channel post being filed

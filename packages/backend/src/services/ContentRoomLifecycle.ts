@@ -40,9 +40,7 @@ interface SocketRateLimiter {
 export const MAX_POST_ROOMS_PER_SOCKET = 20;
 
 function joinedPostRooms(socket: Socket): string[] {
-  return Array.from(socket.rooms).filter((room) =>
-    room.startsWith(POST_ENGAGEMENT_ROOM_PREFIX),
-  );
+  return Array.from(socket.rooms).filter((room) => room.startsWith(POST_ENGAGEMENT_ROOM_PREFIX));
 }
 
 /**
@@ -140,33 +138,39 @@ export function registerContentRoomHandlers(
   const pendingJoins = new Map<string, number>();
   let joinAttemptSeq = 0;
 
-  socket.on('joinPost', rateLimiter.wrap(socket, 'joinPost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    if (pendingJoins.has(postId)) return;
-    const token = ++joinAttemptSeq;
-    pendingJoins.set(postId, token);
-    void joinPostRoom(socket, postId, () => pendingJoins.get(postId) === token)
-      .catch((error) => {
-        logger.warn('Post room join failed', {
-          error: error instanceof Error ? error.message : String(error),
+  socket.on(
+    'joinPost',
+    rateLimiter.wrap(socket, 'joinPost', (postId: string) => {
+      if (!postId || typeof postId !== 'string') return;
+      if (pendingJoins.has(postId)) return;
+      const token = ++joinAttemptSeq;
+      pendingJoins.set(postId, token);
+      void joinPostRoom(socket, postId, () => pendingJoins.get(postId) === token)
+        .catch((error) => {
+          logger.warn('Post room join failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        })
+        .finally(() => {
+          // Only clear this attempt's own entry — a later `joinPost` may already
+          // have replaced it with a new token by the time this settles.
+          if (pendingJoins.get(postId) === token) {
+            pendingJoins.delete(postId);
+          }
         });
-      })
-      .finally(() => {
-        // Only clear this attempt's own entry — a later `joinPost` may already
-        // have replaced it with a new token by the time this settles.
-        if (pendingJoins.get(postId) === token) {
-          pendingJoins.delete(postId);
-        }
-      });
-  }));
+    }),
+  );
 
-  socket.on('leavePost', rateLimiter.wrap(socket, 'leavePost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    // Cancels an in-flight join too: without this, a client that opened and
-    // immediately closed a post would land in a room it had already left.
-    pendingJoins.delete(postId);
-    socket.leave(postEngagementRoom(postId));
-  }));
+  socket.on(
+    'leavePost',
+    rateLimiter.wrap(socket, 'leavePost', (postId: string) => {
+      if (!postId || typeof postId !== 'string') return;
+      // Cancels an in-flight join too: without this, a client that opened and
+      // immediately closed a post would land in a room it had already left.
+      pendingJoins.delete(postId);
+      socket.leave(postEngagementRoom(postId));
+    }),
+  );
 
   // `feedType` comes from the client, so it is checked against the fixed set
   // the broadcaster actually targets before it becomes part of a room name —
@@ -175,19 +179,25 @@ export function registerContentRoomHandlers(
   // membership cap is needed on top of the allow-list: joining is idempotent
   // and there are only `SOCKET_FEED_TYPES.length` possible rooms plus the
   // caller's own, so membership is already bounded by the allow-list itself.
-  socket.on('joinFeed', rateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    if (isSocketFeedType(data?.feedType)) {
-      socket.join(feedRoom(data.feedType));
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.join(`feed:user:${selfId}`);
-  }));
+  socket.on(
+    'joinFeed',
+    rateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+      if (isSocketFeedType(data?.feedType)) {
+        socket.join(feedRoom(data.feedType));
+      }
+      const selfId = socket.user?.id;
+      if (selfId) socket.join(`feed:user:${selfId}`);
+    }),
+  );
 
-  socket.on('leaveFeed', rateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    if (isSocketFeedType(data?.feedType)) {
-      socket.leave(feedRoom(data.feedType));
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.leave(`feed:user:${selfId}`);
-  }));
+  socket.on(
+    'leaveFeed',
+    rateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+      if (isSocketFeedType(data?.feedType)) {
+        socket.leave(feedRoom(data.feedType));
+      }
+      const selfId = socket.user?.id;
+      if (selfId) socket.leave(`feed:user:${selfId}`);
+    }),
+  );
 }

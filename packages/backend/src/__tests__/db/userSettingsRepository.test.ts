@@ -51,7 +51,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (created.length > 0) {
-    await getDb().delete(userSettings).where(inArray(userSettings.oxyUserId, created.splice(0)));
+    await getDb()
+      .delete(userSettings)
+      .where(inArray(userSettings.oxyUserId, created.splice(0)));
   }
 });
 
@@ -269,8 +271,9 @@ describe('user settings — read after write', () => {
       { labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'warn' },
     ]);
 
-    expect((await loadUserSettings(user))?.privacy.labelPreferences?.labelActions)
-      .toEqual([{ labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'warn' }]);
+    expect((await loadUserSettings(user))?.privacy.labelPreferences?.labelActions).toEqual([
+      { labelerId: 'labeler-1', labelSlug: 'spoiler', action: 'warn' },
+    ]);
   });
 
   it('batches several users without cross-contaminating their label actions', async () => {

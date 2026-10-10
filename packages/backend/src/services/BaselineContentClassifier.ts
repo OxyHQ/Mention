@@ -405,9 +405,9 @@ export class BaselineContentClassifier {
         const [top] = detectAllLanguages(trimmedText);
         const detected = normalizeProvidedLanguage(top?.lang);
         if (
-          detected
-          && detected !== declared[0]
-          && top.accuracy >= LANGUAGE_DETECTION.declaredContradictionMinAccuracy
+          detected &&
+          detected !== declared[0] &&
+          top.accuracy >= LANGUAGE_DETECTION.declaredContradictionMinAccuracy
         ) {
           const all = this.selectDetectedLanguages(trimmedText);
           return { primary: all[0], all };
@@ -438,9 +438,9 @@ export class BaselineContentClassifier {
     const topAccuracy = ranked[0].accuracy;
     const secondAccuracy = ranked[1]?.accuracy ?? 0;
     const credibleBilingualPair =
-      secondAccuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy
-      && secondAccuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop
-      && topAccuracy + secondAccuracy >= 0.8;
+      secondAccuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy &&
+      secondAccuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop &&
+      topAccuracy + secondAccuracy >= 0.8;
     if (topAccuracy < LANGUAGE_DETECTION.primaryMinAccuracy && !credibleBilingualPair) return [];
     const selected: string[] = [ranked[0].lang];
 

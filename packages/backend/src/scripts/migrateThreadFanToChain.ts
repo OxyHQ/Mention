@@ -129,13 +129,15 @@ async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
       ))`,
     })
     .from(posts)
-    .where(and(
-      // `is not null`, never `<> null`: `$ne: null` matched a MISSING field too,
-      // while SQL's `<>` against NULL matches nothing.
-      isNotNull(posts.threadId),
-      // Native posts only — federated posts carry a federation activity id.
-      isNull(posts.federationActivityId),
-    ))
+    .where(
+      and(
+        // `is not null`, never `<> null`: `$ne: null` matched a MISSING field too,
+        // while SQL's `<>` against NULL matches nothing.
+        isNotNull(posts.threadId),
+        // Native posts only — federated posts carry a federation activity id.
+        isNull(posts.federationActivityId),
+      ),
+    )
     .groupBy(posts.threadId)
     .having(sql`count(*) >= ${MIN_CONTINUATIONS_FOR_REPAIR}
       and count(*) filter (where ${posts.parentPostId} is distinct from ${posts.threadId}) = 0
@@ -143,15 +145,17 @@ async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
 
   return rows.flatMap((row) =>
     row.threadId
-      ? [{
-        _id: row.threadId,
-        count: row.count,
-        authors: row.authors,
-        continuations: row.continuations.map((entry) => ({
-          ...entry,
-          createdAt: new Date(entry.createdAt),
-        })),
-      }]
+      ? [
+          {
+            _id: row.threadId,
+            count: row.count,
+            authors: row.authors,
+            continuations: row.continuations.map((entry) => ({
+              ...entry,
+              createdAt: new Date(entry.createdAt),
+            })),
+          },
+        ]
       : [],
   );
 }

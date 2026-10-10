@@ -72,11 +72,23 @@ function scannedFiles(): string[] {
  * in the other direction, and the list must only ever shrink.
  */
 const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
-  ['reconciliation-request.json', 'Generated read-only ECS request inspection artifact, never a tracked source file'],
-  ['reconciliation-run.json', 'Generated ECS reconciliation launch or recovery artifact, never a tracked source file'],
-  ['reconciliation-diagnostics.json', 'Generated ECS reconciliation diagnostic artifact, never a tracked source file'],
+  [
+    'reconciliation-request.json',
+    'Generated read-only ECS request inspection artifact, never a tracked source file',
+  ],
+  [
+    'reconciliation-run.json',
+    'Generated ECS reconciliation launch or recovery artifact, never a tracked source file',
+  ],
+  [
+    'reconciliation-diagnostics.json',
+    'Generated ECS reconciliation diagnostic artifact, never a tracked source file',
+  ],
   ['__common.js', "Metro's generated shared chunk — an output artifact, never a repo file"],
-  ['X.web.tsx', "packages/frontend/docs/TESTING-POLICY.md's illustrative example name for a `.web` fork, not a real file"],
+  [
+    'X.web.tsx',
+    "packages/frontend/docs/TESTING-POLICY.md's illustrative example name for a `.web` fork, not a real file",
+  ],
 ]);
 
 /**
@@ -92,7 +104,11 @@ const PATH_REFERENCE = /`(?!\/)([a-zA-Z0-9_./-]+\.(?:ts|tsx|mjs|js|json|md|yml))
 
 /** Every tracked file, from git rather than a walk, so ignored output cannot satisfy a reference. */
 function trackedFiles(): string[] {
-  return execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  return execFileSync('git', ['ls-files'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
     .split('\n')
     .filter((line) => line.length > 0);
 }
@@ -145,18 +161,23 @@ describe('documentation file references (AGENTS.md + docs/)', () => {
 
     expect(
       stale,
-      'A doc references a file that does not exist:\n'
-        + `${stale.map((entry) => `  ${entry.sourceFile}: ${entry.reference}`).join('\n')}\n`
-        + 'Fix the path, or — if it is deliberately unresolvable (a generated artifact, or history) — '
-        + 'add it to UNRESOLVABLE_BY_DESIGN with the reason.',
+      'A doc references a file that does not exist:\n' +
+        `${stale.map((entry) => `  ${entry.sourceFile}: ${entry.reference}`).join('\n')}\n` +
+        'Fix the path, or — if it is deliberately unresolvable (a generated artifact, or history) — ' +
+        'add it to UNRESOLVABLE_BY_DESIGN with the reason.',
     ).toEqual([]);
   });
 
   it('keeps the by-design exemptions honest, so the list can only shrink', () => {
-    const nowResolving = [...UNRESOLVABLE_BY_DESIGN.keys()].filter((reference) => resolvesAgainst(reference, files));
+    const nowResolving = [...UNRESOLVABLE_BY_DESIGN.keys()].filter((reference) =>
+      resolvesAgainst(reference, files),
+    );
 
-    expect(nowResolving, 'these are listed in UNRESOLVABLE_BY_DESIGN but now resolve — '
-      + `delete the entry:\n  ${nowResolving.join('\n  ')}\n`).toEqual([]);
+    expect(
+      nowResolving,
+      'these are listed in UNRESOLVABLE_BY_DESIGN but now resolve — ' +
+        `delete the entry:\n  ${nowResolving.join('\n  ')}\n`,
+    ).toEqual([]);
   });
 
   it('drops an exemption once no scanned document makes the reference anymore', () => {
@@ -177,8 +198,8 @@ describe('documentation file references (AGENTS.md + docs/)', () => {
 
     expect(
       unreferenced,
-      'these are listed in UNRESOLVABLE_BY_DESIGN but no scanned document references them anymore, so the '
-        + `entry exempts nothing — delete it:\n  ${unreferenced.join('\n  ')}\n`,
+      'these are listed in UNRESOLVABLE_BY_DESIGN but no scanned document references them anymore, so the ' +
+        `entry exempts nothing — delete it:\n  ${unreferenced.join('\n  ')}\n`,
     ).toEqual([]);
   });
 });

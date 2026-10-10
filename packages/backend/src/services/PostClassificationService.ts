@@ -1,7 +1,11 @@
 import { MENTION_JEV_OWNER_ACCOUNT_ID } from './contentClassification/jevProductionApproval';
 import type { ShadowReceiptReader } from './contentClassification/jevReceipt';
 import { JEV_MAX_TEXT_LENGTH } from './contentClassification/jevRequest';
-import { createProductionJevEvaluation, createProductionJevReceiptReader, isReviewedNativeJevEvaluation } from './contentClassification/jevProduction';
+import {
+  createProductionJevEvaluation,
+  createProductionJevReceiptReader,
+  isReviewedNativeJevEvaluation,
+} from './contentClassification/jevProduction';
 import { withShadowReceiptDatabase } from '../db/posts/shadowReceiptDatabase';
 import { z } from 'zod';
 import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
@@ -18,10 +22,21 @@ import { config } from '../config';
 import { topicService } from './TopicService';
 import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
-import { evaluateShadowWithDeadline, isJevShadowReleased, ShadowAdmissionClosedError, type ShadowEvaluation } from './contentClassification/jevShadow';
 import {
-  claimPostEvaluation, completePostEvaluation, markPostEvaluationUncertain, releaseUnsentPostEvaluation,
-  listUnreconciledPostEvaluations, listDurableUnreconciledPostEvaluations, reconcilePostEvaluationUsage, type ShadowClaim,
+  evaluateShadowWithDeadline,
+  isJevShadowReleased,
+  ShadowAdmissionClosedError,
+  type ShadowEvaluation,
+} from './contentClassification/jevShadow';
+import {
+  claimPostEvaluation,
+  completePostEvaluation,
+  markPostEvaluationUncertain,
+  releaseUnsentPostEvaluation,
+  listUnreconciledPostEvaluations,
+  listDurableUnreconciledPostEvaluations,
+  reconcilePostEvaluationUsage,
+  type ShadowClaim,
 } from '../db/posts/postEvaluationRepository';
 
 /**
@@ -92,9 +107,28 @@ const ClassificationScoresSchema = z.object({
 
 const PostClassificationResultSchema = z.object({
   postIndex: z.number().int().min(0),
-  topics: z.array(z.string().min(1).max(60).transform(s => s.toLowerCase().trim())).max(5).default([]),
+  topics: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(60)
+        .transform((s) => s.toLowerCase().trim()),
+    )
+    .max(5)
+    .default([]),
   sentiment: z.enum(['positive', 'neutral', 'negative', 'mixed']),
-  intent: z.enum(['question', 'announcement', 'feedback', 'opinion', 'complaint', 'joke', 'news', 'personal_update', 'other']),
+  intent: z.enum([
+    'question',
+    'announcement',
+    'feedback',
+    'opinion',
+    'complaint',
+    'joke',
+    'news',
+    'personal_update',
+    'other',
+  ]),
   scores: ClassificationScoresSchema,
   confidence: score(),
 });
@@ -133,16 +167,16 @@ function hasVariantSql(): SQL {
  * {@link PostClassificationService.selectQueue}.
  */
 function importLedgerRow() {
-  return getDb()
-    .select({ one: sql`1` })
-    .from(postImports)
-    .where(eq(postImports.postId, posts.id));
+  return getDb().select({ one: sql`1` }).from(postImports).where(eq(postImports.postId, posts.id));
 }
 
 export class PostClassificationService {
   // Production factories are wired; the source approval getter remains undefined until independent release reviews are complete.
   // The published typed SDK consumer is inert until then.
-  constructor(private readonly shadowEvaluation?: ShadowEvaluation, private readonly durableReceiptReader?: ShadowReceiptReader) {}
+  constructor(
+    private readonly shadowEvaluation?: ShadowEvaluation,
+    private readonly durableReceiptReader?: ShadowReceiptReader,
+  ) {}
 
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
@@ -166,7 +200,9 @@ export class PostClassificationService {
   /** Only the production factory may admit the source-selected native operation. */
   private selectedNativeShadow(): ShadowEvaluation | undefined {
     const evaluation = this.shadowEvaluation;
-    return evaluation?.selectedOperation && isReviewedNativeJevEvaluation(evaluation) ? evaluation : undefined;
+    return evaluation?.selectedOperation && isReviewedNativeJevEvaluation(evaluation)
+      ? evaluation
+      : undefined;
   }
 
   /** Original receipt recovery never grants admission or opens the baseline queue. */
@@ -176,12 +212,14 @@ export class PostClassificationService {
 
   public start(): void {
     if (!config.classification.enabled && !this.hasBoundedShadowWork()) {
-      logger.info('[PostClassification] Baseline disabled and no bounded shadow/recovery work — service not started');
+      logger.info(
+        '[PostClassification] Baseline disabled and no bounded shadow/recovery work — service not started',
+      );
       return;
     }
 
     this.classificationInterval = setInterval(() => {
-      this.processQueue().catch(error => {
+      this.processQueue().catch((error) => {
         logger.error('[PostClassification] Processing failed:', error);
       });
     }, this.CLASSIFICATION_INTERVAL_MS);
@@ -191,7 +229,7 @@ export class PostClassificationService {
     // if leadership is lost before the initial run fires.
     this.initialRunTimeout = setTimeout(() => {
       this.initialRunTimeout = null;
-      this.processQueue().catch(error => {
+      this.processQueue().catch((error) => {
         logger.error('[PostClassification] Initial processing failed:', error);
       });
     }, this.INITIAL_RUN_DELAY_MS);
@@ -219,7 +257,8 @@ export class PostClassificationService {
    */
   public async processQueue(): Promise<void> {
     if (this.isClassifying) return;
-    if ((!config.classification.enabled && !this.hasBoundedShadowWork()) || !isInferenceEnabled()) return;
+    if ((!config.classification.enabled && !this.hasBoundedShadowWork()) || !isInferenceEnabled())
+      return;
     this.isClassifying = true;
 
     try {
@@ -254,13 +293,15 @@ export class PostClassificationService {
     await getDb()
       .update(posts)
       .set({ classificationStatus: 'classified', classificationClassifiedAt: now })
-      .where(and(
-        UNCLASSIFIED,
-        // No rendition at all = nothing to infer from (a boost, a media-only
-        // post). The body lives only in the variants, so "no text" is "no
-        // variant".
-        sql`not ${hasVariantSql()}`,
-      ));
+      .where(
+        and(
+          UNCLASSIFIED,
+          // No rendition at all = nothing to infer from (a boost, a media-only
+          // post). The body lives only in the variants, so "no text" is "no
+          // variant".
+          sql`not ${hasVariantSql()}`,
+        ),
+      );
   }
 
   /**
@@ -292,16 +333,16 @@ export class PostClassificationService {
     );
     const order = { orderBy: [asc(posts.createdAt), asc(posts.id)] };
 
-    const live = await findPostRecords(
-      and(pending, notExists(importLedgerRow())),
-      { ...order, limit: this.BATCH_SIZE },
-    );
+    const live = await findPostRecords(and(pending, notExists(importLedgerRow())), {
+      ...order,
+      limit: this.BATCH_SIZE,
+    });
     if (live.length > 0) return live;
 
-    return findPostRecords(
-      and(pending, exists(importLedgerRow())),
-      { ...order, limit: this.IMPORTED_BATCH_SIZE },
-    );
+    return findPostRecords(and(pending, exists(importLedgerRow())), {
+      ...order,
+      limit: this.IMPORTED_BATCH_SIZE,
+    });
   }
 
   private async classifyBatch(): Promise<void> {
@@ -310,14 +351,18 @@ export class PostClassificationService {
     // A reviewed one-operation shadow may target an already-classified post.
     // It never resets or expands the ordinary queue.
     const shadowQueue = this.shadowEvaluation?.selectedOperation
-      ? [{ id: this.shadowEvaluation.selectedOperation.selection.postId }] : queue;
+      ? [{ id: this.shadowEvaluation.selectedOperation.selection.postId }]
+      : queue;
     if (queue.length === 0 && shadowQueue.length === 0) return;
 
     logger.info(`[PostClassification] Classifying batch of ${queue.length} posts`);
 
     // Fan out from the existing live/import worker. A shadow error must not
     // consume a legacy attempt or prevent canonical enrichment.
-    const outcomes = await Promise.allSettled([queue.length ? this.classifyCanonicalBatch(queue) : Promise.resolve(), this.enrichShadowBatch(shadowQueue)]);
+    const outcomes = await Promise.allSettled([
+      queue.length ? this.classifyCanonicalBatch(queue) : Promise.resolve(),
+      this.enrichShadowBatch(shadowQueue),
+    ]);
     // Keep the cycle's re-entrancy guard until both branches finish, even if a
     // canonical database write fails while shadow inference is still pending.
     for (const outcome of outcomes) {
@@ -350,7 +395,10 @@ export class PostClassificationService {
 
       const parseResult = ClassificationResponseSchema.safeParse(rawResult);
       if (!parseResult.success) {
-        logger.warn('[PostClassification] AI response failed validation:', parseResult.error.message);
+        logger.warn(
+          '[PostClassification] AI response failed validation:',
+          parseResult.error.message,
+        );
         await this.recordFailures(queue);
         return;
       }
@@ -361,7 +409,7 @@ export class PostClassificationService {
       return;
     }
 
-    const resultByIndex = new Map(results.map(r => [r.postIndex, r]));
+    const resultByIndex = new Map(results.map((r) => [r.postIndex, r]));
     const now = new Date();
 
     // Resolve every AI-refined topic across the batch into the Topic registry in
@@ -377,28 +425,30 @@ export class PostClassificationService {
     // patch type rather than by remembering to spell every path. `topics` is
     // shared and intentionally refined here by the AI; `topicRefs` is its
     // registry-resolved form (the canonical list readers consume).
-    await Promise.all(queue.map((post, index) => {
-      const result = resultByIndex.get(index);
+    await Promise.all(
+      queue.map((post, index) => {
+        const result = resultByIndex.get(index);
 
-      if (!result) {
-        // Missing entry for this post — count an attempt and retry/expire it.
-        return this.recordFailure(post, now);
-      }
+        if (!result) {
+          // Missing entry for this post — count an attempt and retry/expire it.
+          return this.recordFailure(post, now);
+        }
 
-      return updatePostRecord(post.id, {
-        postClassification: {
-          topics: result.topics,
-          topicRefs: topicRefsByIndex.get(index) ?? [],
-          sentiment: result.sentiment,
-          intent: result.intent,
-          scores: this.normalizeScores(result.scores),
-          confidence: result.confidence,
-          status: 'classified',
-          attempts: this.attemptsOf(post),
-          classifiedAt: now,
-        },
-      });
-    }));
+        return updatePostRecord(post.id, {
+          postClassification: {
+            topics: result.topics,
+            topicRefs: topicRefsByIndex.get(index) ?? [],
+            sentiment: result.sentiment,
+            intent: result.intent,
+            scores: this.normalizeScores(result.scores),
+            confidence: result.confidence,
+            status: 'classified',
+            attempts: this.attemptsOf(post),
+            classifiedAt: now,
+          },
+        });
+      }),
+    );
 
     const classifiedCount = queue.filter((_, i) => resultByIndex.has(i)).length;
     logger.info(`[PostClassification] Classified ${classifiedCount}/${queue.length} posts`);
@@ -421,23 +471,26 @@ export class PostClassificationService {
     const byIndex = new Map<number, ClassificationTopicRef[]>();
 
     // Unique slugs across the batch for a single resolution call.
-    const uniqueNames = [...new Set(results.flatMap(r => r.topics))];
+    const uniqueNames = [...new Set(results.flatMap((r) => r.topics))];
     if (uniqueNames.length === 0) {
       return byIndex;
     }
 
     let refByName = new Map<string, ClassificationTopicRef>();
     try {
-      const refs = await topicService.resolveTopicRefs(uniqueNames.map(name => ({ name })));
-      refByName = new Map(refs.map(ref => [ref.name, ref]));
+      const refs = await topicService.resolveTopicRefs(uniqueNames.map((name) => ({ name })));
+      refByName = new Map(refs.map((ref) => [ref.name, ref]));
     } catch (error) {
-      logger.warn('[PostClassification] Topic registry resolution failed; storing name-only topicRefs', error);
+      logger.warn(
+        '[PostClassification] Topic registry resolution failed; storing name-only topicRefs',
+        error,
+      );
     }
 
     for (const result of results) {
       byIndex.set(
         result.postIndex,
-        result.topics.map(name => refByName.get(name) ?? { name }),
+        result.topics.map((name) => refByName.get(name) ?? { name }),
       );
     }
     return byIndex;
@@ -445,16 +498,30 @@ export class PostClassificationService {
 
   private async reconcileShadowUsage(): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    const reader = this.durableReceiptReader ?? (evaluation && (isJevShadowReleased() || isReviewedNativeJevEvaluation(evaluation)) ? evaluation.receiptReader : undefined);
+    const reader =
+      this.durableReceiptReader ??
+      (evaluation && (isJevShadowReleased() || isReviewedNativeJevEvaluation(evaluation))
+        ? evaluation.receiptReader
+        : undefined);
     if (!reader) return;
     const deadline = Date.now() + config.inference.timeoutMs;
-    await withShadowReceiptDatabase(deadline, undefined, async context => {
+    await withShadowReceiptDatabase(deadline, undefined, async (context) => {
       const select = (cursor?: string) => {
         if (this.durableReceiptReader) {
-          return listDurableUnreconciledPostEvaluations(reader.authority, MENTION_JEV_OWNER_ACCOUNT_ID, cursor, context);
+          return listDurableUnreconciledPostEvaluations(
+            reader.authority,
+            MENTION_JEV_OWNER_ACCOUNT_ID,
+            cursor,
+            context,
+          );
         }
         if (!evaluation) return Promise.resolve([]);
-        return listUnreconciledPostEvaluations(evaluation.release, reader.authority, cursor, context);
+        return listUnreconciledPostEvaluations(
+          evaluation.release,
+          reader.authority,
+          cursor,
+          context,
+        );
       };
       let ids = await select(this.receiptCursor);
       if (!ids.length && this.receiptCursor !== undefined) {
@@ -468,7 +535,9 @@ export class PostClassificationService {
           await reconcilePostEvaluationUsage(id, reader, context.signal, context);
         } catch {
           // Unknown or inaccessible receipts remain quarantined, without inference.
-          logger.info('[PostClassification] Original usage remains unresolved', { evaluationId: id });
+          logger.info('[PostClassification] Original usage remains unresolved', {
+            evaluationId: id,
+          });
         }
       }
     });
@@ -476,7 +545,8 @@ export class PostClassificationService {
 
   private async enrichShadowBatch(queue: readonly Pick<QueueDoc, 'id'>[]): Promise<void> {
     const evaluation = this.shadowEvaluation;
-    if (!evaluation || (!isJevShadowReleased() && !isReviewedNativeJevEvaluation(evaluation))) return;
+    if (!evaluation || (!isJevShadowReleased() && !isReviewedNativeJevEvaluation(evaluation)))
+      return;
     const deadline = Date.now() + config.inference.timeoutMs;
     // Bounded by the existing 25 live / 10 imported queue, no second scheduler.
     for (const post of queue) {
@@ -484,14 +554,19 @@ export class PostClassificationService {
       let claim: ShadowClaim | null = null;
       let sent = false;
       try {
-        claim = await claimPostEvaluation(post.id, evaluation.release, evaluation.receiptReader?.authority,
-          evaluation.receiptReader ? new Date(deadline) : undefined, evaluation.selectedOperation);
+        claim = await claimPostEvaluation(
+          post.id,
+          evaluation.release,
+          evaluation.receiptReader?.authority,
+          evaluation.receiptReader ? new Date(deadline) : undefined,
+          evaluation.selectedOperation,
+        );
         if (!claim) continue;
         if (evaluation.isAdmissionOpen?.() === false) {
           await releaseUnsentPostEvaluation(claim);
           break;
         }
-        const primary = claim.snapshot.renditions.find(rendition => rendition.position === 0);
+        const primary = claim.snapshot.renditions.find((rendition) => rendition.position === 0);
         if (!primary) throw new Error('Claimed shadow evaluation has no primary rendition');
         const remaining = deadline - Date.now();
         if (remaining <= 0) {
@@ -500,22 +575,30 @@ export class PostClassificationService {
           break;
         }
         sent = true;
-        const signals = await evaluateShadowWithDeadline(evaluation, {
-          text: primary.body.slice(0, this.MAX_TEXT_LENGTH),
-          languages: claim.snapshot.languages,
-          idempotencyKey: claim.id,
-        }, remaining);
+        const signals = await evaluateShadowWithDeadline(
+          evaluation,
+          {
+            text: primary.body.slice(0, this.MAX_TEXT_LENGTH),
+            languages: claim.snapshot.languages,
+            idempotencyKey: claim.id,
+          },
+          remaining,
+        );
         const completed = await completePostEvaluation(claim, signals);
         if (!completed) {
-          logger.info('[PostClassification] Shadow result superseded; cost requires reconciliation', {
-            evaluationId: claim.id,
-          });
+          logger.info(
+            '[PostClassification] Shadow result superseded; cost requires reconciliation',
+            {
+              evaluationId: claim.id,
+            },
+          );
         }
       } catch (error) {
         logger.warn('[PostClassification] Shadow evaluation failed; no automatic retry', error);
         if (claim) {
           try {
-            if (sent && !(error instanceof ShadowAdmissionClosedError)) await markPostEvaluationUncertain(claim);
+            if (sent && !(error instanceof ShadowAdmissionClosedError))
+              await markPostEvaluationUncertain(claim);
             else await releaseUnsentPostEvaluation(claim);
           } catch (ledgerError) {
             // An abandoned claim is also never reclaimed with a fresh request id.
@@ -529,7 +612,7 @@ export class PostClassificationService {
   /** Persist a retry/expire update for every post in a wholesale-failed batch. */
   private async recordFailures(batch: QueueDoc[]): Promise<void> {
     const now = new Date();
-    await Promise.all(batch.map(post => this.recordFailure(post, now)));
+    await Promise.all(batch.map((post) => this.recordFailure(post, now)));
   }
 
   /**
@@ -568,7 +651,10 @@ export class PostClassificationService {
 }
 
 export function createProductionPostClassificationService(): PostClassificationService {
-  return new PostClassificationService(createProductionJevEvaluation(), createProductionJevReceiptReader());
+  return new PostClassificationService(
+    createProductionJevEvaluation(),
+    createProductionJevReceiptReader(),
+  );
 }
 
 export const postClassificationService = createProductionPostClassificationService();

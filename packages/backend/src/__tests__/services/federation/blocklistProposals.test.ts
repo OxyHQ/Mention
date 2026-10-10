@@ -100,9 +100,7 @@ async function proposalRow(domain: string) {
 
 /** How many proposals exist, optionally for one domain. */
 async function proposalCount(domain?: string): Promise<number> {
-  const rows = await getDb()
-    .select({ domain: blocklistProposals.domain })
-    .from(blocklistProposals);
+  const rows = await getDb().select({ domain: blocklistProposals.domain }).from(blocklistProposals);
   return domain === undefined ? rows.length : rows.filter((row) => row.domain === domain).length;
 }
 
@@ -550,7 +548,8 @@ describe('the rendered report', () => {
     // run that writes a thousand log lines is a run nobody reads.
     const result = await sweep({
       candidates: Array.from({ length: 30 }, (_, index) =>
-        corroborated(`bulk-${String(index).padStart(2, '0')}.example`)),
+        corroborated(`bulk-${String(index).padStart(2, '0')}.example`),
+      ),
     });
 
     expect(result.counts.pending).toBe(30);
@@ -560,8 +559,7 @@ describe('the rendered report', () => {
     expect(report).toContain('5 further proposals not shown here');
 
     // The CLI, where a person asked for the queue, prints all of it.
-    expect(renderProposalQueue(result.pending, new Date()).join('\n'))
-      .toContain('bulk-29.example');
+    expect(renderProposalQueue(result.pending, new Date()).join('\n')).toContain('bulk-29.example');
   });
 });
 

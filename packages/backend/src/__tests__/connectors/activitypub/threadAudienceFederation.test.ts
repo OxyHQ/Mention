@@ -45,7 +45,10 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
   return { ...actual, FEDERATION_ENABLED: true };
 });
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../db/federation/actorRepository', () => ({
   findActorInboxesByUris: (uris: readonly string[]) => actorFind(uris),
@@ -59,7 +62,8 @@ vi.mock('../../../db/federation/followRepository', () => ({
   deleteFollowById: async () => undefined,
 }));
 vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
-  insertDeliveries: vi.fn(), insertDelivery: vi.fn(),
+  insertDeliveries: vi.fn(),
+  insertDelivery: vi.fn(),
 }));
 vi.mock('../../../db/posts/postRepository', () => ({
   loadPostRecord: () => postFindByIdLean(),
@@ -128,13 +132,13 @@ beforeEach(() => {
 });
 
 describe('federateNewPost — extra audiences', () => {
-  it('delivers to the author\'s followers only when no audience is named', async () => {
+  it("delivers to the author's followers only when no audience is named", async () => {
     await followService.federateNewPost(ENTRY, 'alice-oxy', 'alice');
 
     expect(deliveredInboxes()).toEqual([ALICE_INBOX]);
   });
 
-  it('adds the named account\'s followers to the author\'s own', async () => {
+  it("adds the named account's followers to the author's own", async () => {
     await followService.federateNewPost(ENTRY, 'alice-oxy', 'alice', {
       extraAudienceOxyUserIds: ['org-oxy'],
     });
@@ -165,7 +169,7 @@ describe('federateNewPost — extra audiences', () => {
     expect(followFind).toHaveBeenCalledTimes(1);
   });
 
-  it('still delivers to the author\'s own followers when the audience lookup fails', async () => {
+  it("still delivers to the author's own followers when the audience lookup fails", async () => {
     // Fail-soft: the acting account's fan-out is the part that matters, so a
     // broken read of somebody else's followers must not take it down.
     followFind.mockImplementation(async (filter: Record<string, unknown>) => {

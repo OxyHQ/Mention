@@ -16,10 +16,7 @@ export interface UsePokeReturn {
  * Hook for managing poke state on a profile.
  * Defers the initial status fetch to avoid blocking profile render.
  */
-export function usePoke(
-  profileId: string | undefined,
-  isOwnProfile: boolean
-): UsePokeReturn {
+export function usePoke(profileId: string | undefined, isOwnProfile: boolean): UsePokeReturn {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
 
@@ -53,7 +50,8 @@ export function usePoke(
     try {
       await toggle();
     } catch (error: unknown) {
-      const errorMessage = normalizeApiError(error).message || t('poke.error', { defaultValue: 'Failed to poke' });
+      const errorMessage =
+        normalizeApiError(error).message || t('poke.error', { defaultValue: 'Failed to poke' });
       toast(errorMessage, { type: 'error' });
     }
   }, [toggle, t]);

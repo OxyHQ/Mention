@@ -62,13 +62,19 @@ const createPollSchema = z.object({
   question: z
     .string('Question and at least 2 options are required')
     .min(1, 'Question and at least 2 options are required')
-    .max(MAX_POLL_QUESTION_LENGTH, `Question must be ${MAX_POLL_QUESTION_LENGTH} characters or less`),
+    .max(
+      MAX_POLL_QUESTION_LENGTH,
+      `Question must be ${MAX_POLL_QUESTION_LENGTH} characters or less`,
+    ),
   options: z
     .array(
       z
         .string('Every poll option must be a non-empty string')
         .min(1, 'Every poll option must be a non-empty string')
-        .max(MAX_POLL_OPTION_LENGTH, `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`),
+        .max(
+          MAX_POLL_OPTION_LENGTH,
+          `Every poll option must be ${MAX_POLL_OPTION_LENGTH} characters or less`,
+        ),
       'Question and at least 2 options are required',
     )
     .min(2, 'Question and at least 2 options are required')
@@ -211,13 +217,13 @@ class PollsController {
         hasUser: !!req.user,
         userKeys: req.user ? Object.keys(req.user) : [],
         userId: userId,
-        userIdType: typeof userId
+        userIdType: typeof userId,
       });
 
       if (!userId) {
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'User ID not found in request'
+          message: 'User ID not found in request',
         });
       }
 
@@ -263,13 +269,13 @@ class PollsController {
         if (!post) {
           return res.status(404).json({
             error: 'Not found',
-            message: 'Post not found'
+            message: 'Post not found',
           });
         }
         if (post.oxyUserId !== userId) {
           return res.status(403).json({
             error: 'Forbidden',
-            message: 'You can only create polls for your own posts'
+            message: 'You can only create polls for your own posts',
           });
         }
       }
@@ -317,7 +323,7 @@ class PollsController {
 
         res.status(201).json({
           success: true,
-          data: serializePoll(poll)
+          data: serializePoll(poll),
         });
       } catch (error: unknown) {
         logger.error('[Polls] Error creating poll:', error);
@@ -351,7 +357,7 @@ class PollsController {
       if (!id || !isLiveEntityId(id)) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'Invalid poll ID'
+          message: 'Invalid poll ID',
         });
       }
 
@@ -368,7 +374,7 @@ class PollsController {
 
       res.json({
         success: true,
-        data: serializePoll(poll)
+        data: serializePoll(poll),
       });
     } catch (error) {
       logger.error('[Polls] Error fetching poll:', error);
@@ -384,7 +390,7 @@ class PollsController {
       if (!userId) {
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'User ID not found in request'
+          message: 'User ID not found in request',
         });
       }
 
@@ -392,7 +398,7 @@ class PollsController {
       if (!id || !isLiveEntityId(id) || !parsedVote.success) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'Valid poll ID and option ID are required'
+          message: 'Valid poll ID and option ID are required',
         });
       }
 
@@ -404,7 +410,11 @@ class PollsController {
 
       // Record the vote through the shared service (the SAME atomic dedup path the
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
-      const result = await pollVoteService.recordVoteByOptionId(id, parsedVote.data.optionId, userId);
+      const result = await pollVoteService.recordVoteByOptionId(
+        id,
+        parsedVote.data.optionId,
+        userId,
+      );
       if (result.ok) {
         return res.json({ success: true, data: serializePoll(result.poll) });
       }
@@ -417,7 +427,9 @@ class PollsController {
         case 'option_not_found':
           return res.status(404).json({ error: 'Not found', message: 'Option not found' });
         case 'already_voted':
-          return res.status(400).json({ error: 'Invalid request', message: 'You have already voted in this poll' });
+          return res
+            .status(400)
+            .json({ error: 'Invalid request', message: 'You have already voted in this poll' });
       }
     } catch (error) {
       logger.error('[Polls] Error voting in poll:', error);
@@ -432,7 +444,7 @@ class PollsController {
       if (!id || !isLiveEntityId(id)) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'Invalid poll ID'
+          message: 'Invalid poll ID',
         });
       }
 
@@ -477,14 +489,14 @@ class PollsController {
       if (!userId) {
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'User ID not found in request'
+          message: 'User ID not found in request',
         });
       }
 
       if (!id || !isLiveEntityId(id)) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'Invalid poll ID'
+          message: 'Invalid poll ID',
         });
       }
 
@@ -496,7 +508,7 @@ class PollsController {
       if (!poll) {
         return res.status(404).json({
           error: 'Not found',
-          message: 'Poll not found'
+          message: 'Poll not found',
         });
       }
 
@@ -504,7 +516,7 @@ class PollsController {
       if (poll.createdBy !== userId) {
         return res.status(403).json({
           error: 'Forbidden',
-          message: 'You can only delete your own polls'
+          message: 'You can only delete your own polls',
         });
       }
 
@@ -514,10 +526,7 @@ class PollsController {
       // `post_id` simply skips the update.
       await getDb().transaction(async (tx) => {
         if (poll.postId !== null) {
-          await tx
-            .update(posts)
-            .set({ contentPollId: null })
-            .where(eq(posts.id, poll.postId));
+          await tx.update(posts).set({ contentPollId: null }).where(eq(posts.id, poll.postId));
         }
         // `poll_options` and `poll_votes` cascade from here.
         await tx.delete(polls).where(eq(polls.id, poll.id));
@@ -525,7 +534,7 @@ class PollsController {
 
       res.json({
         success: true,
-        message: 'Poll deleted successfully'
+        message: 'Poll deleted successfully',
       });
     } catch (error) {
       logger.error('[Polls] Error deleting poll:', error);
@@ -542,21 +551,16 @@ class PollsController {
       if (!userId) {
         return res.status(401).json({
           error: 'Authentication required',
-          message: 'User ID not found in request'
+          message: 'User ID not found in request',
         });
       }
 
       // Both ids are a documented 400 on this route ("Valid poll ID and post ID
       // are required"), so both guards widen rather than disappear.
-      if (
-        !id ||
-        !isLiveEntityId(id) ||
-        typeof postId !== 'string' ||
-        !isLiveEntityId(postId)
-      ) {
+      if (!id || !isLiveEntityId(id) || typeof postId !== 'string' || !isLiveEntityId(postId)) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'Valid poll ID and post ID are required'
+          message: 'Valid poll ID and post ID are required',
         });
       }
 
@@ -569,7 +573,7 @@ class PollsController {
       if (!poll) {
         return res.status(404).json({
           error: 'Not found',
-          message: 'Poll not found'
+          message: 'Poll not found',
         });
       }
 
@@ -577,7 +581,7 @@ class PollsController {
       if (poll.createdBy !== userId) {
         return res.status(403).json({
           error: 'Forbidden',
-          message: 'You can only update your own polls'
+          message: 'You can only update your own polls',
         });
       }
 
@@ -590,7 +594,7 @@ class PollsController {
       if (!post) {
         return res.status(404).json({
           error: 'Not found',
-          message: 'Post not found'
+          message: 'Post not found',
         });
       }
 
@@ -598,7 +602,7 @@ class PollsController {
       if (post.oxyUserId !== userId) {
         return res.status(403).json({
           error: 'Forbidden',
-          message: 'You can only update polls for your own posts'
+          message: 'You can only update polls for your own posts',
         });
       }
 
@@ -614,7 +618,7 @@ class PollsController {
 
       res.json({
         success: true,
-        data: serializePoll(updated)
+        data: serializePoll(updated),
       });
     } catch (error) {
       logger.error('[Polls] Error updating poll post ID:', error);

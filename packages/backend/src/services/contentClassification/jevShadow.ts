@@ -1,7 +1,12 @@
 import type { ShadowReceiptReader } from './jevReceipt';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { requestIdSchema, idempotencyKeySchema, routingPolicyReferenceSchema, usageQuantitySchema } from '@oxy.so/contracts';
+import {
+  requestIdSchema,
+  idempotencyKeySchema,
+  routingPolicyReferenceSchema,
+  usageQuantitySchema,
+} from '@oxy.so/contracts';
 import type { DecisionSuccess } from '@oxy.so/contracts';
 
 /** This is an application release gate, never provider/credential configuration. */
@@ -53,57 +58,96 @@ export function shadowFingerprint(snapshot: ShadowSnapshot): string {
   // must not authorize another paid request, including an edit away and back.
   // Full author text/metadata and canonical language order remain the identity;
   // machine translations are never inference input or a new revision.
-  return createHash('sha256').update(JSON.stringify([
-    snapshot.postId, snapshot.actorUri, snapshot.owner, snapshot.languages,
-    snapshot.renditions.filter(rendition => rendition.source === 'author')
-      .sort((left, right) => left.position - right.position).map(
-      rendition => [rendition.position, rendition.tag, rendition.source,
-        rendition.body, rendition.articleTitle, rendition.articleBody, rendition.articleExcerpt],
-    ),
-  ])).digest('hex');
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        snapshot.postId,
+        snapshot.actorUri,
+        snapshot.owner,
+        snapshot.languages,
+        snapshot.renditions
+          .filter((rendition) => rendition.source === 'author')
+          .sort((left, right) => left.position - right.position)
+          .map((rendition) => [
+            rendition.position,
+            rendition.tag,
+            rendition.source,
+            rendition.body,
+            rendition.articleTitle,
+            rendition.articleBody,
+            rendition.articleExcerpt,
+          ]),
+      ]),
+    )
+    .digest('hex');
 }
 
 export function shadowAbstention(snapshot: ShadowSnapshot, release: ShadowRelease) {
-  const primary = snapshot.renditions.find(rendition => rendition.position === 0);
+  const primary = snapshot.renditions.find((rendition) => rendition.position === 0);
   if (!primary?.body.trim() || primary.source !== 'author') return 'no_primary_text' as const;
   if (!snapshot.languages.length) return 'unknown_language' as const;
-  if (snapshot.languages.some(language => !release.supportedLanguages.includes(language))) {
+  if (snapshot.languages.some((language) => !release.supportedLanguages.includes(language))) {
     return 'unsupported_language' as const;
   }
   return null;
 }
 
 export function validateShadowRelease(release: ShadowRelease): void {
-  if (!/^[^\s/@]+\/[^\s/@]+@[^\s/@]+$/.test(release.model)
-    || /@(latest|main|head)$/i.test(release.model)
-    || !release.policyRef.trim() || !Number.isSafeInteger(release.policyVersion)
-    || release.policyVersion < 1 || !release.evaluationVersion.trim()) {
+  if (
+    !/^[^\s/@]+\/[^\s/@]+@[^\s/@]+$/.test(release.model) ||
+    /@(latest|main|head)$/i.test(release.model) ||
+    !release.policyRef.trim() ||
+    !Number.isSafeInteger(release.policyVersion) ||
+    release.policyVersion < 1 ||
+    !release.evaluationVersion.trim()
+  ) {
     throw new Error('Shadow evaluation requires an immutable model, policy and evaluation version');
   }
 }
 
 /** Mention's storage projection, not a copy of the SDK decisions wire contract. */
 const probability = z.number().finite().min(0).max(1);
-export const shadowSignalsSchema = z.object({
-  // Each topic is an independent proposition; probabilities need not sum to one.
-  topics: z.array(z.object({ topic: z.string().min(1).max(60), probability })).max(64)
-    .refine(topics => new Set(topics.map(topic => topic.topic)).size === topics.length),
-  languages: z.array(z.string().min(2).max(35)).min(1).max(3),
-  languageEvidence: z.array(z.object({ language: z.string().min(2).max(35), probability }).strict()).min(1).max(3)
-    .refine(rows => new Set(rows.map(row => row.language)).size === rows.length),
-  sdkReceipt: z.object({
-    requestId: z.string().refine(value => requestIdSchema.safeParse(value).success),
-    routingPolicy: z.custom<DecisionSuccess['routingPolicy']>(value => routingPolicyReferenceSchema.safeParse(value).success),
-    // Optional only for synthetic/domain fixtures. The SDK projection always supplies
-    // the measured quantities verbatim; absence never means zero cost.
-    usage: z.custom<DecisionSuccess['usage']>(value => usageQuantitySchema.array().safeParse(value).success).optional(),
-  }).strict(),
-  spam: probability,
-  repetition: probability,
-  feedValue: probability,
-}).strict().refine(signals => signals.languages.length === signals.languageEvidence.length
-  && signals.languages.every((language, index) => signals.languageEvidence[index]?.language === language),
-'Language evidence must match the canonical language list');
+export const shadowSignalsSchema = z
+  .object({
+    // Each topic is an independent proposition; probabilities need not sum to one.
+    topics: z
+      .array(z.object({ topic: z.string().min(1).max(60), probability }))
+      .max(64)
+      .refine((topics) => new Set(topics.map((topic) => topic.topic)).size === topics.length),
+    languages: z.array(z.string().min(2).max(35)).min(1).max(3),
+    languageEvidence: z
+      .array(z.object({ language: z.string().min(2).max(35), probability }).strict())
+      .min(1)
+      .max(3)
+      .refine((rows) => new Set(rows.map((row) => row.language)).size === rows.length),
+    sdkReceipt: z
+      .object({
+        requestId: z.string().refine((value) => requestIdSchema.safeParse(value).success),
+        routingPolicy: z.custom<DecisionSuccess['routingPolicy']>(
+          (value) => routingPolicyReferenceSchema.safeParse(value).success,
+        ),
+        // Optional only for synthetic/domain fixtures. The SDK projection always supplies
+        // the measured quantities verbatim; absence never means zero cost.
+        usage: z
+          .custom<DecisionSuccess['usage']>(
+            (value) => usageQuantitySchema.array().safeParse(value).success,
+          )
+          .optional(),
+      })
+      .strict(),
+    spam: probability,
+    repetition: probability,
+    feedValue: probability,
+  })
+  .strict()
+  .refine(
+    (signals) =>
+      signals.languages.length === signals.languageEvidence.length &&
+      signals.languages.every(
+        (language, index) => signals.languageEvidence[index]?.language === language,
+      ),
+    'Language evidence must match the canonical language list',
+  );
 export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
 
 /**
@@ -114,12 +158,14 @@ export type ShadowSignals = z.infer<typeof shadowSignalsSchema>;
 export class ShadowAdmissionClosedError extends Error {}
 
 /** Exactly one source-reviewed native revision; never supplied by a public request. */
-export const shadowSelectionSchema = z.object({
-  postId: z.string().min(1).max(200),
-  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  idempotencyKey: z.string().refine(value => idempotencyKeySchema.safeParse(value).success),
-  inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict();
+export const shadowSelectionSchema = z
+  .object({
+    postId: z.string().min(1).max(200),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    idempotencyKey: z.string().refine((value) => idempotencyKeySchema.safeParse(value).success),
+    inputSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 export type ShadowSelection = z.infer<typeof shadowSelectionSchema>;
 export interface ShadowSelectedOperation {
   readonly selection: ShadowSelection;
@@ -157,7 +203,10 @@ export async function evaluateShadowWithDeadline(
     }, timeoutMs);
   });
   try {
-    return await Promise.race([evaluation.evaluate({ ...input, signal: controller.signal }), expired]);
+    return await Promise.race([
+      evaluation.evaluate({ ...input, signal: controller.signal }),
+      expired,
+    ]);
   } finally {
     if (timeout) clearTimeout(timeout);
   }

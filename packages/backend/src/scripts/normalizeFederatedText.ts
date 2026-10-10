@@ -224,7 +224,10 @@ function stageOptionalLabel(
 }
 
 /** Collect every normalization needed by a single post. */
-export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdate; counts: PostCounts } {
+export function buildPostUpdate(post: FederatedPostRow): {
+  update: DocumentUpdate;
+  counts: PostCounts;
+} {
   const update = emptyUpdate();
   const counts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
   const isFederated = post.federation != null;
@@ -249,7 +252,14 @@ export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdat
   // ingest that wrote these rows stored the AP `summary` raw, so a stored label
   // can still be `<p>CW</p>`, and a bare whitespace collapse would leave the tags
   // in the database forever.
-  if (stageOptionalLabel(update, 'federation.spoilerText', post.federation?.spoilerText, htmlToInlineLabel)) {
+  if (
+    stageOptionalLabel(
+      update,
+      'federation.spoilerText',
+      post.federation?.spoilerText,
+      htmlToInlineLabel,
+    )
+  ) {
     counts.spoilerText += 1;
   }
 
@@ -316,10 +326,7 @@ async function applyPostUpdate(post: PostRecord, update: DocumentUpdate): Promis
       continue;
     }
     if (path === 'federation.spoilerText' && typeof value === 'string') {
-      await db
-        .update(posts)
-        .set({ federationSpoilerText: value })
-        .where(eq(posts.id, post.id));
+      await db.update(posts).set({ federationSpoilerText: value }).where(eq(posts.id, post.id));
       written += 1;
     }
   }
@@ -335,10 +342,7 @@ async function applyPostUpdate(post: PostRecord, update: DocumentUpdate): Promis
       continue;
     }
     if (path === 'federation.spoilerText') {
-      await db
-        .update(posts)
-        .set({ federationSpoilerText: null })
-        .where(eq(posts.id, post.id));
+      await db.update(posts).set({ federationSpoilerText: null }).where(eq(posts.id, post.id));
       written += 1;
     }
   }
@@ -347,7 +351,10 @@ async function applyPostUpdate(post: PostRecord, update: DocumentUpdate): Promis
 }
 
 /** Collect every normalization needed by a single federated actor. */
-export function buildActorUpdate(actor: FederatedActorRow): { update: DocumentUpdate; counts: ActorCounts } {
+export function buildActorUpdate(actor: FederatedActorRow): {
+  update: DocumentUpdate;
+  counts: ActorCounts;
+} {
   const update = emptyUpdate();
   const counts: ActorCounts = { username: 0, summary: 0, fields: 0 };
 
@@ -431,7 +438,11 @@ function renderValue(value: unknown): string {
 export function describeChanges(document: unknown, update: DocumentUpdate): FieldChange[] {
   const changes: FieldChange[] = [];
   for (const [path, value] of Object.entries(update.set)) {
-    changes.push({ path, before: renderValue(readPath(document, path)), after: renderValue(value) });
+    changes.push({
+      path,
+      before: renderValue(readPath(document, path)),
+      after: renderValue(value),
+    });
   }
   for (const path of Object.keys(update.unset)) {
     changes.push({ path, before: renderValue(readPath(document, path)), after: UNSET_MARKER });
@@ -498,7 +509,7 @@ async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCou
       // A dry run builds every operation exactly as a real one does — it just
       // never applies them. That is the whole guarantee: what it reports is what
       // a real run would write, computed by the same code.
-      if (!dryRun && await applyPostUpdate(post, update) > 0) {
+      if (!dryRun && (await applyPostUpdate(post, update)) > 0) {
         written += 1;
       }
     }

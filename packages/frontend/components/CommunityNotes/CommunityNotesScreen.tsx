@@ -37,7 +37,9 @@ function statusLabel(status: CommunityNoteStatus, t: TFunction): string {
     case 'shown':
       return t('communityNotes.hub.statusShown', { defaultValue: 'Shown on the post' });
     case 'not_shown':
-      return t('communityNotes.hub.statusNotShown', { defaultValue: 'Not shown — raters did not find it helpful' });
+      return t('communityNotes.hub.statusNotShown', {
+        defaultValue: 'Not shown — raters did not find it helpful',
+      });
     case 'withdrawn':
       return t('communityNotes.hub.statusWithdrawn', { defaultValue: 'You took this note back' });
     default:
@@ -59,7 +61,12 @@ interface CommunityNotesScreenProps {
  * The community-notes hub: rate notes, your ratings, your notes. Data comes from
  * the caller — CrowdSource owns every list here.
  */
-export function CommunityNotesScreen({ toRate, rated, written, handlers }: CommunityNotesScreenProps) {
+export function CommunityNotesScreen({
+  toRate,
+  rated,
+  written,
+  handlers,
+}: CommunityNotesScreenProps) {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const [tab, setTab] = useState<TabId>('rate');
@@ -68,22 +75,37 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
   const sheets = useCommunityNoteSheets(handlers);
 
   const withLocal = (entry: CommunityNoteEntry): CommunityNoteEntry =>
-    localRatings[entry.note.id] ? { ...entry, note: { ...entry.note, viewerRating: localRatings[entry.note.id] } } : entry;
+    localRatings[entry.note.id]
+      ? { ...entry, note: { ...entry.note, viewerRating: localRatings[entry.note.id] } }
+      : entry;
 
   const queue = toRate.map(withLocal).filter((entry) => !entry.note.viewerRating);
   const ratedNow = toRate.map(withLocal).filter((entry) => entry.note.viewerRating);
   const entries = tab === 'rate' ? queue : tab === 'ratings' ? [...ratedNow, ...rated] : written;
 
   const intro = {
-    rate: t('communityNotes.hub.rateIntro', { defaultValue: 'Decide if the community notes on these posts are helpful. Ratings are anonymous.' }),
-    ratings: t('communityNotes.hub.ratingsIntro', { defaultValue: "Notes you've rated. Ratings can't be changed." }),
-    notes: t('communityNotes.hub.notesIntro', { defaultValue: "Notes you've written, and whether they are shown yet." }),
+    rate: t('communityNotes.hub.rateIntro', {
+      defaultValue:
+        'Decide if the community notes on these posts are helpful. Ratings are anonymous.',
+    }),
+    ratings: t('communityNotes.hub.ratingsIntro', {
+      defaultValue: "Notes you've rated. Ratings can't be changed.",
+    }),
+    notes: t('communityNotes.hub.notesIntro', {
+      defaultValue: "Notes you've written, and whether they are shown yet.",
+    }),
   }[tab];
 
   const empty = {
-    rate: t('communityNotes.hub.rateEmpty', { defaultValue: 'No notes need your rating right now' }),
-    ratings: t('communityNotes.hub.ratingsEmpty', { defaultValue: "You haven't rated any notes yet" }),
-    notes: t('communityNotes.hub.notesEmpty', { defaultValue: "You haven't written any notes yet" }),
+    rate: t('communityNotes.hub.rateEmpty', {
+      defaultValue: 'No notes need your rating right now',
+    }),
+    ratings: t('communityNotes.hub.ratingsEmpty', {
+      defaultValue: "You haven't rated any notes yet",
+    }),
+    notes: t('communityNotes.hub.notesEmpty', {
+      defaultValue: "You haven't written any notes yet",
+    }),
   }[tab];
 
   return (
@@ -93,11 +115,18 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
-      <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">{([
+      <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">
+        {[
           { id: 'rate', label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }) },
-          { id: 'ratings', label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }) },
+          {
+            id: 'ratings',
+            label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }),
+          },
           { id: 'notes', label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }) },
-        ]).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+        ].map((tab: { id: string; label: string; count?: number }) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+        ))}
+      </Tabs>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-10 pt-4">
         <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
         {entries.length === 0 ? (
@@ -122,7 +151,9 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
                   }
                 />
                 {tab === 'notes' ? (
-                  <Text className="text-muted-foreground mt-2 text-[13px]">{statusLabel(note.status, t)}</Text>
+                  <Text className="text-muted-foreground mt-2 text-[13px]">
+                    {statusLabel(note.status, t)}
+                  </Text>
                 ) : null}
               </View>
             </View>

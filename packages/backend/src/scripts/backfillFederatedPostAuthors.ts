@@ -97,7 +97,11 @@
 import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { deletePostRecord, findPostRecords, replacePostAuthorship } from '../db/posts/postRepository';
+import {
+  deletePostRecord,
+  findPostRecords,
+  replacePostAuthorship,
+} from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import { findActorByUri } from '../db/federation/actorRepository';
 import { actorService } from '../connectors/activitypub/actor.service';
@@ -108,14 +112,8 @@ import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  DeletionPreflightError,
-  assertPostsSafeToDelete,
-} from './lib/adminDeletionPreflight';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { DeletionPreflightError, assertPostsSafeToDelete } from './lib/adminDeletionPreflight';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 /**
  * `EX_TEMPFAIL` from sysexits(3) — "temporary failure, the user is invited to
@@ -313,16 +311,14 @@ async function processOrphan(orphan: OrphanRow): Promise<keyof Omit<Counters, 's
     // actor URI to resolve here (a gone object yields none), so the post is dead.
     if (!DELETE_GONE) return 'gone';
     if (!APPLY) return 'deleteCandidates';
-    await assertPostsSafeToDelete(
-      `backfillFederatedPostAuthors:${orphan.id}`,
-      [{
+    await assertPostsSafeToDelete(`backfillFederatedPostAuthors:${orphan.id}`, [
+      {
         id: orphan.id,
-        uris: [
-          orphan.federation?.activityId,
-          orphan.federation?.url,
-        ].filter((value): value is string => typeof value === 'string' && value.length > 0),
-      }],
-    );
+        uris: [orphan.federation?.activityId, orphan.federation?.url].filter(
+          (value): value is string => typeof value === 'string' && value.length > 0,
+        ),
+      },
+    ]);
     await deletePostRecord(orphan.id, undefined);
     return 'deleted';
   }
@@ -382,11 +378,7 @@ export function countRemaining(
   mode: { apply: boolean; deleteGone: boolean },
 ): number {
   if (!mode.apply) return 0;
-  return (
-    counters.transient
-    + counters.unresolvedAuthor
-    + (mode.deleteGone ? 0 : counters.gone)
-  );
+  return counters.transient + counters.unresolvedAuthor + (mode.deleteGone ? 0 : counters.gone);
 }
 
 async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
@@ -395,10 +387,7 @@ async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
   // `is not null` / `is null`, never `<> null`: Mongo's `$ne: null` also matched
   // an ABSENT field, while SQL's `<>` against NULL matches nothing — so the
   // literal translation would find zero orphans and report a clean run.
-  const orphanFilter = and(
-    isNotNull(posts.federationActivityId),
-    isNull(posts.oxyUserId),
-  ) as SQL;
+  const orphanFilter = and(isNotNull(posts.federationActivityId), isNull(posts.oxyUserId)) as SQL;
 
   try {
     assertAdminMutationAllowed({
@@ -411,14 +400,13 @@ async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
       deleteGone: DELETE_GONE,
     });
 
-    const [totals] = await getDb()
-      .select({ count: count() })
-      .from(posts)
-      .where(orphanFilter);
+    const [totals] = await getDb().select({ count: count() }).from(posts).where(orphanFilter);
     const totalCount = totals?.count ?? 0;
     logger.info(`[backfillFederatedPostAuthors] ${totalCount} orphan federated posts to scan`);
     if (totalCount === 0) {
-      logger.info('[backfillFederatedPostAuthors] verdict: COMPLETE — no orphan federated posts remain');
+      logger.info(
+        '[backfillFederatedPostAuthors] verdict: COMPLETE — no orphan federated posts remain',
+      );
       return { remaining: 0 };
     }
 
@@ -456,8 +444,8 @@ async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
                 reason: error instanceof Error ? error.message : 'unknown',
               });
               return error instanceof DeletionPreflightError
-                ? 'blockedDelete' as const
-                : 'failed' as const;
+                ? ('blockedDelete' as const)
+                : ('failed' as const);
             }),
           ),
         );
@@ -498,17 +486,17 @@ async function backfillFederatedPostAuthors(): Promise<BackfillVerdict> {
     // the same verdict from the exit code, so this is the detail behind it.
     logger.info(
       !APPLY
-        ? `[backfillFederatedPostAuthors] verdict: DRY RUN — nothing written; of ${counters.scanned} scanned, `
-          + `${counters.linked} would link, ${counters.unresolvedAuthor} need a live run, `
-          + `${counters.transient} were unreachable, ${counters.gone} are gone`
+        ? `[backfillFederatedPostAuthors] verdict: DRY RUN — nothing written; of ${counters.scanned} scanned, ` +
+            `${counters.linked} would link, ${counters.unresolvedAuthor} need a live run, ` +
+            `${counters.transient} were unreachable, ${counters.gone} are gone`
         : remaining === 0
-          ? `[backfillFederatedPostAuthors] verdict: COMPLETE — ${counters.scanned} scanned, `
-            + `${counters.linked} linked, nothing left unresolved`
-          : `[backfillFederatedPostAuthors] verdict: INCOMPLETE — ${counters.scanned} scanned, `
-            + `${counters.linked} linked, ${remaining} remain `
-            + `(transient ${counters.transient}, unresolvedAuthor ${counters.unresolvedAuthor}, `
-            + `gone ${DELETE_GONE ? 0 : counters.gone}). The sweep finished and every write is `
-            + 'committed; re-run to retry.',
+          ? `[backfillFederatedPostAuthors] verdict: COMPLETE — ${counters.scanned} scanned, ` +
+            `${counters.linked} linked, nothing left unresolved`
+          : `[backfillFederatedPostAuthors] verdict: INCOMPLETE — ${counters.scanned} scanned, ` +
+            `${counters.linked} linked, ${remaining} remain ` +
+            `(transient ${counters.transient}, unresolvedAuthor ${counters.unresolvedAuthor}, ` +
+            `gone ${DELETE_GONE ? 0 : counters.gone}). The sweep finished and every write is ` +
+            'committed; re-run to retry.',
     );
 
     return { remaining };

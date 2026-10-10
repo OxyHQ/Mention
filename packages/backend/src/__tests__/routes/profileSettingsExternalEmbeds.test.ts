@@ -61,7 +61,9 @@ function unsetDot(obj: Record<string, unknown>, path: string): void {
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: TEST_USER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -102,12 +104,10 @@ vi.mock('../../db/userProfile/userSettingsRepository', () => ({
 // entrypoint, a circular import). The owner branch returns the doc as-is, which
 // is exactly what lets externalEmbeds flow out of GET /settings/me.
 vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
-  buildSettingsResponseForViewer: (
-    doc: unknown,
-    targetUserId: string,
-    viewerUserId: string,
-  ) => (targetUserId === viewerUserId ? doc : {}),
+  ensureUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  buildSettingsResponseForViewer: (doc: unknown, targetUserId: string, viewerUserId: string) =>
+    targetUserId === viewerUserId ? doc : {},
 }));
 
 // oxyHelpers + syraPodcast pull the server entrypoint / @syra.fm/sdk; neither is
@@ -175,7 +175,9 @@ describe('PUT /profile/settings externalEmbeds whitelist', () => {
 
     const settings = await getSettings();
     // No valid op was produced, so the field was never created.
-    expect((settings.externalEmbeds as Record<string, unknown> | undefined)?.youtube).toBeUndefined();
+    expect(
+      (settings.externalEmbeds as Record<string, unknown> | undefined)?.youtube,
+    ).toBeUndefined();
   });
 
   it('unsets a previously-set field when passed null', async () => {

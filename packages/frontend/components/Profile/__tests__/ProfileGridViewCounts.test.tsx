@@ -36,10 +36,7 @@ jest.mock('@/db', () => ({
     for (const post of posts) if (post.id) mockPosts.set(post.id, post);
   },
   getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  updatePost: (
-    postId: string,
-    updater: (previous: FeedItem) => FeedItem | null | undefined
-  ) => {
+  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
     const previous = mockPosts.get(postId);
     if (!previous) return null;
     const next = updater(previous);
@@ -64,8 +61,7 @@ jest.mock('@/db', () => ({
   getFeedKeysForPost: () => [],
   removePostFromAllFeeds: jest.fn(),
   removeFeedItem: jest.fn(),
-  buildFeedKey: (type: string, userId?: string) =>
-    userId ? `user:${userId}:${type}` : type,
+  buildFeedKey: (type: string, userId?: string) => (userId ? `user:${userId}:${type}` : type),
   clearAllCachedData: jest.fn(),
 }));
 
@@ -198,13 +194,11 @@ describe('profile grid cells repaint from a server view count', () => {
     const feedRenders = jest.fn();
     let feedProbe!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      feedProbe = TestRenderer.create(
-        <FeedSnapshotProbe userId="author" onRender={feedRenders} />
-      );
+      feedProbe = TestRenderer.create(<FeedSnapshotProbe userId="author" onRender={feedRenders} />);
     });
 
     const renderer = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="watched" fallbackViews={3} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="watched" fallbackViews={3} />,
     );
     expect(labels(renderer)).toEqual(['3']);
     feedRenders.mockClear();
@@ -229,7 +223,7 @@ describe('profile grid cells repaint from a server view count', () => {
     // of the two ONLY when it exists, so with no row the entry's own number must
     // survive rather than the cell going blank.
     const renderer = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="uncached" fallbackViews={1234} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="uncached" fallbackViews={1234} />,
     );
 
     expect(labels(renderer)).toEqual(['1.2K']);
@@ -245,7 +239,7 @@ describe('profile grid cells repaint from a server view count', () => {
     });
 
     const renderer = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="hidden" fallbackViews={99} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="hidden" fallbackViews={99} />,
     );
 
     expect(labels(renderer)).toEqual([]);
@@ -262,7 +256,7 @@ describe('profile grid cells repaint from a server view count', () => {
     });
 
     const renderer = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="original" fallbackViews={500} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="original" fallbackViews={500} />,
     );
     expect(labels(renderer)).toEqual(['500']);
 
@@ -286,7 +280,7 @@ describe('profile grid cells repaint from a server view count', () => {
     });
 
     const renderer = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="mine" fallbackViews={3} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="mine" fallbackViews={3} />,
     );
 
     await act(async () => {
@@ -331,7 +325,7 @@ describe('profile grid cells repaint from a server view count', () => {
               fallbackViews={1}
             />
           ))}
-        </>
+        </>,
       );
     });
 
@@ -359,10 +353,10 @@ describe('profile grid cells repaint from a server view count', () => {
     });
 
     const zero = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="zeroed" durationSec={42} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="zeroed" durationSec={42} />,
     );
     const nulled = await mount(
-      <LiveVideoPosterCell {...CELL} viewsPostId="nulled" durationSec={42} />
+      <LiveVideoPosterCell {...CELL} viewsPostId="nulled" durationSec={42} />,
     );
     const absent = await mount(<LiveVideoPosterCell {...CELL} durationSec={42} />);
 

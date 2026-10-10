@@ -199,7 +199,7 @@ afterAll(async () => {
 });
 
 describe('GET /profile/settings/:userId profile-design visibility', () => {
-  it('withholds a private profile\'s design from a stranger', async () => {
+  it("withholds a private profile's design from a stranger", async () => {
     await seedTarget('private');
     followingByViewer.set(VIEWER, []);
 
@@ -210,7 +210,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
     expect(settings.profileMedia).toBeUndefined();
   });
 
-  it('withholds a followers-only profile\'s design from a non-follower', async () => {
+  it("withholds a followers-only profile's design from a non-follower", async () => {
     await seedTarget('followers_only');
     followingByViewer.set(VIEWER, ['someone-else']);
 
@@ -329,7 +329,8 @@ describe('profile design resolved privacy policy', () => {
   });
 
   it.each(['private', 'followers_only'] as const)(
-    'reports %s while keeping the stranger response redacted and owner access intact', async (visibility) => {
+    'reports %s while keeping the stranger response redacted and owner access intact',
+    async (visibility) => {
       await seedTarget(visibility);
       followingByViewer.set(VIEWER, []);
       const stranger = await getDesign();

@@ -10,7 +10,9 @@ interface FeedSubscribeButtonProps {
 
 /** Feed subscription state bound to Bloom's shared animated toggle. */
 export const FeedSubscribeButton = React.memo(function FeedSubscribeButton({
-  isSubscribed, isSubscribing, onPress,
+  isSubscribed,
+  isSubscribing,
+  onPress,
 }: FeedSubscribeButtonProps) {
   const { t } = useTranslation();
   return (

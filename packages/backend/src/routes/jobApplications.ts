@@ -31,8 +31,20 @@ router.post('/external/:clarityJobId/report', ...limiter, jobApplicationsControl
 router.post('/:id/applications', ...limiter, jobApplicationsController.submit);
 router.get('/:id/applications', ...limiter, jobApplicationsController.listForEmployer);
 router.put('/:id/applications/:applicationId', ...limiter, jobApplicationsController.updateStatus);
-router.post('/:id/applications/:applicationId/notes', ...limiter, jobApplicationsController.addNote);
-router.get('/:id/applications/:applicationId/notes', ...limiter, jobApplicationsController.listNotes);
-router.post('/:id/applications/:applicationId/withdraw', ...limiter, jobApplicationsController.withdraw);
+router.post(
+  '/:id/applications/:applicationId/notes',
+  ...limiter,
+  jobApplicationsController.addNote,
+);
+router.get(
+  '/:id/applications/:applicationId/notes',
+  ...limiter,
+  jobApplicationsController.listNotes,
+);
+router.post(
+  '/:id/applications/:applicationId/withdraw',
+  ...limiter,
+  jobApplicationsController.withdraw,
+);
 
 export default router;

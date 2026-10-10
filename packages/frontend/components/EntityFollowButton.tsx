@@ -18,14 +18,20 @@ interface EntityFollowButtonProps {
 }
 
 export const EntityFollowButton = memo(function EntityFollowButton({
-  entityType, entityId, label, followingLabel, size = 'md',
+  entityType,
+  entityId,
+  label,
+  followingLabel,
+  size = 'md',
 }: EntityFollowButtonProps) {
   const { isFollowing, isLoading, toggle } = useFollowEntity(entityType, entityId);
   const { t } = useTranslation();
   return (
     <FollowButton
       following={isFollowing}
-      onFollowChange={() => { void toggle(); }}
+      onFollowChange={() => {
+        void toggle();
+      }}
       disabled={isLoading}
       loading={isLoading}
       size={size}

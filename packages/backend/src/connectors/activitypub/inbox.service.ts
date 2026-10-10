@@ -38,7 +38,10 @@ import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { storeRemoteLinkPreviews } from './apLinkPreview';
 import { pollVoteService } from '../../services/PollVoteService';
-import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
+import {
+  isFediverseSharingEnabled,
+  isFediverseSharingEnabledFromUser,
+} from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
@@ -92,7 +95,9 @@ import { applyInboundMove } from './move.service';
 export function addressesLocalUsers(object: Record<string, unknown>): boolean {
   const inReplyTo = extractInReplyToUri(object.inReplyTo);
   if (inReplyTo && extractLocalPostIdFromApUri(inReplyTo)) return true;
-  return extractMentionTags(object).some((tag) => ownProfileUrlHandle(tag.href, OWN_DOMAINS) !== undefined);
+  return extractMentionTags(object).some(
+    (tag) => ownProfileUrlHandle(tag.href, OWN_DOMAINS) !== undefined,
+  );
 }
 
 /**
@@ -143,7 +148,10 @@ export class InboxProcessingService {
    * the primary type and routes to the matching content handler, so the handlers'
    * side effects stay byte-for-byte identical to the prior single-dispatch path.
    */
-  async onContentActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
+  async onContentActivity(
+    activity: Record<string, unknown>,
+    verifiedActorUri: string,
+  ): Promise<void> {
     const type = primaryApType(activity.type);
     switch (type) {
       case 'Create':
@@ -255,10 +263,7 @@ export class InboxProcessingService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn(
-        '[Federation] engagement notification failed',
-        { type, error: message },
-      );
+      logger.warn('[Federation] engagement notification failed', { type, error: message });
     }
   }
 
@@ -317,10 +322,7 @@ export class InboxProcessingService {
       await createMentionNotifications(consented, entityId, actorOxyUserId, entityType);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn(
-        '[Federation] mention notification failed',
-        { error: message },
-      );
+      logger.warn('[Federation] mention notification failed', { error: message });
     }
   }
 
@@ -338,10 +340,12 @@ export class InboxProcessingService {
    * permanently orphaned. Mirrors the pre-existing `handleUndo(Follow)`
    * branch above, which is likewise ungated.
    */
-  private async handleUndoLike(likeObject: Record<string, unknown>, actorUri: string): Promise<void> {
-    const likedObjectId = typeof likeObject.object === 'string'
-      ? likeObject.object
-      : asRecord(likeObject.object)?.id;
+  private async handleUndoLike(
+    likeObject: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<void> {
+    const likedObjectId =
+      typeof likeObject.object === 'string' ? likeObject.object : asRecord(likeObject.object)?.id;
     if (!likedObjectId || typeof likedObjectId !== 'string') return;
 
     const postId = await resolvePostIdFromObjectUri(likedObjectId);
@@ -372,7 +376,10 @@ export class InboxProcessingService {
    * permanently orphan the boost Post and its counter contribution. Mirrors
    * the pre-existing, likewise-ungated `handleUndo(Follow)` branch.
    */
-  private async handleUndoAnnounce(announceObject: Record<string, unknown>, actorUri: string): Promise<void> {
+  private async handleUndoAnnounce(
+    announceObject: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<void> {
     const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
     const announcedUri = extractAnnouncedObjectUri(announceObject.object);
 
@@ -446,7 +453,10 @@ export class InboxProcessingService {
    * a local poll), leaving {@link handleCreate} to process it as a normal
    * reply/post. Fail-soft is inherited from the shared helpers; nothing throws.
    */
-  private async handlePollVote(object: Record<string, unknown>, actorUri: string): Promise<boolean> {
+  private async handlePollVote(
+    object: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<boolean> {
     // Shape gate — cheap checks first, no DB until the shape is a plausible vote.
     const name = typeof object.name === 'string' ? object.name.trim() : '';
     if (!name) return false;
@@ -478,7 +488,11 @@ export class InboxProcessingService {
       return true;
     }
 
-    const result = await pollVoteService.recordVoteByOptionText(String(pollId), name, voterOxyUserId);
+    const result = await pollVoteService.recordVoteByOptionText(
+      String(pollId),
+      name,
+      voterOxyUserId,
+    );
     if (result.ok) {
       logger.debug('[Federation] recorded poll vote');
     } else {
@@ -499,13 +513,10 @@ export class InboxProcessingService {
     // with a warn rather than processed from a malformed shape.
     const parsedNote = parseNote(object);
     if (!parsedNote.ok) {
-      logger.warn(
-        '[Federation] skipped Create with invalid embedded object',
-        {
-          type: object.type,
-          error: summarizeZodError(parsedNote.error),
-        },
-      );
+      logger.warn('[Federation] skipped Create with invalid embedded object', {
+        type: object.type,
+        error: summarizeZodError(parsedNote.error),
+      });
       return;
     }
     // The validated view of the same object. Only the fields the schema passes
@@ -525,8 +536,13 @@ export class InboxProcessingService {
     // one of our users, or its author is followed here. The in-memory check first.
     if (
       !addressesLocalUsers(object) &&
-      !(await existsFollow({ remoteActorUri: actorUri, direction: 'outbound', statuses: ['accepted'] }))
-    ) return;
+      !(await existsFollow({
+        remoteActorUri: actorUri,
+        direction: 'outbound',
+        statuses: ['accepted'],
+      }))
+    )
+      return;
 
     // Sanitize and check content length
     const rawContent = note.content || '';
@@ -657,17 +673,14 @@ export class InboxProcessingService {
     const declaredQuote = extractDeclaredQuote(object, actorUri);
     const quoteOf = declaredQuote
       ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
-        outboxSyncService.ensureQuotedNote(uri))
+          outboxSyncService.ensureQuotedNote(uri),
+        )
       : null;
 
     // With the quote linked we render it properly, so the remote's `RE: <url>`
     // fallback in the body is now a duplicate of the card sitting next to it.
     // Left in place on an UNRESOLVED quote, where it is the only reference.
-    const quoteVariants = await stripQuoteMarkerFromVariants(
-      variants,
-      quoteOf,
-      declaredQuote?.uri,
-    );
+    const quoteVariants = await stripQuoteMarkerFromVariants(variants, quoteOf, declaredQuote?.uri);
 
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
@@ -771,9 +784,8 @@ export class InboxProcessingService {
   }
 
   private async handleDelete(activity: Record<string, unknown>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string'
-      ? activity.object
-      : asRecord(activity.object)?.id;
+    const objectId =
+      typeof activity.object === 'string' ? activity.object : asRecord(activity.object)?.id;
     if (!objectId || typeof objectId !== 'string') return;
 
     // The object id is public and remote-controlled. Authorize directly against
@@ -788,11 +800,7 @@ export class InboxProcessingService {
       postMatchesFederatedObjectSql(objectId),
       eq(posts.federationActorUri, actorUri),
     );
-    const [post] = await getDb()
-      .select({ id: posts.id })
-      .from(posts)
-      .where(ownedByActor)
-      .limit(1);
+    const [post] = await getDb().select({ id: posts.id }).from(posts).where(ownedByActor).limit(1);
     if (!post) return;
 
     const deleted = await deleteFederatedPostSubtree(post.id, actorUri);
@@ -809,9 +817,8 @@ export class InboxProcessingService {
    * resolved, so the count only ever reflects real, listable likers.
    */
   private async handleLike(activity: Record<string, unknown>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string'
-      ? activity.object
-      : asRecord(activity.object)?.id;
+    const objectId =
+      typeof activity.object === 'string' ? activity.object : asRecord(activity.object)?.id;
     if (!objectId || typeof objectId !== 'string') return;
 
     const postId = await resolvePostIdFromObjectUri(objectId);
@@ -896,7 +903,13 @@ export class InboxProcessingService {
       // (no local owner to notify), and the helper additionally skips mirrored
       // remote posts.
       if (announcedPostId) {
-        await this.notifyLocalPostOwnerOfEngagement(announcedPostId, boosterOxyUserId, 'boost', announcedPostId, 'post');
+        await this.notifyLocalPostOwnerOfEngagement(
+          announcedPostId,
+          boosterOxyUserId,
+          'boost',
+          announcedPostId,
+          'post',
+        );
       }
     }
   }
@@ -910,13 +923,10 @@ export class InboxProcessingService {
       // access; skip a malformed edit with a warn.
       const parsedNote = parseNote(object);
       if (!parsedNote.ok) {
-        logger.warn(
-          '[Federation] skipped Update with invalid embedded object',
-          {
-            type: object.type,
-            error: summarizeZodError(parsedNote.error),
-          },
-        );
+        logger.warn('[Federation] skipped Update with invalid embedded object', {
+          type: object.type,
+          error: summarizeZodError(parsedNote.error),
+        });
         return;
       }
 
@@ -983,17 +993,22 @@ export class InboxProcessingService {
         ingestPath: 'update',
       });
 
-      const derivedType = built.media.length > 0
-        ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
-        : PostType.TEXT;
+      const derivedType =
+        built.media.length > 0
+          ? built.media.some((m) => m.type === 'video')
+            ? PostType.VIDEO
+            : PostType.IMAGE
+          : PostType.TEXT;
 
-      const hasRepresentableContent = built.variants.some((variant) => variant.text.trim().length > 0)
-        || built.media.length > 0
-        || built.attachments.length > 0
-        || built.summary !== undefined;
+      const hasRepresentableContent =
+        built.variants.some((variant) => variant.text.trim().length > 0) ||
+        built.media.length > 0 ||
+        built.attachments.length > 0 ||
+        built.summary !== undefined;
       if (built.customEmojiRemoved && !hasRepresentableContent) {
         const deleted = await deleteFederatedPostSubtree(existingPost.id, actorUri);
-        if (deleted === 'deleted') logger.debug('[Federation] deleted custom-emoji-only edited post');
+        if (deleted === 'deleted')
+          logger.debug('[Federation] deleted custom-emoji-only edited post');
         return;
       }
 
@@ -1093,10 +1108,15 @@ export class InboxProcessingService {
       await storeRemoteLinkPreviews(existingPost.id, built.linkPreviews);
       // An edit can add links the original never had; warm their cards like any
       // newly-stored body, so the next reader is not the one who asks first.
-      enrichIngestedPosts([{
-        id: existingPost.id,
-        content: { ...existingPost.content, variants: built.variants.length > 0 ? built.variants : undefined },
-      }]);
+      enrichIngestedPosts([
+        {
+          id: existingPost.id,
+          content: {
+            ...existingPost.content,
+            variants: built.variants.length > 0 ? built.variants : undefined,
+          },
+        },
+      ]);
       // AN EDIT CAN END AN EQUIVALENCE. A Threads post that grows three
       // paragraphs the Instagram caption never had is no longer the same piece
       // of writing, and continuing to collapse it because the ORIGINAL versions
@@ -1196,8 +1216,10 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
     // `resolveOxyUser` reaches the `server` singleton lazily (load-time cycle),
     // hence the wrapper rather than a bare reference.
     resolveUserByUsername: (username) => resolveOxyUser(username),
-    bridgeFollow: (followerOxyUserId, localUserId) => bridgeFollowEdge(followerOxyUserId, localUserId, 'follow'),
-    bridgeUnfollow: (followerOxyUserId, localUserId) => bridgeFollowEdge(followerOxyUserId, localUserId, 'unfollow'),
+    bridgeFollow: (followerOxyUserId, localUserId) =>
+      bridgeFollowEdge(followerOxyUserId, localUserId, 'follow'),
+    bridgeUnfollow: (followerOxyUserId, localUserId) =>
+      bridgeFollowEdge(followerOxyUserId, localUserId, 'unfollow'),
   },
   consent: { isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user) },
   actorResolver: { getOrFetchActor: (actorUri) => actorService.getOrFetchActor(actorUri) },
@@ -1269,7 +1291,8 @@ const inboundDispatcherConfig: InboundDispatcherConfig = {
   logger: {
     debug: (message) => logger.debug(message),
     info: (message) => logger.info(message),
-    warn: (message, detail) => (detail === undefined ? logger.warn(message) : logger.warn(message, detail)),
+    warn: (message, detail) =>
+      detail === undefined ? logger.warn(message) : logger.warn(message, detail),
   },
 };
 

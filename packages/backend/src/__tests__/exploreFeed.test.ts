@@ -95,7 +95,10 @@ async function create(
   if (engagement) {
     // `stats` is not part of `PostRecordInput` — engagement is owned by the
     // engagement batch, so a ranking fixture writes the column directly.
-    await db.update(posts).set({ statsLikesCount: engagement.likes }).where(inArray(posts.id, [record.id]));
+    await db
+      .update(posts)
+      .set({ statsLikesCount: engagement.likes })
+      .where(inArray(posts.id, [record.id]));
   }
   return record.id;
 }
@@ -154,8 +157,9 @@ describe('discovery is hard SFW', () => {
     const nsfwTagged = await create({ hashtags: ['nsfw'] });
 
     for (const showSensitiveContent of [undefined, false, true]) {
-      expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [], showSensitiveContent })))
-        .toEqual([safe]);
+      expect(
+        await idsOfMine(context({ currentUserId: VIEWER, followingIds: [], showSensitiveContent })),
+      ).toEqual([safe]);
     }
     expect([classifierFlagged, metadataFlagged, remoteFlagged, nsfwTagged]).toHaveLength(4);
   });
@@ -166,14 +170,19 @@ describe('discovery is hard SFW', () => {
     // reproduces Mongo's `$ne: true`. Get that wrong and Explore is empty for
     // essentially the whole corpus.
     const unclassified = await create();
-    expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [] }))).toEqual([unclassified]);
+    expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [] }))).toEqual([
+      unclassified,
+    ]);
   });
 });
 
 describe('relevance is a boost, never a filter', () => {
   it('still returns a post that matches nothing about the viewer', async () => {
     const matching = await create({ postClassification: { topics: ['tech'] } }, { likes: 10 });
-    const unrelated = await create({ postClassification: { topics: ['gardening'] } }, { likes: 10 });
+    const unrelated = await create(
+      { postClassification: { topics: ['gardening'] } },
+      { likes: 10 },
+    );
     const unclassified = await create({}, { likes: 10 });
 
     const candidates = await gatherMine(
@@ -198,7 +207,10 @@ describe('relevance is a boost, never a filter', () => {
 
   it('lifts by the configured topic multiplier, not by an arbitrary amount', async () => {
     const matching = await create({ postClassification: { topics: ['tech'] } }, { likes: 10 });
-    const unrelated = await create({ postClassification: { topics: ['gardening'] } }, { likes: 10 });
+    const unrelated = await create(
+      { postClassification: { topics: ['gardening'] } },
+      { likes: 10 },
+    );
 
     const candidates = await gatherMine(
       context({
@@ -218,7 +230,10 @@ describe('relevance is a boost, never a filter', () => {
     // Classified topics are stored as slugs. A preference learned as `TechNews`
     // must still hit `technews`.
     const matching = await create({ postClassification: { topics: ['technews'] } }, { likes: 10 });
-    const unrelated = await create({ postClassification: { topics: ['gardening'] } }, { likes: 10 });
+    const unrelated = await create(
+      { postClassification: { topics: ['gardening'] } },
+      { likes: 10 },
+    );
 
     const candidates = await gatherMine(
       context({
@@ -259,7 +274,8 @@ describe('relevance is a boost, never a filter', () => {
     expect(scoreOf(candidates, everything) / scoreOf(candidates, nothing)).toBeCloseTo(
       Math.min(
         MtnConfig.ranking.exploreRelevance.maxBoost,
-        MtnConfig.ranking.exploreRelevance.topicMatch * MtnConfig.ranking.exploreRelevance.regionMatch,
+        MtnConfig.ranking.exploreRelevance.topicMatch *
+          MtnConfig.ranking.exploreRelevance.regionMatch,
       ),
       6,
     );
@@ -314,7 +330,7 @@ describe('relevance is a boost, never a filter', () => {
    * declaration a logged-out reader can still make. Topics and region stay
    * authenticated-only. It FILTERS rather than orders — see the filter cases above.
    */
-  it('filters an ANONYMOUS reader\'s Discover by their declared language', async () => {
+  it("filters an ANONYMOUS reader's Discover by their declared language", async () => {
     const spanish = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
     await create({ postClassification: { languages: ['ja'] } }, { likes: 5_000 });
 
@@ -358,7 +374,10 @@ describe('viewer signals are data, never SQL', () => {
         followingIds: [],
         viewerRegion: "'; drop table posts; --",
         userBehavior: {
-          preferredTopics: [{ topic: '$$bad', weight: 5 }, { topic: "') or true --", weight: 4 }],
+          preferredTopics: [
+            { topic: '$$bad', weight: 5 },
+            { topic: "') or true --", weight: 4 },
+          ],
         },
       }),
     );
@@ -387,7 +406,11 @@ describe('what the candidate window excludes', () => {
     });
     const parent = await create();
     const reply = await create({ parentPostId: parent });
-    const boost = await create({ type: PostType.BOOST, boostOf: parent, content: { variants: [] } });
+    const boost = await create({
+      type: PostType.BOOST,
+      boostOf: parent,
+      content: { variants: [] },
+    });
 
     const ids = await idsOfMine(context({ currentUserId: VIEWER, followingIds: [followed] }));
     expect(ids.sort()).toEqual([keep, parent].sort());
@@ -412,7 +435,9 @@ describe('what the candidate window excludes', () => {
 
   it('bounds the window at both ends of the trending window', async () => {
     const inside = await create({ createdAt: new Date(AS_OF - 60 * 60 * 1000) });
-    const tooOld = await create({ createdAt: new Date(AS_OF - MtnConfig.feed.trendingWindowMs - 1000) });
+    const tooOld = await create({
+      createdAt: new Date(AS_OF - MtnConfig.feed.trendingWindowMs - 1000),
+    });
     const afterTheSnapshot = await create({ createdAt: new Date(AS_OF + 60 * 60 * 1000) });
 
     const ids = await idsOfMine(context({ currentUserId: VIEWER, followingIds: [] }));
@@ -465,7 +490,9 @@ describe('a pagination session is a frozen snapshot', () => {
     expect(first).toEqual(expected);
 
     const anchorIndex = 2;
-    const anchor = (await gatherMine(context({ currentUserId: VIEWER, followingIds: [] })))[anchorIndex];
+    const anchor = (await gatherMine(context({ currentUserId: VIEWER, followingIds: [] })))[
+      anchorIndex
+    ];
     const anchorScore = anchor.finalScore;
     if (typeof anchorScore !== 'number') throw new Error('explore emitted no score to cursor on');
 
@@ -519,7 +546,10 @@ describe('a pagination session is a frozen snapshot', () => {
     // its own exclusion list, so an anchor that is also an expected result can
     // never come back and the assertion would be measuring the wrong thing.
     const anchor = await create({ createdAt: new Date(AS_OF - 3 * 60 * 60 * 1000) }, { likes: 1 });
-    const original = await create({ createdAt: new Date(AS_OF - 2 * 60 * 60 * 1000) }, { likes: 5 });
+    const original = await create(
+      { createdAt: new Date(AS_OF - 2 * 60 * 60 * 1000) },
+      { likes: 5 },
+    );
     // A score bound wide enough to admit everything, so the WINDOW is the only
     // thing that can exclude a row.
     const cursor = ScoreCursor.build(Number.MAX_SAFE_INTEGER, anchor, { asOf: AS_OF });
@@ -546,6 +576,8 @@ describe('a pagination session is a frozen snapshot', () => {
       excludeIds: [excluded],
     });
     // Both the listed id AND the anchor are gone; only the untouched post remains.
-    expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [], cursor }))).toEqual([kept]);
+    expect(await idsOfMine(context({ currentUserId: VIEWER, followingIds: [], cursor }))).toEqual([
+      kept,
+    ]);
   });
 });

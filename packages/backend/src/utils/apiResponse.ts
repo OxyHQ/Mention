@@ -50,7 +50,7 @@ export function sendPaginated<T>(
   res: Response,
   data: T[],
   pagination: PaginationMeta,
-  status = 200
+  status = 200,
 ): void {
   res.status(status).json({
     success: true,
@@ -62,12 +62,7 @@ export function sendPaginated<T>(
 /**
  * Send an error response with consistent format.
  */
-export function sendError(
-  res: Response,
-  code: string,
-  message: string,
-  status = 500
-): void {
+export function sendError(res: Response, code: string, message: string, status = 500): void {
   res.status(status).json({
     success: false,
     error: { code, message },

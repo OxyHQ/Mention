@@ -28,7 +28,8 @@ vi.mock('../utils/cache', () => ({
 
 import { bulkUsers } from '../services/seoSitemap';
 
-const rateLimited = (): Error => Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+const rateLimited = (): Error =>
+  Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
 
 describe('sitemap Oxy budget protection', () => {
   beforeEach(() => {
@@ -37,15 +38,19 @@ describe('sitemap Oxy budget protection', () => {
   });
 
   it('resolves users in bounded bulk batches', async () => {
-    serviceRequest.mockImplementation(async (_method: string, _url: string, body: { ids: string[] }) =>
-      body.ids.map((id) => ({ id, username: `u${id}` })));
+    serviceRequest.mockImplementation(
+      async (_method: string, _url: string, body: { ids: string[] }) =>
+        body.ids.map((id) => ({ id, username: `u${id}` })),
+    );
     const ids = Array.from({ length: 250 }, (_, index) => String(index));
 
     const users = await bulkUsers([...ids, ...ids]);
 
     expect(users).toHaveLength(250);
     expect(serviceRequest).toHaveBeenCalledTimes(3);
-    expect(serviceRequest).toHaveBeenCalledWith('POST', '/users/by-ids', { ids: ids.slice(0, 100) });
+    expect(serviceRequest).toHaveBeenCalledWith('POST', '/users/by-ids', {
+      ids: ids.slice(0, 100),
+    });
   });
 
   it('stops fanning out to Oxy after the first failed batch', async () => {

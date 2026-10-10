@@ -270,7 +270,10 @@ describe('the ascending keyset', () => {
     const afterOldest = await chronoCursorSql(ChronoCursor.build(older.id, older.createdAt), 'asc');
     expect(await pageAscending(afterOldest)).toEqual([middle.id, newest.id]);
 
-    const afterMiddle = await chronoCursorSql(ChronoCursor.build(middle.id, middle.createdAt), 'asc');
+    const afterMiddle = await chronoCursorSql(
+      ChronoCursor.build(middle.id, middle.createdAt),
+      'asc',
+    );
     expect(await pageAscending(afterMiddle)).toEqual([newest.id]);
   });
 

@@ -129,7 +129,7 @@ export const blocklistProposals = pgTable(
   (t) => [
     check(
       'blocklist_proposals_status_check',
-      sql`${t.status} in (${sql.raw(inList(BLOCKLIST_PROPOSAL_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(BLOCKLIST_PROPOSAL_STATUSES))})`,
     ),
     check(
       'blocklist_proposals_counts_check',
@@ -138,13 +138,13 @@ export const blocklistProposals = pgTable(
         and ${t.footprintPosts} >= 0
         and ${t.footprintLocalUsersFollowing} >= 0
         and ${t.footprintRemoteActorsFollowed} >= 0
-        and ${t.footprintLocalUsersFollowed} >= 0`
+        and ${t.footprintLocalUsersFollowed} >= 0`,
     ),
     uniqueIndex('blocklist_proposals_domain_key').on(t.domain),
     // The review queue, oldest first: a proposal nobody has answered for months
     // is the one worth seeing at the top.
     index('blocklist_proposals_status_chrono_idx').on(t.status, t.firstProposedAt),
-  ]
+  ],
 );
 
 /**
@@ -177,16 +177,16 @@ export const blocklistProposalObservations = pgTable(
   (t) => [
     check(
       'blocklist_proposal_observations_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(PUBLISHED_BLOCK_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(PUBLISHED_BLOCK_SEVERITIES))})`,
     ),
     check('blocklist_proposal_observations_position_check', sql`${t.position} >= 0`),
     // One verdict per (proposal, instance): an operator speaks once per sighting.
     uniqueIndex('blocklist_proposal_observations_proposal_id_instance_key').on(
       t.proposalId,
-      t.instance
+      t.instance,
     ),
     index('blocklist_proposal_observations_proposal_idx').on(t.proposalId, t.position),
-  ]
+  ],
 );
 
 /** `blocklist_proposal_runs` — what one sweep did, in the terms a reader asks about. */
@@ -226,7 +226,7 @@ export const blocklistProposalRuns = pgTable(
   (t) => [
     check(
       'blocklist_proposal_runs_trigger_check',
-      sql`${t.trigger} in (${sql.raw(inList(BLOCKLIST_PROPOSAL_RUN_TRIGGERS))})`
+      sql`${t.trigger} in (${sql.raw(inList(BLOCKLIST_PROPOSAL_RUN_TRIGGERS))})`,
     ),
     check(
       'blocklist_proposal_runs_counts_check',
@@ -238,12 +238,12 @@ export const blocklistProposalRuns = pgTable(
         and ${t.countsSuppressedDeclined} >= 0
         and ${t.countsSuppressedBlocked} >= 0
         and ${t.countsLapsed} >= 0
-        and ${t.countsAdopted} >= 0`
+        and ${t.countsAdopted} >= 0`,
     ),
     uniqueIndex('blocklist_proposal_runs_run_id_key').on(t.runId),
     // The scheduler's only query: when did the last sweep start?
     index('blocklist_proposal_runs_started_at_idx').on(t.startedAt.desc()),
-  ]
+  ],
 );
 
 /** `blocklist_proposal_run_sources` — what each source contributed to one run. */
@@ -264,17 +264,17 @@ export const blocklistProposalRunSources = pgTable(
   (t) => [
     check(
       'blocklist_proposal_run_sources_outcome_check',
-      sql`${t.outcome} in (${sql.raw(inList(BLOCKLIST_SOURCE_OUTCOMES))})`
+      sql`${t.outcome} in (${sql.raw(inList(BLOCKLIST_SOURCE_OUTCOMES))})`,
     ),
     check(
       'blocklist_proposal_run_sources_counts_check',
-      sql`${t.entries} >= 0 and ${t.position} >= 0`
+      sql`${t.entries} >= 0 and ${t.position} >= 0`,
     ),
     uniqueIndex('blocklist_proposal_run_sources_run_row_id_instance_key').on(
       t.runRowId,
-      t.instance
+      t.instance,
     ),
-  ]
+  ],
 );
 
 /**
@@ -318,7 +318,7 @@ export const blockedDomainPurges = pgTable(
   (t) => [
     check(
       'blocked_domain_purges_state_check',
-      sql`${t.state} in (${sql.raw(inList(BLOCKED_DOMAIN_PURGE_STATES))})`
+      sql`${t.state} in (${sql.raw(inList(BLOCKED_DOMAIN_PURGE_STATES))})`,
     ),
     // Every measured count is nullable and non-negative when present. The
     // subdocument was absent-or-complete in Mongo (`default: undefined`), and
@@ -340,14 +340,14 @@ export const blockedDomainPurges = pgTable(
           and ${t.measuredNotifications} >= 0
           and ${t.measuredMediaCacheRows} >= 0
           and ${t.measuredLocalContentKept} >= 0
-          and ${t.measuredLocalFollowsRemoved} >= 0)`
+          and ${t.measuredLocalFollowsRemoved} >= 0)`,
     ),
     // The reconciler's whole cheapness rests on this: one indexed lookup per
     // policy domain instead of re-measuring every domain ever blocked.
     uniqueIndex('blocked_domain_purges_domain_key').on(t.domain),
     // The claim/re-arm sweep reads by state.
     index('blocked_domain_purges_state_claimed_idx').on(t.state, t.claimedAt),
-  ]
+  ],
 );
 
 /**
@@ -391,7 +391,7 @@ export const blockedDomainPurgeRuns = pgTable(
   (t) => [
     check(
       'blocked_domain_purge_runs_trigger_check',
-      sql`${t.trigger} in (${sql.raw(inList(BLOCKED_DOMAIN_PURGE_TRIGGERS))})`
+      sql`${t.trigger} in (${sql.raw(inList(BLOCKED_DOMAIN_PURGE_TRIGGERS))})`,
     ),
     check(
       'blocked_domain_purge_runs_removed_check',
@@ -402,12 +402,12 @@ export const blockedDomainPurgeRuns = pgTable(
         and ${t.removedNotifications} >= 0
         and ${t.removedMediaCacheRows} >= 0
         and ${t.removedLocalContentKept} >= 0
-        and ${t.removedLocalFollowsRemoved} >= 0`
+        and ${t.removedLocalFollowsRemoved} >= 0`,
     ),
     // One row per domain per run: a retried or resumed run updates its row
     // rather than appending, so it cannot inflate a sum-per-domain.
     uniqueIndex('blocked_domain_purge_runs_domain_run_id_key').on(t.domain, t.runId),
     // The latest run for a domain, and every run for a domain to sum.
     index('blocked_domain_purge_runs_domain_chrono_idx').on(t.domain, t.runAt.desc()),
-  ]
+  ],
 );

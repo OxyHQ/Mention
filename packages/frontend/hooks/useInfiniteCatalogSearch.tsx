@@ -94,11 +94,7 @@ export function useInfiniteCatalogSearch<T>(
   }, [query]);
 
   const search = useInfiniteQuery({
-    queryKey: viewerQueryKeys.profileMediaSearch(
-      user?.id,
-      type,
-      debouncedQuery,
-    ),
+    queryKey: viewerQueryKeys.profileMediaSearch(user?.id, type, debouncedQuery),
     queryFn: ({ pageParam }) => fetchCatalogPage<T>(type, debouncedQuery, pageParam),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),

@@ -30,7 +30,9 @@ describe('plainTextToApHtml', () => {
 
   it('HTML-escapes &, < and > (and escapes & first, never double-escaping)', () => {
     expect(plainTextToApHtml('a < b && c > d')).toBe('<p>a &lt; b &amp;&amp; c &gt; d</p>');
-    expect(plainTextToApHtml('<script>alert(1)</script>')).toBe('<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');
+    expect(plainTextToApHtml('<script>alert(1)</script>')).toBe(
+      '<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>',
+    );
     // An ampersand-led entity in the source must not be re-escaped into `&amp;amp;`.
     expect(plainTextToApHtml('AT&T & Co')).toBe('<p>AT&amp;T &amp; Co</p>');
   });

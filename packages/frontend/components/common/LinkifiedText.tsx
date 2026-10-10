@@ -46,16 +46,31 @@ const NOFOLLOW = { hrefAttrs: { rel: 'nofollow' } } as object;
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs.
 // In-app destinations are expo-router `Link`s — on web, real `<a href>`s that
 // a crawler follows and a reader can open in a new tab.
-export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines, linkTargetText }) => {
+export const LinkifiedText: React.FC<LinkifiedTextProps> = ({
+  text,
+  style,
+  className,
+  linkStyle,
+  suffix,
+  numberOfLines,
+  linkTargetText,
+}) => {
   const nodes = useMemo(() => {
     if (!text) return null;
 
     // Flattened: a `Link asChild` merges its own props into the link's `Text`,
     // and that merge cannot take a style array.
     const flatLinkStyle = StyleSheet.flatten(linkStyle);
-    const linkText = (href: Href, label: React.ReactNode, linkKey?: string, unverified?: boolean) => (
+    const linkText = (
+      href: Href,
+      label: React.ReactNode,
+      linkKey?: string,
+      unverified?: boolean,
+    ) => (
       <Link key={linkKey} href={href} push asChild onPress={stopAtLink}>
-        <Text className="text-primary" style={flatLinkStyle} {...(unverified ? NOFOLLOW : null)}>{label}</Text>
+        <Text className="text-primary" style={flatLinkStyle} {...(unverified ? NOFOLLOW : null)}>
+          {label}
+        </Text>
       </Link>
     );
 
@@ -96,10 +111,13 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             className="text-primary"
             style={linkStyle}
             accessibilityRole="link"
-            onPress={(event) => { event.stopPropagation(); openExternalLink(entity.value); }}
+            onPress={(event) => {
+              event.stopPropagation();
+              openExternalLink(entity.value);
+            }}
           >
             {entity.label}
-          </Text>
+          </Text>,
         );
       } else if (entity.kind === 'mentionDisplay') {
         // One handle drives both behaviors — the profile link and the hover
@@ -107,10 +125,14 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
         elements.push(
           <ProfileHoverCard key={`m-${key++}`} username={mentionHandle}>
-            {mentionHandle ? linkText(`/@${mentionHandle}`, entity.label, undefined, entity.unverified) : (
-              <Text className="text-primary" style={linkStyle}>{entity.label}</Text>
+            {mentionHandle ? (
+              linkText(`/@${mentionHandle}`, entity.label, undefined, entity.unverified)
+            ) : (
+              <Text className="text-primary" style={linkStyle}>
+                {entity.label}
+              </Text>
             )}
-          </ProfileHoverCard>
+          </ProfileHoverCard>,
         );
       } else if (entity.kind === 'federatedHandle') {
         // The handle already names its host, so it routes verbatim — no
@@ -118,7 +140,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         elements.push(
           <ProfileHoverCard key={`f-${key++}`} username={entity.value}>
             {linkText(`/@${entity.value}`, entity.raw, undefined, entity.unverified)}
-          </ProfileHoverCard>
+          </ProfileHoverCard>,
         );
       } else if (entity.kind === 'url') {
         const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
@@ -131,14 +153,18 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
             onPress={() => openExternalLink(href)}
           >
             {url}
-          </Text>
+          </Text>,
         );
         // Punctuation that merely trailed the URL belongs to the sentence.
         pushText(trailing);
       } else if (entity.kind === 'hashtag') {
-        elements.push(linkText(`/hashtag/${encodeURIComponent(entity.value)}`, entity.raw, `h-${key++}`));
+        elements.push(
+          linkText(`/hashtag/${encodeURIComponent(entity.value)}`, entity.raw, `h-${key++}`),
+        );
       } else if (entity.kind === 'cashtag') {
-        elements.push(linkText(`/search/${encodeURIComponent(`$${entity.value}`)}`, entity.raw, `c-${key++}`));
+        elements.push(
+          linkText(`/search/${encodeURIComponent(`$${entity.value}`)}`, entity.raw, `c-${key++}`),
+        );
       }
     }
 
@@ -147,7 +173,12 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
   }, [text, linkStyle, linkTargetText]);
 
   if (!text) return null;
-  return <Text style={style} className={className} numberOfLines={numberOfLines}>{nodes}{suffix}</Text>;
+  return (
+    <Text style={style} className={className} numberOfLines={numberOfLines}>
+      {nodes}
+      {suffix}
+    </Text>
+  );
 };
 
 export default LinkifiedText;

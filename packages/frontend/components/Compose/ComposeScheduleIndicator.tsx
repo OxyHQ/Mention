@@ -43,54 +43,54 @@ interface ComposeScheduleIndicatorProps {
  * it from — so the accessibility label says it in full even though the visible
  * text is just the date. That is a deliberate asymmetry, not an oversight.
  */
-const ComposeScheduleIndicator = memo<ComposeScheduleIndicatorProps>(({
-  scheduledLabel,
-  onPress,
-  disabled = false,
-}) => {
-  const { t } = useTranslation();
-  const haptic = useHaptics();
+const ComposeScheduleIndicator = memo<ComposeScheduleIndicatorProps>(
+  ({ scheduledLabel, onPress, disabled = false }) => {
+    const { t } = useTranslation();
+    const haptic = useHaptics();
 
-  return (
-    <PressableScale
-      onPress={() => {
-        haptic('light');
-        onPress();
-      }}
-      disabled={disabled}
-      // `flex-shrink-0` keeps the time whole: the identity line lets the
-      // `@handle` give way first (it carries `flexShrink: 10`), which is the
-      // right trade here since the composer shows the viewer their OWN handle
-      // and the publish time is the part they do not already know.
-      className="flex-shrink-0"
-      accessibilityRole="button"
-      // The label carries the STATE, not just the action — the visible text is
-      // now only a date, so this is the only place a screen reader learns the
-      // post is scheduled at all.
-      accessibilityLabel={scheduledLabel
-        ? t('compose.schedule.chipA11y', {
-            defaultValue: 'Scheduled for {{time}}. Tap to change.',
-            time: scheduledLabel,
-          })
-        : t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
-    >
-      {/* The SAME classes `PostHeader` gives the label this stands in for, so
+    return (
+      <PressableScale
+        onPress={() => {
+          haptic('light');
+          onPress();
+        }}
+        disabled={disabled}
+        // `flex-shrink-0` keeps the time whole: the identity line lets the
+        // `@handle` give way first (it carries `flexShrink: 10`), which is the
+        // right trade here since the composer shows the viewer their OWN handle
+        // and the publish time is the part they do not already know.
+        className="flex-shrink-0"
+        accessibilityRole="button"
+        // The label carries the STATE, not just the action — the visible text is
+        // now only a date, so this is the only place a screen reader learns the
+        // post is scheduled at all.
+        accessibilityLabel={
+          scheduledLabel
+            ? t('compose.schedule.chipA11y', {
+                defaultValue: 'Scheduled for {{time}}. Tap to change.',
+                time: scheduledLabel,
+              })
+            : t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })
+        }
+      >
+        {/* The SAME classes `PostHeader` gives the label this stands in for, so
           the row does not change shape when a time is picked. Never a
           hand-built `${theme.colors.primary}1A`: the accent roles resolve to
           `rgb(...)`, so appending hex alpha yields a string react-native-web
           reads back as FULLY OPAQUE. */}
-      <Text
-        className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
-        style={{ opacity: disabled ? 0.5 : 1 }}
-      >
-        {/* Read from the same helper `PostHeader` uses for a dateless row, so
+        <Text
+          className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
+          style={{ opacity: disabled ? 0.5 : 1 }}
+        >
+          {/* Read from the same helper `PostHeader` uses for a dateless row, so
             the unscheduled word here and the one a box would otherwise show
             cannot drift apart. */}
-        {'·'} {scheduledLabel ?? formatTimeAgo('')}
-      </Text>
-    </PressableScale>
-  );
-});
+          {'·'} {scheduledLabel ?? formatTimeAgo('')}
+        </Text>
+      </PressableScale>
+    );
+  },
+);
 
 ComposeScheduleIndicator.displayName = 'ComposeScheduleIndicator';
 

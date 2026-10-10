@@ -34,7 +34,7 @@ const TABS = [
 ] as const satisfies readonly { id: string; label: string; href: Href }[];
 
 function pushTab(id: string) {
-  const tab = TABS.find(candidate => candidate.id === id);
+  const tab = TABS.find((candidate) => candidate.id === id);
   if (tab) router.push(tab.href);
 }
 
@@ -42,17 +42,33 @@ export default function ExploreLayout() {
   const { t } = useTranslation();
   const theme = useTheme();
   const pathname = usePathname();
-  const activeTab = TABS.find(tab => isCurrentRoute(tab.href, pathname))?.id ?? 'all';
+  const activeTab = TABS.find((tab) => isCurrentRoute(tab.href, pathname))?.id ?? 'all';
   const handleTabPress = useTabSelect<string>(activeTab, pushTab);
 
-  return <View className="flex-1 web:z-auto">
-    <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
-    <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-    <PageHeader title={t('Explore')} presentation="floating" actions={
-      <Button appearance="subtle" tone="neutral" iconOnly icon={<Search size={20} />}
-        onPress={() => router.push('/search')} accessibilityLabel={t('Search')} />
-    } />
-    <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{TABS.map(tab => <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />)}</Tabs>
-    <Slot />
-  </View>;
+  return (
+    <View className="flex-1 web:z-auto">
+      <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      <PageHeader
+        title={t('Explore')}
+        presentation="floating"
+        actions={
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            iconOnly
+            icon={<Search size={20} />}
+            onPress={() => router.push('/search')}
+            accessibilityLabel={t('Search')}
+          />
+        }
+      />
+      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+        {TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
+        ))}
+      </Tabs>
+      <Slot />
+    </View>
+  );
 }

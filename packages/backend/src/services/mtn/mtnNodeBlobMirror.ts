@@ -97,7 +97,11 @@ function candidateBlobs(record: MentionPostRecord): MtnEmbedMediaItem['blob'][] 
     if (!blob || typeof blob.sha256 !== 'string' || blob.sha256.length === 0) continue;
     if (seen.has(blob.sha256)) continue;
     // Drop an over-cap blob before fetching its bytes.
-    if (typeof blob.size === 'number' && Number.isFinite(blob.size) && blob.size > MENTION_NODE_BLOB_MIRROR_MAX_BYTES) {
+    if (
+      typeof blob.size === 'number' &&
+      Number.isFinite(blob.size) &&
+      blob.size > MENTION_NODE_BLOB_MIRROR_MAX_BYTES
+    ) {
       continue;
     }
     seen.add(blob.sha256);
@@ -125,9 +129,12 @@ async function unresolvedSha256s(sha256s: string[]): Promise<Set<string>> {
       }
     }
   } catch (error) {
-    logger.debug('mtnNodeBlobMirror: existence pre-check failed; treating all blobs as unresolved', {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.debug(
+      'mtnNodeBlobMirror: existence pre-check failed; treating all blobs as unresolved',
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
   return unresolved;
 }
@@ -177,7 +184,9 @@ async function mirrorOneBlob(
 
   const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX)).catch(() => null);
   if (!dir) {
-    logger.warn('mtnNodeBlobMirror: failed to create temp dir; skipping blob', { sha256: blob.sha256 });
+    logger.warn('mtnNodeBlobMirror: failed to create temp dir; skipping blob', {
+      sha256: blob.sha256,
+    });
     return;
   }
   try {

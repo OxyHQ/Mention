@@ -48,7 +48,10 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-jest.mock('@oxy.so/bloom/icons', () => ({ RiCornerDownRightLine: () => null, RiLinkM: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiCornerDownRightLine: () => null,
+  RiLinkM: () => null,
+}));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
@@ -66,7 +69,9 @@ jest.mock('../../ProfileHoverCard', () => ({
   ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
+jest.mock('@/hooks/usePostLanguagePicker', () => ({
+  usePostLanguagePicker: () => () => undefined,
+}));
 // The row's commands come from the app's one controller; these tests are about
 // what the row RENDERS, so the commands are inert.
 jest.mock('../postInteractions', () => {
@@ -137,10 +142,9 @@ function renderRowRoot(isPostDetail: boolean) {
   });
   if (!renderer) throw new Error('render produced no tree');
   const label = 'Nate Isern: hola';
-  const roots = renderer.root.findAll(
-    (node) => node.props?.accessibilityLabel === label,
-    { deep: false },
-  );
+  const roots = renderer.root.findAll((node) => node.props?.accessibilityLabel === label, {
+    deep: false,
+  });
   expect(roots).toHaveLength(1);
   return roots[0];
 }

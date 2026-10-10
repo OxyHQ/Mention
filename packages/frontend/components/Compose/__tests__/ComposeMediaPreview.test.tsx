@@ -16,7 +16,8 @@ jest.mock('@/components/Compose/VideoPreview', () => {
   const { createElement } = jest.requireActual<typeof import('react')>('react');
   const { View: MockView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    VideoPreview: (props: { src: string }) => createElement(MockView, { testID: 'video-preview', ...props }),
+    VideoPreview: (props: { src: string }) =>
+      createElement(MockView, { testID: 'video-preview', ...props }),
   };
 });
 
@@ -24,7 +25,11 @@ function render(type: 'image' | 'video' | 'gif') {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <ComposeMediaPreview type={type} uri="https://cloud.oxy.so/file-1" imageStyle={{ width: 10 }} />,
+      <ComposeMediaPreview
+        type={type}
+        uri="https://cloud.oxy.so/file-1"
+        imageStyle={{ width: 10 }}
+      />,
     );
   });
   if (!renderer) throw new Error('preview did not render');
@@ -35,7 +40,9 @@ describe('ComposeMediaPreview', () => {
   it('plays a picker GIF as a video, like the feed does', () => {
     const root = render('gif');
 
-    expect(root.findByProps({ testID: 'video-preview' }).props.src).toBe('https://cloud.oxy.so/file-1');
+    expect(root.findByProps({ testID: 'video-preview' }).props.src).toBe(
+      'https://cloud.oxy.so/file-1',
+    );
     expect(root.findAllByType(Image)).toHaveLength(0);
   });
 
@@ -52,7 +59,7 @@ describe('ComposeMediaPreview', () => {
 });
 
 describe('toComposerMediaType', () => {
-  it('gives `gif` only to a caller that says so — the picker\'s mp4', () => {
+  it("gives `gif` only to a caller that says so — the picker's mp4", () => {
     expect(toComposerMediaType('gif')).toBe('gif');
     expect(toComposerMediaType('GIF')).toBe('gif');
   });

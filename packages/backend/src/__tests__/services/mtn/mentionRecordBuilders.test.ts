@@ -5,7 +5,18 @@ import { z } from 'zod';
 // `metadataByIds` (fileId → sha256) is fully controllable and
 // performs no real I/O. Hoisted so it predates the module-under-test import.
 const oxyMock = vi.hoisted(() => ({
-  metadataByIds: vi.fn<(ids: string[]) => Promise<Array<{ id: string; sha256: string; mime: string; size: number; status: 'active' | 'trash' }>>>(),
+  metadataByIds:
+    vi.fn<
+      (ids: string[]) => Promise<
+        Array<{
+          id: string;
+          sha256: string;
+          mime: string;
+          size: number;
+          status: 'active' | 'trash';
+        }>
+      >
+    >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ assets: { metadataByIds: oxyMock.metadataByIds } }),
@@ -108,19 +119,27 @@ describe('engagement builders', () => {
   });
 
   it('buildRepostRecord builds a valid repost payload with the reposted post URI', () => {
-    const record = buildRepostRecord({ repostedPostId: 'p2', repostedPostOwnerOxyUserId: 'owner-2' });
+    const record = buildRepostRecord({
+      repostedPostId: 'p2',
+      repostedPostOwnerOxyUserId: 'owner-2',
+    });
     expect(mentionRepostRecordSchema.safeParse(record).success).toBe(true);
     expect(record.subject).toBe('mtn://owner-2/app.mention.feed.post/p2');
   });
 
   it('buildBookmarkRecord builds a valid bookmark payload', () => {
-    const record = buildBookmarkRecord({ bookmarkedPostId: 'p3', bookmarkedPostOwnerOxyUserId: 'owner-3' });
+    const record = buildBookmarkRecord({
+      bookmarkedPostId: 'p3',
+      bookmarkedPostOwnerOxyUserId: 'owner-3',
+    });
     expect(mentionBookmarkRecordSchema.safeParse(record).success).toBe(true);
     expect(record.subject).toBe('mtn://owner-3/app.mention.feed.post/p3');
   });
 
   it('buildTombstoneRecord builds a valid tombstone payload', () => {
-    const record = buildTombstoneRecord({ subjectUri: 'mtn://author-1/app.mention.feed.like/like-1' });
+    const record = buildTombstoneRecord({
+      subjectUri: 'mtn://author-1/app.mention.feed.like/like-1',
+    });
     expect(mentionTombstoneRecordSchema.safeParse(record).success).toBe(true);
     expect(record.subject).toBe('mtn://author-1/app.mention.feed.like/like-1');
   });
@@ -151,7 +170,10 @@ describe('resolvePostRecordEmbeds', () => {
     expect(embed).toEqual({
       type: 'media',
       items: [
-        { blob: { sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: 1234 }, alt: 'a cat' },
+        {
+          blob: { sha256: 'sha-img', mediaType: 'image', mime: 'image/png', size: 1234 },
+          alt: 'a cat',
+        },
         { blob: { sha256: 'sha-vid', mediaType: 'video', mime: 'video/mp4', size: 99999 } },
       ],
     });
@@ -275,7 +297,12 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
         variants: [
           { tag: 'es', source: 'author', text: 'infografía' },
           // A different infographic for the English reader: REPLACES the media set.
-          { tag: 'en', source: 'author', text: 'infographic', media: [{ id: 'file-en', type: 'image' }] },
+          {
+            tag: 'en',
+            source: 'author',
+            text: 'infographic',
+            media: [{ id: 'file-en', type: 'image' }],
+          },
         ],
       },
     });
@@ -310,15 +337,17 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
   it('emits the author’s PRECISE tags in `langs`, not the classifier’s base codes', () => {
     // `langs` is BCP-47 by protocol. Emitting the classifier's `es` would lose the
     // region, and a post round-tripped through the chain would come back `es`.
-    const record = buildPostRecord(makePost({
-      content: {
-        variants: [
-          { tag: 'es-ES', source: 'author', text: 'hola' },
-          { tag: 'pt-BR', source: 'author', text: 'ola' },
-        ],
-      },
-      postClassification: { languages: ['es', 'pt'] } as PostRecord['postClassification'],
-    }));
+    const record = buildPostRecord(
+      makePost({
+        content: {
+          variants: [
+            { tag: 'es-ES', source: 'author', text: 'hola' },
+            { tag: 'pt-BR', source: 'author', text: 'ola' },
+          ],
+        },
+        postClassification: { languages: ['es', 'pt'] } as PostRecord['postClassification'],
+      }),
+    );
 
     expect(record.langs).toEqual(['es-ES', 'pt-BR']);
   });

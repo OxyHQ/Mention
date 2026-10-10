@@ -46,7 +46,11 @@ export async function recordFederatedBanner(
  * Record, without waiting and without ever failing the caller: the actor
  * resolve path must not slow down or fail because the banner bookkeeping did.
  */
-export function recordFederatedBannerInBackground(input: { oxyUserId: string; actorUri: string; bannerUrl?: string }): void {
+export function recordFederatedBannerInBackground(input: {
+  oxyUserId: string;
+  actorUri: string;
+  bannerUrl?: string;
+}): void {
   if (!input.bannerUrl) return;
   void recordFederatedBanner({ ...input, bannerUrl: input.bannerUrl }).catch((error: unknown) => {
     logger.debug('[BannerMirror] could not record a federated banner', {
@@ -54,4 +58,3 @@ export function recordFederatedBannerInBackground(input: { oxyUserId: string; ac
     });
   });
 }
-

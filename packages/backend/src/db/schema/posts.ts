@@ -52,14 +52,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import {
-  createdAt,
-  generatedId,
-  geography,
-  inList,
-  timestamptz,
-  updatedAt,
-} from '@oxy.so/db';
+import { createdAt, generatedId, geography, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
  * `PostType` (`@mention/shared-types`). Declared as a local tuple so the column
@@ -531,14 +524,14 @@ export const posts = pgTable(
     contentLocationLongitude: doublePrecision(),
     contentLocationAddress: text(),
     contentGeo: geography().generatedAlwaysAs(
-      sql`ST_MakePoint(content_location_longitude, content_location_latitude)::geography`
+      sql`ST_MakePoint(content_location_longitude, content_location_latitude)::geography`,
     ),
 
     locationLatitude: doublePrecision(),
     locationLongitude: doublePrecision(),
     locationAddress: text(),
     geo: geography().generatedAlwaysAs(
-      sql`ST_MakePoint(location_longitude, location_latitude)::geography`
+      sql`ST_MakePoint(location_longitude, location_latitude)::geography`,
     ),
 
     // ── `postClassification` subdocument ──
@@ -577,9 +570,7 @@ export const posts = pgTable(
     classificationScoreControversy: scoreColumn(),
     classificationScoreNegativity: scoreColumn(),
     classificationConfidence: scoreColumn(),
-    classificationStatus: text({ enum: POST_CLASSIFICATION_STATUSES })
-      .notNull()
-      .default('pending'),
+    classificationStatus: text({ enum: POST_CLASSIFICATION_STATUSES }).notNull().default('pending'),
     /** Attempts so far, so a persistently failing post can be given up on. */
     classificationAttempts: integer().notNull().default(0),
     classificationClassifiedAt: timestamptz(),
@@ -624,29 +615,29 @@ export const posts = pgTable(
      */
     check(
       'posts_created_at_ms_precision_check',
-      sql`${t.createdAt} = date_trunc('milliseconds', ${t.createdAt})`
+      sql`${t.createdAt} = date_trunc('milliseconds', ${t.createdAt})`,
     ),
     check('posts_type_check', sql`${t.type} in (${sql.raw(inList(POST_TYPES))})`),
     check(
       'posts_visibility_check',
-      sql`${t.visibility} in (${sql.raw(inList(POST_VISIBILITIES))})`
+      sql`${t.visibility} in (${sql.raw(inList(POST_VISIBILITIES))})`,
     ),
     check('posts_status_check', sql`${t.status} in (${sql.raw(inList(POST_STATUSES))})`),
     check(
       'posts_room_status_check',
-      sql`${t.contentRoomStatus} is null or ${t.contentRoomStatus} in (${sql.raw(inList(POST_ROOM_STATUSES))})`
+      sql`${t.contentRoomStatus} is null or ${t.contentRoomStatus} in (${sql.raw(inList(POST_ROOM_STATUSES))})`,
     ),
     check(
       'posts_classification_status_check',
-      sql`${t.classificationStatus} in (${sql.raw(inList(POST_CLASSIFICATION_STATUSES))})`
+      sql`${t.classificationStatus} in (${sql.raw(inList(POST_CLASSIFICATION_STATUSES))})`,
     ),
     check(
       'posts_classification_sentiment_check',
-      sql`${t.classificationSentiment} in (${sql.raw(inList(POST_SENTIMENTS))})`
+      sql`${t.classificationSentiment} in (${sql.raw(inList(POST_SENTIMENTS))})`,
     ),
     check(
       'posts_classification_intent_check',
-      sql`${t.classificationIntent} in (${sql.raw(inList(POST_INTENTS))})`
+      sql`${t.classificationIntent} in (${sql.raw(inList(POST_INTENTS))})`,
     ),
     // The ELEMENTS of the array, which is what Mongo's array-enum meant. `<@`
     // is true for an empty array too, matching Mongo (an empty list forbids
@@ -654,7 +645,7 @@ export const posts = pgTable(
     // decides that an empty list means "anyone").
     check(
       'posts_reply_permission_check',
-      sql`${t.replyPermission} <@ array[${sql.raw(inList(REPLY_PERMISSIONS))}]::text[]`
+      sql`${t.replyPermission} <@ array[${sql.raw(inList(REPLY_PERMISSIONS))}]::text[]`,
     ),
     // Every classification score is a probability. Mongo declared `min`/`max` on
     // each; Mongoose only enforced them on document saves, so the same
@@ -667,30 +658,30 @@ export const posts = pgTable(
         and ${t.classificationScoreQuality} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}
         and ${t.classificationScoreControversy} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}
         and ${t.classificationScoreNegativity} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}
-        and ${t.classificationConfidence} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}`
+        and ${t.classificationConfidence} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}`,
     ),
     // A coordinate pair is all-or-nothing. Mongo's validator allowed an empty
     // array and the federated insert path had to strip half-written pairs by
     // hand (`outbox.service.ts:904`); here the state is simply unrepresentable.
     check(
       'posts_content_location_pair_check',
-      sql`(${t.contentLocationLatitude} is null) = (${t.contentLocationLongitude} is null)`
+      sql`(${t.contentLocationLatitude} is null) = (${t.contentLocationLongitude} is null)`,
     ),
     check(
       'posts_location_pair_check',
-      sql`(${t.locationLatitude} is null) = (${t.locationLongitude} is null)`
+      sql`(${t.locationLatitude} is null) = (${t.locationLongitude} is null)`,
     ),
     check(
       'posts_content_location_range_check',
       sql`${t.contentLocationLatitude} is null or (
         ${t.contentLocationLatitude} between -90 and 90
-        and ${t.contentLocationLongitude} between -180 and 180)`
+        and ${t.contentLocationLongitude} between -180 and 180)`,
     ),
     check(
       'posts_location_range_check',
       sql`${t.locationLatitude} is null or (
         ${t.locationLatitude} between -90 and 90
-        and ${t.locationLongitude} between -180 and 180)`
+        and ${t.locationLongitude} between -180 and 180)`,
     ),
 
     // The reply discriminator can never DISAGREE with a parent link that is
@@ -699,13 +690,10 @@ export const posts = pgTable(
     // orphan — a native reply whose parent was deleted (`ON DELETE SET NULL`
     // fired) or a federated reply whose parent Mention never imported — and both
     // must remain storable.
-    check(
-      'posts_reply_discriminator_check',
-      sql`${t.parentPostId} is null or ${t.isReply}`
-    ),
+    check('posts_reply_discriminator_check', sql`${t.parentPostId} is null or ${t.isReply}`),
     check(
       'posts_federated_reply_discriminator_check',
-      sql`${t.federationInReplyTo} is null or ${t.isReply}`
+      sql`${t.federationInReplyTo} is null or ${t.isReply}`,
     ),
 
     // Federation dedup. Mongo's `{unique: true, sparse: true}`; a Postgres
@@ -748,16 +736,22 @@ export const posts = pgTable(
       t.visibility,
       t.status,
       t.createdAt.desc(),
-      t.id.desc()
+      t.id.desc(),
     ),
     index('post_links_chrono_v1').on(
       t.hasLinks,
       t.visibility,
       t.status,
       t.createdAt.desc(),
-      t.id.desc()
+      t.id.desc(),
     ),
-    index('posts_owner_chrono_idx').on(t.oxyUserId, t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
+    index('posts_owner_chrono_idx').on(
+      t.oxyUserId,
+      t.visibility,
+      t.status,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
     index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
     /**
@@ -849,12 +843,10 @@ export const posts = pgTable(
     uniqueIndex('posts_one_boost_per_account_key')
       .on(t.oxyUserId, t.boostOf)
       .where(
-        sql`${t.type} = 'boost' and ${t.boostOf} is not null and ${t.federationActivityId} is null`
+        sql`${t.type} = 'boost' and ${t.boostOf} is not null and ${t.federationActivityId} is null`,
       ),
     index('posts_quote_of_idx').on(t.quoteOf, t.createdAt.desc()),
-    index('posts_scheduled_idx')
-      .on(t.scheduledFor)
-      .where(sql`${t.status} = 'scheduled'`),
+    index('posts_scheduled_idx').on(t.scheduledFor).where(sql`${t.status} = 'scheduled'`),
 
     /**
      * ONE ACCOUNT'S QUEUE — `GET /posts/scheduled`, which reads the caller's own
@@ -981,9 +973,7 @@ export const posts = pgTable(
 
     // Mongo indexed `curated` SPARSE. A partial index is the analogue and keeps
     // the index the size of the curated set rather than the whole table.
-    index('posts_curated_idx')
-      .on(t.createdAt.desc())
-      .where(sql`${t.curated} is true`),
+    index('posts_curated_idx').on(t.createdAt.desc()).where(sql`${t.curated} is true`),
 
     /**
      * The popular/discovery scan's ORDER BY, made index-satisfiable.
@@ -1062,7 +1052,7 @@ export const posts = pgTable(
     index('posts_content_geo_gist')
       .using('gist', t.contentGeo)
       .where(sql`${t.contentGeo} is not null`),
-  ]
+  ],
 );
 
 /** `post_equivalence_clusters.kind`. */
@@ -1131,12 +1121,15 @@ export const postEquivalenceClusters = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('post_equivalence_clusters_kind_check', sql`${t.kind} in (${sql.raw(inList(POST_EQUIVALENCE_KINDS))})`),
+    check(
+      'post_equivalence_clusters_kind_check',
+      sql`${t.kind} in (${sql.raw(inList(POST_EQUIVALENCE_KINDS))})`,
+    ),
     check(
       'post_equivalence_clusters_confidence_check',
-      sql`${t.confidence} in (${sql.raw(inList(POST_EQUIVALENCE_CONFIDENCES))})`
+      sql`${t.confidence} in (${sql.raw(inList(POST_EQUIVALENCE_CONFIDENCES))})`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -1177,5 +1170,5 @@ export const postEquivalenceMembers = pgTable(
     uniqueIndex('post_equivalence_members_preferred_key')
       .on(t.clusterId)
       .where(sql`${t.preferred}`),
-  ]
+  ],
 );

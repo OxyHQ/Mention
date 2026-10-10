@@ -31,8 +31,14 @@ function qualifyVariants(
 
 describe('backfill: which bodies change', () => {
   it('qualifies a bare handle against the IDENTITY domain, not the bridge host', () => {
-    const domain = identityDomainOfActor({ networkAcct: 'pabloiglesias@x.com', domain: 'mastox.eu' });
-    const next = qualifyVariants([{ source: 'author', text: 'RT: @Julio_Rodr_ hola' }], domain ?? '');
+    const domain = identityDomainOfActor({
+      networkAcct: 'pabloiglesias@x.com',
+      domain: 'mastox.eu',
+    });
+    const next = qualifyVariants(
+      [{ source: 'author', text: 'RT: @Julio_Rodr_ hola' }],
+      domain ?? '',
+    );
     expect(next?.[0].text).toBe('RT: @Julio_Rodr_@x.com hola');
   });
 
@@ -53,7 +59,10 @@ describe('backfill: which bodies change', () => {
     // Variants are the only home for a post's body; repairing variants[0] alone
     // would leave a translated rendition carrying the bare handle forever.
     const next = qualifyVariants(
-      [{ source: 'author', text: 'hola @a' }, { source: 'author', text: 'hello @a' }],
+      [
+        { source: 'author', text: 'hola @a' },
+        { source: 'author', text: 'hello @a' },
+      ],
       'x.com',
     );
     expect(next?.map((v) => v.text)).toEqual(['hola @a@x.com', 'hello @a@x.com']);

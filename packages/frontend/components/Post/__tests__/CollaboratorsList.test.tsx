@@ -44,9 +44,7 @@ const authors: PostUser[] = [
 
 function renderList(title?: string) {
   act(() => {
-    TestRenderer.create(
-      <CollaboratorsList authors={authors} onClose={jest.fn()} title={title} />,
-    );
+    TestRenderer.create(<CollaboratorsList authors={authors} onClose={jest.fn()} title={title} />);
   });
   return mockHeaderTitles[mockHeaderTitles.length - 1];
 }

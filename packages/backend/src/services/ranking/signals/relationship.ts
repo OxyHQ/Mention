@@ -36,9 +36,7 @@ export function authorRelationshipScore(
 
   // Check relationship strength from behavior data
   if (userBehavior?.preferredAuthors) {
-    const authorPreference = userBehavior.preferredAuthors.find(
-      (a) => a.authorId === authorId,
-    );
+    const authorPreference = userBehavior.preferredAuthors.find((a) => a.authorId === authorId);
 
     if (authorPreference) {
       // Strong relationship (weight > 0.7)
@@ -60,5 +58,10 @@ export const relationshipSignal: RankingSignal = {
   id: 'relationship',
   group: 'relationship',
   score: (post: RankablePost, ctx: SignalContext) =>
-    authorRelationshipScore(post.oxyUserId ?? '', ctx.userId, ctx.followingIdsSet, ctx.userBehavior),
+    authorRelationshipScore(
+      post.oxyUserId ?? '',
+      ctx.userId,
+      ctx.followingIdsSet,
+      ctx.userBehavior,
+    ),
 };

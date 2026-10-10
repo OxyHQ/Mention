@@ -24,7 +24,9 @@ import HiddenWordsScreen from '@/components/settings/pages/privacy/hidden-words'
 
 const mockInvalidate = jest.fn();
 const mockConfirm = jest.fn();
-jest.mock('@oxy.so/bloom/surfaces', () => ({ confirm: (...args: unknown[]) => mockConfirm(...args) }));
+jest.mock('@oxy.so/bloom/surfaces', () => ({
+  confirm: (...args: unknown[]) => mockConfirm(...args),
+}));
 
 jest.mock('@/stores/safetyInvalidation', () => ({
   invalidateSafetyFilters: (...args: unknown[]) => mockInvalidate(...args),
@@ -83,7 +85,11 @@ jest.mock('@oxy.so/bloom/button', () => {
 });
 jest.mock('@oxy.so/bloom/text-field', () => {
   const { TextInput } = jest.requireActual('react-native');
-  return { TextFieldInput: ({ onValueChange, ...props }: { onValueChange: (value: string) => void }) => <TextInput {...props} onChangeText={onValueChange} /> };
+  return {
+    TextFieldInput: ({ onValueChange, ...props }: { onValueChange: (value: string) => void }) => (
+      <TextInput {...props} onChangeText={onValueChange} />
+    ),
+  };
 });
 
 jest.mock('@oxy.so/services/ui/client', () => ({

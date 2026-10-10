@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Pressable,
-  ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
@@ -229,11 +223,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // to `/compose`, which is a different instance. Reading params here would let
   // a stale query string from some earlier navigation apply itself to a draft
   // the reader had been keeping.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: params are read once on mount, see below.
   const initialIntent = useMemo<ComposeIntent>(
     () => (presentation === 'tab' ? parseComposeIntent({}) : parseComposeIntent(rawParams)),
     // We intentionally read params once on mount; subsequent navigations to
     // this same screen (e.g. quick share→share) will re-mount the screen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   const editPostId = initialIntent.editPostId;
@@ -324,8 +318,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     removePollOption,
     removePoll,
   } = pollManager;
-  const { location, setLocation, isGettingLocation, requestLocation, removeLocation } = locationManager;
-  const { sources, setSources, addSource, updateSourceField, removeSource: removeSourceEntry } = sourcesManager;
+  const { location, setLocation, isGettingLocation, requestLocation, removeLocation } =
+    locationManager;
+  const {
+    sources,
+    setSources,
+    addSource,
+    updateSourceField,
+    removeSource: removeSourceEntry,
+  } = sourcesManager;
   const {
     threadItems,
     setThreadItems,
@@ -398,26 +399,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     loadEventFromDraft,
     clearEvent,
   } = eventManager;
-  const {
-    room: attachedRoom,
-    attachRoom,
-    removeRoom,
-    loadRoomFromDraft,
-    clearRoom,
-  } = roomManager;
-  const {
-    podcast,
-    savePodcast,
-    removePodcast,
-    loadPodcastFromDraft,
-    clearPodcast,
-  } = podcastManager;
-  const {
-    job,
-    saveJob,
-    removeJob,
-    clearJob,
-  } = jobManager;
+  const { room: attachedRoom, attachRoom, removeRoom, loadRoomFromDraft, clearRoom } = roomManager;
+  const { podcast, savePodcast, removePodcast, loadPodcastFromDraft, clearPodcast } =
+    podcastManager;
+  const { job, saveJob, removeJob, clearJob } = jobManager;
 
   const hasArticleContent = articleHasContent(article);
   const hasEventContent = isCompleteEvent(event);
@@ -501,8 +486,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           { text, mentions: previous.mentions },
           variantTextsForItem(variants, MAIN_ITEM_ID),
         );
-        return text === previous.text &&
-          areMentionDataEqual(reconciled.mentions, previous.mentions)
+        return text === previous.text && areMentionDataEqual(reconciled.mentions, previous.mentions)
           ? previous
           : reconciled;
       });
@@ -512,10 +496,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const handleMainMentionValueChange = useCallback(
     (next: MentionTextValue) => {
       setMainMentionState(
-        reconcileMentionTextValue(
-          next,
-          variantTextsForItem(variants, MAIN_ITEM_ID),
-        ),
+        reconcileMentionTextValue(next, variantTextsForItem(variants, MAIN_ITEM_ID)),
       );
     },
     [variants],
@@ -528,10 +509,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   useEffect(() => {
     setMainMentionState((previous) => {
       const nextMentions = reconcileMentionData(
-        [
-          previous.text,
-          ...variantTextsForItem(variants, MAIN_ITEM_ID),
-        ],
+        [previous.text, ...variantTextsForItem(variants, MAIN_ITEM_ID)],
         previous.mentions,
       );
       return areMentionDataEqual(nextMentions, previous.mentions)
@@ -662,7 +640,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * the icon at all, rather than showing it disabled.
    */
   const canAttachJob = Boolean(
-    effectiveMainPublishAs && (effectiveMainPublishAs.kind === 'organization' || effectiveMainPublishAs.kind === 'project'),
+    effectiveMainPublishAs &&
+      (effectiveMainPublishAs.kind === 'organization' || effectiveMainPublishAs.kind === 'project'),
   );
 
   // Schedule manager
@@ -671,13 +650,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     t,
     toast,
   });
-  const {
-    scheduledAt,
-    setScheduledAt,
-    formatScheduledLabel,
-    clearSchedule,
-    openScheduleSheet,
-  } = scheduleManager;
+  const { scheduledAt, setScheduledAt, formatScheduledLabel, clearSchedule, openScheduleSheet } =
+    scheduleManager;
 
   // Draft manager
   const draftManager = useDraftManager({
@@ -726,19 +700,34 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Everything the composer holds, as the one content predicate reads it
   // (`utils/composeContent.ts`) — validation, publish, autosave and the close
   // prompt all ask it the same question.
-  const composeContent = useMemo<ComposeContent>(() => ({
-    postContent,
-    mediaIds,
-    pollOptions,
-    location,
-    sources,
-    article,
-    event,
-    room: attachedRoom,
-    podcast,
-    job,
-    threadItems,
-  }), [postContent, mediaIds, pollOptions, location, sources, article, event, attachedRoom, podcast, job, threadItems]);
+  const composeContent = useMemo<ComposeContent>(
+    () => ({
+      postContent,
+      mediaIds,
+      pollOptions,
+      location,
+      sources,
+      article,
+      event,
+      room: attachedRoom,
+      podcast,
+      job,
+      threadItems,
+    }),
+    [
+      postContent,
+      mediaIds,
+      pollOptions,
+      location,
+      sources,
+      article,
+      event,
+      attachedRoom,
+      podcast,
+      job,
+      threadItems,
+    ],
+  );
 
   // Validation
   const validation = useComposeValidation({
@@ -751,12 +740,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // the media a non-primary language shows instead of it.
   const { openMediaPicker } = useMediaPicker({ showBottomSheet, t });
 
-  const addSharedMedia = useCallback((media: ComposerMediaItem[]) => {
-    setMediaIds((prev) => {
-      const existing = new Set(prev.map((item) => item.id));
-      return [...prev, ...media.filter((item) => !existing.has(item.id))];
-    });
-  }, [setMediaIds]);
+  const addSharedMedia = useCallback(
+    (media: ComposerMediaItem[]) => {
+      setMediaIds((prev) => {
+        const existing = new Set(prev.map((item) => item.id));
+        return [...prev, ...media.filter((item) => !existing.has(item.id))];
+      });
+    },
+    [setMediaIds],
+  );
 
   const openSharedMediaPicker = useCallback(
     () => openMediaPicker(addSharedMedia),
@@ -799,7 +791,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     linkUrls: detectedLinkUrls,
     setMediaIds,
   });
-  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
+  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } =
+    attachmentOrderManager;
 
   // Async sheet callbacks only need these two current values.
   const threadItemsRef = useRefSync(threadItems);
@@ -808,7 +801,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const threadTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
   const variantTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
 
-  const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
+  const generateSourceId = useCallback(
+    () => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    [],
+  );
 
   // Quote manager — fetches the quoted post for `?quotePostId=...` intent param.
   const quoteManager = useQuoteManager();
@@ -870,10 +866,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         }
       } catch (e: unknown) {
         logger.warn('Failed to attach shared media URL', { error: e });
-        toast(
-          t('compose.mediaUrlFailed', { defaultValue: "Couldn't attach the shared media" }),
-          { type: 'error' },
-        );
+        toast(t('compose.mediaUrlFailed', { defaultValue: "Couldn't attach the shared media" }), {
+          type: 'error',
+        });
       }
     },
     [attachMediaById, t],
@@ -913,7 +908,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       const eventLocation = intent.event.location || '';
       const description = intent.event.description || '';
       if (name) {
-        setEvent({ name, date, location: eventLocation || undefined, description: description || undefined });
+        setEvent({
+          name,
+          date,
+          location: eventLocation || undefined,
+          description: description || undefined,
+        });
       }
       setEventDraftName(name);
       setEventDraftDate(date);
@@ -1039,6 +1039,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // First-mount intent application. Edit / reply modes are handled by their
   // own effects below to avoid re-fetching twice.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: first mount only, re-evaluated when drafts.length flips; see the deps comment.
   useEffect(() => {
     if (intentAppliedRef.current) return;
     if (initialIntent.editPostId || initialIntent.replyToPostId) {
@@ -1059,7 +1060,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     applyIntent();
     // We only want this on first mount. `drafts.length` may flip from 0 → N
     // when load completes; on that flip we re-evaluate the conflict gate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts.length]);
 
   // If the quoted post fails to load, append the fallback URL to the text
@@ -1089,15 +1089,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         );
         const restoredMentions = source.mentions.map((userId): MentionData => {
           const mentionUser = mentionUsers.get(userId);
-          const username = mentionUser
-            ? (getNormalizedUserHandle(mentionUser) ?? '')
-            : '';
+          const username = mentionUser ? (getNormalizedUserHandle(mentionUser) ?? '') : '';
           return {
             userId,
             username,
-            displayName:
-              mentionUser?.name?.displayName?.trim() ||
-              username,
+            displayName: mentionUser?.name?.displayName?.trim() || username,
           };
         });
         const primaryText = primaryTextFromPost(source.content);
@@ -1114,15 +1110,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         loadVariantsFromPost(source.content, MAIN_ITEM_ID);
         const media = source.content.media;
         if (media && media.length > 0) {
-          setMediaIds(media.map((m): ComposerMediaItem => ({
-            id: m.id,
-            type: toComposerMediaType(m.type),
-            ...(m.alt ? { alt: m.alt } : {}),
-          })));
+          setMediaIds(
+            media.map(
+              (m): ComposerMediaItem => ({
+                id: m.id,
+                type: toComposerMediaType(m.type),
+                ...(m.alt ? { alt: m.alt } : {}),
+              }),
+            ),
+          );
         }
         const soloForCollab =
           !source.parentPostId &&
-          !(source.authorship?.some((entry) => entry.role === 'collaborator'));
+          !source.authorship?.some((entry) => entry.role === 'collaborator');
         setEditCollabEligible(soloForCollab);
         // Restore the pending publish time so the schedule pill shows it and a
         // save re-sends it. A post whose stored time no longer parses keeps the
@@ -1147,7 +1147,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         if (!cancelled) setEditLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, t]);
 
   // Load parent post when in reply mode
@@ -1174,21 +1176,36 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         if (!cancelled) setReplyLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [replyToPostId, t]);
 
   /** The composer's live content, in the shape the draft manager saves. */
-  const draftSnapshot = useMemo<ComposeDraftRefs>(() => ({
-    ...composeContent,
-    pollTitle,
-    showPollCreator,
-    mentions,
-    postingMode,
-    attachmentOrder,
-    scheduledAt,
-    currentDraftId,
-    variants,
-  }), [composeContent, pollTitle, showPollCreator, mentions, postingMode, attachmentOrder, scheduledAt, currentDraftId, variants]);
+  const draftSnapshot = useMemo<ComposeDraftRefs>(
+    () => ({
+      ...composeContent,
+      pollTitle,
+      showPollCreator,
+      mentions,
+      postingMode,
+      attachmentOrder,
+      scheduledAt,
+      currentDraftId,
+      variants,
+    }),
+    [
+      composeContent,
+      pollTitle,
+      showPollCreator,
+      mentions,
+      postingMode,
+      attachmentOrder,
+      scheduledAt,
+      currentDraftId,
+      variants,
+    ],
+  );
 
   /**
    * Empty every piece of content the composer holds — text, media, attachments,
@@ -1363,11 +1380,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
       // Add thread items if any. Each item is its own post, so it carries its own
       // renditions — the buffer is keyed by (item × language).
-      submitThreadItems.forEach(item => {
+      submitThreadItems.forEach((item) => {
         if (boxHasContent(item)) {
           const threadPost = buildThreadPost(
             item,
-            buildVariantContent(variants, item.id, item.text, item.mediaIds.map((media) => media.id)),
+            buildVariantContent(
+              variants,
+              item.id,
+              item.text,
+              item.mediaIds.map((media) => media.id),
+            ),
             // Narrowed by the same predicate the box's own header reads, so a
             // per-post account chosen in beast mode and then switched back to
             // thread cannot reach the wire behind a row that stopped showing it.
@@ -1394,17 +1416,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // a whole post, so it has its own builder — which carries the renditions
         // too, or editing a multilingual post would strip every language but the
         // primary.
-        const updatedPost = await feedService.editPost(editPostId, buildEditPost({
-          postContent: mainValue.text,
-          mediaIds,
-          mentions: mainPost.mentions || [],
-          hashtags: mainPost.hashtags || [],
-          collaboratorIds: collaborators.map((c) => c.id),
-          variantContent: mainVariantContent,
-          // Only a still-scheduled post may carry a time; the API rejects one on
-          // a published post rather than silently ignoring it.
-          scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
-        }));
+        const updatedPost = await feedService.editPost(
+          editPostId,
+          buildEditPost({
+            postContent: mainValue.text,
+            mediaIds,
+            mentions: mainPost.mentions || [],
+            hashtags: mainPost.hashtags || [],
+            collaboratorIds: collaborators.map((c) => c.id),
+            variantContent: mainVariantContent,
+            // Only a still-scheduled post may carry a time; the API rejects one on
+            // a published post rather than silently ignoring it.
+            scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
+          }),
+        );
         if (publishNow) {
           await api.post(`/posts/${editPostId}/publish`);
         }
@@ -1444,7 +1469,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               });
               toast(
                 t('channels.compose.repostFailed', {
-                  defaultValue: 'Published to the channel, but reposting it to your profile failed.',
+                  defaultValue:
+                    'Published to the channel, but reposting it to your profile failed.',
                 }),
                 { type: 'error' },
               );
@@ -1493,7 +1519,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               ? t('compose.scheduled.published', { defaultValue: 'Post published' })
               : t('Post updated successfully')
           : wasScheduled && scheduledAtValue
-            ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
+            ? t('compose.schedule.success', {
+                defaultValue: 'Post scheduled for {{time}}',
+                time: formatScheduledLabel(scheduledAtValue),
+              })
             : t('Post published successfully');
       haptic('light');
       toast(successMessage, { type: 'success' });
@@ -1573,93 +1602,101 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // back navigation
 
   // Thread item functions — wrapped in useCallback for stable references
-  const openThreadMediaPicker = useCallback((threadId: string) => {
-    showBottomSheet?.({
-      screen: 'FileManagement',
-      props: {
-        selectMode: true,
-        multiSelect: true,
-        disabledMimeTypes: ['audio/', 'application/pdf'],
-        afterSelect: 'back',
-        onSelect: async (file: FileMetadata) => {
-          const isImage = file?.contentType?.startsWith?.('image/');
-          const isVideo = file?.contentType?.startsWith?.('video/');
-          if (!isImage && !isVideo) {
-            toast(t('Please select an image or video file'), { type: 'error' });
-            return;
-          }
-          try {
-            const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
-            const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
-            addThreadMedia(threadId, mediaItem);
-            toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
-          } catch (e: unknown) {
-            toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
-          }
+  const openThreadMediaPicker = useCallback(
+    (threadId: string) => {
+      showBottomSheet?.({
+        screen: 'FileManagement',
+        props: {
+          selectMode: true,
+          multiSelect: true,
+          disabledMimeTypes: ['audio/', 'application/pdf'],
+          afterSelect: 'back',
+          onSelect: async (file: FileMetadata) => {
+            const isImage = file?.contentType?.startsWith?.('image/');
+            const isVideo = file?.contentType?.startsWith?.('video/');
+            if (!isImage && !isVideo) {
+              toast(t('Please select an image or video file'), { type: 'error' });
+              return;
+            }
+            try {
+              const resolvedType = toComposerMediaType(
+                isImage ? 'image' : 'video',
+                file?.contentType,
+              );
+              const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
+              addThreadMedia(threadId, mediaItem);
+              toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
+            } catch (e: unknown) {
+              toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
+            }
+          },
+          onConfirmSelection: async (files: FileMetadata[]) => {
+            const validFiles = (files || []).filter((f) => {
+              const contentType = f?.contentType || '';
+              return contentType.startsWith('image/') || contentType.startsWith('video/');
+            });
+            if (validFiles.length !== (files || []).length) {
+              toast(t('Please select only image or video files'), { type: 'error' });
+            }
+            const mediaItems = validFiles.map((f) => ({
+              id: f.id,
+              type: toComposerMediaType(
+                f.contentType?.startsWith('image/') ? 'image' : 'video',
+                f.contentType,
+              ),
+            }));
+            addThreadMediaMultiple(threadId, mediaItems);
+          },
         },
-        onConfirmSelection: async (files: FileMetadata[]) => {
-          const validFiles = (files || []).filter(f => {
-            const contentType = f?.contentType || '';
-            return contentType.startsWith('image/') || contentType.startsWith('video/');
-          });
-          if (validFiles.length !== (files || []).length) {
-            toast(t('Please select only image or video files'), { type: 'error' });
-          }
-          const mediaItems = validFiles.map(f => ({
-            id: f.id,
-            type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
-          }));
-          addThreadMediaMultiple(threadId, mediaItems);
-        }
-      }
-    });
-  }, [showBottomSheet, addThreadMedia, addThreadMediaMultiple, t]);
+      });
+    },
+    [showBottomSheet, addThreadMedia, addThreadMediaMultiple, t],
+  );
 
   // Thread location functions
-  const requestThreadLocation = useCallback(async (threadId: string) => {
-    try {
-      // Request permissions
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        toast(t('Location permission denied'), { type: 'error' });
-        return;
+  const requestThreadLocation = useCallback(
+    async (threadId: string) => {
+      try {
+        // Request permissions
+        const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          toast(t('Location permission denied'), { type: 'error' });
+          return;
+        }
+
+        // Get current position
+        const currentLocation = await ExpoLocation.getCurrentPositionAsync({
+          accuracy: ExpoLocation.Accuracy.Balanced,
+        });
+
+        // Reverse geocode to get address
+        const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+
+        const address = reverseGeocode[0];
+        const locationData = {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          address: address
+            ? `${address.city || address.subregion || ''}, ${address.region || ''}`
+            : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`,
+        };
+
+        setThreadLocation(threadId, locationData);
+        toast(t('Location added'), { type: 'success' });
+      } catch {
+        toast(t('Failed to get location'), { type: 'error' });
       }
-
-      // Get current position
-      const currentLocation = await ExpoLocation.getCurrentPositionAsync({
-        accuracy: ExpoLocation.Accuracy.Balanced,
-      });
-
-      // Reverse geocode to get address
-      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-
-      const address = reverseGeocode[0];
-      const locationData = {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-        address: address
-          ? `${address.city || address.subregion || ''}, ${address.region || ''}`
-          : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
-      };
-
-      setThreadLocation(threadId, locationData);
-      toast(t('Location added'), { type: 'success' });
-    } catch {
-      toast(t('Failed to get location'), { type: 'error' });
-    }
-  }, [setThreadLocation, t]);
+    },
+    [setThreadLocation, t],
+  );
 
   // Stable callbacks for ComposeThreadItem — these receive threadId as first arg
   const handleThreadMentionValueChange = useCallback(
     (threadId: string, value: MentionTextValue) => {
-      updateThreadMentionState(
-        threadId,
-        value,
-        variantTextsForItem(variants, threadId),
-      );
+      updateThreadMentionState(threadId, value, variantTextsForItem(variants, threadId));
     },
     [updateThreadMentionState, variants],
   );
@@ -1668,31 +1705,39 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setFocusedItemId(threadId);
   }, []);
 
-  const handleThreadRemove = useCallback((threadId: string) => {
-    removeThread(threadId);
-    // The item is gone, so its renditions in every language go with it.
-    removeVariantItem(threadId);
-  }, [removeThread, removeVariantItem]);
+  const handleThreadRemove = useCallback(
+    (threadId: string) => {
+      removeThread(threadId);
+      // The item is gone, so its renditions in every language go with it.
+      removeVariantItem(threadId);
+    },
+    [removeThread, removeVariantItem],
+  );
 
-  const handleThreadGifPress = useCallback((threadId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <GifPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelectGif={async (gifUrl: string, gifId: string) => {
-            try {
-              const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-              addThreadMedia(threadId, mediaItem);
-              toast(t('GIF attached'), { type: 'success' });
-            } catch (error: unknown) {
-              toast(normalizeApiError(error).message || t('Failed to attach GIF'), { type: 'error' });
-            }
-          }}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, addThreadMedia, t]);
+  const handleThreadGifPress = useCallback(
+    (threadId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <GifPickerSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSelectGif={async (gifUrl: string, gifId: string) => {
+              try {
+                const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+                addThreadMedia(threadId, mediaItem);
+                toast(t('GIF attached'), { type: 'success' });
+              } catch (error: unknown) {
+                toast(normalizeApiError(error).message || t('Failed to attach GIF'), {
+                  type: 'error',
+                });
+              }
+            }}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, addThreadMedia, t],
+  );
 
   /**
    * Alt text for an image in the SHARED media set.
@@ -1702,207 +1747,293 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * description of that same image. The primary language's alt rides on the media
    * item itself; every other language's goes into `variant.alt[mediaId]`.
    */
-  const openSharedAltTextSheet = useCallback((itemId: string, mediaItem: ComposerMediaItem) => {
-    const primaryTag = variants.primaryTag;
-    const savePrimaryAlt = (alt: string) => {
-      if (itemId === MAIN_ITEM_ID) {
-        setMediaAlt(mediaItem.id, alt);
-      } else {
-        setThreadMediaAlt(itemId, mediaItem.id, alt);
-      }
-    };
-    const readAlt = (tag: string) => {
-      if (tag === primaryTag) return mediaItem.alt ?? '';
-      const variantItem = getVariantItem(variants, tag, itemId);
-      return variantItem.media.mode === 'inherit' ? variantItem.media.alt[mediaItem.id] ?? '' : '';
-    };
+  const openSharedAltTextSheet = useCallback(
+    (itemId: string, mediaItem: ComposerMediaItem) => {
+      const primaryTag = variants.primaryTag;
+      const savePrimaryAlt = (alt: string) => {
+        if (itemId === MAIN_ITEM_ID) {
+          setMediaAlt(mediaItem.id, alt);
+        } else {
+          setThreadMediaAlt(itemId, mediaItem.id, alt);
+        }
+      };
+      const readAlt = (tag: string) => {
+        if (tag === primaryTag) return mediaItem.alt ?? '';
+        const variantItem = getVariantItem(variants, tag, itemId);
+        return variantItem.media.mode === 'inherit'
+          ? (variantItem.media.alt[mediaItem.id] ?? '')
+          : '';
+      };
 
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <AltTextSheet
-          imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
-          languageTags={allTags(variants)}
-          initialTag={activeTag}
-          getAlt={readAlt}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSave={(altByTag: Record<string, string>) => {
-            for (const [tag, alt] of Object.entries(altByTag)) {
-              if (tag === primaryTag) {
-                savePrimaryAlt(alt);
-              } else {
-                setVariantMediaAlt(tag, itemId, mediaItem.id, alt);
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <AltTextSheet
+            imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
+            languageTags={allTags(variants)}
+            initialTag={activeTag}
+            getAlt={readAlt}
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSave={(altByTag: Record<string, string>) => {
+              for (const [tag, alt] of Object.entries(altByTag)) {
+                if (tag === primaryTag) {
+                  savePrimaryAlt(alt);
+                } else {
+                  setVariantMediaAlt(tag, itemId, mediaItem.id, alt);
+                }
               }
-            }
-          }}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, oxyServices, variants, activeTag, setMediaAlt, setThreadMediaAlt, setVariantMediaAlt]);
+            }}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [
+      bottomSheet,
+      oxyServices,
+      variants,
+      activeTag,
+      setMediaAlt,
+      setThreadMediaAlt,
+      setVariantMediaAlt,
+    ],
+  );
 
   const openThreadAltTextSheet = useCallback(
     (threadId: string, mediaItem: ComposerMediaItem) => openSharedAltTextSheet(threadId, mediaItem),
     [openSharedAltTextSheet],
   );
 
-  const handleThreadEmojiPress = useCallback((threadId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <EmojiPickerSheet
+  const handleThreadEmojiPress = useCallback(
+    (threadId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <EmojiPickerSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSelectEmoji={(emoji: string) => {
+              threadTextInputRefs.current[threadId]?.insertTextAtCursor(emoji);
+            }}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet],
+  );
+
+  const handleThreadSourcesPress = useCallback(
+    (threadId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <SourcesSheet
+            sources={threadItemsRef.current.find((t) => t.id === threadId)?.sources || []}
+            onAdd={() => {
+              const newSource = { id: generateSourceId(), title: '', url: '' };
+              addThreadSource(threadId, newSource);
+            }}
+            onUpdate={(id: string, field: 'url' | 'title', value: string) => {
+              updateThreadSourceField(threadId, id, field, value);
+            }}
+            onRemove={(id: string) => {
+              removeThreadSource(threadId, id);
+            }}
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            validateUrl={isValidSourceUrl}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [
+      bottomSheet,
+      threadItemsRef,
+      generateSourceId,
+      addThreadSource,
+      updateThreadSourceField,
+      removeThreadSource,
+      isValidSourceUrl,
+    ],
+  );
+
+  const openThreadArticleEditor = useCallback(
+    (threadId: string) => {
+      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
+      setThreadArticleDraftTitle(threadItem?.article?.title || '');
+      setThreadArticleDraftBody(threadItem?.article?.body || '');
+      setEditingThreadArticleId(threadId);
+    },
+    [threadItemsRef],
+  );
+
+  const openThreadEventEditor = useCallback(
+    (threadId: string) => {
+      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
+      setThreadEventDraftName(threadItem?.event?.name || '');
+      setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
+      setThreadEventDraftLocation(threadItem?.event?.location || '');
+      setThreadEventDraftDescription(threadItem?.event?.description || '');
+      setEditingThreadEventId(threadId);
+    },
+    [threadItemsRef],
+  );
+
+  const handleThreadRoomPress = useCallback(
+    (threadId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <CreateRoomSheet
           onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelectEmoji={(emoji: string) => {
-            threadTextInputRefs.current[threadId]?.insertTextAtCursor(emoji);
+          mode="embed"
+          onRoomCreated={(createdRoom) => {
+            setThreadRoom(threadId, {
+              roomId: createdRoom.id,
+              title: createdRoom.title,
+              status: createdRoom.status,
+              topic: createdRoom.topic ?? undefined,
+              host: createdRoom.host ?? undefined,
+            });
           }}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet]);
+        />,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, setThreadRoom],
+  );
 
-  const handleThreadSourcesPress = useCallback((threadId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <SourcesSheet
-          sources={threadItemsRef.current.find(t => t.id === threadId)?.sources || []}
-          onAdd={() => {
-            const newSource = { id: generateSourceId(), title: '', url: '' };
-            addThreadSource(threadId, newSource);
-          }}
-          onUpdate={(id: string, field: 'url' | 'title', value: string) => {
-            updateThreadSourceField(threadId, id, field, value);
-          }}
-          onRemove={(id: string) => {
-            removeThreadSource(threadId, id);
-          }}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          validateUrl={isValidSourceUrl}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, threadItemsRef, generateSourceId, addThreadSource, updateThreadSourceField, removeThreadSource, isValidSourceUrl]);
+  const handleThreadPollTitleChange = useCallback(
+    (threadId: string, value: string) => {
+      updateThreadPollTitle(threadId, value);
+    },
+    [updateThreadPollTitle],
+  );
 
-  const openThreadArticleEditor = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    setThreadArticleDraftTitle(threadItem?.article?.title || '');
-    setThreadArticleDraftBody(threadItem?.article?.body || '');
-    setEditingThreadArticleId(threadId);
-  }, [threadItemsRef]);
+  const handleThreadPollOptionChange = useCallback(
+    (threadId: string, index: number, value: string) => {
+      updateThreadPollOption(threadId, index, value);
+    },
+    [updateThreadPollOption],
+  );
 
-  const openThreadEventEditor = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    setThreadEventDraftName(threadItem?.event?.name || '');
-    setThreadEventDraftDate(threadItem?.event?.date || new Date().toISOString());
-    setThreadEventDraftLocation(threadItem?.event?.location || '');
-    setThreadEventDraftDescription(threadItem?.event?.description || '');
-    setEditingThreadEventId(threadId);
-  }, [threadItemsRef]);
+  const handleThreadPollOptionAdd = useCallback(
+    (threadId: string) => {
+      addThreadPollOption(threadId);
+    },
+    [addThreadPollOption],
+  );
 
-  const handleThreadRoomPress = useCallback((threadId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <CreateRoomSheet
-        onClose={() => bottomSheet.openBottomSheet(false)}
-        mode="embed"
-        onRoomCreated={(createdRoom) => {
-          setThreadRoom(threadId, {
-            roomId: createdRoom.id,
-            title: createdRoom.title,
-            status: createdRoom.status,
-            topic: createdRoom.topic ?? undefined,
-            host: createdRoom.host ?? undefined,
-          });
-        }}
-      />
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, setThreadRoom]);
+  const handleThreadPollOptionRemove = useCallback(
+    (threadId: string, index: number) => {
+      removeThreadPollOption(threadId, index);
+    },
+    [removeThreadPollOption],
+  );
 
-  const handleThreadPollTitleChange = useCallback((threadId: string, value: string) => {
-    updateThreadPollTitle(threadId, value);
-  }, [updateThreadPollTitle]);
+  const handleThreadPollRemove = useCallback(
+    (threadId: string) => {
+      removeThreadPoll(threadId);
+    },
+    [removeThreadPoll],
+  );
 
-  const handleThreadPollOptionChange = useCallback((threadId: string, index: number, value: string) => {
-    updateThreadPollOption(threadId, index, value);
-  }, [updateThreadPollOption]);
+  const handleThreadLocationRemove = useCallback(
+    (threadId: string) => {
+      removeThreadLocation(threadId);
+    },
+    [removeThreadLocation],
+  );
 
-  const handleThreadPollOptionAdd = useCallback((threadId: string) => {
-    addThreadPollOption(threadId);
-  }, [addThreadPollOption]);
+  const handleThreadMediaRemove = useCallback(
+    (threadId: string, mediaId: string) => {
+      removeThreadMedia(threadId, mediaId);
+    },
+    [removeThreadMedia],
+  );
 
-  const handleThreadPollOptionRemove = useCallback((threadId: string, index: number) => {
-    removeThreadPollOption(threadId, index);
-  }, [removeThreadPollOption]);
+  const handleThreadMediaMove = useCallback(
+    (threadId: string, mediaId: string, direction: 'left' | 'right') => {
+      moveThreadMedia(threadId, mediaId, direction);
+    },
+    [moveThreadMedia],
+  );
 
-  const handleThreadPollRemove = useCallback((threadId: string) => {
-    removeThreadPoll(threadId);
-  }, [removeThreadPoll]);
+  const handleThreadArticleRemove = useCallback(
+    (threadId: string) => {
+      removeThreadArticle(threadId);
+    },
+    [removeThreadArticle],
+  );
 
-  const handleThreadLocationRemove = useCallback((threadId: string) => {
-    removeThreadLocation(threadId);
-  }, [removeThreadLocation]);
+  const handleThreadEventRemove = useCallback(
+    (threadId: string) => {
+      removeThreadEvent(threadId);
+    },
+    [removeThreadEvent],
+  );
 
-  const handleThreadMediaRemove = useCallback((threadId: string, mediaId: string) => {
-    removeThreadMedia(threadId, mediaId);
-  }, [removeThreadMedia]);
+  const handleThreadRoomRemove = useCallback(
+    (threadId: string) => {
+      removeThreadRoom(threadId);
+    },
+    [removeThreadRoom],
+  );
 
-  const handleThreadMediaMove = useCallback((threadId: string, mediaId: string, direction: 'left' | 'right') => {
-    moveThreadMedia(threadId, mediaId, direction);
-  }, [moveThreadMedia]);
+  const handleThreadReplySettingsPress = useCallback(
+    (threadId: string) => {
+      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
+      if (!threadItem) return;
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <ReplySettingsSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            replyPermission={threadItem.replyPermission}
+            onReplyPermissionChange={(permission) => setThreadReplyPermission(threadId, permission)}
+            quotesDisabled={threadItem.quotesDisabled}
+            onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(threadId, disabled)}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, threadItemsRef, setThreadReplyPermission, setThreadQuotesDisabled],
+  );
 
-  const handleThreadArticleRemove = useCallback((threadId: string) => {
-    removeThreadArticle(threadId);
-  }, [removeThreadArticle]);
+  const handleThreadSensitiveToggle = useCallback(
+    (threadId: string) => {
+      const threadItem = threadItemsRef.current.find((t) => t.id === threadId);
+      if (!threadItem) return;
+      setThreadSensitive(threadId, !threadItem.isSensitive);
+    },
+    [threadItemsRef, setThreadSensitive],
+  );
 
-  const handleThreadEventRemove = useCallback((threadId: string) => {
-    removeThreadEvent(threadId);
-  }, [removeThreadEvent]);
-
-  const handleThreadRoomRemove = useCallback((threadId: string) => {
-    removeThreadRoom(threadId);
-  }, [removeThreadRoom]);
-
-  const handleThreadReplySettingsPress = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    if (!threadItem) return;
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <ReplySettingsSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          replyPermission={threadItem.replyPermission}
-          onReplyPermissionChange={(permission) => setThreadReplyPermission(threadId, permission)}
-          quotesDisabled={threadItem.quotesDisabled}
-          onQuotesDisabledChange={(disabled) => setThreadQuotesDisabled(threadId, disabled)}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, threadItemsRef, setThreadReplyPermission, setThreadQuotesDisabled]);
-
-  const handleThreadSensitiveToggle = useCallback((threadId: string) => {
-    const threadItem = threadItemsRef.current.find(t => t.id === threadId);
-    if (!threadItem) return;
-    setThreadSensitive(threadId, !threadItem.isSensitive);
-  }, [threadItemsRef, setThreadSensitive]);
-
-  const handleThreadTextInputRef = useCallback((threadId: string, el: MentionTextInputHandle | null) => {
-    threadTextInputRefs.current[threadId] = el;
-  }, []);
+  const handleThreadTextInputRef = useCallback(
+    (threadId: string, el: MentionTextInputHandle | null) => {
+      threadTextInputRefs.current[threadId] = el;
+    },
+    [],
+  );
 
   // "Continue writing" from the Unpublished sheet: the sheet and its backdrop go
   // first, so the restored draft is not left underneath them, and the composer
   // takes focus once the sheet has released it.
-  const handleResumeDraft = useCallback((draft: Draft) => {
-    bottomSheet.openBottomSheet(false);
-    loadDraft(draft);
-    setFocusedItemId(MAIN_ITEM_ID);
-    requestAnimationFrame(() => {
-      (variantTextInputRefs.current[MAIN_ITEM_ID] ?? threadTextInputRefs.current[MAIN_ITEM_ID])?.focus();
-    });
-  }, [bottomSheet, loadDraft, variantTextInputRefs, threadTextInputRefs]);
+  const handleResumeDraft = useCallback(
+    (draft: Draft) => {
+      bottomSheet.openBottomSheet(false);
+      loadDraft(draft);
+      setFocusedItemId(MAIN_ITEM_ID);
+      requestAnimationFrame(() => {
+        (
+          variantTextInputRefs.current[MAIN_ITEM_ID] ?? threadTextInputRefs.current[MAIN_ITEM_ID]
+        )?.focus();
+      });
+    },
+    [bottomSheet, loadDraft, variantTextInputRefs, threadTextInputRefs],
+  );
 
-  const getFileDownloadUrl = useCallback((id: string) => {
-    return oxyServices.assets.publicUrl(id);
-  }, [oxyServices]);
+  const getFileDownloadUrl = useCallback(
+    (id: string) => {
+      return oxyServices.assets.publicUrl(id);
+    },
+    [oxyServices],
+  );
 
   const { t: tCompose } = useTranslation();
 
@@ -1911,7 +2042,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [replyPermission, quotesDisabled],
   );
   const interactionLabel = useMemo(
-    () => anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited'),
+    () => (anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited')),
     [anyoneCanInteract, t],
   );
   const InteractionIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
@@ -1924,7 +2055,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const focusedCharCount = useMemo(() => {
     if (!isPrimaryTab) return getVariantItem(variants, activeTag, focusedItemId).text.length;
     if (focusedItemId === MAIN_ITEM_ID) return postContent.length;
-    const item = threadItems.find(t => t.id === focusedItemId);
+    const item = threadItems.find((t) => t.id === focusedItemId);
     return item ? item.text.length : 0;
   }, [isPrimaryTab, variants, activeTag, focusedItemId, postContent, threadItems]);
 
@@ -1949,13 +2080,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * it while the rest keep showing a time nothing will publish at. Sharing the
    * node makes that unrepresentable rather than merely tested.
    */
-  const scheduleTimeSlot = useMemo(() => (
-    <ComposeScheduleIndicator
-      scheduledLabel={scheduledAt ? formatScheduledShort(scheduledAt) : null}
-      onPress={handleSchedulePress}
-      disabled={isPosting}
-    />
-  ), [scheduledAt, handleSchedulePress, isPosting]);
+  const scheduleTimeSlot = useMemo(
+    () => (
+      <ComposeScheduleIndicator
+        scheduledLabel={scheduledAt ? formatScheduledShort(scheduledAt) : null}
+        onPress={handleSchedulePress}
+        disabled={isPosting}
+      />
+    ),
+    [scheduledAt, handleSchedulePress, isPosting],
+  );
 
   // The people icon toggles the search, so a second press closes what the first
   // one opened rather than leaving the only exit inside the panel.
@@ -1977,7 +2111,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           publishAs={effectiveMainPublishAs}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, laneId, effectiveMainPublishAs]);
@@ -1988,20 +2122,23 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * publisher's, read from that box's account rather than the composer's, since
    * beast boxes may each go out as somebody different.
    */
-  const handleThreadLanePress = useCallback((threadId: string) => {
-    const item = threadItems.find((entry) => entry.id === threadId);
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <LanePickerSheet
-          selectedLaneId={item?.laneId ?? null}
-          onSelect={(next) => setThreadLaneId(threadId, next)}
-          publishAs={threadPublishAsEligible ? item?.publishAs ?? null : null}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, threadItems, setThreadLaneId, threadPublishAsEligible]);
+  const handleThreadLanePress = useCallback(
+    (threadId: string) => {
+      const item = threadItems.find((entry) => entry.id === threadId);
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <LanePickerSheet
+            selectedLaneId={item?.laneId ?? null}
+            onSelect={(next) => setThreadLaneId(threadId, next)}
+            publishAs={threadPublishAsEligible ? (item?.publishAs ?? null) : null}
+            onClose={() => bottomSheet.openBottomSheet(false)}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, threadItems, setThreadLaneId, threadPublishAsEligible],
+  );
 
   /**
    * Answers the picker for whichever box opened it.
@@ -2013,14 +2150,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * author has already pressed post. A thread box now carries its own lane, so
    * `setThreadPublishAs` clears it on that path for the same reason.
    */
-  const handlePublishAsSelect = useCallback((next: AccountNode | null) => {
-    if (publishAsTargetId === MAIN_ITEM_ID) {
-      setPublishAs(next);
-      setLaneId(null);
-      return;
-    }
-    setThreadPublishAs(publishAsTargetId, next);
-  }, [publishAsTargetId, setThreadPublishAs]);
+  const handlePublishAsSelect = useCallback(
+    (next: AccountNode | null) => {
+      if (publishAsTargetId === MAIN_ITEM_ID) {
+        setPublishAs(next);
+        setLaneId(null);
+        return;
+      }
+      setThreadPublishAs(publishAsTargetId, next);
+    },
+    [publishAsTargetId, setThreadPublishAs],
+  );
 
   const closePublishAs = useCallback(() => setPublishAsOpen(false), []);
   const handleMainPublishAsPress = useCallback(() => {
@@ -2054,7 +2194,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onSelectGif={async (gifUrl: string, gifId: string) => {
             try {
               const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-              setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+              setMediaIds((prev) =>
+                prev.some((m) => m.id === gifId) ? prev : [...prev, mediaItem],
+              );
               toast(t('GIF attached'), { type: 'success' });
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : t('Failed to attach GIF');
@@ -2062,7 +2204,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             }
           }}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, setMediaIds, t]);
@@ -2077,24 +2219,27 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * language by construction — the description belongs to the image, not to a
    * per-language map, which is why a rendition can never carry both.
    */
-  const openOwnAltTextSheet = useCallback((itemId: string, mediaItem: ComposerMediaItem) => {
-    const tag = activeTag;
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <AltTextSheet
-          imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
-          languageTags={[tag]}
-          initialTag={tag}
-          getAlt={() => mediaItem.alt ?? ''}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSave={(altByTag: Record<string, string>) =>
-            setVariantMediaAlt(tag, itemId, mediaItem.id, altByTag[tag] ?? '')
-          }
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, oxyServices, activeTag, setVariantMediaAlt]);
+  const openOwnAltTextSheet = useCallback(
+    (itemId: string, mediaItem: ComposerMediaItem) => {
+      const tag = activeTag;
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <AltTextSheet
+            imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
+            languageTags={[tag]}
+            initialTag={tag}
+            getAlt={() => mediaItem.alt ?? ''}
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSave={(altByTag: Record<string, string>) =>
+              setVariantMediaAlt(tag, itemId, mediaItem.id, altByTag[tag] ?? '')
+            }
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, oxyServices, activeTag, setVariantMediaAlt],
+  );
 
   const handleMainEmojiPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -2105,7 +2250,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             mainTextInputRef.current?.insertTextAtCursor(emoji);
           }}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet]);
@@ -2119,34 +2264,58 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * back into that state — after which `variants[0]` federates as the promoted
    * language.
    */
-  const promoteToPrimary = useCallback((tag: string) => {
-    if (tag === variants.primaryTag) return;
-    const oldPrimaryByItem: Record<string, PromotablePrimary> = {
-      [MAIN_ITEM_ID]: { text: postContent, media: mediaIds, article },
-    };
-    for (const item of threadItems) {
-      oldPrimaryByItem[item.id] = { text: item.text, media: item.mediaIds, article: item.article };
-    }
+  const promoteToPrimary = useCallback(
+    (tag: string) => {
+      if (tag === variants.primaryTag) return;
+      const oldPrimaryByItem: Record<string, PromotablePrimary> = {
+        [MAIN_ITEM_ID]: { text: postContent, media: mediaIds, article },
+      };
+      for (const item of threadItems) {
+        oldPrimaryByItem[item.id] = {
+          text: item.text,
+          media: item.mediaIds,
+          article: item.article,
+        };
+      }
 
-    const { state: nextState, primaryByItem } = promoteVariantToPrimary(variants, tag, oldPrimaryByItem);
-    if (nextState === variants) return; // Not a current author variant — nothing to promote.
+      const { state: nextState, primaryByItem } = promoteVariantToPrimary(
+        variants,
+        tag,
+        oldPrimaryByItem,
+      );
+      if (nextState === variants) return; // Not a current author variant — nothing to promote.
 
-    const main = primaryByItem[MAIN_ITEM_ID];
-    if (main) {
-      setPostContent(main.text);
-      setMediaIds(main.media);
-      setArticle(main.article);
-    }
-    setThreadItems((prev) =>
-      prev.map((item) => {
-        const next = primaryByItem[item.id];
-        return next ? { ...item, text: next.text, mediaIds: next.media, article: next.article } : item;
-      }),
-    );
-    // The reducer recomputes the same swap from the same inputs; the buffer and the
-    // composer's primary state land on one consistent promotion.
-    promoteLanguage(tag, oldPrimaryByItem);
-  }, [variants, postContent, mediaIds, article, threadItems, setPostContent, setMediaIds, setArticle, setThreadItems, promoteLanguage]);
+      const main = primaryByItem[MAIN_ITEM_ID];
+      if (main) {
+        setPostContent(main.text);
+        setMediaIds(main.media);
+        setArticle(main.article);
+      }
+      setThreadItems((prev) =>
+        prev.map((item) => {
+          const next = primaryByItem[item.id];
+          return next
+            ? { ...item, text: next.text, mediaIds: next.media, article: next.article }
+            : item;
+        }),
+      );
+      // The reducer recomputes the same swap from the same inputs; the buffer and the
+      // composer's primary state land on one consistent promotion.
+      promoteLanguage(tag, oldPrimaryByItem);
+    },
+    [
+      variants,
+      postContent,
+      mediaIds,
+      article,
+      threadItems,
+      setPostContent,
+      setMediaIds,
+      setArticle,
+      setThreadItems,
+      promoteLanguage,
+    ],
+  );
 
   /**
    * The language picker. With a null `currentTag` it ADDS a language; on an existing
@@ -2154,35 +2323,46 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * author's work survives — and, for a non-primary tab, offers to make it the
    * main language or remove it.
    */
-  const openLanguagePicker = useCallback((currentTag: string | null) => {
-    const isPrimary = currentTag === variants.primaryTag;
-    const isSecondaryTab = currentTag !== null && !isPrimary;
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <LanguagePickerSheet
-          usedTags={allTags(variants)}
-          currentTag={currentTag ?? undefined}
-          onSelect={(tag: string) => {
-            if (currentTag === null) {
-              addLanguage(tag);
-            } else if (isPrimary) {
-              setPrimaryLanguage(tag);
-            } else {
-              renameLanguage(currentTag, tag);
-            }
-          }}
-          onMakeMain={isSecondaryTab ? () => promoteToPrimary(currentTag) : undefined}
-          onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
-          onClose={() => bottomSheet.openBottomSheet(false)}
-        />
-      </Suspense>,
-      // LanguagePickerSheet owns the vertical scroll with its FlatList. Bloom's
-      // internal ScrollView must stay out of this sheet or Android has two
-      // competing vertical gesture owners and rows can become hard to select.
-      { scrollable: false },
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary]);
+  const openLanguagePicker = useCallback(
+    (currentTag: string | null) => {
+      const isPrimary = currentTag === variants.primaryTag;
+      const isSecondaryTab = currentTag !== null && !isPrimary;
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <LanguagePickerSheet
+            usedTags={allTags(variants)}
+            currentTag={currentTag ?? undefined}
+            onSelect={(tag: string) => {
+              if (currentTag === null) {
+                addLanguage(tag);
+              } else if (isPrimary) {
+                setPrimaryLanguage(tag);
+              } else {
+                renameLanguage(currentTag, tag);
+              }
+            }}
+            onMakeMain={isSecondaryTab ? () => promoteToPrimary(currentTag) : undefined}
+            onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
+            onClose={() => bottomSheet.openBottomSheet(false)}
+          />
+        </Suspense>,
+        // LanguagePickerSheet owns the vertical scroll with its FlatList. Bloom's
+        // internal ScrollView must stay out of this sheet or Android has two
+        // competing vertical gesture owners and rows can become hard to select.
+        { scrollable: false },
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [
+      bottomSheet,
+      variants,
+      addLanguage,
+      removeLanguage,
+      renameLanguage,
+      setPrimaryLanguage,
+      promoteToPrimary,
+    ],
+  );
 
   /**
    * The post's languages, opened from the bottom bar's pill.
@@ -2209,64 +2389,75 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onAdd={() => openLanguagePicker(null)}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, variants, activeTag, setActiveTag, openLanguagePicker]);
 
   /** The body of one composer item in the PRIMARY language — what a variant translates. */
-  const primaryTextForItem = useCallback((itemId: string) => {
-    if (itemId === MAIN_ITEM_ID) return postContent;
-    return threadItems.find((item) => item.id === itemId)?.text ?? '';
-  }, [postContent, threadItems]);
+  const primaryTextForItem = useCallback(
+    (itemId: string) => {
+      if (itemId === MAIN_ITEM_ID) return postContent;
+      return threadItems.find((item) => item.id === itemId)?.text ?? '';
+    },
+    [postContent, threadItems],
+  );
 
-  const translateInto = useCallback(async (itemId: string, tag: string) => {
-    const source = primaryTextForItem(itemId).trim();
-    if (source.length === 0) return;
+  const translateInto = useCallback(
+    async (itemId: string, tag: string) => {
+      const source = primaryTextForItem(itemId).trim();
+      if (source.length === 0) return;
 
-    setTranslatingItemId(itemId);
-    try {
-      const translated = await feedService.translateDraft(source, tag);
-      setVariantText(tag, itemId, translated);
-      toast(
-        t('compose.languages.translated', {
-          defaultValue: 'Translated — review it before you post',
-        }),
-        { type: 'success' },
-      );
-    } catch (error) {
-      const { reason, normalized } = classifyApiError(error);
-      logger.error('Failed to translate compose draft', undefined, {
-        reason,
-        status: normalized.status,
-        code: normalized.code,
-        tag,
-      });
-      toast(
-        reason === 'rateLimited'
-          ? t('translation.rateLimited')
-          : t('compose.languages.translateFailed', { defaultValue: "Couldn't translate this draft" }),
-        { type: 'error' },
-      );
-    } finally {
-      setTranslatingItemId(null);
-    }
-  }, [primaryTextForItem, setVariantText, t]);
+      setTranslatingItemId(itemId);
+      try {
+        const translated = await feedService.translateDraft(source, tag);
+        setVariantText(tag, itemId, translated);
+        toast(
+          t('compose.languages.translated', {
+            defaultValue: 'Translated — review it before you post',
+          }),
+          { type: 'success' },
+        );
+      } catch (error) {
+        const { reason, normalized } = classifyApiError(error);
+        logger.error('Failed to translate compose draft', undefined, {
+          reason,
+          status: normalized.status,
+          code: normalized.code,
+          tag,
+        });
+        toast(
+          reason === 'rateLimited'
+            ? t('translation.rateLimited')
+            : t('compose.languages.translateFailed', {
+                defaultValue: "Couldn't translate this draft",
+              }),
+          { type: 'error' },
+        );
+      } finally {
+        setTranslatingItemId(null);
+      }
+    },
+    [primaryTextForItem, setVariantText, t],
+  );
 
   // The tab being translated, held while the overwrite dialog is open. A machine
   // translation must never silently replace something the author already wrote.
   const pendingTranslationRef = useRef<{ itemId: string; tag: string } | null>(null);
 
-  const handleTranslateVariant = useCallback((itemId: string) => {
-    if (translatingItemId !== null) return;
-    const target = { itemId, tag: activeTag };
-    if (getVariantItem(variants, activeTag, itemId).text.trim().length > 0) {
-      pendingTranslationRef.current = target;
-      translateOverwriteControl.open();
-      return;
-    }
-    void translateInto(itemId, activeTag);
-  }, [translatingItemId, activeTag, variants, translateOverwriteControl, translateInto]);
+  const handleTranslateVariant = useCallback(
+    (itemId: string) => {
+      if (translatingItemId !== null) return;
+      const target = { itemId, tag: activeTag };
+      if (getVariantItem(variants, activeTag, itemId).text.trim().length > 0) {
+        pendingTranslationRef.current = target;
+        translateOverwriteControl.open();
+        return;
+      }
+      void translateInto(itemId, activeTag);
+    },
+    [translatingItemId, activeTag, variants, translateOverwriteControl, translateInto],
+  );
 
   const confirmTranslateOverwrite = useCallback(() => {
     const target = pendingTranslationRef.current;
@@ -2295,12 +2486,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
       reconcileThreadMentionState(itemId, next.mentions, nextVariantTexts);
     },
-    [
-      activeTag,
-      variants,
-      setVariantText,
-      reconcileThreadMentionState,
-    ],
+    [activeTag, variants, setVariantText, reconcileThreadMentionState],
   );
 
   const handleVariantFocus = useCallback((itemId: string) => setFocusedItemId(itemId), []);
@@ -2315,41 +2501,55 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [openOwnAltTextSheet],
   );
 
-  const handlePickVariantMedia = useCallback((itemId: string) => {
-    openMediaPicker((media) => appendVariantMedia(activeTag, itemId, media));
-  }, [openMediaPicker, appendVariantMedia, activeTag]);
+  const handlePickVariantMedia = useCallback(
+    (itemId: string) => {
+      openMediaPicker((media) => appendVariantMedia(activeTag, itemId, media));
+    },
+    [openMediaPicker, appendVariantMedia, activeTag],
+  );
 
-  const handleVariantGifPress = useCallback((itemId: string) => {
-    const tag = activeTag;
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <GifPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelectGif={async (_gifUrl: string, gifId: string) => {
-            appendVariantMedia(tag, itemId, [{ id: gifId, type: 'gif' }]);
-            toast(t('GIF attached'), { type: 'success' });
-          }}
-        />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [activeTag, appendVariantMedia, bottomSheet, t]);
+  const handleVariantGifPress = useCallback(
+    (itemId: string) => {
+      const tag = activeTag;
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <GifPickerSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSelectGif={async (_gifUrl: string, gifId: string) => {
+              appendVariantMedia(tag, itemId, [{ id: gifId, type: 'gif' }]);
+              toast(t('GIF attached'), { type: 'success' });
+            }}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [activeTag, appendVariantMedia, bottomSheet, t],
+  );
 
-  const handleVariantEmojiPress = useCallback((itemId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <EmojiPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelectEmoji={(emoji: string) => variantTextInputRefs.current[itemId]?.insertTextAtCursor(emoji)}
-        />
-      </Suspense>,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet]);
+  const handleVariantEmojiPress = useCallback(
+    (itemId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <EmojiPickerSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSelectEmoji={(emoji: string) =>
+              variantTextInputRefs.current[itemId]?.insertTextAtCursor(emoji)
+            }
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet],
+  );
 
-  const handleVariantTextInputRef = useCallback((itemId: string, el: MentionTextInputHandle | null) => {
-    variantTextInputRefs.current[itemId] = el;
-  }, []);
+  const handleVariantTextInputRef = useCallback(
+    (itemId: string, el: MentionTextInputHandle | null) => {
+      variantTextInputRefs.current[itemId] = el;
+    },
+    [],
+  );
 
   const handleRemoveVariantMedia = useCallback(
     (itemId: string, mediaId: string) => removeVariantMedia(activeTag, itemId, mediaId),
@@ -2367,12 +2567,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const [variantArticleTitle, setVariantArticleTitle] = useState('');
   const [variantArticleBody, setVariantArticleBody] = useState('');
 
-  const openVariantArticleEditor = useCallback((itemId: string) => {
-    const article = getVariantItem(variants, activeTag, itemId).article;
-    setVariantArticleTitle(article?.title ?? '');
-    setVariantArticleBody(article?.body ?? '');
-    setVariantArticleItemId(itemId);
-  }, [variants, activeTag]);
+  const openVariantArticleEditor = useCallback(
+    (itemId: string) => {
+      const article = getVariantItem(variants, activeTag, itemId).article;
+      setVariantArticleTitle(article?.title ?? '');
+      setVariantArticleBody(article?.body ?? '');
+      setVariantArticleItemId(itemId);
+    },
+    [variants, activeTag],
+  );
 
   const closeVariantArticleEditor = useCallback(() => setVariantArticleItemId(null), []);
 
@@ -2404,7 +2607,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             host: createdRoom.host ?? undefined,
           });
         }}
-      />
+      />,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, attachRoom]);
@@ -2416,7 +2619,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onClose={() => bottomSheet.openBottomSheet(false)}
           onSelect={savePodcast}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, savePodcast]);
@@ -2437,7 +2640,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onClose={() => bottomSheet.openBottomSheet(false)}
           onSelect={saveJob}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, effectiveMainPublishAs, saveJob]);
@@ -2447,20 +2650,23 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    * thread controller reads `content.podcast` off every entry, root or not — so
    * each box attaches its own rather than inheriting the first box's.
    */
-  const openThreadPodcastPicker = useCallback((threadId: string) => {
-    bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <PodcastPickerSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          onSelect={(next) => setThreadPodcast(threadId, next)}
-        />
-      </Suspense>
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, setThreadPodcast]);
+  const openThreadPodcastPicker = useCallback(
+    (threadId: string) => {
+      bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <PodcastPickerSheet
+            onClose={() => bottomSheet.openBottomSheet(false)}
+            onSelect={(next) => setThreadPodcast(threadId, next)}
+          />
+        </Suspense>,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet, setThreadPodcast],
+  );
 
   const handleSensitiveToggle = useCallback(() => {
-    setIsSensitive(prev => !prev);
+    setIsSensitive((prev) => !prev);
   }, []);
 
   const closeThreadArticleEditor = useCallback(() => {
@@ -2498,7 +2704,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       });
     }
     setEditingThreadEventId(null);
-  }, [editingThreadEventId, threadEventDraftName, threadEventDraftDate, threadEventDraftLocation, threadEventDraftDescription, setThreadEvent]);
+  }, [
+    editingThreadEventId,
+    threadEventDraftName,
+    threadEventDraftDate,
+    threadEventDraftLocation,
+    threadEventDraftDescription,
+    setThreadEvent,
+  ]);
 
   // Update bottom sheet content when replyPermission or reviewReplies changes
   useEffect(() => {
@@ -2515,7 +2728,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             quotesDisabled={quotesDisabled}
             onQuotesDisabledChange={setQuotesDisabled}
           />
-        </Suspense>
+        </Suspense>,
       );
     }
   }, [bottomSheet, replyPermission, quotesDisabled, isReplySettingsOpen]);
@@ -2534,7 +2747,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           quotesDisabled={quotesDisabled}
           onQuotesDisabledChange={setQuotesDisabled}
         />
-      </Suspense>
+      </Suspense>,
     );
     bottomSheet.openBottomSheet(true);
   }, [replyPermission, quotesDisabled, bottomSheet]);
@@ -2563,13 +2776,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             Android had here) did nothing at all — the footer and its Post button
             stayed behind the keyboard. `automaticOffset` measures where this
             view actually sits instead of a guessed header height. */}
-        <KeyboardAvoidingView
-          behavior="padding"
-          automaticOffset
-          style={styles.composeArea}
-        >
+        <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.composeArea}>
           <View style={{ flex: 1 }}>
-
             {/* Header */}
             <View className="bg-card border-border" style={styles.header}>
               {presentation === 'tab' ? (
@@ -2579,7 +2787,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 // returns to the sentence. A back arrow would be a lie on a root
                 // tab.
                 <Button
-                  appearance="subtle" tone="neutral"
+                  appearance="subtle"
+                  tone="neutral"
                   iconOnly
                   leadingIcon={RiCloseLine}
                   onPress={dismiss}
@@ -2589,7 +2798,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 />
               ) : (
                 <Button
-                  appearance="subtle" tone="neutral"
+                  appearance="subtle"
+                  tone="neutral"
                   iconOnly
                   leadingIcon={RiArrowLeftLine}
                   onPress={() => {
@@ -2603,20 +2813,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
                 />
               )}
-              <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
+              <Text
+                className="text-foreground"
+                style={[styles.headerTitle, { pointerEvents: 'none' }]}
+              >
+                {isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}
+              </Text>
               <View style={styles.headerIcons}>
                 <Button
-                  appearance="subtle" tone="neutral"
+                  appearance="subtle"
+                  tone="neutral"
                   iconOnly
                   leadingIcon={RiMoreFill}
                   style={styles.iconBtn}
                   onPress={() => setShowModeToggle(!showModeToggle)}
-                  accessibilityLabel={showModeToggle
-                    ? t('compose.hideModeOptions.a11y', { defaultValue: 'Hide posting mode options' })
-                    : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
+                  accessibilityLabel={
+                    showModeToggle
+                      ? t('compose.hideModeOptions.a11y', {
+                          defaultValue: 'Hide posting mode options',
+                        })
+                      : t('compose.showModeOptions.a11y', {
+                          defaultValue: 'Show posting mode options',
+                        })
+                  }
                 />
                 <Button
-                  appearance="subtle" tone="neutral"
+                  appearance="subtle"
+                  tone="neutral"
                   iconOnly
                   icon={<DraftsIcon size={20} color={theme.colors.text} />}
                   style={styles.iconBtn}
@@ -2628,19 +2851,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           onLoadDraft={handleResumeDraft}
                           currentDraftId={currentDraftId}
                         />
-                      </Suspense>
+                      </Suspense>,
                     );
                     bottomSheet.openBottomSheet(true);
                   }}
-                  accessibilityLabel={t('compose.openDrafts.a11y', { defaultValue: 'Open drafts and scheduled posts' })}
+                  accessibilityLabel={t('compose.openDrafts.a11y', {
+                    defaultValue: 'Open drafts and scheduled posts',
+                  })}
                 />
                 <Button
-                  appearance="subtle" tone="neutral"
+                  appearance="subtle"
+                  tone="neutral"
                   iconOnly
                   leadingIcon={RiDeleteBinLine}
                   style={styles.iconBtn}
                   onPress={() => clearAllControl.open()}
-                  accessibilityLabel={t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })}
+                  accessibilityLabel={t('compose.clearAll.a11y', {
+                    defaultValue: 'Clear all content',
+                  })}
                 />
               </View>
             </View>
@@ -2648,19 +2876,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             {/* Editing indicator */}
             {isEditMode && (
               <View className="px-4 py-2 bg-muted border-b border-border">
-                <Text className="text-primary text-[13px] font-semibold">{editLoading
-                  ? t('Loading post...')
-                  : editingScheduledPost
-                    ? t('compose.scheduled.editingNotice', { defaultValue: 'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.' })
-                    : editingServerDraft
-                    ? t('compose.serverDrafts.editingNotice', { defaultValue: 'Editing a draft saved to your account — nobody has seen it yet, so there is no time limit. Saving keeps it a draft; publish it from your drafts.' })
-                    : editingChannelPost
-                      // A channel post has no deadline, and saying "30 minutes"
-                      // here would be false. What replaces the window is the
-                      // trail, so the notice states that instead of stating
-                      // nothing.
-                      ? t('compose.channel.editingNotice', { defaultValue: 'Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history.' })
-                      : t('compose.editingNotice', { defaultValue: 'Editing post — changes must be saved within 30 minutes of creation.' })}</Text>
+                <Text className="text-primary text-[13px] font-semibold">
+                  {editLoading
+                    ? t('Loading post...')
+                    : editingScheduledPost
+                      ? t('compose.scheduled.editingNotice', {
+                          defaultValue:
+                            'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.',
+                        })
+                      : editingServerDraft
+                        ? t('compose.serverDrafts.editingNotice', {
+                            defaultValue:
+                              'Editing a draft saved to your account — nobody has seen it yet, so there is no time limit. Saving keeps it a draft; publish it from your drafts.',
+                          })
+                        : editingChannelPost
+                          ? // A channel post has no deadline, and saying "30 minutes"
+                            // here would be false. What replaces the window is the
+                            // trail, so the notice states that instead of stating
+                            // nothing.
+                            t('compose.channel.editingNotice', {
+                              defaultValue:
+                                'Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history.',
+                            })
+                          : t('compose.editingNotice', {
+                              defaultValue:
+                                'Editing post — changes must be saved within 30 minutes of creation.',
+                            })}
+                </Text>
               </View>
             )}
 
@@ -2711,580 +2953,627 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-            {/* Parent post preview (reply mode) */}
-            {replyToPostId && (
-              replyLoading ? (
-                <View style={styles.replyPreviewLoading}>
-                  <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
-                </View>
-              ) : replyToPost ? (
-                <View className="border-b border-border">
-                  <PostItem post={replyToPost} />
-                </View>
-              ) : null
-            )}
-
-            <View style={styles.threadContainer}>
-
-              {isPrimaryTab ? (
-                <>
-              {/* Main composer */}
-              <View style={[styles.postContainer, focusedItemId !== MAIN_ITEM_ID && threadItems.length > 0 && styles.unfocusedItem]}>
-                {/* Connector line below main avatar — thread mode only; see
-                    `showThreadTimeline`. */}
-                {showThreadTimeline ? (
-                  <View className="bg-primary/20" style={styles.itemConnectorLine} />
-                ) : null}
-                <View style={styles.composerWithTimeline}>
-                  <ComposeIdentityHeader
-                    publishAs={effectiveMainPublishAs}
-                    // The byline this post is going to get: with collaborators
-                    // named, the header draws the same avatar cluster and "A and
-                    // B" name row the published post will.
-                    collaborators={collaboratorsEligible ? collaborators : undefined}
-                    onPressAvatar={mainPublishAsEligible ? handleMainPublishAsPress : undefined}
-                    timeSlot={scheduleTimeSlot}
-                  >
-                    <MentionTextInput
-                      ref={mainTextInputRef}
-                      className="text-foreground"
-                      style={styles.mainTextInput}
-                      placeholder={replyToPostId ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' }) : t('compose.placeholder', { defaultValue: "What's new?" })}
-                      value={postContent}
-                      mentions={mentions}
-                      onValueChange={handleMainMentionValueChange}
-                      onFocus={() => setFocusedItemId('main')}
-                      multiline
-                      autoFocus
+              {/* Parent post preview (reply mode) */}
+              {replyToPostId &&
+                (replyLoading ? (
+                  <View style={styles.replyPreviewLoading}>
+                    <Loading
+                      className="text-primary"
+                      variant="inline"
+                      size="sm"
+                      style={{ flex: undefined }}
                     />
-                    {/* Who this post will address, including anybody a pasted
+                  </View>
+                ) : replyToPost ? (
+                  <View className="border-b border-border">
+                    <PostItem post={replyToPost} />
+                  </View>
+                ) : null)}
+
+              <View style={styles.threadContainer}>
+                {isPrimaryTab ? (
+                  <>
+                    {/* Main composer */}
+                    <View
+                      style={[
+                        styles.postContainer,
+                        focusedItemId !== MAIN_ITEM_ID &&
+                          threadItems.length > 0 &&
+                          styles.unfocusedItem,
+                      ]}
+                    >
+                      {/* Connector line below main avatar — thread mode only; see
+                    `showThreadTimeline`. */}
+                      {showThreadTimeline ? (
+                        <View className="bg-primary/20" style={styles.itemConnectorLine} />
+                      ) : null}
+                      <View style={styles.composerWithTimeline}>
+                        <ComposeIdentityHeader
+                          publishAs={effectiveMainPublishAs}
+                          // The byline this post is going to get: with collaborators
+                          // named, the header draws the same avatar cluster and "A and
+                          // B" name row the published post will.
+                          collaborators={collaboratorsEligible ? collaborators : undefined}
+                          onPressAvatar={
+                            mainPublishAsEligible ? handleMainPublishAsPress : undefined
+                          }
+                          timeSlot={scheduleTimeSlot}
+                        >
+                          <MentionTextInput
+                            ref={mainTextInputRef}
+                            className="text-foreground"
+                            style={styles.mainTextInput}
+                            placeholder={
+                              replyToPostId
+                                ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+                                : t('compose.placeholder', { defaultValue: "What's new?" })
+                            }
+                            value={postContent}
+                            mentions={mentions}
+                            onValueChange={handleMainMentionValueChange}
+                            onFocus={() => setFocusedItemId('main')}
+                            multiline
+                            autoFocus
+                          />
+                          {/* Who this post will address, including anybody a pasted
                         profile link resolves to — the only place that mention is
                         visible, since the body shows their URL. */}
-                    <ComposeMentionSummary
-                      texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
-                      mentions={mentions}
-                    />
-                  </ComposeIdentityHeader>
+                          <ComposeMentionSummary
+                            texts={[postContent, ...variantTextsForItem(variants, MAIN_ITEM_ID)]}
+                            mentions={mentions}
+                          />
+                        </ComposeIdentityHeader>
 
-                  {/* Attachments row (poll + article + media + link) */}
-                  {attachmentOrder.length > 0 ? (
-                    <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
-                    >
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
-                      >
-                        {attachmentOrder.map((key, index) => {
-                          const total = attachmentOrder.length;
+                        {/* Attachments row (poll + article + media + link) */}
+                        {attachmentOrder.length > 0 ? (
+                          <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
+                            <ScrollView
+                              horizontal
+                              showsHorizontalScrollIndicator={false}
+                              contentContainerStyle={[
+                                styles.mediaPreviewScroll,
+                                { paddingLeft: BOTTOM_LEFT_PAD },
+                              ]}
+                            >
+                              {attachmentOrder.map((key, index) => {
+                                const total = attachmentOrder.length;
 
-                          if (key === POLL_ATTACHMENT_KEY) {
-                            if (!showPollCreator) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removePoll}
-                                wrapperStyle={styles.pollAttachmentWrapper}
-                              >
-                                <TouchableOpacity
-                                  className="border-border bg-muted" style={styles.pollAttachmentCard}
-                                  activeOpacity={0.85}
-                                  onPress={focusPollCreator}
-                                >
-                                  <View style={styles.pollAttachmentHeader}>
-                                    <View className="bg-card" style={styles.pollAttachmentBadge}>
-                                      <PollIcon size={16} className="text-primary" />
-                                      <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
-                                        {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                      </Text>
-                                    </View>
-                                    <Text className="text-muted-foreground" style={styles.pollAttachmentMeta}>
-                                      {t('compose.poll.optionCount', {
-                                        count: pollOptions.length,
-                                        defaultValue:
-                                          pollOptions.length === 0
-                                            ? 'No options yet'
-                                            : pollOptions.length === 1
-                                              ? '1 option'
-                                              : `${pollOptions.length} options`
-                                      })}
-                                    </Text>
-                                  </View>
-                                  <Text className="text-foreground" style={styles.pollAttachmentQuestion} numberOfLines={2}>
-                                    {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
-                                  </Text>
-                                  <View style={styles.pollAttachmentOptions}>
-                                    {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, optionIndex) => {
-                                      const trimmed = option?.trim?.() || '';
-                                      return (
-                                        <View
-                                          key={`poll-opt-${optionIndex}`}
-                                          className="border-border bg-card" style={styles.pollAttachmentOption}
-                                        >
-                                          <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
-                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: optionIndex + 1 })}
+                                if (key === POLL_ATTACHMENT_KEY) {
+                                  if (!showPollCreator) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removePoll}
+                                      wrapperStyle={styles.pollAttachmentWrapper}
+                                    >
+                                      <TouchableOpacity
+                                        className="border-border bg-muted"
+                                        style={styles.pollAttachmentCard}
+                                        activeOpacity={0.85}
+                                        onPress={focusPollCreator}
+                                      >
+                                        <View style={styles.pollAttachmentHeader}>
+                                          <View
+                                            className="bg-card"
+                                            style={styles.pollAttachmentBadge}
+                                          >
+                                            <PollIcon size={16} className="text-primary" />
+                                            <Text
+                                              className="text-primary"
+                                              style={styles.pollAttachmentBadgeText}
+                                            >
+                                              {t('compose.poll.title', { defaultValue: 'Poll' })}
+                                            </Text>
+                                          </View>
+                                          <Text
+                                            className="text-muted-foreground"
+                                            style={styles.pollAttachmentMeta}
+                                          >
+                                            {t('compose.poll.optionCount', {
+                                              count: pollOptions.length,
+                                              defaultValue:
+                                                pollOptions.length === 0
+                                                  ? 'No options yet'
+                                                  : pollOptions.length === 1
+                                                    ? '1 option'
+                                                    : `${pollOptions.length} options`,
+                                            })}
                                           </Text>
                                         </View>
-                                      );
-                                    })}
-                                    {pollOptions.length > 2 ? (
-                                      <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: '+{{count}} more' })}
-                                      </Text>
-                                    ) : null}
-                                  </View>
-                                </TouchableOpacity>
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                        <Text
+                                          className="text-foreground"
+                                          style={styles.pollAttachmentQuestion}
+                                          numberOfLines={2}
+                                        >
+                                          {pollTitle.trim() ||
+                                            t('compose.poll.placeholderQuestion', {
+                                              defaultValue: 'Ask a question...',
+                                            })}
+                                        </Text>
+                                        <View style={styles.pollAttachmentOptions}>
+                                          {(pollOptions.length > 0 ? pollOptions : ['', ''])
+                                            .slice(0, 2)
+                                            .map((option, optionIndex) => {
+                                              const trimmed = option?.trim?.() || '';
+                                              return (
+                                                <View
+                                                  key={`poll-opt-${optionIndex}`}
+                                                  className="border-border bg-card"
+                                                  style={styles.pollAttachmentOption}
+                                                >
+                                                  <Text
+                                                    className="text-muted-foreground"
+                                                    style={styles.pollAttachmentOptionText}
+                                                    numberOfLines={1}
+                                                  >
+                                                    {trimmed ||
+                                                      t('compose.poll.optionPlaceholder', {
+                                                        defaultValue: 'Option {{index}}',
+                                                        index: optionIndex + 1,
+                                                      })}
+                                                  </Text>
+                                                </View>
+                                              );
+                                            })}
+                                          {pollOptions.length > 2 ? (
+                                            <Text
+                                              style={[
+                                                styles.pollAttachmentMore,
+                                                { color: theme.colors.textTertiary },
+                                              ]}
+                                            >
+                                              {t('compose.poll.moreOptions', {
+                                                count: pollOptions.length - 2,
+                                                defaultValue: '+{{count}} more',
+                                              })}
+                                            </Text>
+                                          ) : null}
+                                        </View>
+                                      </TouchableOpacity>
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (key === ARTICLE_ATTACHMENT_KEY) {
-                            if (!(hasArticleContent && article)) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removeArticle}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-                              >
-                                <PostArticlePreview
-                                  title={article.title}
-                                  body={article.body}
-                                  onPress={openArticleEditor}
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (key === ARTICLE_ATTACHMENT_KEY) {
+                                  if (!(hasArticleContent && article)) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removeArticle}
+                                      wrapperStyle={[
+                                        styles.articleAttachmentWrapper,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.card,
+                                        },
+                                      ]}
+                                    >
+                                      <PostArticlePreview
+                                        title={article.title}
+                                        body={article.body}
+                                        onPress={openArticleEditor}
+                                        style={styles.articleAttachmentPreview}
+                                      />
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (key === EVENT_ATTACHMENT_KEY) {
-                            if (!(hasEventContent && event)) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removeEvent}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-                              >
-                                <PostAttachmentEvent
-                                  name={event.name}
-                                  date={event.date}
-                                  location={event.location}
-                                  onPress={openEventEditor}
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (key === EVENT_ATTACHMENT_KEY) {
+                                  if (!(hasEventContent && event)) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removeEvent}
+                                      wrapperStyle={[
+                                        styles.articleAttachmentWrapper,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.card,
+                                        },
+                                      ]}
+                                    >
+                                      <PostAttachmentEvent
+                                        name={event.name}
+                                        date={event.date}
+                                        location={event.location}
+                                        onPress={openEventEditor}
+                                        style={styles.articleAttachmentPreview}
+                                      />
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (key === ROOM_ATTACHMENT_KEY) {
-                            if (!(hasRoomContent && attachedRoom)) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removeRoom}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-                              >
-                                <RoomCard
-                                  room={{
-                                    _id: attachedRoom.roomId,
-                                    title: attachedRoom.title,
-                                    status: attachedRoom.status || 'scheduled',
-                                    topic: attachedRoom.topic,
-                                    participants: [],
-                                    host: attachedRoom.host || '',
-                                  }}
-                                  variant="compact"
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (key === ROOM_ATTACHMENT_KEY) {
+                                  if (!(hasRoomContent && attachedRoom)) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removeRoom}
+                                      wrapperStyle={[
+                                        styles.articleAttachmentWrapper,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.card,
+                                        },
+                                      ]}
+                                    >
+                                      <RoomCard
+                                        room={{
+                                          _id: attachedRoom.roomId,
+                                          title: attachedRoom.title,
+                                          status: attachedRoom.status || 'scheduled',
+                                          topic: attachedRoom.topic,
+                                          participants: [],
+                                          host: attachedRoom.host || '',
+                                        }}
+                                        variant="compact"
+                                        style={styles.articleAttachmentPreview}
+                                      />
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (key === PODCAST_ATTACHMENT_KEY) {
-                            if (!(hasPodcastContent && podcast)) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removePodcast}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-                              >
-                                <PodcastCard
-                                  variant="card"
-                                  title={podcast.title}
-                                  author={podcast.author}
-                                  artworkUrl={podcast.artworkUrl}
-                                  onPress={openPodcastPicker}
-                                  style={styles.articleAttachmentPreview}
-                                />
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (key === PODCAST_ATTACHMENT_KEY) {
+                                  if (!(hasPodcastContent && podcast)) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removePodcast}
+                                      wrapperStyle={[
+                                        styles.articleAttachmentWrapper,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.card,
+                                        },
+                                      ]}
+                                    >
+                                      <PodcastCard
+                                        variant="card"
+                                        title={podcast.title}
+                                        author={podcast.author}
+                                        artworkUrl={podcast.artworkUrl}
+                                        onPress={openPodcastPicker}
+                                        style={styles.articleAttachmentPreview}
+                                      />
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (key === JOB_ATTACHMENT_KEY) {
-                            if (!(hasJobContent && job)) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={removeJob}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-                              >
-                                {/* Not `JobCard` (which navigates to the job page on
+                                if (key === JOB_ATTACHMENT_KEY) {
+                                  if (!(hasJobContent && job)) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={removeJob}
+                                      wrapperStyle={[
+                                        styles.articleAttachmentWrapper,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.card,
+                                        },
+                                      ]}
+                                    >
+                                      {/* Not `JobCard` (which navigates to the job page on
                                     press): tapping this preview mid-compose must not
                                     push the author away from an unsaved draft, so it
                                     reopens the picker to change the selection instead. */}
-                                <Pressable
-                                  onPress={openJobPicker}
-                                  style={[styles.articleAttachmentPreview, { justifyContent: 'center' }]}
-                                >
-                                  <Ionicons name="briefcase-outline" size={20} color={theme.colors.primary} />
-                                  <Text
-                                    numberOfLines={2}
-                                    style={{ color: theme.colors.text, fontSize: 15, fontWeight: '700', marginTop: 8 }}
-                                  >
-                                    {job.title}
-                                  </Text>
-                                  <Text numberOfLines={1} style={{ color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                                    {job.employerName}
-                                  </Text>
-                                </Pressable>
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                      <Pressable
+                                        onPress={openJobPicker}
+                                        style={[
+                                          styles.articleAttachmentPreview,
+                                          { justifyContent: 'center' },
+                                        ]}
+                                      >
+                                        <Ionicons
+                                          name="briefcase-outline"
+                                          size={20}
+                                          color={theme.colors.primary}
+                                        />
+                                        <Text
+                                          numberOfLines={2}
+                                          style={{
+                                            color: theme.colors.text,
+                                            fontSize: 15,
+                                            fontWeight: '700',
+                                            marginTop: 8,
+                                          }}
+                                        >
+                                          {job.title}
+                                        </Text>
+                                        <Text
+                                          numberOfLines={1}
+                                          style={{
+                                            color: theme.colors.textSecondary,
+                                            fontSize: 13,
+                                            marginTop: 2,
+                                          }}
+                                        >
+                                          {job.employerName}
+                                        </Text>
+                                      </Pressable>
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (isLinkAttachmentKey(key)) {
-                            const linkUrl = getUrlFromLinkAttachmentKey(key);
-                            const link = detectedLinks.find(detected => detected.url === linkUrl);
-                            if (!link) return null;
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                // Removing a link card deletes only THAT link from the
-                                // text — the other links (and their cards) stay.
-                                onRemove={() => setPostContent(removeUrlFromText(postContent, link.url))}
-                                wrapperStyle={styles.linkAttachmentWrapper}
-                              >
-                                <LinkPreviewCard
-                                  url={link.url}
-                                  title={link.title}
-                                  description={link.description}
-                                  image={link.image}
-                                  siteName={link.siteName}
-                                />
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (isLinkAttachmentKey(key)) {
+                                  const linkUrl = getUrlFromLinkAttachmentKey(key);
+                                  const link = detectedLinks.find(
+                                    (detected) => detected.url === linkUrl,
+                                  );
+                                  if (!link) return null;
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      // Removing a link card deletes only THAT link from the
+                                      // text — the other links (and their cards) stay.
+                                      onRemove={() =>
+                                        setPostContent(removeUrlFromText(postContent, link.url))
+                                      }
+                                      wrapperStyle={styles.linkAttachmentWrapper}
+                                    >
+                                      <LinkPreviewCard
+                                        url={link.url}
+                                        title={link.title}
+                                        description={link.description}
+                                        image={link.image}
+                                        siteName={link.siteName}
+                                      />
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          if (isMediaAttachmentKey(key)) {
-                            const mediaId = getMediaIdFromAttachmentKey(key);
-                            const mediaItem = mediaIds.find(m => m.id === mediaId);
-                            if (!mediaItem) return null;
-                            const mediaUrl = oxyServices.assets.publicUrl(mediaItem.id);
-                            return (
-                              <AttachmentCarouselItem
-                                key={key}
-                                attachmentKey={key}
-                                index={index}
-                                total={total}
-                                onMove={moveAttachment}
-                                onRemove={() => removeMedia(mediaItem.id)}
-                                wrapperStyle={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                              >
-                                <ComposeMediaPreview
-                                  type={mediaItem.type}
-                                  uri={mediaUrl}
-                                  imageStyle={styles.mediaPreviewImage}
-                                />
-                                {mediaItem.type === 'image' ? (
-                                  <ComposeAltButton
-                                    hasAlt={Boolean(mediaItem.alt?.trim())}
-                                    raised={total > 1}
-                                    onPress={() => openAltTextSheet(mediaItem)}
-                                  />
-                                ) : null}
-                              </AttachmentCarouselItem>
-                            );
-                          }
+                                if (isMediaAttachmentKey(key)) {
+                                  const mediaId = getMediaIdFromAttachmentKey(key);
+                                  const mediaItem = mediaIds.find((m) => m.id === mediaId);
+                                  if (!mediaItem) return null;
+                                  const mediaUrl = oxyServices.assets.publicUrl(mediaItem.id);
+                                  return (
+                                    <AttachmentCarouselItem
+                                      key={key}
+                                      attachmentKey={key}
+                                      index={index}
+                                      total={total}
+                                      onMove={moveAttachment}
+                                      onRemove={() => removeMedia(mediaItem.id)}
+                                      wrapperStyle={[
+                                        styles.mediaPreviewItem,
+                                        {
+                                          borderColor: theme.colors.border,
+                                          backgroundColor: theme.colors.backgroundSecondary,
+                                        },
+                                      ]}
+                                    >
+                                      <ComposeMediaPreview
+                                        type={mediaItem.type}
+                                        uri={mediaUrl}
+                                        imageStyle={styles.mediaPreviewImage}
+                                      />
+                                      {mediaItem.type === 'image' ? (
+                                        <ComposeAltButton
+                                          hasAlt={Boolean(mediaItem.alt?.trim())}
+                                          raised={total > 1}
+                                          onPress={() => openAltTextSheet(mediaItem)}
+                                        />
+                                      ) : null}
+                                    </AttachmentCarouselItem>
+                                  );
+                                }
 
-                          return null;
-                        })}
-                      </ScrollView>
-                    </View>
-                  ) : null}
+                                return null;
+                              })}
+                            </ScrollView>
+                          </View>
+                        ) : null}
 
-                  <View style={styles.toolbarWrapper}>
-                    <ComposeToolbar
-                      contentPaddingLeft={BOTTOM_LEFT_PAD}
-                      onMediaPress={openSharedMediaPicker}
-                      onPollPress={focusPollCreator}
-                      onLocationPress={requestLocation}
-                      onGifPress={handleMainGifPress}
-                      onEmojiPress={handleMainEmojiPress}
-                      onSourcesPress={openSourcesSheet}
-                      onArticlePress={openArticleEditor}
-                      onEventPress={openEventEditor}
-                      onRoomPress={handleMainRoomPress}
-                      onPodcastPress={openPodcastPicker}
-                      onJobPress={canAttachJob ? openJobPicker : undefined}
-                      // Omitted outright where the post cannot take
-                      // collaborators — a reply, a thread, or an edit of an
-                      // already-collaborative post. A batch refuses them at the
-                      // server, so a second box takes the icon away.
-                      onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
-                      hasCollaborators={collaborators.length > 0}
-                      collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                      // This box is the batch's ROOT in either mode, which is the
-                      // entry the wire takes a lane on in both — so unlike the
-                      // continuations it keeps the control whatever the mode.
-                      onLanePress={laneEligible ? handleLanePress : undefined}
-                      hasLane={Boolean(laneId)}
-                      hasLocation={!!location}
-                      isGettingLocation={isGettingLocation}
-                      hasPoll={showPollCreator}
-                      hasMedia={mediaIds.length > 0}
-                      hasSources={sources.length > 0}
-                      hasArticle={hasArticleContent}
-                      hasEvent={hasEventContent}
-                      hasRoom={hasRoomContent}
-                      hasPodcast={hasPodcastContent}
-                      hasJob={hasJobContent}
-                      hasSourceErrors={invalidSources}
-                      disabled={isPosting}
-                    />
-                  </View>
+                        <View style={styles.toolbarWrapper}>
+                          <ComposeToolbar
+                            contentPaddingLeft={BOTTOM_LEFT_PAD}
+                            onMediaPress={openSharedMediaPicker}
+                            onPollPress={focusPollCreator}
+                            onLocationPress={requestLocation}
+                            onGifPress={handleMainGifPress}
+                            onEmojiPress={handleMainEmojiPress}
+                            onSourcesPress={openSourcesSheet}
+                            onArticlePress={openArticleEditor}
+                            onEventPress={openEventEditor}
+                            onRoomPress={handleMainRoomPress}
+                            onPodcastPress={openPodcastPicker}
+                            onJobPress={canAttachJob ? openJobPicker : undefined}
+                            // Omitted outright where the post cannot take
+                            // collaborators — a reply, a thread, or an edit of an
+                            // already-collaborative post. A batch refuses them at the
+                            // server, so a second box takes the icon away.
+                            onCollaboratorsPress={
+                              collaboratorsEligible ? handleCollaboratorsPress : undefined
+                            }
+                            hasCollaborators={collaborators.length > 0}
+                            collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                            // This box is the batch's ROOT in either mode, which is the
+                            // entry the wire takes a lane on in both — so unlike the
+                            // continuations it keeps the control whatever the mode.
+                            onLanePress={laneEligible ? handleLanePress : undefined}
+                            hasLane={Boolean(laneId)}
+                            hasLocation={!!location}
+                            isGettingLocation={isGettingLocation}
+                            hasPoll={showPollCreator}
+                            hasMedia={mediaIds.length > 0}
+                            hasSources={sources.length > 0}
+                            hasArticle={hasArticleContent}
+                            hasEvent={hasEventContent}
+                            hasRoom={hasRoomContent}
+                            hasPodcast={hasPodcastContent}
+                            hasJob={hasJobContent}
+                            hasSourceErrors={invalidSources}
+                            disabled={isPosting}
+                          />
+                        </View>
 
-                  {/* Collaborators — chosen from the attachment row's people
+                        {/* Collaborators — chosen from the attachment row's people
                       icon, so the panel it opens sits with the other editors
                       that row spawns rather than above it. */}
-                  {collaboratorsEligible && (
-                    <CollaboratorPicker
-                      selected={collaborators}
-                      onChange={setCollaborators}
-                      expanded={collaboratorSearchOpen}
-                      onExpandedChange={setCollaboratorSearchOpen}
-                    />
-                  )}
+                        {collaboratorsEligible && (
+                          <CollaboratorPicker
+                            selected={collaborators}
+                            onChange={setCollaborators}
+                            expanded={collaboratorSearchOpen}
+                            onExpandedChange={setCollaboratorSearchOpen}
+                          />
+                        )}
 
-                  {/* Poll Creator */}
-                  {showPollCreator && (
-                    <PollCreator
-                      pollTitle={pollTitle}
-                      onTitleChange={setPollTitle}
-                      pollOptions={pollOptions}
-                      onAddOption={addPollOption}
-                      onOptionChange={updatePollOption}
-                      onRemoveOption={removePollOption}
-                      onRemove={removePoll}
-                      style={bottomLeftPadStyle}
-                    />
-                  )}
+                        {/* Poll Creator */}
+                        {showPollCreator && (
+                          <PollCreator
+                            pollTitle={pollTitle}
+                            onTitleChange={setPollTitle}
+                            pollOptions={pollOptions}
+                            onAddOption={addPollOption}
+                            onOptionChange={updatePollOption}
+                            onRemoveOption={removePollOption}
+                            onRemove={removePoll}
+                            style={bottomLeftPadStyle}
+                          />
+                        )}
 
-                  {/* Location Display */}
-                  {location && (
-                    <LocationDisplay
-                      location={location}
-                      onRemove={removeLocation}
-                      style={bottomLeftPadStyle}
-                    />
-                  )}
+                        {/* Location Display */}
+                        {location && (
+                          <LocationDisplay
+                            location={location}
+                            onRemove={removeLocation}
+                            style={bottomLeftPadStyle}
+                          />
+                        )}
 
-                  {/* Quote prefill card */}
-                  {(quotedPost || quoteLoading) && (
-                    <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
-                      <QuoteCard
-                        post={quotedPost}
-                        loading={quoteLoading}
-                        onDismiss={clearQuote}
-                      />
+                        {/* Quote prefill card */}
+                        {(quotedPost || quoteLoading) && (
+                          <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
+                            <QuoteCard
+                              post={quotedPost}
+                              loading={quoteLoading}
+                              onDismiss={clearQuote}
+                            />
+                          </View>
+                        )}
+
+                        {/* Main post interaction settings (beast mode with thread items) */}
+                        {postingMode === 'beast' && threadItems.length > 0 && (
+                          <View style={bottomLeftPadWithHPadStyle}>
+                            <InteractionSettingsPills
+                              replyPermission={replyPermission}
+                              quotesDisabled={quotesDisabled}
+                              isSensitive={isSensitive}
+                              onReplySettingsPress={openReplySettings}
+                              onSensitiveToggle={handleSensitiveToggle}
+                            />
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  )}
 
-                  {/* Main post interaction settings (beast mode with thread items) */}
-                  {postingMode === 'beast' && threadItems.length > 0 && (
-                    <View style={bottomLeftPadWithHPadStyle}>
-                      <InteractionSettingsPills
-                        replyPermission={replyPermission}
-                        quotesDisabled={quotesDisabled}
-                        isSensitive={isSensitive}
-                        onReplySettingsPress={openReplySettings}
-                        onSensitiveToggle={handleSensitiveToggle}
+                    {/* Thread items */}
+                    {threadItems.map((item) => (
+                      <ComposeThreadItem
+                        key={`thread-${item.id}`}
+                        item={item}
+                        variantTexts={variantTextsForItem(variants, item.id)}
+                        isFocused={focusedItemId === item.id}
+                        isPosting={isPosting}
+                        postingMode={postingMode}
+                        // Narrowed here, once, so the row can render it unconditionally:
+                        // in thread mode every box is the author's, whatever a box was
+                        // set to while the composer was in beast mode.
+                        publishAs={threadPublishAsEligible ? item.publishAs : null}
+                        onMentionValueChange={handleThreadMentionValueChange}
+                        onFocus={handleThreadFocus}
+                        onRemove={handleThreadRemove}
+                        onMediaPress={openThreadMediaPicker}
+                        onPollPress={openThreadPollCreator}
+                        onLocationPress={requestThreadLocation}
+                        onGifPress={handleThreadGifPress}
+                        onEmojiPress={handleThreadEmojiPress}
+                        onSourcesPress={handleThreadSourcesPress}
+                        onArticlePress={openThreadArticleEditor}
+                        onEventPress={openThreadEventEditor}
+                        onRoomPress={handleThreadRoomPress}
+                        onPollTitleChange={handleThreadPollTitleChange}
+                        onPollOptionChange={handleThreadPollOptionChange}
+                        onPollOptionAdd={handleThreadPollOptionAdd}
+                        onPollOptionRemove={handleThreadPollOptionRemove}
+                        onPollRemove={handleThreadPollRemove}
+                        onLocationRemove={handleThreadLocationRemove}
+                        onMediaRemove={handleThreadMediaRemove}
+                        onMediaMove={handleThreadMediaMove}
+                        onMediaAltPress={openThreadAltTextSheet}
+                        onArticleRemove={handleThreadArticleRemove}
+                        onEventRemove={handleThreadEventRemove}
+                        onRoomRemove={handleThreadRoomRemove}
+                        onReplySettingsPress={handleThreadReplySettingsPress}
+                        onSensitiveToggle={handleThreadSensitiveToggle}
+                        onPodcastPress={openThreadPodcastPicker}
+                        onPodcastRemove={removeThreadPodcast}
+                        onPublishAsPress={
+                          threadPublishAsEligible ? handleThreadPublishAsPress : undefined
+                        }
+                        // A continuation is a reply and the server refuses a lane on
+                        // one, so the icon is absent in thread mode and present in
+                        // beast — see `threadLaneEligible`.
+                        onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
+                        // The SAME node the main box gets — one publish time for the
+                        // whole batch, so every row says it and clearing it clears
+                        // them all in one render.
+                        timeSlot={scheduleTimeSlot}
+                        getFileDownloadUrl={getFileDownloadUrl}
+                        textInputRef={handleThreadTextInputRef}
+                        styles={styles}
                       />
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Thread items */}
-              {threadItems.map((item) => (
-                <ComposeThreadItem
-                  key={`thread-${item.id}`}
-                  item={item}
-                  variantTexts={variantTextsForItem(variants, item.id)}
-                  isFocused={focusedItemId === item.id}
-                  isPosting={isPosting}
-                  postingMode={postingMode}
-                  // Narrowed here, once, so the row can render it unconditionally:
-                  // in thread mode every box is the author's, whatever a box was
-                  // set to while the composer was in beast mode.
-                  publishAs={threadPublishAsEligible ? item.publishAs : null}
-                  onMentionValueChange={handleThreadMentionValueChange}
-                  onFocus={handleThreadFocus}
-                  onRemove={handleThreadRemove}
-                  onMediaPress={openThreadMediaPicker}
-                  onPollPress={openThreadPollCreator}
-                  onLocationPress={requestThreadLocation}
-                  onGifPress={handleThreadGifPress}
-                  onEmojiPress={handleThreadEmojiPress}
-                  onSourcesPress={handleThreadSourcesPress}
-                  onArticlePress={openThreadArticleEditor}
-                  onEventPress={openThreadEventEditor}
-                  onRoomPress={handleThreadRoomPress}
-                  onPollTitleChange={handleThreadPollTitleChange}
-                  onPollOptionChange={handleThreadPollOptionChange}
-                  onPollOptionAdd={handleThreadPollOptionAdd}
-                  onPollOptionRemove={handleThreadPollOptionRemove}
-                  onPollRemove={handleThreadPollRemove}
-                  onLocationRemove={handleThreadLocationRemove}
-                  onMediaRemove={handleThreadMediaRemove}
-                  onMediaMove={handleThreadMediaMove}
-                  onMediaAltPress={openThreadAltTextSheet}
-                  onArticleRemove={handleThreadArticleRemove}
-                  onEventRemove={handleThreadEventRemove}
-                  onRoomRemove={handleThreadRoomRemove}
-                  onReplySettingsPress={handleThreadReplySettingsPress}
-                  onSensitiveToggle={handleThreadSensitiveToggle}
-                  onPodcastPress={openThreadPodcastPicker}
-                  onPodcastRemove={removeThreadPodcast}
-                  onPublishAsPress={threadPublishAsEligible ? handleThreadPublishAsPress : undefined}
-                  // A continuation is a reply and the server refuses a lane on
-                  // one, so the icon is absent in thread mode and present in
-                  // beast — see `threadLaneEligible`.
-                  onLanePress={threadLaneEligible ? handleThreadLanePress : undefined}
-                  // The SAME node the main box gets — one publish time for the
-                  // whole batch, so every row says it and clearing it clears
-                  // them all in one render.
-                  timeSlot={scheduleTimeSlot}
-                  getFileDownloadUrl={getFileDownloadUrl}
-                  textInputRef={handleThreadTextInputRef}
-                  styles={styles}
-                />
-              ))}
-
-                </>
-              ) : (
-                /* A non-primary language. Language-specific actions edit this
+                    ))}
+                  </>
+                ) : (
+                  /* A non-primary language. Language-specific actions edit this
                    rendition; post-level actions still remain reachable here so
                    switching language never collapses the composer UI. */
-                <>
-                  <VariantEditor
-                    itemId={MAIN_ITEM_ID}
-                    tag={activeTag}
-                    item={getVariantItem(variants, activeTag, MAIN_ITEM_ID)}
-                    primaryText={postContent}
-                    sharedMedia={mediaIds}
-                    hasArticle={hasArticleContent}
-                    userAvatar={user?.avatar ?? undefined}
-                    userVerified={Boolean(user?.verified)}
-                    isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
-                    isPosting={isPosting}
-                    isTranslating={translatingItemId === MAIN_ITEM_ID}
-                    getFileDownloadUrl={getFileDownloadUrl}
-                    mentions={mentions}
-                    onMentionValueChange={handleVariantMentionValueChange}
-                    onFocus={handleVariantFocus}
-                    onTranslate={handleTranslateVariant}
-                    onSharedAltPress={handleVariantSharedAltPress}
-                    onOwnAltPress={handleVariantOwnAltPress}
-                    onPickOwnMedia={handlePickVariantMedia}
-                    onRemoveOwnMedia={handleRemoveVariantMedia}
-                    onUseSharedMedia={handleUseSharedMedia}
-                    onArticlePress={openVariantArticleEditor}
-                    onArticleReset={resetVariantArticle}
-                    textInputRef={(el) => handleVariantTextInputRef(MAIN_ITEM_ID, el)}
-                    toolbar={(
-                      <View style={styles.toolbarWrapper}>
-                        <ComposeToolbar
-                          contentPaddingLeft={BOTTOM_LEFT_PAD}
-                          onMediaPress={() => handlePickVariantMedia(MAIN_ITEM_ID)}
-                          onPollPress={() => {
-                            setActiveTag(variants.primaryTag);
-                            focusPollCreator();
-                          }}
-                          onLocationPress={requestLocation}
-                          onGifPress={() => handleVariantGifPress(MAIN_ITEM_ID)}
-                          onEmojiPress={() => handleVariantEmojiPress(MAIN_ITEM_ID)}
-                          onSourcesPress={openSourcesSheet}
-                          onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
-                          onEventPress={openEventEditor}
-                          onRoomPress={handleMainRoomPress}
-                          onPodcastPress={openPodcastPicker}
-                          onJobPress={canAttachJob ? openJobPicker : undefined}
-                          onCollaboratorsPress={collaboratorsEligible ? () => {
-                            setActiveTag(variants.primaryTag);
-                            handleCollaboratorsPress();
-                          } : undefined}
-                          hasCollaborators={collaborators.length > 0}
-                          collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
-                          onLanePress={laneEligible ? handleLanePress : undefined}
-                          hasLane={Boolean(laneId)}
-                          hasLocation={!!location}
-                          isGettingLocation={isGettingLocation}
-                          hasPoll={showPollCreator}
-                          hasMedia={mediaIds.length > 0 || getVariantItem(variants, activeTag, MAIN_ITEM_ID).media.mode === 'override'}
-                          hasSources={sources.length > 0}
-                          hasArticle={hasArticleContent}
-                          hasEvent={hasEventContent}
-                          hasRoom={hasRoomContent}
-                          hasPodcast={hasPodcastContent}
-                          hasJob={hasJobContent}
-                          hasSourceErrors={invalidSources}
-                          disabled={isPosting}
-                        />
-                      </View>
-                    )}
-                  />
-                  {threadItems.map((item) => (
+                  <>
                     <VariantEditor
-                      key={`variant-${activeTag}-${item.id}`}
-                      itemId={item.id}
+                      itemId={MAIN_ITEM_ID}
                       tag={activeTag}
-                      item={getVariantItem(variants, activeTag, item.id)}
-                      primaryText={item.text}
-                      sharedMedia={item.mediaIds}
-                      hasArticle={articleHasContent(item.article)}
+                      item={getVariantItem(variants, activeTag, MAIN_ITEM_ID)}
+                      primaryText={postContent}
+                      sharedMedia={mediaIds}
+                      hasArticle={hasArticleContent}
                       userAvatar={user?.avatar ?? undefined}
                       userVerified={Boolean(user?.verified)}
-                      isFocused={focusedItemId === item.id}
+                      isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
                       isPosting={isPosting}
-                      isTranslating={translatingItemId === item.id}
+                      isTranslating={translatingItemId === MAIN_ITEM_ID}
                       getFileDownloadUrl={getFileDownloadUrl}
-                      mentions={item.mentions}
+                      mentions={mentions}
                       onMentionValueChange={handleVariantMentionValueChange}
                       onFocus={handleVariantFocus}
                       onTranslate={handleTranslateVariant}
@@ -3295,91 +3584,182 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       onUseSharedMedia={handleUseSharedMedia}
                       onArticlePress={openVariantArticleEditor}
                       onArticleReset={resetVariantArticle}
-                      textInputRef={(el) => handleVariantTextInputRef(item.id, el)}
-                      toolbar={(
+                      textInputRef={(el) => handleVariantTextInputRef(MAIN_ITEM_ID, el)}
+                      toolbar={
                         <View style={styles.toolbarWrapper}>
                           <ComposeToolbar
-                            onMediaPress={() => handlePickVariantMedia(item.id)}
+                            contentPaddingLeft={BOTTOM_LEFT_PAD}
+                            onMediaPress={() => handlePickVariantMedia(MAIN_ITEM_ID)}
                             onPollPress={() => {
                               setActiveTag(variants.primaryTag);
-                              openThreadPollCreator(item.id);
+                              focusPollCreator();
                             }}
-                            onLocationPress={() => requestThreadLocation(item.id)}
-                            onGifPress={() => handleVariantGifPress(item.id)}
-                            onEmojiPress={() => handleVariantEmojiPress(item.id)}
-                            onSourcesPress={() => handleThreadSourcesPress(item.id)}
-                            onArticlePress={() => openVariantArticleEditor(item.id)}
-                            onEventPress={() => openThreadEventEditor(item.id)}
-                            onRoomPress={() => handleThreadRoomPress(item.id)}
-                            onPodcastPress={() => openThreadPodcastPicker(item.id)}
-                            onLanePress={threadLaneEligible ? () => handleThreadLanePress(item.id) : undefined}
-                            hasLocation={!!item.location}
-                            hasPoll={item.showPollCreator}
-                            hasMedia={item.mediaIds.length > 0 || getVariantItem(variants, activeTag, item.id).media.mode === 'override'}
-                            hasSources={item.sources.length > 0}
-                            hasArticle={Boolean(item.article)}
-                            hasEvent={Boolean(item.event)}
-                            hasRoom={Boolean(item.room)}
-                            hasPodcast={Boolean(item.podcast)}
-                            hasLane={Boolean(item.laneId)}
+                            onLocationPress={requestLocation}
+                            onGifPress={() => handleVariantGifPress(MAIN_ITEM_ID)}
+                            onEmojiPress={() => handleVariantEmojiPress(MAIN_ITEM_ID)}
+                            onSourcesPress={openSourcesSheet}
+                            onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
+                            onEventPress={openEventEditor}
+                            onRoomPress={handleMainRoomPress}
+                            onPodcastPress={openPodcastPicker}
+                            onJobPress={canAttachJob ? openJobPicker : undefined}
+                            onCollaboratorsPress={
+                              collaboratorsEligible
+                                ? () => {
+                                    setActiveTag(variants.primaryTag);
+                                    handleCollaboratorsPress();
+                                  }
+                                : undefined
+                            }
+                            hasCollaborators={collaborators.length > 0}
+                            collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                            onLanePress={laneEligible ? handleLanePress : undefined}
+                            hasLane={Boolean(laneId)}
+                            hasLocation={!!location}
+                            isGettingLocation={isGettingLocation}
+                            hasPoll={showPollCreator}
+                            hasMedia={
+                              mediaIds.length > 0 ||
+                              getVariantItem(variants, activeTag, MAIN_ITEM_ID).media.mode ===
+                                'override'
+                            }
+                            hasSources={sources.length > 0}
+                            hasArticle={hasArticleContent}
+                            hasEvent={hasEventContent}
+                            hasRoom={hasRoomContent}
+                            hasPodcast={hasPodcastContent}
+                            hasJob={hasJobContent}
+                            hasSourceErrors={invalidSources}
                             disabled={isPosting}
                           />
                         </View>
-                      )}
+                      }
                     />
-                  ))}
-                </>
-              )}
+                    {threadItems.map((item) => (
+                      <VariantEditor
+                        key={`variant-${activeTag}-${item.id}`}
+                        itemId={item.id}
+                        tag={activeTag}
+                        item={getVariantItem(variants, activeTag, item.id)}
+                        primaryText={item.text}
+                        sharedMedia={item.mediaIds}
+                        hasArticle={articleHasContent(item.article)}
+                        userAvatar={user?.avatar ?? undefined}
+                        userVerified={Boolean(user?.verified)}
+                        isFocused={focusedItemId === item.id}
+                        isPosting={isPosting}
+                        isTranslating={translatingItemId === item.id}
+                        getFileDownloadUrl={getFileDownloadUrl}
+                        mentions={item.mentions}
+                        onMentionValueChange={handleVariantMentionValueChange}
+                        onFocus={handleVariantFocus}
+                        onTranslate={handleTranslateVariant}
+                        onSharedAltPress={handleVariantSharedAltPress}
+                        onOwnAltPress={handleVariantOwnAltPress}
+                        onPickOwnMedia={handlePickVariantMedia}
+                        onRemoveOwnMedia={handleRemoveVariantMedia}
+                        onUseSharedMedia={handleUseSharedMedia}
+                        onArticlePress={openVariantArticleEditor}
+                        onArticleReset={resetVariantArticle}
+                        textInputRef={(el) => handleVariantTextInputRef(item.id, el)}
+                        toolbar={
+                          <View style={styles.toolbarWrapper}>
+                            <ComposeToolbar
+                              onMediaPress={() => handlePickVariantMedia(item.id)}
+                              onPollPress={() => {
+                                setActiveTag(variants.primaryTag);
+                                openThreadPollCreator(item.id);
+                              }}
+                              onLocationPress={() => requestThreadLocation(item.id)}
+                              onGifPress={() => handleVariantGifPress(item.id)}
+                              onEmojiPress={() => handleVariantEmojiPress(item.id)}
+                              onSourcesPress={() => handleThreadSourcesPress(item.id)}
+                              onArticlePress={() => openVariantArticleEditor(item.id)}
+                              onEventPress={() => openThreadEventEditor(item.id)}
+                              onRoomPress={() => handleThreadRoomPress(item.id)}
+                              onPodcastPress={() => openThreadPodcastPicker(item.id)}
+                              onLanePress={
+                                threadLaneEligible
+                                  ? () => handleThreadLanePress(item.id)
+                                  : undefined
+                              }
+                              hasLocation={!!item.location}
+                              hasPoll={item.showPollCreator}
+                              hasMedia={
+                                item.mediaIds.length > 0 ||
+                                getVariantItem(variants, activeTag, item.id).media.mode ===
+                                  'override'
+                              }
+                              hasSources={item.sources.length > 0}
+                              hasArticle={Boolean(item.article)}
+                              hasEvent={Boolean(item.event)}
+                              hasRoom={Boolean(item.room)}
+                              hasPodcast={Boolean(item.podcast)}
+                              hasLane={Boolean(item.laneId)}
+                              disabled={isPosting}
+                            />
+                          </View>
+                        }
+                      />
+                    ))}
+                  </>
+                )}
 
-              {/* Adding an item changes the post/thread structure, not a
+                {/* Adding an item changes the post/thread structure, not a
                   language rendition. Keep it reachable from every language;
                   the new item immediately appears in the active rendition too. */}
-              <TouchableOpacity
-                style={styles.postContainer}
-                onPress={() => {
-                  const newId = addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined);
-                  if (newId) {
-                    setFocusedItemId(newId);
-                    const tryFocus = (attempt: number) => {
-                      if (attempt > 5) return;
-                      requestAnimationFrame(() => {
-                        const ref = isPrimaryTab
-                          ? threadTextInputRefs.current[newId]
-                          : variantTextInputRefs.current[newId];
-                        if (ref) {
-                          ref.focus();
-                        } else {
-                          setTimeout(() => tryFocus(attempt + 1), 50);
-                        }
-                      });
-                    };
-                    tryFocus(0);
-                  }
-                }}
-              >
-                {showThreadTimeline ? (
-                  <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
-                ) : null}
-                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                  <TouchableOpacity activeOpacity={0.7}>
-                    <Avatar
-                      source={user?.avatar}
-                      size={40}
-                      variant={MEDIA_VARIANT_AVATAR}
-                      verified={Boolean(user?.verified)}
-                      style={avatarMarginStyle}
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.headerMeta}>
-                    <View style={styles.headerChildren}>
-                      <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
-                        {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
-                      </Text>
+                <TouchableOpacity
+                  style={styles.postContainer}
+                  onPress={() => {
+                    const newId = addThread(
+                      postingMode === 'beast'
+                        ? { replyPermission, reviewReplies, quotesDisabled, isSensitive }
+                        : undefined,
+                    );
+                    if (newId) {
+                      setFocusedItemId(newId);
+                      const tryFocus = (attempt: number) => {
+                        if (attempt > 5) return;
+                        requestAnimationFrame(() => {
+                          const ref = isPrimaryTab
+                            ? threadTextInputRefs.current[newId]
+                            : variantTextInputRefs.current[newId];
+                          if (ref) {
+                            ref.focus();
+                          } else {
+                            setTimeout(() => tryFocus(attempt + 1), 50);
+                          }
+                        });
+                      };
+                      tryFocus(0);
+                    }
+                  }}
+                >
+                  {showThreadTimeline ? (
+                    <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+                  ) : null}
+                  <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                    <TouchableOpacity activeOpacity={0.7}>
+                      <Avatar
+                        source={user?.avatar}
+                        size={40}
+                        variant={MEDIA_VARIANT_AVATAR}
+                        verified={Boolean(user?.verified)}
+                        style={avatarMarginStyle}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.headerMeta}>
+                      <View style={styles.headerChildren}>
+                        <Text
+                          style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}
+                        >
+                          {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            </View>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
 
             {/* The composer's footer: the whole-batch decisions, and the button
@@ -3397,7 +3777,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 style={styles.bottomBarChips}
                 contentInset={16}
                 fadeColor={theme.colors.card}
-                accessibilityLabel={t('compose.batchSettings.a11y', { defaultValue: 'Post settings' })}
+                accessibilityLabel={t('compose.batchSettings.a11y', {
+                  defaultValue: 'Post settings',
+                })}
               >
                 {/* WHEN everything written here goes out. It lives down here, not
                     in a box's attachment row: `POST /posts/thread` reads
@@ -3412,12 +3794,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   selected={Boolean(scheduledAt)}
                   disabled={isPosting}
                   onPress={handleSchedulePress}
-                  accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
-                  startIcon={scheduledAt ? (
-                    <ScheduleIconActive size={16} color={theme.colors.primary} />
-                  ) : (
-                    <ScheduleIcon size={16} color={theme.colors.textSecondary} />
-                  )}
+                  accessibilityLabel={t('compose.schedule.a11y', {
+                    defaultValue: 'Schedule this post',
+                  })}
+                  startIcon={
+                    scheduledAt ? (
+                      <ScheduleIconActive size={16} color={theme.colors.primary} />
+                    ) : (
+                      <ScheduleIcon size={16} color={theme.colors.textSecondary} />
+                    )
+                  }
                   trailingIcon={RiArrowDownSLine}
                 >
                   {/* The SAME short spelling the identity rows show, so the two
@@ -3462,7 +3848,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       onPress={handleSensitiveToggle}
                       leadingIcon={SensitiveIcon}
                     >
-                      {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+                      {isSensitive
+                        ? t('compose.sensitive.on', 'CW: On')
+                        : t('compose.sensitive.off', 'CW')}
                     </Chip>
                   </>
                 )}
@@ -3496,7 +3884,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? editingScheduledPost && !scheduledAt
                       ? t('compose.scheduled.publishNow', { defaultValue: 'Post now' })
                       : t('Save')
-                    : replyToPostId ? t('Reply') : t('Post')}
+                    : replyToPostId
+                      ? t('Reply')
+                      : t('Post')}
                 </Button>
               </View>
             </View>
@@ -3572,7 +3962,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         <Dialog
           control={discardControl}
           title={t('compose.saveDraftTitle', 'Save draft?')}
-          description={t('compose.saveDraftDescription', 'Would you like to save this as a draft to edit later?')}
+          description={t(
+            'compose.saveDraftDescription',
+            'Would you like to save this as a draft to edit later?',
+          )}
           actions={[
             {
               label: t('compose.saveDraft', 'Save draft'),
@@ -3583,7 +3976,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   dismiss();
                 } catch (error) {
                   logger.error('Failed to save draft', error);
-                  toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), { type: 'error' });
+                  toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), {
+                    type: 'error',
+                  });
                 }
               },
             },
@@ -3612,7 +4007,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         <Dialog
           control={clearAllControl}
           title={t('compose.clearAllTitle', 'Clear all content?')}
-          description={t('compose.clearAllDescription', 'This will remove all text, media, and attachments from your post.')}
+          description={t(
+            'compose.clearAllDescription',
+            'This will remove all text, media, and attachments from your post.',
+          )}
           actions={[
             {
               label: t('common.clearAll', 'Clear All'),
@@ -3634,7 +4032,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           control={translateOverwriteControl}
           title={t('compose.languages.overwriteTitle', { defaultValue: 'Replace what you wrote?' })}
           description={t('compose.languages.overwriteDescription', {
-            defaultValue: 'This tab already has text. Translating replaces it with an editable machine translation.',
+            defaultValue:
+              'This tab already has text. Translating replaces it with an editable machine translation.',
           })}
           actions={[
             {
@@ -3681,7 +4080,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
 };
 
-
 /**
  * Session gate for the composer. Creating a post requires a usable private
  * session, so mount the (hook-heavy) composer body only once auth has resolved
@@ -3715,7 +4113,9 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
         />
         <OxyAuthPrompt
           label={t('compose.signInRequired', { defaultValue: 'Sign in to post' })}
-          description={t('compose.signInRequiredDesc', { defaultValue: 'You need to be signed in to write and publish a post.' })}
+          description={t('compose.signInRequiredDesc', {
+            defaultValue: 'You need to be signed in to write and publish a post.',
+          })}
         />
       </View>
     );

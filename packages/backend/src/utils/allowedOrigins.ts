@@ -15,9 +15,7 @@ const FRONTEND_URL = config.frontendUrl ?? 'https://mention.earth';
 /**
  * Production origins that are always allowed regardless of environment.
  */
-const PRODUCTION_ORIGINS: readonly string[] = [
-  FRONTEND_URL,
-];
+const PRODUCTION_ORIGINS: readonly string[] = [FRONTEND_URL];
 
 /**
  * Returns the static list of allowed CORS origins for the current environment.
@@ -30,11 +28,7 @@ export function getAllowedOrigins(): string[] {
   if (isProduction) {
     return [...PRODUCTION_ORIGINS];
   }
-  return [
-    ...PRODUCTION_ORIGINS,
-    'http://localhost:8110',
-    'http://localhost:8111',
-  ];
+  return [...PRODUCTION_ORIGINS, 'http://localhost:8110', 'http://localhost:8111'];
 }
 
 /**

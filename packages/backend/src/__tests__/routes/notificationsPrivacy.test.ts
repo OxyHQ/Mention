@@ -81,7 +81,9 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),

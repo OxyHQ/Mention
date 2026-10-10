@@ -75,7 +75,9 @@ app.use('/lists', listRoutes);
 
 /** Create a list through the ROUTE, so assertions cover a real write path. */
 async function createList(body: Record<string, unknown> = {}): Promise<request.Response> {
-  const res = await request(app).post('/lists').send({ title: `List ${randomUUID()}`, ...body });
+  const res = await request(app)
+    .post('/lists')
+    .send({ title: `List ${randomUUID()}`, ...body });
   if (res.status === 201) createdListIds.push(res.body.id);
   return res;
 }
@@ -104,14 +106,16 @@ async function seedList(options: {
   createdListIds.push(list.id);
   const members = options.members ?? [];
   if (members.length > 0) {
-    await db.insert(accountListMembers).values(
-      members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })),
-    );
+    await db
+      .insert(accountListMembers)
+      .values(members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })));
   }
   return list.id;
 }
 
-async function readMemberRows(listId: string): Promise<Array<{ oxyUserId: string; position: number }>> {
+async function readMemberRows(
+  listId: string,
+): Promise<Array<{ oxyUserId: string; position: number }>> {
   return db
     .select({ oxyUserId: accountListMembers.oxyUserId, position: accountListMembers.position })
     .from(accountListMembers)
@@ -129,13 +133,14 @@ beforeAll(async () => {
 
 beforeEach(() => {
   authUserId = VIEWER_ID;
-  mocks.transformPostsWithProfiles.mockReset().mockImplementation(
-    async (records: Array<{ id: string; createdAt: Date; updatedAt: Date }>) =>
+  mocks.transformPostsWithProfiles
+    .mockReset()
+    .mockImplementation(async (records: Array<{ id: string; createdAt: Date; updatedAt: Date }>) =>
       records.map((record) => ({
         id: record.id,
         metadata: { createdAt: record.createdAt, updatedAt: record.updatedAt },
       })),
-  );
+    );
 });
 
 afterEach(async () => {
@@ -224,7 +229,10 @@ describe('membership order survives the junction', () => {
 
   it('appends after a gap a removal left, without colliding on position', async () => {
     const created = await createList({ memberOxyUserIds: ['a', 'b', 'c'] });
-    await request(app).delete(`/lists/${created.body.id}/members`).send({ userIds: ['b'] }).expect(200);
+    await request(app)
+      .delete(`/lists/${created.body.id}/members`)
+      .send({ userIds: ['b'] })
+      .expect(200);
 
     const res = await request(app)
       .post(`/lists/${created.body.id}/members`)
@@ -242,7 +250,10 @@ describe('membership order survives the junction', () => {
   it('leaves membership untouched when a PUT does not mention it', async () => {
     const created = await createList({ memberOxyUserIds: ['a', 'b'] });
 
-    const res = await request(app).put(`/lists/${created.body.id}`).send({ title: 'renamed' }).expect(200);
+    const res = await request(app)
+      .put(`/lists/${created.body.id}`)
+      .send({ title: 'renamed' })
+      .expect(200);
 
     expect(res.body.title).toBe('renamed');
     expect(res.body.memberOxyUserIds).toEqual(['a', 'b']);
@@ -279,12 +290,21 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
     run: (release: () => void) => Promise<T>,
   ): Promise<T> {
     let release: () => void = () => undefined;
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     let acquired: () => void = () => undefined;
-    const acquiredPromise = new Promise<void>((resolve) => { acquired = resolve; });
+    const acquiredPromise = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
 
     const holder = db.transaction(async (tx) => {
-      await tx.select().from(accountLists).where(eq(accountLists.id, listId)).limit(1).for('update');
+      await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, listId))
+        .limit(1)
+        .for('update');
       acquired();
       await held;
     });
@@ -299,7 +319,10 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
   async function isStillPending(promise: Promise<unknown>, ms = 150): Promise<boolean> {
     const pending = Symbol('pending');
     const outcome = await Promise.race([
-      promise.then(() => 'settled' as const, () => 'settled' as const),
+      promise.then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      ),
       new Promise((resolve) => setTimeout(() => resolve(pending), ms)),
     ]);
     return outcome === pending;
@@ -310,8 +333,12 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
     const listId = created.body.id;
 
     const [resB, resC] = await withHeldLock(listId, async (release) => {
-      const reqB = request(app).post(`/lists/${listId}/members`).send({ userIds: ['b'] });
-      const reqC = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      const reqB = request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['b'] });
+      const reqC = request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['c'] });
       expect(await isStillPending(reqB)).toBe(true);
       expect(await isStillPending(reqC)).toBe(true);
       release();
@@ -329,8 +356,12 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
     const listId = created.body.id;
 
     const [resAdd, resDel] = await withHeldLock(listId, async (release) => {
-      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
-      const reqDel = request(app).delete(`/lists/${listId}/members`).send({ userIds: ['a'] });
+      const reqAdd = request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['c'] });
+      const reqDel = request(app)
+        .delete(`/lists/${listId}/members`)
+        .send({ userIds: ['a'] });
       expect(await isStillPending(reqAdd)).toBe(true);
       expect(await isStillPending(reqDel)).toBe(true);
       release();
@@ -348,8 +379,12 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
     const listId = created.body.id;
 
     const [resPut, resAdd] = await withHeldLock(listId, async (release) => {
-      const reqPut = request(app).put(`/lists/${listId}`).send({ memberOxyUserIds: ['a', 'z'] });
-      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      const reqPut = request(app)
+        .put(`/lists/${listId}`)
+        .send({ memberOxyUserIds: ['a', 'z'] });
+      const reqAdd = request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['c'] });
       expect(await isStillPending(reqPut)).toBe(true);
       expect(await isStillPending(reqAdd)).toBe(true);
       release();
@@ -372,7 +407,9 @@ describe('concurrent member writes — a controlled barrier, not a hopeful race'
 
     const [resDel, resAdd] = await withHeldLock(listId, async (release) => {
       const reqDel = request(app).delete(`/lists/${listId}`);
-      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      const reqAdd = request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['c'] });
       expect(await isStillPending(reqDel)).toBe(true);
       expect(await isStillPending(reqAdd)).toBe(true);
       release();
@@ -411,8 +448,12 @@ describe('ownership and visibility', () => {
 
     for (const res of [
       await request(app).put(`/lists/${listId}`).send({ title: 'hacked' }),
-      await request(app).post(`/lists/${listId}/members`).send({ userIds: ['b'] }),
-      await request(app).delete(`/lists/${listId}/members`).send({ userIds: ['a'] }),
+      await request(app)
+        .post(`/lists/${listId}/members`)
+        .send({ userIds: ['b'] }),
+      await request(app)
+        .delete(`/lists/${listId}/members`)
+        .send({ userIds: ['a'] }),
       await request(app).delete(`/lists/${listId}`),
     ]) {
       expect(res.status).toBe(403);
@@ -445,7 +486,7 @@ describe('GET /lists — the visibility gate is unconditional', () => {
     expect(visible.sort()).toEqual([`Mine ${run}`, `Public ${run}`]);
   });
 
-  it("does NOT leak private lists to ?mine=false", async () => {
+  it('does NOT leak private lists to ?mine=false', async () => {
     /**
      * THE regression test. The gate used to be `if (!mine && !publicOnly)`, so
      * any truthy-but-not-`'true'` value — `?mine=false`, or `?mine[]=true`, which
@@ -491,14 +532,20 @@ describe('GET /lists — the visibility gate is unconditional', () => {
     const wildcard = await request(app).get('/lists').query({ search: '%' }).expect(200);
     expect(titles(wildcard.body)).not.toContain(`Photographers ${run}`);
 
-    const literal = await request(app).get('/lists').query({ search: `Photographers ${run}` }).expect(200);
+    const literal = await request(app)
+      .get('/lists')
+      .query({ search: `Photographers ${run}` })
+      .expect(200);
     expect(titles(literal.body)).toEqual([`Photographers ${run}`]);
   });
 
   it('never widens the visibility gate through the search term', async () => {
     await seedList({ title: `Secret ${run}`, isPublic: false });
 
-    const res = await request(app).get('/lists').query({ search: `Secret ${run}` }).expect(200);
+    const res = await request(app)
+      .get('/lists')
+      .query({ search: `Secret ${run}` })
+      .expect(200);
 
     expect(res.body.items).toEqual([]);
   });
@@ -507,7 +554,10 @@ describe('GET /lists — the visibility gate is unconditional', () => {
     await seedList({ title: `Sports fans ${run}`, description: `athletes ${run}`, isPublic: true });
     await seedList({ title: `Cooking ${run}`, description: 'recipes', isPublic: true });
 
-    const res = await request(app).get('/lists').query({ search: `ATHLETES ${run}` }).expect(200);
+    const res = await request(app)
+      .get('/lists')
+      .query({ search: `ATHLETES ${run}` })
+      .expect(200);
 
     expect(titles(res.body)).toEqual([`Sports fans ${run}`]);
   });
@@ -538,7 +588,10 @@ describe('GET /lists — pagination on a total order', () => {
     const res = await request(app).get('/lists').query({ mine: 'true' }).expect(200);
 
     expect(titles(res.body)).toEqual([
-      `Tied 3 ${run}`, `Tied 2 ${run}`, `Tied 1 ${run}`, `Tied 0 ${run}`,
+      `Tied 3 ${run}`,
+      `Tied 2 ${run}`,
+      `Tied 1 ${run}`,
+      `Tied 0 ${run}`,
     ]);
   });
 
@@ -554,9 +607,7 @@ describe('GET /lists — pagination on a total order', () => {
       seen.push(...titles(res.body));
     }
 
-    expect(seen).toEqual([
-      `Tied 3 ${run}`, `Tied 2 ${run}`, `Tied 1 ${run}`, `Tied 0 ${run}`,
-    ]);
+    expect(seen).toEqual([`Tied 3 ${run}`, `Tied 2 ${run}`, `Tied 1 ${run}`, `Tied 0 ${run}`]);
   });
 
   it('reports the real match count and hasMore, not the page length', async () => {
@@ -638,7 +689,11 @@ describe('GET /lists — pagination on a total order', () => {
     }
 
     expect(seen).toEqual([
-      `Team 0 ${run}`, `Team 1 ${run}`, `Team 2 ${run}`, `Team 3 ${run}`, `Team 4 ${run}`,
+      `Team 0 ${run}`,
+      `Team 1 ${run}`,
+      `Team 2 ${run}`,
+      `Team 3 ${run}`,
+      `Team 4 ${run}`,
     ]);
     expect(new Set(seen).size).toBe(seen.length);
   });
@@ -734,9 +789,15 @@ describe('GET /lists/:id/timeline', () => {
     const hidden = await seedMemberPost(MEMBER_A);
     await seedCrosspostCluster(shown.id, hidden.id);
 
-    expect((await timeline(listId, { limit: 50 })).items.map((item) => item.id)).toEqual([shown.id]);
-    expect(await getDb().select({ id: posts.id }).from(posts)
-      .where(inArray(posts.id, [shown.id, hidden.id]))).toHaveLength(2);
+    expect((await timeline(listId, { limit: 50 })).items.map((item) => item.id)).toEqual([
+      shown.id,
+    ]);
+    expect(
+      await getDb()
+        .select({ id: posts.id })
+        .from(posts)
+        .where(inArray(posts.id, [shown.id, hidden.id])),
+    ).toHaveLength(2);
   });
 
   it('returns an empty page for a list with no members, without querying posts', async () => {

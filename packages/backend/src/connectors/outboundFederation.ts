@@ -25,12 +25,7 @@ export function federateAsResolvedActor(
   context: string,
   buildEvent: (username: string) => LocalNetworkEvent<PostContent>,
 ): void {
-  void federateAsResolvedActorAndWait(
-    actorOxyUserId,
-    context,
-    buildEvent,
-    false,
-  ).catch((err) => {
+  void federateAsResolvedActorAndWait(actorOxyUserId, context, buildEvent, false).catch((err) => {
     logger.error(`[Federation] failed to federate ${context}`, err);
   });
 }

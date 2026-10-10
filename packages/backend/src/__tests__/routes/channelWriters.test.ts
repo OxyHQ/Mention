@@ -137,8 +137,7 @@ async function setSignPosts(value: boolean | null): Promise<void> {
 const payload = (body: unknown): ChannelWritersResponse =>
   (body as { data: ChannelWritersResponse }).data;
 
-const writerIds = (body: unknown): string[] =>
-  payload(body).writers.map((row) => row.writer.id);
+const writerIds = (body: unknown): string[] => payload(body).writers.map((row) => row.writer.id);
 
 beforeAll(async () => {
   await connectPostgres();
@@ -152,7 +151,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(userSettings).where(like(userSettings.oxyUserId, `${SCOPE_PREFIX}%`));
+  await getDb()
+    .delete(userSettings)
+    .where(like(userSettings.oxyUserId, `${SCOPE_PREFIX}%`));
   await clearServiceScope(scope);
 });
 
@@ -282,7 +283,9 @@ describe('GET /channels/:oxyUserId/writers — what counts', () => {
     expect(writerIds(res.body)).toEqual([WRITER_B, WRITER_A]);
     // A writer's timestamp is the MAX over their posts, not whichever one the
     // grouping happened to see last.
-    expect(payload(res.body).writers[1].lastPostAt).toBe(new Date('2026-01-02T00:00:00Z').toISOString());
+    expect(payload(res.body).writers[1].lastPostAt).toBe(
+      new Date('2026-01-02T00:00:00Z').toISOString(),
+    );
   });
 
   it('pages by keyset, without repeating or skipping a writer', async () => {

@@ -26,9 +26,7 @@ export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { showBottomSheet, oxyServices } = useAuth();
-  const headerImageRef = useAppearanceStore(
-    (state) => state.mySettings?.profileHeaderImage ?? '',
-  );
+  const headerImageRef = useAppearanceStore((state) => state.mySettings?.profileHeaderImage ?? '');
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
 
   const openHeaderPicker = useCallback(() => {
@@ -83,11 +81,7 @@ export const BannerSection: React.FC = () => {
               // Same variant the profile banner asks for, so this preview and
               // the profile share ONE cache entry instead of pulling two
               // differently-sized copies of the picked image.
-              uri: getCachedFileDownloadUrlSync(
-                oxyServices,
-                headerImageRef,
-                MEDIA_VARIANT_BANNER,
-              ),
+              uri: getCachedFileDownloadUrlSync(oxyServices, headerImageRef, MEDIA_VARIANT_BANNER),
             }}
             className="w-full aspect-[3/1] bg-muted"
             contentFit="cover"
@@ -95,9 +89,7 @@ export const BannerSection: React.FC = () => {
           <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
             <View className="flex-row items-center gap-2">
               <RiCameraLine width={17} fill={colors.primaryForeground} />
-              <Text className="text-white text-sm font-semibold">
-                {t('common.edit')}
-              </Text>
+              <Text className="text-white text-sm font-semibold">{t('common.edit')}</Text>
             </View>
             <Pressable
               className="w-9 h-9 rounded-full items-center justify-center bg-black/40"

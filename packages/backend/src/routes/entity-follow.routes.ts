@@ -119,7 +119,10 @@ function resolveEntityRef(entityType: unknown, entityId: unknown): EntityRefResu
     if (!canonical) {
       // Everything was stripped — punctuation or emoji only. There is no tag
       // here to follow, and an empty entityId would violate the schema anyway.
-      return { ok: false, message: 'entityId must contain at least one letter, number, or underscore' };
+      return {
+        ok: false,
+        message: 'entityId must contain at least one letter, number, or underscore',
+      };
     }
     return { ok: true, ref: { entityType, entityId: canonical } };
   }
@@ -262,7 +265,10 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
     // `queryString` first, so an `?entityId[$ne]=x` object never reaches the
     // resolver — then the SAME resolution the writes use, or a client asking
     // about `Design` would miss the `design` row its own follow just created.
-    const parsed = resolveEntityRef(queryString(req.query.entityType), queryString(req.query.entityId));
+    const parsed = resolveEntityRef(
+      queryString(req.query.entityType),
+      queryString(req.query.entityId),
+    );
     if (!parsed.ok) {
       return res.status(400).json({ message: parsed.message });
     }
@@ -335,7 +341,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
 
     if (rawType !== undefined && !isValidEntityType(rawType)) {
-      return res.status(400).json({ message: `type must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
+      return res
+        .status(400)
+        .json({ message: `type must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
     const conditions: SQL[] = [eq(entityFollows.userId, userId)];

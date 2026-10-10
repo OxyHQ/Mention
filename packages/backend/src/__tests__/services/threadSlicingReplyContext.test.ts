@@ -344,7 +344,9 @@ describe('ThreadSlicingService thread children visibility', () => {
       oxyUserId: scope.user('someone-else'),
       parentPostId: root.id,
       threadId: root.id,
-      content: { variants: [{ source: 'author', text: 'another author in the thread', tag: 'en' }] },
+      content: {
+        variants: [{ source: 'author', text: 'another author in the thread', tag: 'en' }],
+      },
     });
     // Same thread, same author, NO parent link — a sibling root, not a
     // continuation. This is the row the `$ne: null` translation gets wrong.
@@ -367,8 +369,9 @@ describe('ThreadSlicingService thread children visibility', () => {
     expect(slices).toHaveLength(1);
     expect(
       slices[0].items.map(
-        (item) => (item.post as unknown as { content: { variants?: Array<{ text: string }> } })
-          .content.variants?.[0]?.text,
+        (item) =>
+          (item.post as unknown as { content: { variants?: Array<{ text: string }> } }).content
+            .variants?.[0]?.text,
       ),
     ).toEqual(['public root', 'the one real continuation']);
     expect(slices[0]._sliceKey).toBe(`${root.id}+${child.id}`);

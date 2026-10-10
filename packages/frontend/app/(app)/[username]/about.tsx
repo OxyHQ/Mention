@@ -10,5 +10,5 @@ import { AccountInfoScreen } from '@/components/AccountInfoScreen';
  * reader who arrived on the wrong one.
  */
 export default function ProfileAboutRoute() {
-    return <AccountInfoScreen routedFamily="person" />;
+  return <AccountInfoScreen routedFamily="person" />;
 }

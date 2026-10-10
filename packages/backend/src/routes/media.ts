@@ -11,11 +11,23 @@ import {
   contentTypeFamilyFromString,
   fetchUpstreamFollowingRedirects,
 } from '../utils/safeUpstreamFetch';
-import { MEDIA_VARIANT_AVATAR, MEDIA_VARIANT_FULL, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import {
+  MEDIA_VARIANT_AVATAR,
+  MEDIA_VARIANT_FULL,
+  MEDIA_VARIANT_THUMB,
+} from '@mention/shared-types';
 import { extractPosterFrame } from '../utils/videoPoster';
 import { isHlsManifestBody, rewriteHlsManifest } from '../utils/hlsManifest';
-import { HLS_SIGNATURE_PARAM, isSignedHlsComponent, signHlsComponentUrl } from '../utils/hlsSignature';
-import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../services/mediaCache/cacheStore';
+import {
+  HLS_SIGNATURE_PARAM,
+  isSignedHlsComponent,
+  signHlsComponentUrl,
+} from '../utils/hlsSignature';
+import {
+  lookupCacheRow,
+  bumpAccess,
+  recordAccessAndMaybeEnqueue,
+} from '../services/mediaCache/cacheStore';
 import { decideProxyServe } from '../services/mediaCache/policy';
 import {
   MEDIA_IMAGE_TYPE_PREFIX,
@@ -572,7 +584,9 @@ async function serveRewrittenHlsManifest(
     // Declared as a playlist but is not one. Rewriting would be meaningless and
     // relaying it would put arbitrary upstream text behind a media content type.
     logger.warn('[MediaProxy] Upstream HLS content type carries a non-playlist body');
-    res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a supported media type' });
+    res
+      .status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE)
+      .json({ error: 'Upstream is not a supported media type' });
     return;
   }
 
@@ -580,7 +594,10 @@ async function serveRewrittenHlsManifest(
   // from, so the base must be the post-redirect `finalUrl`, not the requested one.
   const rewritten = rewriteHlsManifest(manifest, source.finalUrl, buildSignedProxyUrl);
 
-  res.setHeader('Content-Type', source.response.headers['content-type'] ?? HLS_MANIFEST_CONTENT_TYPE);
+  res.setHeader(
+    'Content-Type',
+    source.response.headers['content-type'] ?? HLS_MANIFEST_CONTENT_TYPE,
+  );
   res.setHeader('Cache-Control', HLS_MANIFEST_CACHE_CONTROL);
   setPublicMediaCors(res);
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -648,7 +665,10 @@ async function tryServeFromCache(
     const decision = decideProxyServe(row);
 
     if (decision.action === 'serve-from-oxy') {
-      const oxyUrl = cachedMediaCdnUrl(decision.oxyFileId, cdnVariantFor(variant, row?.contentType));
+      const oxyUrl = cachedMediaCdnUrl(
+        decision.oxyFileId,
+        cdnVariantFor(variant, row?.contentType),
+      );
       // Bump access in the background; do not delay the redirect on the write.
       void bumpAccess(remoteUrl);
       setPublicMediaCors(res);
@@ -708,7 +728,10 @@ async function tryServePosterFromCache(remoteUrl: string, res: Response): Promis
   }
 }
 
-function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstreamHeaders: boolean): boolean {
+function shouldNegativeCacheClientError(
+  status: number,
+  hasRequestSpecificUpstreamHeaders: boolean,
+): boolean {
   if (hasRequestSpecificUpstreamHeaders) return false;
 
   // Only memo stable "this asset is unavailable" statuses. Avoid transient or
@@ -743,262 +766,286 @@ function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstre
  * connection pinned to the validated IP. A blocked target surfaces as an
  * `SsrfRejection` and maps to 403.
  */
-router.get('/proxy', mediaProxyRouteRateLimiter, async (req: Request, res: Response): Promise<void> => {
-  const rawUrl = req.query.url;
-  if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
-    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
-    return;
-  }
-
-  // --- Validate BEFORE the URL can become durable state ---
-  // The cache front below keys `FederatedMediaCache` rows on this string, and
-  // `recordAccessAndMaybeEnqueue` UPSERTS one for a URL it has never seen. That
-  // made an unauthenticated caller able to write a row per arbitrary string —
-  // rows that nothing in the media cache ever deletes (eviction clears the S3
-  // object and keeps the row) — and every junk row then consumed worker slots and
-  // four backoff-spaced fetch attempts, starving genuine federated media.
-  //
-  // Validating here means only a syntactically valid, publicly-resolvable http(s)
-  // URL can reach the cache store or the worker queue. The result is handed to
-  // `fetchUpstreamFollowingRedirects` below so hop 0 reuses it: this endpoint
-  // keeps exactly ONE DNS resolution per request, and redirect hops are still
-  // resolved and re-validated individually.
-  const initialGuard = await assertSafePublicUrl(rawUrl);
-  if (!initialGuard.ok) {
-    logger.warn('[MediaProxy] Rejected media URL before cache lookup', { reason: initialGuard.reason });
-    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
-    return;
-  }
-
-  // --- Activity-based cache front (only when the cache is enabled) ---
-  // When the federated media cache is disabled it is COMPLETELY INERT: we touch
-  // FederatedMediaCache ZERO times (no lookup, no access bump, no enqueue) and
-  // fall straight through to the remote stream below — the pre-cache behaviour.
-  //
-  // When enabled: if this URL is already cached in Oxy, redirect so our CDN serves
-  // the bytes; otherwise stream from remote (below) AND record activity to
-  // (re)cache it. A range request is NOT redirected: the cached Oxy object is
-  // served whole and Oxy/CDN handles range itself, but to preserve the existing
-  // seek semantics we only short-circuit for full (non-range) GETs; ranged
-  // requests fall through to the existing range-aware remote stream while still
-  // recording access.
-  const rangeHeader = req.headers.range;
-  const hasRange = typeof rangeHeader === 'string' && rangeHeader.length > 0;
-  const hasConditionalHeader =
-    typeof req.headers['if-none-match'] === 'string' || typeof req.headers['if-modified-since'] === 'string';
-  const hasRequestSpecificUpstreamHeaders = hasRange || hasConditionalHeader;
-
-  // An optional request for a SIZED render of the media (see
-  // {@link ALLOWED_MEDIA_VARIANTS}). Honoured only on the cached path below,
-  // where Oxy's variant pipeline can produce it; a miss streams the original.
-  const requestedVariant = readRequestedVariant(req.query.variant);
-
-  if (isMediaCacheEnabled()) {
-    if (!hasRange) {
-      const cacheServed = await tryServeFromCache(rawUrl, requestedVariant, res);
-      if (cacheServed) return;
-    } else {
-      // Ranged request: still record activity so the entry stays warm / gets cached.
-      void recordAccessAndMaybeEnqueue(rawUrl).catch((error: unknown) => {
-        logger.debug('[MediaProxy] Cache record (ranged) failed', {
-          reason: error instanceof Error ? error.message : 'unknown',
-        });
-      });
-    }
-  }
-
-  // --- Negative cache short-circuit ---
-  // Check this only after the normal cache front has had a chance to serve full
-  // requests, so a stale negative marker can never suppress already cached media.
-  // URL-only negative entries are also skipped for ranged/conditional requests:
-  // those forwarded headers can make an otherwise valid upstream reply with a
-  // request-specific 4xx/304/416 and must not poison or consume the URL cache.
-  if (!hasRequestSpecificUpstreamHeaders && (await isNegativelyCached(rawUrl))) {
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
-    return;
-  }
-
-  const extras = {
-    range: hasRange && typeof rangeHeader === 'string' ? rangeHeader : undefined,
-    ifNoneMatch: typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
-    ifModifiedSince:
-      typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
-  };
-
-  // Absolute request deadline (Slowloris defense): hard wall-clock ceiling that
-  // tears the request down regardless of socket activity.
-  const deadline = withRequestDeadline(res, MAX_REQUEST_DURATION_MS, (canRespond) => {
-    logger.warn('[MediaProxy] Aborting request past absolute deadline', {
-      maxMs: MAX_REQUEST_DURATION_MS,
-    });
-    if (canRespond) {
-      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media timed out' });
-    }
-  });
-
-  let upstream: UpstreamResult;
-  try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, deadline.signal, initialGuard);
-  } catch (error) {
-    // The deadline timer may already have responded (it aborts the in-flight
-    // request, which surfaces here as an AbortError); don't double-send.
-    if (res.headersSent || res.writableEnded) {
+router.get(
+  '/proxy',
+  mediaProxyRouteRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const rawUrl = req.query.url;
+    if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
       return;
     }
-    if (error instanceof SsrfRejection) {
-      logger.warn('[MediaProxy] Rejected redirect target', { reason: error.message });
+
+    // --- Validate BEFORE the URL can become durable state ---
+    // The cache front below keys `FederatedMediaCache` rows on this string, and
+    // `recordAccessAndMaybeEnqueue` UPSERTS one for a URL it has never seen. That
+    // made an unauthenticated caller able to write a row per arbitrary string —
+    // rows that nothing in the media cache ever deletes (eviction clears the S3
+    // object and keeps the row) — and every junk row then consumed worker slots and
+    // four backoff-spaced fetch attempts, starving genuine federated media.
+    //
+    // Validating here means only a syntactically valid, publicly-resolvable http(s)
+    // URL can reach the cache store or the worker queue. The result is handed to
+    // `fetchUpstreamFollowingRedirects` below so hop 0 reuses it: this endpoint
+    // keeps exactly ONE DNS resolution per request, and redirect hops are still
+    // resolved and re-validated individually.
+    const initialGuard = await assertSafePublicUrl(rawUrl);
+    if (!initialGuard.ok) {
+      logger.warn('[MediaProxy] Rejected media URL before cache lookup', {
+        reason: initialGuard.reason,
+      });
       res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
       return;
     }
-    // A connection/network failure (DNS, refused, reset, headers timeout). This
-    // is a genuine gateway problem → 502. Memo it under a SHORT TTL so a remote
-    // that is briefly unreachable isn't re-dialed on every feed render, while
-    // still recovering quickly if the blip was transient.
-    logger.warn('[MediaProxy] Upstream fetch failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
+
+    // --- Activity-based cache front (only when the cache is enabled) ---
+    // When the federated media cache is disabled it is COMPLETELY INERT: we touch
+    // FederatedMediaCache ZERO times (no lookup, no access bump, no enqueue) and
+    // fall straight through to the remote stream below — the pre-cache behaviour.
+    //
+    // When enabled: if this URL is already cached in Oxy, redirect so our CDN serves
+    // the bytes; otherwise stream from remote (below) AND record activity to
+    // (re)cache it. A range request is NOT redirected: the cached Oxy object is
+    // served whole and Oxy/CDN handles range itself, but to preserve the existing
+    // seek semantics we only short-circuit for full (non-range) GETs; ranged
+    // requests fall through to the existing range-aware remote stream while still
+    // recording access.
+    const rangeHeader = req.headers.range;
+    const hasRange = typeof rangeHeader === 'string' && rangeHeader.length > 0;
+    const hasConditionalHeader =
+      typeof req.headers['if-none-match'] === 'string' ||
+      typeof req.headers['if-modified-since'] === 'string';
+    const hasRequestSpecificUpstreamHeaders = hasRange || hasConditionalHeader;
+
+    // An optional request for a SIZED render of the media (see
+    // {@link ALLOWED_MEDIA_VARIANTS}). Honoured only on the cached path below,
+    // where Oxy's variant pipeline can produce it; a miss streams the original.
+    const requestedVariant = readRequestedVariant(req.query.variant);
+
+    if (isMediaCacheEnabled()) {
+      if (!hasRange) {
+        const cacheServed = await tryServeFromCache(rawUrl, requestedVariant, res);
+        if (cacheServed) return;
+      } else {
+        // Ranged request: still record activity so the entry stays warm / gets cached.
+        void recordAccessAndMaybeEnqueue(rawUrl).catch((error: unknown) => {
+          logger.debug('[MediaProxy] Cache record (ranged) failed', {
+            reason: error instanceof Error ? error.message : 'unknown',
+          });
+        });
+      }
+    }
+
+    // --- Negative cache short-circuit ---
+    // Check this only after the normal cache front has had a chance to serve full
+    // requests, so a stale negative marker can never suppress already cached media.
+    // URL-only negative entries are also skipped for ranged/conditional requests:
+    // those forwarded headers can make an otherwise valid upstream reply with a
+    // request-specific 4xx/304/416 and must not poison or consume the URL cache.
+    if (!hasRequestSpecificUpstreamHeaders && (await isNegativelyCached(rawUrl))) {
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
+      return;
+    }
+
+    const extras = {
+      range: hasRange && typeof rangeHeader === 'string' ? rangeHeader : undefined,
+      ifNoneMatch:
+        typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
+      ifModifiedSince:
+        typeof req.headers['if-modified-since'] === 'string'
+          ? req.headers['if-modified-since']
+          : undefined,
+    };
+
+    // Absolute request deadline (Slowloris defense): hard wall-clock ceiling that
+    // tears the request down regardless of socket activity.
+    const deadline = withRequestDeadline(res, MAX_REQUEST_DURATION_MS, (canRespond) => {
+      logger.warn('[MediaProxy] Aborting request past absolute deadline', {
+        maxMs: MAX_REQUEST_DURATION_MS,
+      });
+      if (canRespond) {
+        res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media timed out' });
+      }
     });
-    void markNegativelyCached(rawUrl, 'connection-error');
-    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
-    return;
-  }
 
-  const { response } = upstream;
-  // Expose the live response to the deadline timer so it can be torn down even
-  // while streaming (the signal only aborts the request object, not the body).
-  deadline.setActiveResponse(response);
-  const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
-  const statusClass = classifyUpstreamStatus(upstreamStatus);
+    let upstream: UpstreamResult;
+    try {
+      upstream = await fetchUpstreamFollowingRedirects(
+        rawUrl,
+        extras,
+        deadline.signal,
+        initialGuard,
+      );
+    } catch (error) {
+      // The deadline timer may already have responded (it aborts the in-flight
+      // request, which surfaces here as an AbortError); don't double-send.
+      if (res.headersSent || res.writableEnded) {
+        return;
+      }
+      if (error instanceof SsrfRejection) {
+        logger.warn('[MediaProxy] Rejected redirect target', { reason: error.message });
+        res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+        return;
+      }
+      // A connection/network failure (DNS, refused, reset, headers timeout). This
+      // is a genuine gateway problem → 502. Memo it under a SHORT TTL so a remote
+      // that is briefly unreachable isn't re-dialed on every feed render, while
+      // still recovering quickly if the blip was transient.
+      logger.warn('[MediaProxy] Upstream fetch failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      void markNegativelyCached(rawUrl, 'connection-error');
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+      return;
+    }
 
-  // 304 from a conditional request: relay validators, no body.
-  if (statusClass === 'not-modified') {
-    response.resume();
+    const { response } = upstream;
+    // Expose the live response to the deadline timer so it can be torn down even
+    // while streaming (the signal only aborts the request object, not the body).
+    deadline.setActiveResponse(response);
+    const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
+    const statusClass = classifyUpstreamStatus(upstreamStatus);
+
+    // 304 from a conditional request: relay validators, no body.
+    if (statusClass === 'not-modified') {
+      response.resume();
+      relayHeader(res, 'ETag', response.headers.etag);
+      relayHeader(res, 'Last-Modified', response.headers['last-modified']);
+      res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
+      setPublicMediaCors(res);
+      res.status(HTTP_STATUS.NOT_MODIFIED).end();
+      return;
+    }
+
+    // 416 Range Not Satisfiable: relay the Content-Range so the client can adjust.
+    if (statusClass === 'range-not-satisfiable') {
+      response.resume();
+      relayHeader(res, 'Content-Range', response.headers['content-range']);
+      res.status(HTTP_STATUS.RANGE_NOT_SATISFIABLE).end();
+      return;
+    }
+
+    // Client-class (4xx) upstream: the remote asset was deleted, made private, or
+    // is hotlink-protected. That is NOT a gateway fault — answer 404, log at debug
+    // (expected, high-volume), and negative-cache the URL so we stop re-fetching a
+    // known-dead asset on every feed render.
+    if (statusClass === 'client-error') {
+      response.resume();
+      logger.debug('[MediaProxy] Upstream returned client-error status', {
+        status: upstreamStatus,
+      });
+      if (shouldNegativeCacheClientError(upstreamStatus, hasRequestSpecificUpstreamHeaders)) {
+        void markNegativelyCached(rawUrl, 'client-error');
+      }
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
+      return;
+    }
+
+    // Genuine upstream 5xx / unrelayable status: a real gateway problem → 502. NOT
+    // negative-cached because it may be transient.
+    if (statusClass !== 'media') {
+      response.resume();
+      logger.warn('[MediaProxy] Upstream returned server-error status', { status: upstreamStatus });
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+      return;
+    }
+
+    const family = contentTypeFamily(response.headers);
+
+    // HLS playlist: rewrite its URIs back through this proxy instead of relaying
+    // it. See `utils/hlsManifest.ts` for why a playlist can never be passed
+    // through verbatim.
+    if (isHlsManifestType(family)) {
+      await serveRewrittenHlsManifest(rawUrl, upstream, deadline, res);
+      return;
+    }
+
+    // Content-type gate: only relay image/video/audio — plus, for a request whose
+    // signature proves it is a component of a playlist this proxy itself rewrote,
+    // the generic binary type object stores use for HLS segments.
+    const isSignedPlaylistComponent = isSignedHlsComponent(rawUrl, req.query[HLS_SIGNATURE_PARAM]);
+    const isRelayableType =
+      isAllowedMediaType(family) ||
+      (isSignedPlaylistComponent && family === GENERIC_BINARY_CONTENT_TYPE);
+    if (!isRelayableType) {
+      response.destroy();
+      logger.warn('[MediaProxy] Rejected non-media content type', {
+        contentType: family || 'unknown',
+      });
+      res
+        .status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE)
+        .json({ error: 'Upstream is not a supported media type' });
+      return;
+    }
+
+    // Reject over-large declared bodies up front (streamed bytes are also capped).
+    // The upstream answered fine (200/206) — this is OUR policy rejecting an
+    // oversized body, so it is 413 Payload Too Large, not a 502 gateway error.
+    const declaredLength = Number(response.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_CONTENT_BYTES) {
+      response.destroy();
+      logger.warn('[MediaProxy] Upstream body exceeds cap', { declaredLength });
+      res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Upstream media too large' });
+      return;
+    }
+
+    // --- Relay response headers (public, cacheable, range-aware) ---
+    res.setHeader('Content-Type', response.headers['content-type'] ?? 'application/octet-stream');
+    // A variant was asked for and we are answering with the original, so this
+    // response must expire quickly instead of pinning the client to the full-size
+    // bytes under a URL that will start resolving to a sized render.
+    res.setHeader(
+      'Cache-Control',
+      requestedVariant ? MEDIA_UNSIZED_VARIANT_CACHE_CONTROL : MEDIA_CACHE_CONTROL,
+    );
+    setPublicMediaCors(res);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
+    res.setHeader('Accept-Ranges', response.headers['accept-ranges'] ?? 'bytes');
+    relayHeader(res, 'Content-Length', response.headers['content-length']);
+    relayHeader(res, 'Content-Range', response.headers['content-range']);
     relayHeader(res, 'ETag', response.headers.etag);
     relayHeader(res, 'Last-Modified', response.headers['last-modified']);
-    res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
-    setPublicMediaCors(res);
-    res.status(HTTP_STATUS.NOT_MODIFIED).end();
-    return;
-  }
 
-  // 416 Range Not Satisfiable: relay the Content-Range so the client can adjust.
-  if (statusClass === 'range-not-satisfiable') {
-    response.resume();
-    relayHeader(res, 'Content-Range', response.headers['content-range']);
-    res.status(HTTP_STATUS.RANGE_NOT_SATISFIABLE).end();
-    return;
-  }
+    res.status(
+      upstreamStatus === HTTP_STATUS.PARTIAL_CONTENT ? HTTP_STATUS.PARTIAL_CONTENT : HTTP_STATUS.OK,
+    );
 
-  // Client-class (4xx) upstream: the remote asset was deleted, made private, or
-  // is hotlink-protected. That is NOT a gateway fault — answer 404, log at debug
-  // (expected, high-volume), and negative-cache the URL so we stop re-fetching a
-  // known-dead asset on every feed render.
-  if (statusClass === 'client-error') {
-    response.resume();
-    logger.debug('[MediaProxy] Upstream returned client-error status', { status: upstreamStatus });
-    if (shouldNegativeCacheClientError(upstreamStatus, hasRequestSpecificUpstreamHeaders)) {
-      void markNegativelyCached(rawUrl, 'client-error');
-    }
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Upstream media unavailable' });
-    return;
-  }
+    // --- Stream the body (never buffer whole videos) ---
+    response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
+      response.destroy(new Error('upstream socket idle timeout'));
+    });
 
-  // Genuine upstream 5xx / unrelayable status: a real gateway problem → 502. NOT
-  // negative-cached because it may be transient.
-  if (statusClass !== 'media') {
-    response.resume();
-    logger.warn('[MediaProxy] Upstream returned server-error status', { status: upstreamStatus });
-    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
-    return;
-  }
+    let streamedBytes = 0;
+    let aborted = false;
 
-  const family = contentTypeFamily(response.headers);
+    response.on('data', (chunk: Buffer) => {
+      streamedBytes += chunk.length;
+      if (streamedBytes > MAX_CONTENT_BYTES && !aborted) {
+        aborted = true;
+        logger.warn('[MediaProxy] Aborting stream past size cap', { streamedBytes });
+        response.destroy();
+        res.destroy();
+      }
+    });
 
-  // HLS playlist: rewrite its URIs back through this proxy instead of relaying
-  // it. See `utils/hlsManifest.ts` for why a playlist can never be passed
-  // through verbatim.
-  if (isHlsManifestType(family)) {
-    await serveRewrittenHlsManifest(rawUrl, upstream, deadline, res);
-    return;
-  }
+    response.on('error', (error: Error) => {
+      logger.warn('[MediaProxy] Upstream stream error', { reason: error.message });
+      if (!res.headersSent) {
+        res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+      } else {
+        res.destroy();
+      }
+    });
 
-  // Content-type gate: only relay image/video/audio — plus, for a request whose
-  // signature proves it is a component of a playlist this proxy itself rewrote,
-  // the generic binary type object stores use for HLS segments.
-  const isSignedPlaylistComponent = isSignedHlsComponent(rawUrl, req.query[HLS_SIGNATURE_PARAM]);
-  const isRelayableType =
-    isAllowedMediaType(family) || (isSignedPlaylistComponent && family === GENERIC_BINARY_CONTENT_TYPE);
-  if (!isRelayableType) {
-    response.destroy();
-    logger.warn('[MediaProxy] Rejected non-media content type', { contentType: family || 'unknown' });
-    res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a supported media type' });
-    return;
-  }
+    // If the client disconnects, tear down the upstream socket to free resources.
+    res.on('close', () => {
+      if (!response.destroyed) response.destroy();
+    });
 
-  // Reject over-large declared bodies up front (streamed bytes are also capped).
-  // The upstream answered fine (200/206) — this is OUR policy rejecting an
-  // oversized body, so it is 413 Payload Too Large, not a 502 gateway error.
-  const declaredLength = Number(response.headers['content-length']);
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_CONTENT_BYTES) {
-    response.destroy();
-    logger.warn('[MediaProxy] Upstream body exceeds cap', { declaredLength });
-    res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Upstream media too large' });
-    return;
-  }
-
-  // --- Relay response headers (public, cacheable, range-aware) ---
-  res.setHeader('Content-Type', response.headers['content-type'] ?? 'application/octet-stream');
-  // A variant was asked for and we are answering with the original, so this
-  // response must expire quickly instead of pinning the client to the full-size
-  // bytes under a URL that will start resolving to a sized render.
-  res.setHeader(
-    'Cache-Control',
-    requestedVariant ? MEDIA_UNSIZED_VARIANT_CACHE_CONTROL : MEDIA_CACHE_CONTROL,
-  );
-  setPublicMediaCors(res);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
-  res.setHeader('Accept-Ranges', response.headers['accept-ranges'] ?? 'bytes');
-  relayHeader(res, 'Content-Length', response.headers['content-length']);
-  relayHeader(res, 'Content-Range', response.headers['content-range']);
-  relayHeader(res, 'ETag', response.headers.etag);
-  relayHeader(res, 'Last-Modified', response.headers['last-modified']);
-
-  res.status(upstreamStatus === HTTP_STATUS.PARTIAL_CONTENT ? HTTP_STATUS.PARTIAL_CONTENT : HTTP_STATUS.OK);
-
-  // --- Stream the body (never buffer whole videos) ---
-  response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
-    response.destroy(new Error('upstream socket idle timeout'));
-  });
-
-  let streamedBytes = 0;
-  let aborted = false;
-
-  response.on('data', (chunk: Buffer) => {
-    streamedBytes += chunk.length;
-    if (streamedBytes > MAX_CONTENT_BYTES && !aborted) {
-      aborted = true;
-      logger.warn('[MediaProxy] Aborting stream past size cap', { streamedBytes });
-      response.destroy();
-      res.destroy();
-    }
-  });
-
-  response.on('error', (error: Error) => {
-    logger.warn('[MediaProxy] Upstream stream error', { reason: error.message });
-    if (!res.headersSent) {
-      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
-    } else {
-      res.destroy();
-    }
-  });
-
-  // If the client disconnects, tear down the upstream socket to free resources.
-  res.on('close', () => {
-    if (!response.destroyed) response.destroy();
-  });
-
-  response.pipe(res);
-});
+    response.pipe(res);
+  },
+);
 
 /**
  * GET /media/poster?url=<url-encoded absolute http(s) video URL>
@@ -1018,125 +1065,129 @@ router.get('/proxy', mediaProxyRouteRateLimiter, async (req: Request, res: Respo
  * no decodable frame in the prefix, ffmpeg error/timeout) we respond 404 so the
  * frontend falls back to a placeholder.
  */
-router.get('/poster', mediaPosterRateLimiter, async (req: Request, res: Response): Promise<void> => {
-  const rawUrl = req.query.url;
-  if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
-    res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
-    return;
-  }
+router.get(
+  '/poster',
+  mediaPosterRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const rawUrl = req.query.url;
+    if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
+      return;
+    }
 
-  // --- Cached poster front (only when the cache is enabled) ---
-  // When the cache is disabled this is COMPLETELY INERT — no FederatedMediaCache
-  // lookup, no access bump — and we fall straight through to on-demand ffmpeg
-  // extraction, the pre-cache behaviour. When enabled: if a cached entry for this
-  // video already has a poster frame in Oxy, redirect to it instead of re-running
-  // ffmpeg. Never throws — falls through to on-demand extraction on any failure.
-  if (isMediaCacheEnabled() && (await tryServePosterFromCache(rawUrl, res))) {
-    return;
-  }
+    // --- Cached poster front (only when the cache is enabled) ---
+    // When the cache is disabled this is COMPLETELY INERT — no FederatedMediaCache
+    // lookup, no access bump — and we fall straight through to on-demand ffmpeg
+    // extraction, the pre-cache behaviour. When enabled: if a cached entry for this
+    // video already has a poster frame in Oxy, redirect to it instead of re-running
+    // ffmpeg. Never throws — falls through to on-demand extraction on any failure.
+    if (isMediaCacheEnabled() && (await tryServePosterFromCache(rawUrl, res))) {
+      return;
+    }
 
-  // Absolute request deadline (fetch + decode): hard wall-clock ceiling that
-  // tears the request down regardless of socket activity.
-  const deadline = withRequestDeadline(res, POSTER_MAX_REQUEST_DURATION_MS, (canRespond) => {
-    logger.warn('[MediaPoster] Aborting request past absolute deadline', {
-      maxMs: POSTER_MAX_REQUEST_DURATION_MS,
+    // Absolute request deadline (fetch + decode): hard wall-clock ceiling that
+    // tears the request down regardless of socket activity.
+    const deadline = withRequestDeadline(res, POSTER_MAX_REQUEST_DURATION_MS, (canRespond) => {
+      logger.warn('[MediaPoster] Aborting request past absolute deadline', {
+        maxMs: POSTER_MAX_REQUEST_DURATION_MS,
+      });
+      if (canRespond) {
+        res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+      }
     });
-    if (canRespond) {
+
+    // --- Fetch the SSRF-validated upstream (redirects re-validated per hop) ---
+    let upstream: UpstreamResult;
+    try {
+      upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
+    } catch (error) {
+      if (res.headersSent || res.writableEnded) {
+        return;
+      }
+      if (error instanceof SsrfRejection) {
+        logger.warn('[MediaPoster] Rejected redirect target', { reason: error.message });
+        res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+        return;
+      }
+      logger.warn('[MediaPoster] Upstream fetch failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
       res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+      return;
     }
-  });
 
-  // --- Fetch the SSRF-validated upstream (redirects re-validated per hop) ---
-  let upstream: UpstreamResult;
-  try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
-  } catch (error) {
+    const { response } = upstream;
+    deadline.setActiveResponse(response);
+    const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
+
+    // Only a 200 with a full body lets us extract a leading frame.
+    if (upstreamStatus !== HTTP_STATUS.OK) {
+      response.resume();
+      logger.warn('[MediaPoster] Upstream returned non-OK status', { status: upstreamStatus });
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+      return;
+    }
+
+    // Require an actual video content type. ffmpeg never sees this URL, but
+    // rejecting non-video up front avoids buffering/decoding unrelated bytes.
+    const family = contentTypeFamily(response.headers);
+    if (!family.startsWith(POSTER_REQUIRED_TYPE_PREFIX)) {
+      response.destroy();
+      logger.warn('[MediaPoster] Upstream is not a video', { contentType: family || 'unknown' });
+      res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a video' });
+      return;
+    }
+
+    // --- Buffer a bounded prefix of the video ---
+    let prefix: Buffer;
+    try {
+      prefix = await readBoundedPrefix(response, POSTER_MAX_FETCH_BYTES);
+    } catch (error) {
+      if (res.headersSent || res.writableEnded) {
+        return;
+      }
+      logger.warn('[MediaPoster] Failed to read upstream prefix', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+      return;
+    }
+
+    if (prefix.length === 0) {
+      if (!res.headersSent) res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
+      return;
+    }
+
+    if (deadline.signal.aborted || res.destroyed || res.writableEnded) {
+      deadline.abort();
+      return;
+    }
+
+    // --- Extract one frame with network-sandboxed ffmpeg (local temp file) ---
+    const poster = await extractPosterFrame(prefix);
+
     if (res.headersSent || res.writableEnded) {
+      // The deadline timer already responded (or the client disconnected).
       return;
     }
-    if (error instanceof SsrfRejection) {
-      logger.warn('[MediaPoster] Rejected redirect target', { reason: error.message });
-      res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
+
+    if (!poster.ok) {
+      // No decodable frame in the prefix (e.g. non-faststart MP4 with moov at the
+      // end), or ffmpeg failed/timed out — the frontend falls back to a placeholder.
+      logger.warn('[MediaPoster] Frame extraction failed', { reason: poster.reason });
+      res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
       return;
     }
-    logger.warn('[MediaPoster] Upstream fetch failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    return;
-  }
 
-  const { response } = upstream;
-  deadline.setActiveResponse(response);
-  const upstreamStatus = response.statusCode ?? HTTP_STATUS.BAD_GATEWAY;
-
-  // Only a 200 with a full body lets us extract a leading frame.
-  if (upstreamStatus !== HTTP_STATUS.OK) {
-    response.resume();
-    logger.warn('[MediaPoster] Upstream returned non-OK status', { status: upstreamStatus });
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    return;
-  }
-
-  // Require an actual video content type. ffmpeg never sees this URL, but
-  // rejecting non-video up front avoids buffering/decoding unrelated bytes.
-  const family = contentTypeFamily(response.headers);
-  if (!family.startsWith(POSTER_REQUIRED_TYPE_PREFIX)) {
-    response.destroy();
-    logger.warn('[MediaPoster] Upstream is not a video', { contentType: family || 'unknown' });
-    res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a video' });
-    return;
-  }
-
-  // --- Buffer a bounded prefix of the video ---
-  let prefix: Buffer;
-  try {
-    prefix = await readBoundedPrefix(response, POSTER_MAX_FETCH_BYTES);
-  } catch (error) {
-    if (res.headersSent || res.writableEnded) {
-      return;
-    }
-    logger.warn('[MediaPoster] Failed to read upstream prefix', {
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    return;
-  }
-
-  if (prefix.length === 0) {
-    if (!res.headersSent) res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    return;
-  }
-
-  if (deadline.signal.aborted || res.destroyed || res.writableEnded) {
-    deadline.abort();
-    return;
-  }
-
-  // --- Extract one frame with network-sandboxed ffmpeg (local temp file) ---
-  const poster = await extractPosterFrame(prefix);
-
-  if (res.headersSent || res.writableEnded) {
-    // The deadline timer already responded (or the client disconnected).
-    return;
-  }
-
-  if (!poster.ok) {
-    // No decodable frame in the prefix (e.g. non-faststart MP4 with moov at the
-    // end), or ffmpeg failed/timed out — the frontend falls back to a placeholder.
-    logger.warn('[MediaPoster] Frame extraction failed', { reason: poster.reason });
-    res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poster unavailable' });
-    return;
-  }
-
-  res.setHeader('Content-Type', POSTER_CONTENT_TYPE);
-  res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
-  res.setHeader('Content-Length', poster.jpeg.length);
-  setPublicMediaCors(res);
-  res.status(HTTP_STATUS.OK).end(poster.jpeg);
-});
+    res.setHeader('Content-Type', POSTER_CONTENT_TYPE);
+    res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
+    res.setHeader('Content-Length', poster.jpeg.length);
+    setPublicMediaCors(res);
+    res.status(HTTP_STATUS.OK).end(poster.jpeg);
+  },
+);
 
 /**
  * GET /media/gif?u=<base64url(klipy mp4 url)>&s=<hmac>
@@ -1167,9 +1218,12 @@ router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Pro
   const rangeHeader = req.headers.range;
   const extras = {
     range: typeof rangeHeader === 'string' && rangeHeader.length > 0 ? rangeHeader : undefined,
-    ifNoneMatch: typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
+    ifNoneMatch:
+      typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined,
     ifModifiedSince:
-      typeof req.headers['if-modified-since'] === 'string' ? req.headers['if-modified-since'] : undefined,
+      typeof req.headers['if-modified-since'] === 'string'
+        ? req.headers['if-modified-since']
+        : undefined,
   };
 
   // Absolute request deadline (Slowloris defense): tears the request down
@@ -1258,7 +1312,9 @@ router.get('/gif', gifMediaRateLimiter, async (req: Request, res: Response): Pro
   relayHeader(res, 'ETag', response.headers.etag);
   relayHeader(res, 'Last-Modified', response.headers['last-modified']);
 
-  res.status(upstreamStatus === HTTP_STATUS.PARTIAL_CONTENT ? HTTP_STATUS.PARTIAL_CONTENT : HTTP_STATUS.OK);
+  res.status(
+    upstreamStatus === HTTP_STATUS.PARTIAL_CONTENT ? HTTP_STATUS.PARTIAL_CONTENT : HTTP_STATUS.OK,
+  );
 
   // --- Stream the body (never buffer whole files) ---
   response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {

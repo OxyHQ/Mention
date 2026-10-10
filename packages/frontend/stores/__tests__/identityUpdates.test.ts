@@ -223,7 +223,12 @@ describe('reconciling against the server', () => {
 
       // A post author: handle, name and picture, never a description.
       reconcileKnownIdentities([
-        { id: 'channel-1', username: 'daily', name: { displayName: 'Daily Digest' }, avatar: 'avatar-after' },
+        {
+          id: 'channel-1',
+          username: 'daily',
+          name: { displayName: 'Daily Digest' },
+          avatar: 'avatar-after',
+        },
       ]);
 
       expect(getKnownIdentity('channel-1')).toEqual({ id: 'channel-1', bio: 'bio-after' });
@@ -233,7 +238,12 @@ describe('reconciling against the server', () => {
       editedEverything();
 
       reconcileKnownIdentities([
-        { id: 'channel-1', username: 'daily', name: { displayName: 'Daily Digest' }, avatar: 'avatar-after' },
+        {
+          id: 'channel-1',
+          username: 'daily',
+          name: { displayName: 'Daily Digest' },
+          avatar: 'avatar-after',
+        },
       ]);
       // A recommendation / followers row does carry one.
       reconcileKnownIdentities([{ id: 'channel-1', bio: 'bio-after' }]);
@@ -261,7 +271,12 @@ describe('reconciling against the server', () => {
       // The picture caught up, the name did not. One lagging field is proof the
       // server copy is behind, so the picture's agreement proves nothing either.
       reconcileKnownIdentities([
-        { id: 'channel-1', username: 'daily', name: { displayName: 'Daily' }, avatar: 'avatar-after' },
+        {
+          id: 'channel-1',
+          username: 'daily',
+          name: { displayName: 'Daily' },
+          avatar: 'avatar-after',
+        },
       ]);
 
       expect(getKnownIdentity('channel-1')).toEqual({

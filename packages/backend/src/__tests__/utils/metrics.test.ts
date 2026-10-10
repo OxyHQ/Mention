@@ -7,13 +7,9 @@ afterEach(() => {
 
 describe('bounded metrics registry', () => {
   it('rejects undeclared metric names at runtime', () => {
-    const incrementUnknown = metrics.incrementCounter.bind(metrics) as (
-      name: string,
-    ) => void;
+    const incrementUnknown = metrics.incrementCounter.bind(metrics) as (name: string) => void;
 
-    expect(() => incrementUnknown('request_for_user_123')).toThrow(
-      'Unknown metric',
-    );
+    expect(() => incrementUnknown('request_for_user_123')).toThrow('Unknown metric');
   });
 
   it('reserves a collapsed series before reaching the cardinality cap', async () => {

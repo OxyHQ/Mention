@@ -1,10 +1,14 @@
 import { capabilityCatalogBindingSchema, type CapabilityCatalogBinding } from '@oxy.so/contracts';
-import { mcpDeploymentIdentity, withManagedDeploymentEnvironment, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
-import { z } from "zod/v4";
+import {
+  mcpDeploymentIdentity,
+  withManagedDeploymentEnvironment,
+  type McpDeploymentIdentity,
+} from '@mention/shared-types/deployment';
+import { z } from 'zod/v4';
 
-const DEFAULT_API_URL = "https://api.mention.earth";
-const DEFAULT_MCP_PUBLIC_URL = "https://mcp.mention.earth";
-const DEFAULT_OXY_API_URL = "https://api.oxy.so";
+const DEFAULT_API_URL = 'https://api.mention.earth';
+const DEFAULT_MCP_PUBLIC_URL = 'https://mcp.mention.earth';
+const DEFAULT_OXY_API_URL = 'https://api.oxy.so';
 
 const apiClientEnvSchema = z.object({
   MENTION_API_URL: z.string().url().default(DEFAULT_API_URL),
@@ -39,9 +43,9 @@ const httpEnvSchema = z.object({
 });
 
 const DEFAULT_CORS_ORIGINS = [
-  "https://claude.ai",
-  "https://www.claude.ai",
-  "https://api.anthropic.com",
+  'https://claude.ai',
+  'https://www.claude.ai',
+  'https://api.anthropic.com',
 ] as const;
 
 export interface ApiClientConfig {
@@ -64,30 +68,36 @@ export interface McpHttpConfig {
   deploymentIdentity?: McpDeploymentIdentity;
 }
 
-export function loadApiClientConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): ApiClientConfig {
-  const parsed = parseEnvironment(apiClientEnvSchema, withManagedDeploymentEnvironment(env), "MCP API client");
+export function loadApiClientConfig(env: NodeJS.ProcessEnv = process.env): ApiClientConfig {
+  const parsed = parseEnvironment(
+    apiClientEnvSchema,
+    withManagedDeploymentEnvironment(env),
+    'MCP API client',
+  );
   return {
     baseUrl: stripTrailingSlashes(parsed.MENTION_API_URL),
     requestTimeoutMs: parsed.MENTION_API_TIMEOUT_MS,
   };
 }
 
-export function loadMcpHttpConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): McpHttpConfig {
-  const parsed = parseEnvironment(httpEnvSchema, withManagedDeploymentEnvironment(env), "MCP HTTP server");
+export function loadMcpHttpConfig(env: NodeJS.ProcessEnv = process.env): McpHttpConfig {
+  const parsed = parseEnvironment(
+    httpEnvSchema,
+    withManagedDeploymentEnvironment(env),
+    'MCP HTTP server',
+  );
   const deploymentIdentity = mcpDeploymentIdentity(env);
-  const configuredOrigins = (parsed.MCP_ALLOWED_ORIGINS ?? "")
-    .split(",")
+  const configuredOrigins = (parsed.MCP_ALLOWED_ORIGINS ?? '')
+    .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
     .map(normalizeOrigin);
 
   return {
     deploymentIdentity,
-    internalCatalogBinding: parseMentionInternalBinding(parsed.MENTION_INTERNAL_MCP_CATALOG_BINDING),
+    internalCatalogBinding: parseMentionInternalBinding(
+      parsed.MENTION_INTERNAL_MCP_CATALOG_BINDING,
+    ),
     port: parsed.MCP_PORT,
     maxRequestBodyBytes: parsed.MCP_MAX_REQUEST_BODY_BYTES,
     maxSessions: parsed.MCP_MAX_SESSIONS,
@@ -105,7 +115,7 @@ export function loadMcpHttpConfig(
 
 function normalizeOrigin(value: string): string {
   const url = new URL(value);
-  if (!["http:", "https:"].includes(url.protocol) || url.origin !== value) {
+  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== value) {
     throw new Error(
       `Invalid MCP_ALLOWED_ORIGINS entry "${value}": expected an HTTP(S) origin without a path`,
     );
@@ -114,7 +124,7 @@ function normalizeOrigin(value: string): string {
 }
 
 function stripTrailingSlashes(value: string): string {
-  return value.replace(/\/+$/, "");
+  return value.replace(/\/+$/, '');
 }
 
 function parseEnvironment<T extends z.ZodType>(
@@ -126,12 +136,14 @@ function parseEnvironment<T extends z.ZodType>(
   if (result.success) return result.data;
 
   const details = result.error.issues
-    .map((issue) => `${issue.path.join(".") || "environment"}: ${issue.message}`)
-    .join("; ");
+    .map((issue) => `${issue.path.join('.') || 'environment'}: ${issue.message}`)
+    .join('; ');
   throw new Error(`Invalid ${label} configuration: ${details}`);
 }
 
-export function parseMentionInternalBinding(value: string | undefined): CapabilityCatalogBinding | undefined {
+export function parseMentionInternalBinding(
+  value: string | undefined,
+): CapabilityCatalogBinding | undefined {
   if (value === undefined) return undefined;
   return capabilityCatalogBindingSchema.parse(JSON.parse(value));
 }

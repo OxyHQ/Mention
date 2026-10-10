@@ -156,10 +156,7 @@ afterAll(async () => {
  * never saw either row is indistinguishable from one that excluded the collapsed
  * half, until the cluster is dissolved and both are required back.
  */
-async function expectsCollapse(
-  pair: Pair,
-  read: () => Promise<string[]>,
-): Promise<void> {
+async function expectsCollapse(pair: Pair, read: () => Promise<string[]>): Promise<void> {
   expect(await read()).toEqual([pair.shown]);
   await dissolveCluster(pair.clusterId);
   expect(await read()).toEqual([pair.shown, pair.hidden]);
@@ -193,8 +190,11 @@ describe('the content predicates, driven directly', () => {
     // One Oxy person owning BOTH source actors of a proven Instagram ↔ Threads
     // pair is the whole reason this branch needs the term: it selects by
     // `oxy_user_id`, so both halves land on one remote actor's page.
-    ["an adopted actor's page",
-      () => buildActorPostsScopeSql({ uri: 'https://kilogram.makeup/users/gate', oxyUserId: AUTHOR })],
+    [
+      "an adopted actor's page",
+      () =>
+        buildActorPostsScopeSql({ uri: 'https://kilogram.makeup/users/gate', oxyUserId: AUTHOR }),
+    ],
   ])('excludes the collapsed half from %s', async (_label, predicate) => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, () => matching(predicate()));
@@ -205,30 +205,40 @@ describe('the reader surfaces that choose what to show', () => {
   it('shows one card in the Videos lane', async () => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, async () =>
-      suiteIdsOf(await videosSource.gather({} as FeedEngineContext, {}, 60)));
+      suiteIdsOf(await videosSource.gather({} as FeedEngineContext, {}, 60)),
+    );
   });
 
   it('shows one card in the Media lane', async () => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, async () =>
-      suiteIdsOf(await mediaSource.gather({} as FeedEngineContext, {}, 60)));
+      suiteIdsOf(await mediaSource.gather({} as FeedEngineContext, {}, 60)),
+    );
   });
 
   it('shows one card in the following timeline', async () => {
     const pair = await crosspostPair();
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [AUTHOR], seenPostIds: [] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [AUTHOR],
+      seenPostIds: [],
+    };
     await expectsCollapse(pair, async () =>
-      suiteIdsOf(await followingSource.gather(ctx, { timeline: true }, 60)));
+      suiteIdsOf(await followingSource.gather(ctx, { timeline: true }, 60)),
+    );
   });
 
   it('shows one card on the profile timeline', async () => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, async () =>
-      suiteIdsOf(await authoredSource.gather(
-        { currentUserId: VIEWER },
-        { authorId: AUTHOR, filter: 'posts' },
-        60,
-      )));
+      suiteIdsOf(
+        await authoredSource.gather(
+          { currentUserId: VIEWER },
+          { authorId: AUTHOR, filter: 'posts' },
+          60,
+        ),
+      ),
+    );
   });
 
   it('recommends one card, not two, from the same cross-post', async () => {
@@ -250,10 +260,12 @@ describe('the reader surfaces that choose what to show', () => {
 describe('the collections a reader assembled by hand', () => {
   it('keeps both source posts in bookmarks', async () => {
     const pair = await crosspostPair();
-    await getDb().insert(bookmarks).values([
-      { userId: VIEWER, postId: pair.shown, createdAt: at(20) },
-      { userId: VIEWER, postId: pair.hidden, createdAt: at(10) },
-    ]);
+    await getDb()
+      .insert(bookmarks)
+      .values([
+        { userId: VIEWER, postId: pair.shown, createdAt: at(20) },
+        { userId: VIEWER, postId: pair.hidden, createdAt: at(10) },
+      ]);
 
     const saved = await savedSource.gather({ currentUserId: VIEWER, pageLimit: 10 }, {}, 10);
     expect(suiteIdsOf(saved)).toEqual([pair.shown, pair.hidden]);
@@ -269,10 +281,12 @@ describe('the collections a reader assembled by hand', () => {
     // Explicit instants: the likes tab pages over the LIKE, so its order is
     // `likes.(created_at, id)` and two rows sharing a default timestamp would
     // leave the assertion resting on id order.
-    await getDb().insert(likes).values([
-      { userId: VIEWER, postId: shown, value: 1, createdAt: at(20) },
-      { userId: VIEWER, postId: hidden, value: 1, createdAt: at(10) },
-    ]);
+    await getDb()
+      .insert(likes)
+      .values([
+        { userId: VIEWER, postId: shown, value: 1, createdAt: at(20) },
+        { userId: VIEWER, postId: hidden, value: 1, createdAt: at(10) },
+      ]);
 
     const tab = await authoredSource.gather(
       { currentUserId: VIEWER, pageLimit: 10 },
@@ -289,7 +303,11 @@ describe('pagination', () => {
     const pair = await crosspostPair();
     const third = await seedVariant('unrelated-visible', at(5));
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [AUTHOR], seenPostIds: [] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [AUTHOR],
+      seenPostIds: [],
+    };
     const page = suiteIdsOf(await followingSource.gather(ctx, { timeline: true }, 2));
     expect(page).toEqual([pair.shown, third]);
   });

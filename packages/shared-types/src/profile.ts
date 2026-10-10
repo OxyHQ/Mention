@@ -5,14 +5,14 @@
 export enum ProfileVisibility {
   PUBLIC = 'public',
   PRIVATE = 'private',
-  FOLLOWERS_ONLY = 'followers_only'
+  FOLLOWERS_ONLY = 'followers_only',
 }
 
 export enum ProfileType {
   PERSONAL = 'personal',
   BUSINESS = 'business',
   CREATOR = 'creator',
-  VERIFIED = 'verified'
+  VERIFIED = 'verified',
 }
 
 export interface PersonalInfo {

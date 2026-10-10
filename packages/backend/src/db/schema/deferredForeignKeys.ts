@@ -30,19 +30,16 @@ import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '@oxy.so/db';
 import { accountErasures } from './accountErasures';
 import { repairFetchFailures } from './adminScripts';
-import {
-  blockedDomainPurgeRuns,
-  blockedDomainPurges,
-  blocklistProposalRuns,
-} from './blocklist';
-import {
-  mcpAuthCodes,
-  mcpConnections,
-  mcpEffectReceipts,
-  mcpRegisteredClients,
-} from './mcp';
+import { blockedDomainPurgeRuns, blockedDomainPurges, blocklistProposalRuns } from './blocklist';
+import { mcpAuthCodes, mcpConnections, mcpEffectReceipts, mcpRegisteredClients } from './mcp';
 import { entityFollows } from './engagement';
-import { actorKeyPairs, federatedActors, federatedMediaCache, federatedMediaDeletions, federatedMediaPosters } from './federation';
+import {
+  actorKeyPairs,
+  federatedActors,
+  federatedMediaCache,
+  federatedMediaDeletions,
+  federatedMediaPosters,
+} from './federation';
 import { laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
 import { postImports } from './imports';
@@ -204,7 +201,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: accountErasures.eventId,
     reason:
       'The id of an Oxy account event (the SET `jti`), or `operator:<uuid>` for a hand-run ' +
-      'erasure. It names an event on Oxy\'s side; Mention has no events table to reference.',
+      "erasure. It names an event on Oxy's side; Mention has no events table to reference.",
   },
   {
     table: lanes,
@@ -228,8 +225,8 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: laneMutes,
     column: laneMutes.laneOwnerOxyUserId,
     reason:
-      'DENORMALIZED from the lane\'s publisher so the settings screen can group ' +
-      'a viewer\'s mutes by publisher with no join. An Oxy account id when the ' +
+      "DENORMALIZED from the lane's publisher so the settings screen can group " +
+      "a viewer's mutes by publisher with no join. An Oxy account id when the " +
       'lane belongs to a user; it follows `lanes.owner_id`, which is itself ' +
       'polymorphic and unconstrainable for the reason stated above.',
   },
@@ -253,8 +250,8 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: gifs,
     column: gifs.klipyId,
     reason:
-      'The GIF provider\'s own id (Klipy\'s numeric id, stringified). A third ' +
-      'party\'s key, used here purely as the dedup key.',
+      "The GIF provider's own id (Klipy's numeric id, stringified). A third " +
+      "party's key, used here purely as the dedup key.",
   },
   {
     table: gifs,
@@ -287,8 +284,8 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: federatedActors,
     column: federatedActors.publicKeyId,
     reason:
-      'The REMOTE actor\'s advertised `keyId` URI, resolved during HTTP-signature ' +
-      'verification. It names a key on someone else\'s server.',
+      "The REMOTE actor's advertised `keyId` URI, resolved during HTTP-signature " +
+      "verification. It names a key on someone else's server.",
   },
   {
     table: federatedMediaDeletions,
@@ -311,21 +308,21 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: federatedActors,
     column: federatedActors.instagramGraphUserId,
     reason:
-      'Meta\'s Instagram user id (Business Discovery `id`), pinned on the first ' +
-      'successful Graph sync so a recycled username cannot import a stranger\'s ' +
-      'posts. An identifier in Meta\'s namespace; nothing here to reference.',
+      "Meta's Instagram user id (Business Discovery `id`), pinned on the first " +
+      "successful Graph sync so a recycled username cannot import a stranger's " +
+      "posts. An identifier in Meta's namespace; nothing here to reference.",
   },
   {
     table: posts,
     column: posts.federationActivityId,
     reason:
-      'The inbound ActivityPub activity URI. A remote instance\'s identifier for ' +
+      "The inbound ActivityPub activity URI. A remote instance's identifier for " +
       'the activity, unique here only as a dedup key.',
   },
   {
     table: reports,
     column: reports.crowdSourceReportId,
-    reason: 'CrowdSource\'s id for the report it accepted. A third party\'s key.',
+    reason: "CrowdSource's id for the report it accepted. A third party's key.",
   },
   {
     table: reports,
@@ -335,7 +332,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: reports,
     column: reports.decisionId,
-    reason: 'CrowdSource\'s id for a published decision. A third party\'s key.',
+    reason: "CrowdSource's id for a published decision. A third party's key.",
   },
   {
     table: moderationOutbox,
@@ -348,28 +345,28 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: moderationOutbox,
     column: moderationOutbox.payloadCaseId,
-    reason: 'CrowdSource\'s case id.',
+    reason: "CrowdSource's case id.",
   },
   {
     table: moderationEvents,
     column: moderationEvents.caseId,
-    reason: 'CrowdSource\'s case id.',
+    reason: "CrowdSource's case id.",
   },
   {
     table: moderationEnforcements,
     column: moderationEnforcements.decisionId,
-    reason: 'CrowdSource\'s decision id — half of Appendix D\'s idempotency key.',
+    reason: "CrowdSource's decision id — half of Appendix D's idempotency key.",
   },
   {
     table: moderationEnforcements,
     column: moderationEnforcements.caseId,
-    reason: 'CrowdSource\'s case id.',
+    reason: "CrowdSource's case id.",
   },
   {
     table: mentionRepoHeads,
     column: mentionRepoHeads.headRecordId,
     reason:
-      'The head record\'s CONTENT ADDRESS, not its row id. It is advanced in the ' +
+      "The head record's CONTENT ADDRESS, not its row id. It is advanced in the " +
       'same transaction as the record insert, so a constraint would only ' +
       'restate an ordering the writer already guarantees — and a conflict ' +
       'archive deliberately keeps a head whose target is no longer canonical.',
@@ -495,7 +492,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: moderationEnforcements,
     column: moderationEnforcements.subjectId,
-    reason: 'Polymorphic by `subject_type` — Mention\'s own noun, not a fixed table.',
+    reason: "Polymorphic by `subject_type` — Mention's own noun, not a fixed table.",
   },
   {
     table: contentLabels,
@@ -526,7 +523,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: feedInteractions,
     column: feedInteractions.postUri,
     reason:
-      'A CLIENT-SUPPLIED post id (the name says URI; the tracker\'s own comment ' +
+      "A CLIENT-SUPPLIED post id (the name says URI; the tracker's own comment " +
       'says it is the id). A forged value must produce no row rather than a ' +
       'constraint error on a telemetry write.',
   },
@@ -553,7 +550,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: mentionSignedRecords,
     column: mentionSignedRecords.prev,
     reason:
-      'The PREVIOUS record\'s content address. It chains to another row in this ' +
+      "The PREVIOUS record's content address. It chains to another row in this " +
       'table, but by content hash rather than by primary key — and a conflict ' +
       'archive deliberately keeps a `prev` whose target is not canonical.',
   },
@@ -579,7 +576,8 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: customFeedTopics,
     column: customFeedTopics.topicId,
-    reason: 'An Oxy Topic-registry id. Mongo typed it `ref: \'Topic\'`; no such collection exists here.',
+    reason:
+      "An Oxy Topic-registry id. Mongo typed it `ref: 'Topic'`; no such collection exists here.",
   },
   {
     table: userBehaviorTopics,
@@ -607,8 +605,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: endorsementOutbox,
     column: endorsementOutbox.sourceId,
-    reason:
-      'Polymorphic by `source`: a `starter_packs.id` or an `account_lists.id`.',
+    reason: 'Polymorphic by `source`: a `starter_packs.id` or an `account_lists.id`.',
   },
   {
     table: pushTokens,
@@ -704,7 +701,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "Clarity's own document id for this job's indexed representation, set once " +
       "`clarity.jobs.ingest` returns one. It is a foreign SERVICE's id, exactly " +
-      "like an Oxy account id but for Clarity instead of Oxy — there is no " +
+      'like an Oxy account id but for Clarity instead of Oxy — there is no ' +
       'Clarity table in this database to reference, and a re-ingest after Clarity ' +
       'deduplicates or re-clusters the listing must be free to change it without a ' +
       'constraint standing in the way.',

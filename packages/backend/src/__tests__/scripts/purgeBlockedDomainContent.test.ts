@@ -103,17 +103,13 @@ const {
   reports: pgReports,
 } = await import('../../db/schema/moderation');
 const { logger } = await import('../../utils/logger');
-const {
-  federatedActors,
-  federatedDeliveryQueue,
-  federatedFollows,
-  federatedMediaCache,
-} = await import('../../db/schema/federation').then((m) => ({
-  federatedActors: m.federatedActors,
-  federatedDeliveryQueue: m.federationDeliveryQueue,
-  federatedFollows: m.federatedFollows,
-  federatedMediaCache: m.federatedMediaCache,
-}));
+const { federatedActors, federatedDeliveryQueue, federatedFollows, federatedMediaCache } =
+  await import('../../db/schema/federation').then((m) => ({
+    federatedActors: m.federatedActors,
+    federatedDeliveryQueue: m.federationDeliveryQueue,
+    federatedFollows: m.federatedFollows,
+    federatedMediaCache: m.federatedMediaCache,
+  }));
 const { adminScriptCursors } = await import('../../db/schema/adminScripts');
 const { withDeadlockRetry } = await import('../helpers/serviceFixtures');
 const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDeletionPreflight');
@@ -203,9 +199,7 @@ async function clearFixtures(): Promise<void> {
   await db.delete(pgThreadgates).where(inArray(pgThreadgates.createdBy, ACCOUNTS));
   await db.delete(pgReports).where(inArray(pgReports.reporter, ACCOUNTS));
   await db.delete(pgLabelers).where(inArray(pgLabelers.creatorId, ACCOUNTS));
-  await db
-    .delete(pgEngagementOutbox)
-    .where(like(pgEngagementOutbox.id, 'purge-test-%'));
+  await db.delete(pgEngagementOutbox).where(like(pgEngagementOutbox.id, 'purge-test-%'));
   await db
     .delete(federatedDeliveryQueue)
     .where(inArray(federatedDeliveryQueue.senderOxyUserId, ACCOUNTS));
@@ -312,7 +306,10 @@ afterEach(async () => {
  */
 async function assertFixturesCleared(): Promise<void> {
   const db = getDb();
-  const posts = await db.select({ id: pgPosts.id }).from(pgPosts).where(like(pgPosts.id, '%purge-test%'));
+  const posts = await db
+    .select({ id: pgPosts.id })
+    .from(pgPosts)
+    .where(like(pgPosts.id, '%purge-test%'));
   const repliers = await db
     .select({ postId: postRecentRepliers.postId, oxyUserId: postRecentRepliers.oxyUserId })
     .from(postRecentRepliers)
@@ -326,8 +323,8 @@ async function assertFixturesCleared(): Promise<void> {
         ? 'The posts are GONE and the replier rows are not, which cleanup alone ' +
           'cannot produce — the foreign key is ON DELETE CASCADE. Something wrote ' +
           'these concurrently.'
-        : 'The previous test\'s cleanup did not finish; `clearFixtures` runs ~12 ' +
-          'deletes before the `posts` one and an earlier failure skips the rest.')
+        : "The previous test's cleanup did not finish; `clearFixtures` runs ~12 " +
+          'deletes before the `posts` one and an earlier failure skips the rest.'),
   );
 }
 
@@ -485,14 +482,12 @@ async function seed(): Promise<void> {
   await db
     .insert(pgThreadgates)
     .values({ postId: P.blockedPost, postUri: BLOCKED_POST_ACTIVITY_ID, createdBy: 'oxy-blocked' });
-  await db
-    .insert(postRecentRepliers)
-    .values([
-      { postId: P.blockedPost, oxyUserId: 'oxy-local', repliedAt: new Date() },
-      // The blocked actor's entry on a SURVIVING post — pulled, not deleted with
-      // a projection.
-      { postId: P.localPost, oxyUserId: 'oxy-blocked', repliedAt: new Date() },
-    ]);
+  await db.insert(postRecentRepliers).values([
+    { postId: P.blockedPost, oxyUserId: 'oxy-local', repliedAt: new Date() },
+    // The blocked actor's entry on a SURVIVING post — pulled, not deleted with
+    // a projection.
+    { postId: P.localPost, oxyUserId: 'oxy-blocked', repliedAt: new Date() },
+  ]);
   await db.insert(postMentions).values([
     { postId: P.localPost, oxyUserId: 'oxy-blocked' },
     { postId: P.localReply, oxyUserId: 'oxy-blocked' },
@@ -612,8 +607,14 @@ async function snapshotEverything(): Promise<string> {
     db.select().from(pgReports).where(inArray(pgReports.reporter, ACCOUNTS)),
     db.select().from(pgPostgates).where(inArray(pgPostgates.createdBy, ACCOUNTS)),
     db.select().from(pgFeedInteractions).where(inArray(pgFeedInteractions.userId, ACCOUNTS)),
-    db.select().from(pgPostSubscriptions).where(inArray(pgPostSubscriptions.subscriberId, ACCOUNTS)),
-    db.select().from(federatedActors).where(inArray(federatedActors.domain, [BLOCKED, ALLOWED])),
+    db
+      .select()
+      .from(pgPostSubscriptions)
+      .where(inArray(pgPostSubscriptions.subscriberId, ACCOUNTS)),
+    db
+      .select()
+      .from(federatedActors)
+      .where(inArray(federatedActors.domain, [BLOCKED, ALLOWED])),
     db.select().from(federatedFollows).where(inArray(federatedFollows.localUserId, ACCOUNTS)),
     cursorRows(),
   ]);
@@ -634,7 +635,7 @@ async function snapshotEverything(): Promise<string> {
 }
 
 describe('purgeBlockedDomainContent — what it removes', () => {
-  it('removes a blocked domain\'s posts, actor row, follow edge and cached media', async () => {
+  it("removes a blocked domain's posts, actor row, follow edge and cached media", async () => {
     await seed();
 
     const report = await run();
@@ -703,10 +704,7 @@ describe('purgeBlockedDomainContent — what it removes', () => {
         .select()
         .from(federatedDeliveryQueue)
         .where(inArray(federatedDeliveryQueue.senderOxyUserId, ACCOUNTS)),
-      db
-        .select()
-        .from(pgNotifications)
-        .where(eq(pgNotifications.entityId, P.blockedPost)),
+      db.select().from(pgNotifications).where(eq(pgNotifications.entityId, P.blockedPost)),
     ]);
     expect(survivors.map((rows) => rows.length)).toEqual(Array(13).fill(0));
 
@@ -856,13 +854,14 @@ describe('purgeBlockedDomainContent — what it removes', () => {
     const report = await run();
 
     expect(report.issues.mediaObjectDeleteFailed).toBeGreaterThan(0);
-    expect(warn.mock.calls.some(([message]) => String(message).includes('media cache is disabled')))
-      .toBe(true);
+    expect(
+      warn.mock.calls.some(([message]) => String(message).includes('media cache is disabled')),
+    ).toBe(true);
   });
 });
 
 describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
-  it('leaves a local user\'s own post alone', async () => {
+  it("leaves a local user's own post alone", async () => {
     await seed();
 
     await run();
@@ -947,7 +946,7 @@ describe('purgeBlockedDomainContent — what it must NEVER remove', () => {
 });
 
 describe('purgeBlockedDomainContent — the boost policy', () => {
-  it('deletes a LOCAL user\'s boost of removed content', async () => {
+  it("deletes a LOCAL user's boost of removed content", async () => {
     await seed();
 
     const report = await run();
@@ -976,14 +975,14 @@ describe('purgeBlockedDomainContent — the boost policy', () => {
 });
 
 describe('purgeBlockedDomainContent — the engagement policy', () => {
-  it('tears a blocked actor\'s like off a surviving post AND moves its counter', async () => {
+  it("tears a blocked actor's like off a surviving post AND moves its counter", async () => {
     await seed();
 
     const report = await run();
 
-    expect(
-      await getDb().select().from(pgLikes).where(eq(pgLikes.userId, 'oxy-blocked')),
-    ).toEqual([]);
+    expect(await getDb().select().from(pgLikes).where(eq(pgLikes.userId, 'oxy-blocked'))).toEqual(
+      [],
+    );
     // A bulk delete would leave the local author looking at a like count no
     // record explains. The counter moves in lockstep instead.
     const [local] = await getDb()
@@ -1001,10 +1000,7 @@ describe('purgeBlockedDomainContent — the engagement policy', () => {
     const report = await run();
 
     expect(
-      await getDb()
-        .select()
-        .from(pgEntityFollows)
-        .where(eq(pgEntityFollows.userId, 'oxy-blocked')),
+      await getDb().select().from(pgEntityFollows).where(eq(pgEntityFollows.userId, 'oxy-blocked')),
     ).toEqual([]);
     expect(report.totals.entityFollows).toBe(1);
   });
@@ -1103,13 +1099,15 @@ describe('purgeBlockedDomainContent — re-running', () => {
      * `federated_actors_uri_key`.
      */
     const skipped = '0000-purge-test-resume-orphan';
-    await getDb().insert(pgPosts).values({
-      id: skipped,
-      oxyUserId: 'oxy-ghost',
-      type: 'text',
-      federationActorUri: GHOST_ACTOR_URI,
-      federationActivityId: `https://${BLOCKED}/notes/3`,
-    });
+    await getDb()
+      .insert(pgPosts)
+      .values({
+        id: skipped,
+        oxyUserId: 'oxy-ghost',
+        type: 'text',
+        federationActorUri: GHOST_ACTOR_URI,
+        federationActivityId: `https://${BLOCKED}/notes/3`,
+      });
 
     const report = await run();
 
@@ -1174,8 +1172,7 @@ describe('purgeBlockedDomainContent — failing closed', () => {
     // — correct, but silent, and only visible as a counter on a production run.
     // Failing here instead tells whoever adds the probe what they have to teach
     // this cascade, before it ships.
-    expect([...CASCADED_POST_REFERENCES].sort())
-      .toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
+    expect([...CASCADED_POST_REFERENCES].sort()).toEqual([...POST_REFERENCE_PROBE_NAMES].sort());
   });
 });
 
@@ -1190,8 +1187,9 @@ describe('buildBlockedContentDomains', () => {
   });
 
   it('refuses to run when the blocklist names ONLY our own domains', () => {
-    expect(() => buildBlockedContentDomains(['mention.earth', 'www.oxy.so'], own))
-      .toThrow(EmptyBlocklistError);
+    expect(() => buildBlockedContentDomains(['mention.earth', 'www.oxy.so'], own)).toThrow(
+      EmptyBlocklistError,
+    );
   });
 
   it('subtracts our own domains from a mixed blocklist instead of honouring them', () => {
@@ -1213,9 +1211,11 @@ describe('buildBlockedContentDomains', () => {
   });
 
   it('narrows to one domain, and refuses one that is not on the blocklist', () => {
-    expect([...buildBlockedContentDomains([BLOCKED, 'other.example'], own, BLOCKED)])
-      .toEqual([BLOCKED]);
-    expect(() => buildBlockedContentDomains([BLOCKED], own, 'other.example'))
-      .toThrow(EmptyBlocklistError);
+    expect([...buildBlockedContentDomains([BLOCKED, 'other.example'], own, BLOCKED)]).toEqual([
+      BLOCKED,
+    ]);
+    expect(() => buildBlockedContentDomains([BLOCKED], own, 'other.example')).toThrow(
+      EmptyBlocklistError,
+    );
   });
 });

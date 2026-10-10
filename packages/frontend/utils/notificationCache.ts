@@ -22,7 +22,10 @@ export function containsNotification(data: NotificationsInfiniteData, id: string
 }
 
 /** The first notification matching `id`, or `undefined`. */
-export function findNotification(data: NotificationsInfiniteData, id: string): TRawNotification | undefined {
+export function findNotification(
+  data: NotificationsInfiniteData,
+  id: string,
+): TRawNotification | undefined {
   for (const page of data.pages) {
     const found = page.notifications.find((n) => n._id === id);
     if (found) return found;
@@ -110,7 +113,9 @@ export function markNotificationsRead(
 }
 
 /** Mark every notification read and zero each page's `unreadCount`. */
-export function markAllNotificationsRead(data: NotificationsInfiniteData): NotificationsInfiniteData {
+export function markAllNotificationsRead(
+  data: NotificationsInfiniteData,
+): NotificationsInfiniteData {
   return {
     ...data,
     pages: data.pages.map((page) => ({
@@ -122,7 +127,10 @@ export function markAllNotificationsRead(data: NotificationsInfiniteData): Notif
 }
 
 /** Remove the notification matching `id` from every page. */
-export function removeNotification(data: NotificationsInfiniteData, id: string): NotificationsInfiniteData {
+export function removeNotification(
+  data: NotificationsInfiniteData,
+  id: string,
+): NotificationsInfiniteData {
   return {
     ...data,
     pages: data.pages.map((page) => {
@@ -140,10 +148,13 @@ export function removeNotification(data: NotificationsInfiniteData, id: string):
  * Adjust the live unread-count badge cache by `delta`, clamped at 0. Kept in
  * lockstep with the list reducers so the badge and the list never diverge.
  */
-export function bumpUnread(queryClient: QueryClient, userId: string | undefined, delta: number): void {
+export function bumpUnread(
+  queryClient: QueryClient,
+  userId: string | undefined,
+  delta: number,
+): void {
   if (!userId || delta === 0) return;
-  queryClient.setQueryData<number>(
-    viewerQueryKeys.unreadNotifications(userId),
-    (prev) => Math.max(0, (prev ?? 0) + delta),
+  queryClient.setQueryData<number>(viewerQueryKeys.unreadNotifications(userId), (prev) =>
+    Math.max(0, (prev ?? 0) + delta),
   );
 }

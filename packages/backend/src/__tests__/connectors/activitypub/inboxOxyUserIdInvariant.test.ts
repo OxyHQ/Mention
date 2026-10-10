@@ -134,10 +134,18 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   // Default fixture: a resolved, followed remote actor. Suites that need the
   // unresolved or absent variants re-seed with `seedResolvedActor`.
-  await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId: 'oxy_user_1', lastFetchedAt: new Date() });
+  await seedActor(scope, {
+    username: 'bob',
+    uri: actorUri,
+    oxyUserId: 'oxy_user_1',
+    lastFetchedAt: new Date(),
+  });
   await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update?.$set,
+  }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   // Not a duplicate — `handleCreate` proceeds past the dedup check.

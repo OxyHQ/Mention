@@ -3,11 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-  seedActor,
-} from '../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedActor } from '../helpers/federationFixtures';
 
 const scope = federationScope('backfill-federated-post-authors');
 const posts = postScope('backfill-federated-post-authors');
@@ -53,7 +49,9 @@ vi.mock('../../connectors/activitypub/helpers', () => ({
   signedFetch: vi.fn(),
   asRecord: vi.fn(),
 }));
-vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
+vi.mock('../../connectors/activitypub/constants', () => ({
+  AP_CONTENT_TYPE: 'application/activity+json',
+}));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: vi.fn(),
@@ -284,7 +282,7 @@ describe('backfillFederatedPostAuthors — what counts as remaining', () => {
     expect(countRemaining(BUSY_RUN, { apply: true, deleteGone: true })).toBe(55);
   });
 
-  it('never counts our OWN failures — they are the completion guard\'s, strictly', () => {
+  it("never counts our OWN failures — they are the completion guard's, strictly", () => {
     /**
      * `failed` (a write that threw) and `blockedDelete` (a deletion the preflight
      * refused) are not fixed by re-running and must stay red. If either leaked
@@ -334,8 +332,9 @@ describe('backfillFederatedPostAuthors — what stays a red run', () => {
   it('sends a THROWN error to `failed`, never to the now-tolerated `transient`', () => {
     const source = normalizedSource();
 
-    expect(source).toContain("? 'blockedDelete' as const : 'failed' as const");
-    expect(source).not.toContain("? 'blockedDelete' as const : 'transient' as const");
+    // Optional parentheses around each arm, so formatting cannot decide the verdict.
+    expect(source).toMatch(/\? \(?'blockedDelete' as const\)? : \(?'failed' as const\)?/);
+    expect(source).not.toMatch(/\? \(?'blockedDelete' as const\)? : \(?'transient' as const\)?/);
   });
 
   it('hands the completion guard our OWN two buckets, and nothing a re-run fixes', () => {
@@ -344,8 +343,8 @@ describe('backfillFederatedPostAuthors — what stays a red run', () => {
     // Exact, so this pins the exclusion as well as the inclusion: putting
     // `transient` or `unresolvedAuthor` back would restore the always-red run.
     expect(source).toContain(
-      "assertAdminRunComplete('backfillFederatedPostAuthors', { failed: counters.failed, "
-      + 'blockedDelete: counters.blockedDelete, });',
+      "assertAdminRunComplete('backfillFederatedPostAuthors', { failed: counters.failed, " +
+        'blockedDelete: counters.blockedDelete, });',
     );
   });
 });

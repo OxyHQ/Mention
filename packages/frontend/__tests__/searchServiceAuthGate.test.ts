@@ -19,10 +19,7 @@
 import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 
-import {
-  getSearchHistoryStorageKey,
-  searchService,
-} from '@/services/searchService';
+import { getSearchHistoryStorageKey, searchService } from '@/services/searchService';
 
 const mockAuthGet = jest.fn();
 const mockPublicGet = jest.fn();
@@ -89,13 +86,15 @@ function hydratedPost(id: string): HydratedPost {
       username: 'alice',
       name: { displayName: 'Alice' },
     },
-    authors: [{
-      id: 'author-1',
-      username: 'alice',
-      name: { displayName: 'Alice' },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: 'author-1',
+        username: 'alice',
+        name: { displayName: 'Alice' },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     engagement: {
       likes: 0,
       downvotes: 0,
@@ -160,7 +159,8 @@ beforeEach(() => {
         },
       });
     }
-    if (url === '/feeds') return Promise.resolve({ data: { items: [{ id: 'f1', title: 'Feed One' }] } });
+    if (url === '/feeds')
+      return Promise.resolve({ data: { items: [{ id: 'f1', title: 'Feed One' }] } });
     return Promise.reject(new Error(`unexpected public GET ${url}`));
   });
 
@@ -183,28 +183,16 @@ describe('search history viewer isolation', () => {
     await searchService.addToSearchHistory('first', 'viewer-a');
     await searchService.addToSearchHistory('second', 'viewer-b');
 
-    expect(mockStorageSet).toHaveBeenCalledWith(
-      getSearchHistoryStorageKey('viewer-a'),
-      ['first'],
-    );
-    expect(mockStorageSet).toHaveBeenCalledWith(
-      getSearchHistoryStorageKey('viewer-b'),
-      ['second'],
-    );
-    expect(getSearchHistoryStorageKey('viewer-a')).not.toBe(
-      getSearchHistoryStorageKey('viewer-b'),
-    );
+    expect(mockStorageSet).toHaveBeenCalledWith(getSearchHistoryStorageKey('viewer-a'), ['first']);
+    expect(mockStorageSet).toHaveBeenCalledWith(getSearchHistoryStorageKey('viewer-b'), ['second']);
+    expect(getSearchHistoryStorageKey('viewer-a')).not.toBe(getSearchHistoryStorageKey('viewer-b'));
   });
 
   it('clears only the active viewer history', async () => {
     await searchService.clearSearchHistory('viewer-a');
 
-    expect(mockStorageRemove).toHaveBeenCalledWith(
-      getSearchHistoryStorageKey('viewer-a'),
-    );
-    expect(mockStorageRemove).not.toHaveBeenCalledWith(
-      getSearchHistoryStorageKey('viewer-b'),
-    );
+    expect(mockStorageRemove).toHaveBeenCalledWith(getSearchHistoryStorageKey('viewer-a'));
+    expect(mockStorageRemove).not.toHaveBeenCalledWith(getSearchHistoryStorageKey('viewer-b'));
   });
 });
 

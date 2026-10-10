@@ -41,7 +41,10 @@ describe('server-side Oxy clients carry the service token on session-less reads'
 
     const client = getClient();
     // A local checkout can mint nothing; pretend this one can, as a task can.
-    vi.spyOn(client as unknown as { canMintServiceToken(): boolean }, 'canMintServiceToken').mockReturnValue(true);
+    vi.spyOn(
+      client as unknown as { canMintServiceToken(): boolean },
+      'canMintServiceToken',
+    ).mockReturnValue(true);
     vi.spyOn(client, 'serviceToken').mockResolvedValue('mention-service-token');
 
     await client.users.byUsername(`alice-${Math.random().toString(36).slice(2)}`, { cache: false });

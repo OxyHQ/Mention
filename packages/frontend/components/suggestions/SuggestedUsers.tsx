@@ -55,10 +55,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       const list: ProfileData[] = Array.isArray(similar) ? similar : [];
       if (list.length > 0) {
         cacheActors(list);
-        void enrichMissingAvatars(
-          list.slice(0, maxCards),
-          (ids) => oxyServices.users.getMany(ids),
-        );
+        void enrichMissingAvatars(list.slice(0, maxCards), (ids) => oxyServices.users.getMany(ids));
       }
       return list;
     },
@@ -80,7 +77,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   });
 
   const sourceUsers = useMemo<ProfileData[]>(
-    () => (hasSource && !similarQuery.isError ? similarQuery.data ?? [] : recommendations),
+    () => (hasSource && !similarQuery.isError ? (similarQuery.data ?? []) : recommendations),
     [hasSource, similarQuery.isError, similarQuery.data, recommendations],
   );
 
@@ -113,7 +110,12 @@ export const SuggestedUsers = memo(function SuggestedUsers({
         {title || t('Suggested for you')}
       </Text>
       {displayedUsers.map((suggested) => (
-        <SuggestedUserCard key={suggested.id} user={suggested} onDismiss={handleDismiss} hideDismiss={hideDismiss} />
+        <SuggestedUserCard
+          key={suggested.id}
+          user={suggested}
+          onDismiss={handleDismiss}
+          hideDismiss={hideDismiss}
+        />
       ))}
     </View>
   );

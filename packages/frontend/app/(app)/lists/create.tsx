@@ -41,19 +41,25 @@ export default function CreateListScreen() {
     };
   }, []);
 
-  const doSearch = useCallback((q: string) => {
-    setSearch(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!q.trim()) { setResults([]); return; }
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
-        setResults(data);
-      } catch (e) {
-        logger.warn('searchProfiles failed', { error: e });
+  const doSearch = useCallback(
+    (q: string) => {
+      setSearch(q);
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      if (!q.trim()) {
+        setResults([]);
+        return;
       }
-    }, 300);
-  }, [oxyServices]);
+      searchTimer.current = setTimeout(async () => {
+        try {
+          const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
+          setResults(data);
+        } catch (e) {
+          logger.warn('searchProfiles failed', { error: e });
+        }
+      }, 300);
+    },
+    [oxyServices],
+  );
 
   const addMember = (u: MinimalUser) => {
     if (members.find((m) => m.id === u.id)) return;
@@ -90,7 +96,8 @@ export default function CreateListScreen() {
       <SignInRequired
         label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
         description={t('lists.signInRequiredDesc', {
-          defaultValue: 'Lists group the accounts you want to read together. The ones you create or follow appear here.',
+          defaultValue:
+            'Lists group the accounts you want to read together. The ones you create or follow appear here.',
         })}
       >
         <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -114,7 +121,9 @@ export default function CreateListScreen() {
             </Field>
 
             <View className="flex-row items-center justify-between">
-              <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
+              <Text className="text-sm text-muted-foreground font-primary">
+                {t('lists.create.publicLabel')}
+              </Text>
               <Switch
                 checked={isPublic}
                 onCheckedChange={setIsPublic}
@@ -137,9 +146,16 @@ export default function CreateListScreen() {
               {results.map((u, index) => (
                 <React.Fragment key={u.id}>
                   {index > 0 && <Divider />}
-                  <TouchableOpacity className="flex-row items-center justify-between px-3 py-2.5" onPress={() => addMember(u)}>
-                    <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
-                    <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
+                  <TouchableOpacity
+                    className="flex-row items-center justify-between px-3 py-2.5"
+                    onPress={() => addMember(u)}
+                  >
+                    <Text className="text-foreground font-primary">
+                      @{u.username} • {u.name.displayName}
+                    </Text>
+                    <Text className="text-primary font-semibold font-primary">
+                      {t('lists.create.add')}
+                    </Text>
                   </TouchableOpacity>
                 </React.Fragment>
               ))}
@@ -148,7 +164,9 @@ export default function CreateListScreen() {
 
           {members.length > 0 && (
             <View className="mt-2.5">
-              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.members')}</Text>
+              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+                {t('lists.create.members')}
+              </Text>
               {members.map((m) => (
                 <View key={m.id} className="flex-row items-center py-1.5">
                   <Text className="text-foreground">@{m.username}</Text>
@@ -164,11 +182,13 @@ export default function CreateListScreen() {
             disabled={saving || !title.trim()}
             onPress={onCreate}
             className={cn(
-              "mt-5 py-3 rounded-[10px] items-center bg-primary",
-              !title.trim() && "opacity-60"
+              'mt-5 py-3 rounded-[10px] items-center bg-primary',
+              !title.trim() && 'opacity-60',
             )}
           >
-            <Text className="text-primary-foreground font-bold font-primary">{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
+            <Text className="text-primary-foreground font-bold font-primary">
+              {saving ? t('lists.create.saving') : t('lists.create.createButton')}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </SignInRequired>

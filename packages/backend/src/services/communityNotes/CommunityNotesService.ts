@@ -121,7 +121,9 @@ function recordFailure(operation: string, error: unknown): void {
  * cached empty map (a miss that was really a failure must not be remembered as
  * "this post has no note").
  */
-export async function loadShownNotes(postIds: readonly string[]): Promise<Map<string, CommunityNoteSummary>> {
+export async function loadShownNotes(
+  postIds: readonly string[],
+): Promise<Map<string, CommunityNoteSummary>> {
   const attached = new Map<string, CommunityNoteSummary>();
   const client = getCrowdSourceClient();
   if (!client || postIds.length === 0) return attached;
@@ -204,7 +206,9 @@ export interface WriteCommunityNoteInput {
  * is. Idempotency is the SDK's: one note per writer per subject, so a retry of
  * the same send returns the note it already wrote rather than a second one.
  */
-export async function writeCommunityNote(input: WriteCommunityNoteInput): Promise<CommunityNoteSummary> {
+export async function writeCommunityNote(
+  input: WriteCommunityNoteInput,
+): Promise<CommunityNoteSummary> {
   const client = requireClient();
   const note = await client.communityNotes.write({
     externalSubjectId: input.postId,
@@ -222,7 +226,10 @@ export async function writeCommunityNote(input: WriteCommunityNoteInput): Promis
 }
 
 /** Takes the viewer's own note back. Anyone else's note is a 404 from CrowdSource. */
-export async function withdrawCommunityNote(viewerId: string, noteId: string): Promise<CommunityNoteSummary> {
+export async function withdrawCommunityNote(
+  viewerId: string,
+  noteId: string,
+): Promise<CommunityNoteSummary> {
   const client = requireClient();
   const note = await client.communityNotes.withdraw(noteId, viewerId);
   await invalidateShownNote(note.externalSubjectId);
@@ -298,7 +305,9 @@ export interface CommunityNoteWithSubject {
 }
 
 /** The notes the viewer wrote, newest first. */
-export async function communityNotesWrittenBy(viewerId: string): Promise<CommunityNoteWithSubject[]> {
+export async function communityNotesWrittenBy(
+  viewerId: string,
+): Promise<CommunityNoteWithSubject[]> {
   const client = requireClient();
   const notes = await client.communityNotes.writtenBy(viewerId);
   return notes.map((note) => ({ postId: note.externalSubjectId, note: toSummary(note) }));

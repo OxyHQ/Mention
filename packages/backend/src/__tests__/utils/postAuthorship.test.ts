@@ -23,7 +23,9 @@ describe('postAuthorship', () => {
   it('buildAuthorship creates owner + pending collaborators', () => {
     const authorship = buildAuthorship(ownerId, [collabA, collabB]);
     expect(authorship).toHaveLength(3);
-    expect(getOwner(authorship)).toEqual(expect.objectContaining({ oxyUserId: ownerId, role: 'owner', status: 'accepted' }));
+    expect(getOwner(authorship)).toEqual(
+      expect.objectContaining({ oxyUserId: ownerId, role: 'owner', status: 'accepted' }),
+    );
     expect(getPendingCollaborators(authorship)).toHaveLength(2);
   });
 
@@ -96,7 +98,15 @@ describe('postAuthorship', () => {
 
   it('validateCollaboratorIds rejects self and enforces cap', () => {
     expect(() => validateCollaboratorIds(ownerId, [ownerId])).toThrow(/yourself/);
-    expect(() => validateCollaboratorIds(ownerId, Array.from({ length: 6 }, (_, i) => `u-${i}`))).toThrow(/At most/);
-    expect(validateCollaboratorIds(ownerId, [collabA, collabA, collabB])).toEqual([collabA, collabB]);
+    expect(() =>
+      validateCollaboratorIds(
+        ownerId,
+        Array.from({ length: 6 }, (_, i) => `u-${i}`),
+      ),
+    ).toThrow(/At most/);
+    expect(validateCollaboratorIds(ownerId, [collabA, collabA, collabB])).toEqual([
+      collabA,
+      collabB,
+    ]);
   });
 });

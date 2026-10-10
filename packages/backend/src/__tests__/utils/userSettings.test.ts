@@ -31,9 +31,7 @@ describe('extractPublicProfileData', () => {
       'user-1',
     );
 
-    expect(result.profileHeaderImage).toBe(
-      'https://cloud.oxy.so/new-banner-file?variant=w1280',
-    );
+    expect(result.profileHeaderImage).toBe('https://cloud.oxy.so/new-banner-file?variant=w1280');
     // `profileCustomization` is no longer part of the public design DTO at all:
     // its two layout booleans were removed with the "Profile Style" picker, and
     // the only field left in the stored subdoc (`profileMedia`) is emitted at
@@ -47,9 +45,7 @@ describe('extractPublicProfileData', () => {
       'user-1',
     );
 
-    expect(result.profileHeaderImage).toBe(
-      'https://cloud.oxy.so/legacy-banner-file?variant=w1280',
-    );
+    expect(result.profileHeaderImage).toBe('https://cloud.oxy.so/legacy-banner-file?variant=w1280');
   });
 
   it('proxies a genuinely external banner url, which has no variant system', () => {

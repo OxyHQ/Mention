@@ -13,19 +13,19 @@ import { depsShallowEqual } from '@/utils/feedUtils';
  * render of the feed.
  */
 export function useDeepCompareEffect(
-    callback: React.EffectCallback,
-    dependencies: React.DependencyList
+  callback: React.EffectCallback,
+  dependencies: React.DependencyList,
 ) {
-    const ref = useRef(0);
-    const prevDeps = useRef<React.DependencyList>(dependencies);
+  const ref = useRef(0);
+  const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!depsShallowEqual(prevDeps.current, dependencies)) {
-        ref.current += 1;
-        prevDeps.current = dependencies;
-    }
+  if (!depsShallowEqual(prevDeps.current, dependencies)) {
+    ref.current += 1;
+    prevDeps.current = dependencies;
+  }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(callback, [ref.current]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies are deep-compared into ref.current by design.
+  useEffect(callback, [ref.current]);
 }
 
 /**
@@ -35,18 +35,15 @@ export function useDeepCompareEffect(
  * {@link depsShallowEqual} (see {@link useDeepCompareEffect}) — replacing the
  * old `JSON.stringify` deep compare that ran on every render of the feed.
  */
-export function useDeepCompareMemo<T>(
-    factory: () => T,
-    dependencies: React.DependencyList
-): T {
-    const ref = useRef(0);
-    const prevDeps = useRef<React.DependencyList>(dependencies);
+export function useDeepCompareMemo<T>(factory: () => T, dependencies: React.DependencyList): T {
+  const ref = useRef(0);
+  const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!depsShallowEqual(prevDeps.current, dependencies)) {
-        ref.current += 1;
-        prevDeps.current = dependencies;
-    }
+  if (!depsShallowEqual(prevDeps.current, dependencies)) {
+    ref.current += 1;
+    prevDeps.current = dependencies;
+  }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    return useMemo(factory, [ref.current]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies are deep-compared into ref.current by design.
+  return useMemo(factory, [ref.current]);
 }

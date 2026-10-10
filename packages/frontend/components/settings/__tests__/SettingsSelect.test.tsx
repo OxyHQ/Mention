@@ -1,11 +1,14 @@
 import { StyleSheet } from 'react-native';
-import TestRenderer,{ act } from 'react-test-renderer';
+import TestRenderer, { act } from 'react-test-renderer';
 import { SettingsSelect } from '../SettingsSelect';
 
 let mockTrigger: Record<string, unknown>;
 jest.mock('@oxy.so/bloom/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => children,
-  SelectTrigger: (props: Record<string, unknown>) => { mockTrigger = props; return null; },
+  SelectTrigger: (props: Record<string, unknown>) => {
+    mockTrigger = props;
+    return null;
+  },
   SelectContent: () => null,
   SelectIcon: () => null,
   SelectItem: () => null,
@@ -20,7 +23,16 @@ jest.mock('@oxy.so/bloom/select', () => ({
  */
 it('sizes the trigger by its padding, never a fixed height', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<SettingsSelect label="Mode" value="a" onChange={() => {}} items={[{ value: 'a', label: 'A' }]} />); });
+  act(() => {
+    renderer = TestRenderer.create(
+      <SettingsSelect
+        label="Mode"
+        value="a"
+        onChange={() => {}}
+        items={[{ value: 'a', label: 'A' }]}
+      />,
+    );
+  });
   expect(String(mockTrigger.className ?? '')).not.toMatch(/(^|\s)(h|min-h|max-h)-/);
   const field = StyleSheet.flatten(mockTrigger.fieldStyle as object) as Record<string, unknown>;
   expect(field.height).toBeUndefined();

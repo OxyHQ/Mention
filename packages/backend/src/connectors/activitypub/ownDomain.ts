@@ -42,9 +42,9 @@ const oxyApiHost = (() => {
   }
 })();
 export const OXY_IDENTITY_APEX = (
-  config.federation.oxyIdentityApex
-  || registrableApex(oxyApiHost)
-  || 'oxy.so'
+  config.federation.oxyIdentityApex ||
+  registrableApex(oxyApiHost) ||
+  'oxy.so'
 ).toLowerCase();
 
 /**

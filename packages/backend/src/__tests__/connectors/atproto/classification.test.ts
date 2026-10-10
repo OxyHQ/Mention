@@ -52,7 +52,9 @@ describe('classifyQuery', () => {
     expect(classifyQuery('example.com')).toBe('atproto');
     expect(classifyQuery('did:plc:ewvi7nxzyoun6zhxrhs64oiz')).toBe('atproto');
     expect(classifyQuery('did:web:example.com')).toBe('atproto');
-    expect(classifyQuery('at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/app.bsky.feed.post/3k')).toBe('atproto');
+    expect(classifyQuery('at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/app.bsky.feed.post/3k')).toBe(
+      'atproto',
+    );
   });
 
   it('classifies bare usernames as local', () => {

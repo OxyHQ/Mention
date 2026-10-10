@@ -172,15 +172,13 @@ export const postAuthorships = pgTable(
     check('post_authorships_role_check', sql`${t.role} in (${sql.raw(inList(POST_AUTHOR_ROLES))})`),
     check(
       'post_authorships_status_check',
-      sql`${t.status} in (${sql.raw(inList(POST_AUTHOR_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(POST_AUTHOR_STATUSES))})`,
     ),
     // One entry per (post, user). Mongo could hold a duplicate; nothing wants one.
     unique('post_authorships_post_id_oxy_user_id_key').on(t.postId, t.oxyUserId),
     // Exactly one owner per post — the invariant `getOwnerId` assumes and Mongo
     // could not state. A second `owner` row now fails the insert.
-    uniqueIndex('post_authorships_one_owner_per_post')
-      .on(t.postId)
-      .where(sql`${t.role} = 'owner'`),
+    uniqueIndex('post_authorships_one_owner_per_post').on(t.postId).where(sql`${t.role} = 'owner'`),
     // The author feed's `$elemMatch` on (oxyUserId, status) becomes this.
     index('post_authorships_author_idx').on(t.oxyUserId, t.status),
     /**
@@ -199,9 +197,9 @@ export const postAuthorships = pgTable(
       t.oxyUserId,
       t.status,
       t.postCreatedAt.desc(),
-      t.postId.desc()
+      t.postId.desc(),
     ),
-  ]
+  ],
 );
 
 /**
@@ -282,7 +280,7 @@ export const postContentVariants = pgTable(
   (t) => [
     check(
       'post_content_variants_source_check',
-      sql`${t.source} in (${sql.raw(inList(POST_VARIANT_SOURCES))})`
+      sql`${t.source} in (${sql.raw(inList(POST_VARIANT_SOURCES))})`,
     ),
     check('post_content_variants_position_check', sql`${t.position} >= 0`),
     unique('post_content_variants_post_id_position_key').on(t.postId, t.position),
@@ -298,10 +296,8 @@ export const postContentVariants = pgTable(
     // production by `scripts/backfillVariantPostCreatedAt.ts`.
     index('post_content_variants_post_created_at_idx').on(t.postCreatedAt),
     // "Give me the primary body for these posts" — the hydration hot path.
-    index('post_content_variants_primary_idx')
-      .on(t.postId)
-      .where(sql`${t.position} = 0`),
-  ]
+    index('post_content_variants_primary_idx').on(t.postId).where(sql`${t.position} = 0`),
+  ],
 );
 
 /**
@@ -389,7 +385,7 @@ export const postMedia = pgTable(
     check('post_media_type_check', sql`${t.type} in (${sql.raw(inList(MEDIA_TYPES))})`),
     check(
       'post_media_orientation_check',
-      sql`${t.orientation} is null or ${t.orientation} in (${sql.raw(inList(MEDIA_ORIENTATIONS))})`
+      sql`${t.orientation} is null or ${t.orientation} in (${sql.raw(inList(MEDIA_ORIENTATIONS))})`,
     ),
     // Mongo's `isValidMediaItem` rejected a non-positive numeric field. Same rule.
     check(
@@ -398,7 +394,7 @@ export const postMedia = pgTable(
         and (${t.height} is null or ${t.height} > 0)
         and (${t.durationSec} is null or ${t.durationSec} > 0)
         and (${t.sizeBytes} is null or ${t.sizeBytes} > 0)
-        and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`
+        and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`,
     ),
     check('post_media_position_check', sql`${t.position} >= 0`),
     unique('post_media_post_id_position_key').on(t.postId, t.position),
@@ -421,11 +417,15 @@ export const postMedia = pgTable(
      * `DESC NULLS FIRST` — an index that disagrees on NULLS placement exists,
      * looks right, and is silently unusable for the order the code asks for.
      */
-    index('post_media_video_chrono_idx')
-      .on(t.type, t.orientation, t.postCreatedAt.desc(), t.postId.desc()),
+    index('post_media_video_chrono_idx').on(
+      t.type,
+      t.orientation,
+      t.postCreatedAt.desc(),
+      t.postId.desc(),
+    ),
     // "Which post is this media on" — the media-cache rewrite path.
     index('post_media_media_id_idx').on(t.mediaId),
-  ]
+  ],
 );
 
 /**
@@ -462,7 +462,7 @@ export const postVariantMedia = pgTable(
     check('post_variant_media_type_check', sql`${t.type} in (${sql.raw(inList(MEDIA_TYPES))})`),
     check(
       'post_variant_media_orientation_check',
-      sql`${t.orientation} is null or ${t.orientation} in (${sql.raw(inList(MEDIA_ORIENTATIONS))})`
+      sql`${t.orientation} is null or ${t.orientation} in (${sql.raw(inList(MEDIA_ORIENTATIONS))})`,
     ),
     check(
       'post_variant_media_positive_dimensions_check',
@@ -470,7 +470,7 @@ export const postVariantMedia = pgTable(
         and (${t.height} is null or ${t.height} > 0)
         and (${t.durationSec} is null or ${t.durationSec} > 0)
         and (${t.sizeBytes} is null or ${t.sizeBytes} > 0)
-        and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`
+        and (${t.aspectRatio} is null or ${t.aspectRatio} > 0)`,
     ),
     check('post_variant_media_position_check', sql`${t.position} >= 0`),
     unique('post_variant_media_variant_id_position_key').on(t.variantId, t.position),
@@ -479,7 +479,7 @@ export const postVariantMedia = pgTable(
     // scan of the table while those locks are held. Not partial: a reference
     // counts whatever flag the row carries.
     index('post_variant_media_media_id_idx').on(t.mediaId),
-  ]
+  ],
 );
 
 /**
@@ -502,7 +502,7 @@ export const postVariantAltTexts = pgTable(
     mediaId: text().notNull(),
     description: text().notNull(),
   },
-  (t) => [unique('post_variant_alt_texts_variant_id_media_id_key').on(t.variantId, t.mediaId)]
+  (t) => [unique('post_variant_alt_texts_variant_id_media_id_key').on(t.variantId, t.mediaId)],
 );
 
 /**
@@ -528,21 +528,21 @@ export const postAttachments = pgTable(
   (t) => [
     check(
       'post_attachments_type_check',
-      sql`${t.type} in (${sql.raw(inList(POST_ATTACHMENT_TYPES))})`
+      sql`${t.type} in (${sql.raw(inList(POST_ATTACHMENT_TYPES))})`,
     ),
     check(
       'post_attachments_media_type_check',
-      sql`${t.mediaType} is null or ${t.mediaType} in (${sql.raw(inList(MEDIA_TYPES))})`
+      sql`${t.mediaType} is null or ${t.mediaType} in (${sql.raw(inList(MEDIA_TYPES))})`,
     ),
     // Mongo made `id`/`mediaType` `required` only when `type === 'media'`. That
     // conditional requirement is a CHECK here rather than a validator function.
     check(
       'post_attachments_media_fields_check',
-      sql`${t.type} <> 'media' or (${t.attachmentId} is not null and ${t.mediaType} is not null)`
+      sql`${t.type} <> 'media' or (${t.attachmentId} is not null and ${t.mediaType} is not null)`,
     ),
     check('post_attachments_position_check', sql`${t.position} >= 0`),
     unique('post_attachments_post_id_position_key').on(t.postId, t.position),
-  ]
+  ],
 );
 
 /**
@@ -571,9 +571,12 @@ export const postLinkPreviews = pgTable(
   },
   (t) => [
     check('post_link_previews_position_check', sql`${t.position} >= 0`),
-    check('post_link_previews_card_check', sql`${t.title} is not null or ${t.description} is not null`),
+    check(
+      'post_link_previews_card_check',
+      sql`${t.title} is not null or ${t.description} is not null`,
+    ),
     unique('post_link_previews_post_id_position_key').on(t.postId, t.position),
-  ]
+  ],
 );
 
 /** `post_sources` — external sources cited in the post, in author order. */
@@ -591,7 +594,7 @@ export const postSources = pgTable(
   (t) => [
     check('post_sources_position_check', sql`${t.position} >= 0`),
     unique('post_sources_post_id_position_key').on(t.postId, t.position),
-  ]
+  ],
 );
 
 /**
@@ -644,7 +647,7 @@ export const postSourceKeys = pgTable(
     check(
       'post_source_keys_claim_shape_check',
       sql`(${t.postId} is not null and ${t.claimedUntil} is null and ${t.claimToken} is null)
-        or (${t.postId} is null and ${t.claimedUntil} is not null and ${t.claimToken} is not null)`
+        or (${t.postId} is null and ${t.claimedUntil} is not null and ${t.claimToken} is not null)`,
     ),
   ],
 );
@@ -671,7 +674,7 @@ export const postMentions = pgTable(
     unique('post_mentions_post_id_oxy_user_id_key').on(t.postId, t.oxyUserId),
     // "Posts that mention me", newest first — the mentions surface.
     index('post_mentions_oxy_user_id_idx').on(t.oxyUserId),
-  ]
+  ],
 );
 
 /**
@@ -700,11 +703,11 @@ export const postClassificationTopicRefs = pgTable(
   (t) => [
     check(
       'post_classification_topic_refs_type_check',
-      sql`${t.type} is null or ${t.type} in (${sql.raw(inList(CLASSIFICATION_TOPIC_REF_TYPES))})`
+      sql`${t.type} is null or ${t.type} in (${sql.raw(inList(CLASSIFICATION_TOPIC_REF_TYPES))})`,
     ),
     check(
       'post_classification_topic_refs_relevance_check',
-      sql`${t.relevance} is null or ${t.relevance} between ${sql.raw(String(TOPIC_RELEVANCE_MIN))} and ${sql.raw(String(TOPIC_RELEVANCE_MAX))}`
+      sql`${t.relevance} is null or ${t.relevance} between ${sql.raw(String(TOPIC_RELEVANCE_MIN))} and ${sql.raw(String(TOPIC_RELEVANCE_MAX))}`,
     ),
     unique('post_classification_topic_refs_post_id_name_key').on(t.postId, t.name),
     // The canonical topic-page lookup (`postClassification.topicRefs.name`).
@@ -712,7 +715,7 @@ export const postClassificationTopicRefs = pgTable(
     index('post_classification_topic_refs_topic_id_idx')
       .on(t.topicId)
       .where(sql`${t.topicId} is not null`),
-  ]
+  ],
 );
 
 /**
@@ -752,7 +755,7 @@ export const postRecentRepliers = pgTable(
     unique('post_recent_repliers_post_id_oxy_user_id_key').on(t.postId, t.oxyUserId),
     // The read is always "this post's repliers, newest first".
     index('post_recent_repliers_post_idx').on(t.postId, t.repliedAt.desc()),
-  ]
+  ],
 );
 
 /**
@@ -824,5 +827,5 @@ export const postCorrections = pgTable(
     // "this post's trail, in order" — is a leading-prefix scan of it. A separate
     // index on `post_id` would be redundant with it.
     unique('post_corrections_post_id_revision_key').on(t.postId, t.revision),
-  ]
+  ],
 );

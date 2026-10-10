@@ -71,6 +71,9 @@ export const schemas = {
 
   /** Custom feed members management request body */
   manageFeedMembers: z.object({
-    userIds: z.array(z.string().min(1).max(100, 'User ID too long')).min(1, 'At least one user ID is required').max(100, 'Maximum 100 user IDs per request'),
+    userIds: z
+      .array(z.string().min(1).max(100, 'User ID too long'))
+      .min(1, 'At least one user ID is required')
+      .max(100, 'Maximum 100 user IDs per request'),
   }),
 };

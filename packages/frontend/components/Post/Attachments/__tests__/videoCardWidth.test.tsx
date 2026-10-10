@@ -4,7 +4,9 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 import PostAttachmentMedia from '../PostAttachmentMedia';
 
-interface CapturedVideoProps { style?: ViewStyle }
+interface CapturedVideoProps {
+  style?: ViewStyle;
+}
 jest.mock('@/components/common/VideoPlayer', () => {
   const { View: RNView } = jest.requireActual('react-native');
   const React2 = jest.requireActual('react');
@@ -65,7 +67,10 @@ function cardOf(renderer: TestRenderer.ReactTestRenderer): { className: string; 
   const surface = renderer.root.findByProps({ testID: 'video-surface' });
   let node = surface.parent;
   while (node && node.type !== View) node = node.parent;
-  return { className: String(node!.props.className ?? ''), style: StyleSheet.flatten(node!.props.style) ?? {} };
+  return {
+    className: String(node!.props.className ?? ''),
+    style: StyleSheet.flatten(node!.props.style) ?? {},
+  };
 }
 
 /**
@@ -102,8 +107,12 @@ describe.each(CELL_KINDS)('a %s card always has a width', (type) => {
 describe.each(['ios', 'web'] as const)('a lone video with NO stored dimensions (%s)', (os) => {
   const { Platform } = jest.requireActual('react-native');
   const original = Platform.OS;
-  beforeEach(() => { Platform.OS = os; });
-  afterEach(() => { Platform.OS = original; });
+  beforeEach(() => {
+    Platform.OS = os;
+  });
+  afterEach(() => {
+    Platform.OS = original;
+  });
 
   it('gets a definite, non-zero box — never a height-less one', () => {
     const card = cardOf(renderCell('video', { hasSingleMedia: true }));

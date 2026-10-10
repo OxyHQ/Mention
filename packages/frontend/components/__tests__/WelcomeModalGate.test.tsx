@@ -34,7 +34,9 @@ jest.mock('react', () => ({
 }));
 
 function modals(renderer: TestRenderer.ReactTestRenderer) {
-  return renderer.root.findAll((node) => typeof node.type === 'string' && node.props.testID === 'welcome-modal');
+  return renderer.root.findAll(
+    (node) => typeof node.type === 'string' && node.props.testID === 'welcome-modal',
+  );
 }
 
 async function renderGate(): Promise<TestRenderer.ReactTestRenderer> {

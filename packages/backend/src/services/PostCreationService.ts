@@ -25,9 +25,7 @@ import {
   PostMetadata,
   ReplyPermission,
 } from '@mention/shared-types';
-import {
-  mentionTextsFromContent,
-} from '@mention/shared-types/mentions';
+import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { foldProfileLinkMentions } from './profileLinkMentions';
 import {
@@ -291,7 +289,8 @@ class PostCreationService {
   ): BaselineClassification {
     try {
       const isFederated = params.federation != null;
-      const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)?.isSensitive;
+      const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)
+        ?.isSensitive;
       // What the post DECLARES: the federated ingest paths pass `params.languages`
       // (AP `language` + every `contentMap` key); a native post declares the base
       // subtags of the author's own language variants (primary first). Either way
@@ -345,7 +344,10 @@ class PostCreationService {
     } catch (error) {
       // Never block creation on classification — fall back to the column
       // defaults (`status: 'pending'`) so the AI batch still processes the post.
-      logger.warn('PostCreationService: baseline classification failed; saving without Stage-A signals', error);
+      logger.warn(
+        'PostCreationService: baseline classification failed; saving without Stage-A signals',
+        error,
+      );
       return {};
     }
   }
@@ -450,7 +452,10 @@ class PostCreationService {
         throw new PublishAsAccessError(400, 'A boost cannot be published as another account');
       }
       if (params.federation != null) {
-        throw new PublishAsAccessError(400, 'A federated post cannot be published as another account');
+        throw new PublishAsAccessError(
+          400,
+          'A federated post cannot be published as another account',
+        );
       }
     }
 
@@ -536,9 +541,11 @@ class PostCreationService {
       const hasText = primaryText.trim().length > 0;
       const hasMedia = Array.isArray(content.media) && content.media.length > 0;
       const hasAttachments = Array.isArray(content.attachments) && content.attachments.length > 0;
-      const hasPoll = content.poll != null || (typeof content.pollId === 'string' && content.pollId.length > 0);
+      const hasPoll =
+        content.poll != null || (typeof content.pollId === 'string' && content.pollId.length > 0);
       const hasSummary =
-        typeof params.federation.spoilerText === 'string' && params.federation.spoilerText.trim().length > 0;
+        typeof params.federation.spoilerText === 'string' &&
+        params.federation.spoilerText.trim().length > 0;
       if (!hasText && !hasMedia && !hasAttachments && !hasPoll && !hasSummary) {
         throw new Error(
           `PostCreationService: refusing to create empty federated post (activityId=${params.federation.activityId ?? 'unknown'})`,
@@ -587,9 +594,8 @@ class PostCreationService {
 
     const input: PostRecordInput = {
       oxyUserId: authorId,
-      authorship: authorId != null
-        ? postCollaborationService.buildAuthorship(authorId, collaboratorIds)
-        : [],
+      authorship:
+        authorId != null ? postCollaborationService.buildAuthorship(authorId, collaboratorIds) : [],
       // The human behind a channel post — recorded OUTSIDE `authorship`, which is
       // what keeps the post off their own profile and their name out of the
       // byline. Set only when the author is somebody else, so an ordinary post
@@ -620,7 +626,7 @@ class PostCreationService {
       // and would silently close every organization's comments.
       replyPermission: (authorKind === 'channel'
         ? ['nobody']
-        : params.replyPermission ?? ['anyone']) as ReplyPermission[],
+        : (params.replyPermission ?? ['anyone'])) as ReplyPermission[],
       laneId: params.laneId ?? null,
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
@@ -665,10 +671,7 @@ class PostCreationService {
       enrichIngestedPosts([post]);
     }
 
-    if (
-      params.autoAcceptCollaboratorIds &&
-      params.autoAcceptCollaboratorIds.length > 0
-    ) {
+    if (params.autoAcceptCollaboratorIds && params.autoAcceptCollaboratorIds.length > 0) {
       post = await postCollaborationService.autoAcceptInvites(
         post,
         new Set(params.autoAcceptCollaboratorIds),
@@ -844,7 +847,10 @@ class PostCreationService {
       const resolved = owner.username?.trim();
       return resolved ? resolved : undefined;
     } catch (error) {
-      logger.warn('PostCreationService: failed to resolve federation username from oxyUserId', error);
+      logger.warn(
+        'PostCreationService: failed to resolve federation username from oxyUserId',
+        error,
+      );
       return undefined;
     }
   }
@@ -955,10 +961,7 @@ class PostCreationService {
    * `POST /posts` did. One fan-out for every write path is what keeps them from
    * drifting apart again.
    */
-  async notifyCreatedPost(
-    post: PostRecord,
-    oxyUserId: string | null,
-  ): Promise<void> {
+  async notifyCreatedPost(post: PostRecord, oxyUserId: string | null): Promise<void> {
     const mentions = post.mentions;
     const parentPostId = post.parentPostId;
     const quoteOf = post.quoteOf;
@@ -981,8 +984,8 @@ class PostCreationService {
       // Reply / quote / boost notifications
       (async () => {
         if (!oxyUserId) return;
-        const idsToFetch = [parentPostId, quoteOf, boostOf].filter(
-          (id): id is string => Boolean(id),
+        const idsToFetch = [parentPostId, quoteOf, boostOf].filter((id): id is string =>
+          Boolean(id),
         );
         if (idsToFetch.length === 0) return;
 
@@ -1034,11 +1037,7 @@ class PostCreationService {
       // anyone else's.
       (async () => {
         const isTopLevelPost = !parentPostId;
-        if (
-          !oxyUserId ||
-          !isTopLevelPost ||
-          !isSubscriberNotificationEligible(post)
-        ) {
+        if (!oxyUserId || !isTopLevelPost || !isSubscriberNotificationEligible(post)) {
           return;
         }
         // Subscribers of the AUTHOR, plus — for a channel post — everyone who
@@ -1060,14 +1059,13 @@ class PostCreationService {
         recipientIds.delete(oxyUserId);
         if (recipientIds.size === 0) return;
 
-        const notifications = [...recipientIds]
-          .map((recipientId) => ({
-            recipientId,
-            actorId: oxyUserId,
-            type: 'post' as const,
-            entityId: post.id,
-            entityType: 'post' as const,
-          }));
+        const notifications = [...recipientIds].map((recipientId) => ({
+          recipientId,
+          actorId: oxyUserId,
+          type: 'post' as const,
+          entityId: post.id,
+          entityType: 'post' as const,
+        }));
         if (notifications.length > 0) {
           await createBatchNotifications(notifications, true);
         }
@@ -1090,48 +1088,45 @@ class PostCreationService {
    * site instead of hiding a `void (async () => {...})()` in the middle of the
    * side-effect sequence.
    */
-  private async broadcastCreatedPost(
-    post: PostRecord,
-    oxyUserId: string | null,
-  ): Promise<void> {
-      try {
-        const io = getRuntimeSocketServer();
-        if (io) {
-          // Emit the canonical hydrated DTO (author summary, resolved
-          // name.displayName, engagement shape, and embedded boosted original)
-          // so the post renders correctly in real time instead of as a raw,
-          // unhydrated document. Mirrors createThread's post-create emit.
-          // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
-          // (a boost has an intentionally empty body and renders blank otherwise).
-          const [hydratedPost] = await postHydrationService.hydratePosts([post], {
-            // Written or changed by this very request, so there is no community note to
-            // look up — and asking would put a CrowdSource round trip on this path.
-            includeCommunityNotes: false,
-            // This DTO is broadcast to all sockets, so hydrate as an anonymous
-            // viewer. Nested quote/boost references that are not publicly
-            // visible are omitted instead of leaking via a creator-specific ACL.
-            viewerId: undefined,
-            oxyClient: getServiceOxyClient(),
-            maxDepth: 1,
-            includeLinkMetadata: true,
+  private async broadcastCreatedPost(post: PostRecord, oxyUserId: string | null): Promise<void> {
+    try {
+      const io = getRuntimeSocketServer();
+      if (io) {
+        // Emit the canonical hydrated DTO (author summary, resolved
+        // name.displayName, engagement shape, and embedded boosted original)
+        // so the post renders correctly in real time instead of as a raw,
+        // unhydrated document. Mirrors createThread's post-create emit.
+        // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
+        // (a boost has an intentionally empty body and renders blank otherwise).
+        const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+          // Written or changed by this very request, so there is no community note to
+          // look up — and asking would put a CrowdSource round trip on this path.
+          includeCommunityNotes: false,
+          // This DTO is broadcast to all sockets, so hydrate as an anonymous
+          // viewer. Nested quote/boost references that are not publicly
+          // visible are omitted instead of leaking via a creator-specific ACL.
+          viewerId: undefined,
+          oxyClient: getServiceOxyClient(),
+          maxDepth: 1,
+          includeLinkMetadata: true,
+        });
+        if (hydratedPost) {
+          io.emit('feed:updated', {
+            type: 'for_you',
+            post: hydratedPost,
+            timestamp: new Date().toISOString(),
           });
-          if (hydratedPost) {
-            io.emit('feed:updated', {
-              type: 'for_you',
-              post: hydratedPost,
-              timestamp: new Date().toISOString(),
-            });
-            io.emit('feed:updated', {
-              type: 'following',
-              post: hydratedPost,
-              authorId: oxyUserId,
-              timestamp: new Date().toISOString(),
-            });
-          }
+          io.emit('feed:updated', {
+            type: 'following',
+            post: hydratedPost,
+            authorId: oxyUserId,
+            timestamp: new Date().toISOString(),
+          });
         }
-      } catch (socketError) {
-        logger.warn('PostCreationService: failed to emit socket event', socketError);
       }
+    } catch (socketError) {
+      logger.warn('PostCreationService: failed to emit socket event', socketError);
+    }
   }
 
   /**

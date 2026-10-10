@@ -1,19 +1,19 @@
-import type { BloomIcon } from "@/components/settings/RowIcon";
-import { SettingsSelect } from "@/components/settings/SettingsSelect";
+import type { BloomIcon } from '@/components/settings/RowIcon';
+import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import {
   getLivePresencePreference,
   updateLivePresencePreference,
   type LiveVisibility,
-} from "@/lib/syraApi";
-import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
+} from '@/lib/syraApi';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
-import { Loading } from "@oxy.so/bloom/loading";
-import { SettingsGeneralPage } from "@oxy.so/bloom/settings-modal";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
 interface PresenceOption {
   value: LiveVisibility;
@@ -26,20 +26,19 @@ interface PresenceOption {
 
 const OPTIONS: PresenceOption[] = [
   {
-    value: "active",
-    labelKey: "settings.livePresence.active",
+    value: 'active',
+    labelKey: 'settings.livePresence.active',
     labelDefault: "When I'm in a live room",
-    descKey: "settings.livePresence.activeDesc",
-    descDefault:
-      "Your avatar shows a live badge to others whenever you join a live room.",
+    descKey: 'settings.livePresence.activeDesc',
+    descDefault: 'Your avatar shows a live badge to others whenever you join a live room.',
     icon: RiBroadcastLine,
   },
   {
-    value: "speaking",
-    labelKey: "settings.livePresence.speaking",
+    value: 'speaking',
+    labelKey: 'settings.livePresence.speaking',
     labelDefault: "Only when I'm speaking",
-    descKey: "settings.livePresence.speakingDesc",
-    descDefault: "Your avatar shows a live badge only while you hold the mic.",
+    descKey: 'settings.livePresence.speakingDesc',
+    descDefault: 'Your avatar shows a live badge only while you hold the mic.',
     icon: RiMic2Line,
   },
 ];
@@ -63,8 +62,7 @@ export default function LivePresenceScreen() {
     mutationFn: updateLivePresencePreference,
     onMutate: async (next: LiveVisibility) => {
       await queryClient.cancelQueries({ queryKey: livePresenceQueryKey });
-      const previous =
-        queryClient.getQueryData<LiveVisibility>(livePresenceQueryKey);
+      const previous = queryClient.getQueryData<LiveVisibility>(livePresenceQueryKey);
       queryClient.setQueryData<LiveVisibility>(livePresenceQueryKey, next);
       return { previous };
     },
@@ -78,7 +76,7 @@ export default function LivePresenceScreen() {
     },
   });
 
-  const selected: LiveVisibility = preference ?? "active";
+  const selected: LiveVisibility = preference ?? 'active';
 
   if (isPrivateApiPending) {
     return (
@@ -94,11 +92,11 @@ export default function LivePresenceScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.livePresence.signInRequired", {
-            defaultValue: "Sign in to manage your live presence",
+          label={t('settings.livePresence.signInRequired', {
+            defaultValue: 'Sign in to manage your live presence',
           })}
-          description={t("settings.livePresence.signInRequiredDesc", {
-            defaultValue: "Choose when others see you live in a room.",
+          description={t('settings.livePresence.signInRequiredDesc', {
+            defaultValue: 'Choose when others see you live in a room.',
           })}
         />
       </View>
@@ -119,21 +117,20 @@ export default function LivePresenceScreen() {
     <SettingsGeneralPage
       sections={[
         {
-          key: "presence",
+          key: 'presence',
           rows: [
             {
-              key: "visibility",
-              label: t("settings.livePresence.title", {
-                defaultValue: "Live presence",
+              key: 'visibility',
+              label: t('settings.livePresence.title', {
+                defaultValue: 'Live presence',
               }),
-              description: t("settings.livePresence.footer", {
-                defaultValue:
-                  "This controls when your avatar shows a live badge across Mention.",
+              description: t('settings.livePresence.footer', {
+                defaultValue: 'This controls when your avatar shows a live badge across Mention.',
               }),
               control: (
                 <SettingsSelect
-                  label={t("settings.livePresence.title", {
-                    defaultValue: "Live presence",
+                  label={t('settings.livePresence.title', {
+                    defaultValue: 'Live presence',
                   })}
                   value={selected}
                   onChange={(value) => {

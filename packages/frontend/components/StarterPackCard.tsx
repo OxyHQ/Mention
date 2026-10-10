@@ -1,5 +1,12 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  type ColorValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -85,15 +92,9 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   const accessibilityLabel = useMemo(() => {
     const parts = [pack.name];
     if (pack.creator) {
-      parts.push(
-        isOwner
-          ? 'starter pack by you'
-          : `starter pack by @${pack.creator.username}`,
-      );
+      parts.push(isOwner ? 'starter pack by you' : `starter pack by @${pack.creator.username}`);
     }
-    parts.push(
-      `${pack.memberCount} ${pack.memberCount === 1 ? 'account' : 'accounts'}`,
-    );
+    parts.push(`${pack.memberCount} ${pack.memberCount === 1 ? 'account' : 'accounts'}`);
     if (pack.useCount > 0) {
       parts.push(`used by ${pack.useCount} ${pack.useCount === 1 ? 'person' : 'people'}`);
     }
@@ -117,9 +118,10 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       style={styles.pressable}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      testID={`starterpack-${pack.id}`}>
+      testID={`starterpack-${pack.id}`}
+    >
       {/* The press owns the scale; Bloom's `Card` owns the surface. */}
-      <Card  border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
+      <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
         {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
         {hasAvatars ? (
           <AvatarGroup
@@ -151,14 +153,14 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
                   // Vertical only on purpose: the card behind this byline is
                   // itself pressable, so horizontal slop would take taps meant
                   // for opening the pack.
-                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
+                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
+                >
                   <Text
                     variant="body-regular"
                     style={[styles.byline, { color: theme.colors.textSecondary }]}
-                    numberOfLines={1}>
-                    {isOwner
-                      ? 'Starter pack by you'
-                      : `Starter pack by @${pack.creator.username}`}
+                    numberOfLines={1}
+                  >
+                    {isOwner ? 'Starter pack by you' : `Starter pack by @${pack.creator.username}`}
                   </Text>
                 </TouchableOpacity>
               </ProfileHoverCard>
@@ -174,7 +176,10 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
         ) : null}
 
         {/* Stats */}
-        <Text variant="body-2-medium" style={[styles.statLine, { color: theme.colors.textSecondary }]}>
+        <Text
+          variant="body-2-medium"
+          style={[styles.statLine, { color: theme.colors.textSecondary }]}
+        >
           {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
           {pack.useCount > 0
             ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
@@ -185,7 +190,8 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
         {pack.useCount >= 50 && (
           <Text
             variant="body-2-semibold"
-            style={[styles.statLine, { color: theme.colors.textSecondary }]}>
+            style={[styles.statLine, { color: theme.colors.textSecondary }]}
+          >
             {formatCompactNumber(pack.useCount)} users have joined!
           </Text>
         )}
@@ -199,7 +205,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
  */
 export function StarterPackCardSkeleton() {
   return (
-    <Card  border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
+    <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
       {/* Skeleton avatar row */}
       <View style={styles.skeletonAvatarRow}>
         {Array.from({ length: 6 }).map((_, i) => (

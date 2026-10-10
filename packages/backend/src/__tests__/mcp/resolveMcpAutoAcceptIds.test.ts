@@ -36,13 +36,17 @@ describe('resolveMcpAutoAcceptIds', () => {
   });
 
   it('leaves every invitation pending for anyone outside the connection', () => {
-    expect(resolveMcpAutoAcceptIds(connectionRequest(['personal', 'brand']), ['stranger'])).toBeUndefined();
+    expect(
+      resolveMcpAutoAcceptIds(connectionRequest(['personal', 'brand']), ['stranger']),
+    ).toBeUndefined();
     // A connection bound to one account, with no Oxy account set, accepts for nobody.
     expect(resolveMcpAutoAcceptIds(connectionRequest(undefined), ['personal'])).toBeUndefined();
   });
 
   it('accepts nothing for a request that is not an MCP connection', () => {
     expect(resolveMcpAutoAcceptIds({} as Request, ['brand'])).toBeUndefined();
-    expect(resolveMcpAutoAcceptIds(connectionRequest(['personal', 'brand']), undefined)).toBeUndefined();
+    expect(
+      resolveMcpAutoAcceptIds(connectionRequest(['personal', 'brand']), undefined),
+    ).toBeUndefined();
   });
 });

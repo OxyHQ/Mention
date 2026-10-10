@@ -156,7 +156,9 @@ describe('CrowdSource webhook receiver', () => {
     await getDb()
       .delete(moderationOutbox)
       .where(like(moderationOutbox.id, `${decisionApplyEventId(EVENT_PREFIX)}%`));
-    await getDb().delete(moderationEvents).where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
+    await getDb()
+      .delete(moderationEvents)
+      .where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
     mocks.enqueueFailure = null;
     // Re-established per test rather than once, so the pass-through case below can
     // clear them without leaving every later test dependent on its ordering.
@@ -168,7 +170,9 @@ describe('CrowdSource webhook receiver', () => {
     await getDb()
       .delete(moderationOutbox)
       .where(like(moderationOutbox.id, `${decisionApplyEventId(EVENT_PREFIX)}%`));
-    await getDb().delete(moderationEvents).where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
+    await getDb()
+      .delete(moderationEvents)
+      .where(like(moderationEvents.id, `${EVENT_PREFIX}%`));
   });
 
   it('accepts a signed decision once and queues exactly one unit of work', async () => {

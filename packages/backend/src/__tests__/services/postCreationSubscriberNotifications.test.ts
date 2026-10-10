@@ -12,9 +12,11 @@ describe('PostCreationService subscriber notification eligibility', () => {
   });
 
   it('announces a published public post', () => {
-    expect(isSubscriberNotificationEligible({
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-    })).toBe(true);
+    expect(
+      isSubscriberNotificationEligible({
+        status: 'published',
+        visibility: PostVisibility.PUBLIC,
+      }),
+    ).toBe(true);
   });
 });

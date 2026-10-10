@@ -93,11 +93,13 @@ export async function purgeFlattenedRetweets(
       and(eq(postContentVariants.postId, posts.id), eq(postContentVariants.position, 0)),
     )
     .innerJoin(federatedActors, eq(federatedActors.oxyUserId, posts.oxyUserId))
-    .where(and(
-      isNotNull(posts.federationActivityId),
-      inArray(federatedActors.domain, bridgeHosts),
-      sql`${postContentVariants.body} ~ '^RT:'`,
-    ))
+    .where(
+      and(
+        isNotNull(posts.federationActivityId),
+        inArray(federatedActors.domain, bridgeHosts),
+        sql`${postContentVariants.body} ~ '^RT:'`,
+      ),
+    )
     .limit(MAX);
 
   let matched = 0;

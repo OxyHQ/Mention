@@ -32,14 +32,20 @@ const REVERT_0054 = [
   'alter table federated_actors drop constraint federated_actors_instagram_graph_last_result_check',
   'alter table federated_actors drop constraint federated_actors_protocol_check',
   'alter table federated_follows drop constraint federated_follows_network_check',
-  'alter table federated_actors drop column instagram_graph_synced_at, drop column instagram_graph_sync_started_at, '
-    + 'drop column instagram_graph_last_result, drop column instagram_graph_user_id, drop column instagram_graph_history_depth',
+  'alter table federated_actors drop column instagram_graph_synced_at, drop column instagram_graph_sync_started_at, ' +
+    'drop column instagram_graph_last_result, drop column instagram_graph_user_id, drop column instagram_graph_history_depth',
   "alter table federated_actors add constraint federated_actors_protocol_check check (protocol in ('activitypub', 'atproto'))",
   "alter table federated_follows add constraint federated_follows_network_check check (network in ('activitypub', 'atproto'))",
 ];
 
 /** Lock modes weaker than SHARE: none of them blocks a reader or waits on one. */
-const READ_COMPATIBLE = new Set(['AccessShareLock', 'RowShareLock', 'RowExclusiveLock', 'ShareUpdateExclusiveLock', 'ShareRowExclusiveLock']);
+const READ_COMPATIBLE = new Set([
+  'AccessShareLock',
+  'RowShareLock',
+  'RowExclusiveLock',
+  'ShareUpdateExclusiveLock',
+  'ShareRowExclusiveLock',
+]);
 
 let url: string;
 let previousDatabaseUrl: string | undefined;
@@ -69,28 +75,37 @@ describe('0054 lock profile', () => {
       await sql.begin(async (tx) => {
         for (const statement of REVERT_0054) await tx.unsafe(statement);
       });
-      const measured = await sql.begin(async (tx) => {
-        for (const statement of MIGRATION.split('--> statement-breakpoint')) {
-          if (statement.trim()) await tx.unsafe(statement);
-        }
-        const locks = await tx<{ relname: string; mode: string }[]>`
+      const measured = await sql
+        .begin(async (tx) => {
+          for (const statement of MIGRATION.split('--> statement-breakpoint')) {
+            if (statement.trim()) await tx.unsafe(statement);
+          }
+          const locks = await tx<{ relname: string; mode: string }[]>`
           select c.relname, l.mode
           from pg_locks l join pg_class c on c.oid = l.relation
           where l.pid = pg_backend_pid() and l.granted
             and c.relname in ('posts', 'federated_actors', 'federated_follows')
         `;
-        const checks = await tx<{ conname: string; convalidated: boolean }[]>`
+          const checks = await tx<{ conname: string; convalidated: boolean }[]>`
           select conname, convalidated from pg_constraint
           where conname in ('federated_actors_protocol_check', 'federated_follows_network_check',
                             'federated_actors_instagram_graph_last_result_check')
         `;
-        throw Object.assign(new Error('rollback'), { measured: { locks: [...locks], checks: [...checks] } });
-      }).catch((err: { measured?: unknown }) => {
-        if (!err.measured) throw err;
-        return err.measured as { locks: { relname: string; mode: string }[]; checks: { conname: string; convalidated: boolean }[] };
-      });
+          throw Object.assign(new Error('rollback'), {
+            measured: { locks: [...locks], checks: [...checks] },
+          });
+        })
+        .catch((err: { measured?: unknown }) => {
+          if (!err.measured) throw err;
+          return err.measured as {
+            locks: { relname: string; mode: string }[];
+            checks: { conname: string; convalidated: boolean }[];
+          };
+        });
 
-      const postsLocks = measured.locks.filter((lock) => lock.relname === 'posts').map((lock) => lock.mode);
+      const postsLocks = measured.locks
+        .filter((lock) => lock.relname === 'posts')
+        .map((lock) => lock.mode);
       expect(postsLocks.length).toBeGreaterThan(0);
       expect(postsLocks.filter((mode) => !READ_COMPATIBLE.has(mode))).toEqual([]);
 

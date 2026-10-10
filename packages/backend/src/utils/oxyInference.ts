@@ -1,4 +1,8 @@
-import { OxyInferenceClient, type OxyInferenceResponse, type OxyResponsesRequest } from '@oxy.so/core/inference';
+import {
+  OxyInferenceClient,
+  type OxyInferenceResponse,
+  type OxyResponsesRequest,
+} from '@oxy.so/core/inference';
 import type { InferenceMessage } from '@oxy.so/contracts';
 import { config } from '../config';
 import { canAuthenticateAsService } from '../runtime/serviceIdentity';
@@ -78,12 +82,14 @@ export async function inferenceChat(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.inference.timeoutMs);
   try {
-    return textFromResponse(await client().respond(request, {
-      signal: controller.signal,
-      ...(options.delegatedUserId === undefined
-        ? {}
-        : { delegatedUserId: options.delegatedUserId }),
-    }));
+    return textFromResponse(
+      await client().respond(request, {
+        signal: controller.signal,
+        ...(options.delegatedUserId === undefined
+          ? {}
+          : { delegatedUserId: options.delegatedUserId }),
+      }),
+    );
   } finally {
     clearTimeout(timeout);
   }

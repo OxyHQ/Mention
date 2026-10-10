@@ -32,7 +32,11 @@ describe('extractApQuoteUri', () => {
   it('reads a FEP-e232 `Link` quote tag by the misskey quote rel', () => {
     const object = {
       tag: [
-        { type: 'Mention', href: 'https://bsky.brid.gy/ap/did:plc:someone', name: '@a@bsky.brid.gy' },
+        {
+          type: 'Mention',
+          href: 'https://bsky.brid.gy/ap/did:plc:someone',
+          name: '@a@bsky.brid.gy',
+        },
         {
           type: 'Link',
           mediaType: 'application/activity+json',

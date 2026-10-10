@@ -147,7 +147,8 @@ const sharedContentAffinityService = new ContentAffinityService();
 function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
-    eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+    eq(posts.status, 'published'),
+    notCollapsedCrosspostSql(),
     gte(posts.createdAt, since),
     eq(posts.isReply, false),
     notABoostSql(),
@@ -203,7 +204,10 @@ function withDiscoveryGuards(conditions: SQL[], params: GatherForYouCandidatesPa
  * its author a PERMANENT exemption from the filter. Same self-reinforcing shape
  * as the learned `preferredLanguages` array this replaced, one level up.
  */
-function withViewerLanguage(conditions: SQL[], viewerLanguages: readonly string[] | undefined): SQL[] {
+function withViewerLanguage(
+  conditions: SQL[],
+  viewerLanguages: readonly string[] | undefined,
+): SQL[] {
   const language = viewerLanguageSql(viewerLanguages);
   return language ? [...conditions, language] : conditions;
 }
@@ -222,11 +226,7 @@ function toUnassembledCandidates(rows: readonly (typeof posts.$inferSelect)[]): 
 }
 
 /** Run a bounded source query; soft-fail to `[]` so one bad source never sinks the feed. */
-async function runSource(
-  label: string,
-  conditions: SQL[],
-  cap: number,
-): Promise<CandidatePost[]> {
+async function runSource(label: string, conditions: SQL[], cap: number): Promise<CandidatePost[]> {
   try {
     const db = getDb();
     const rows = await db
@@ -261,15 +261,16 @@ async function runSource(
  * already-followed authors removed (FOLLOWING covers those), clamped to the
  * `maxAuthorIds` cap. Soft-fails the affinity-service call to an empty set.
  */
-async function resolveAffinityAuthorIds(
-  params: GatherForYouCandidatesParams,
-): Promise<string[]> {
+async function resolveAffinityAuthorIds(params: GatherForYouCandidatesParams): Promise<string[]> {
   const cfg = MtnConfig.feed.candidateSources;
   const followingSet = new Set(params.followingIds);
   const ids = new Set<string>();
 
   const preferred = (params.userBehavior?.preferredAuthors ?? [])
-    .filter((a): a is { authorId: string; weight?: number } => typeof a.authorId === 'string' && a.authorId.length > 0)
+    .filter(
+      (a): a is { authorId: string; weight?: number } =>
+        typeof a.authorId === 'string' && a.authorId.length > 0,
+    )
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
     .slice(0, cfg.maxPreferredAuthors);
   for (const a of preferred) {
@@ -288,7 +289,10 @@ async function resolveAffinityAuthorIds(
       }
     }
   } catch (error) {
-    logger.warn('[ForYouCandidates] affinity-service candidates failed; using preferredAuthors only', error);
+    logger.warn(
+      '[ForYouCandidates] affinity-service candidates failed; using preferredAuthors only',
+      error,
+    );
   }
 
   return Array.from(ids).slice(0, cfg.maxAuthorIds);
@@ -318,7 +322,10 @@ function resolveSubscribedListIds(params: GatherForYouCandidatesParams): string[
 /** Preferred topic slugs (by descending weight), clamped. */
 function resolvePreferredTopics(params: GatherForYouCandidatesParams): string[] {
   return (params.userBehavior?.preferredTopics ?? [])
-    .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
+    .filter(
+      (t): t is { topic: string; weight?: number } =>
+        typeof t.topic === 'string' && t.topic.length > 0,
+    )
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
     .slice(0, MtnConfig.feed.candidateSources.maxPreferredTopics)
     .map((t) => t.topic);
@@ -334,13 +341,18 @@ function resolveRegion(params: GatherForYouCandidatesParams): string | undefined
 // --- Individual candidate lanes (each self-contained; wrapped by engine sources). ---
 
 /** FOLLOWING: posts from followed authors (sensitive allowed at query level). */
-export async function gatherFollowingLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherFollowingLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const followingIds = resolveFollowingIds(params);
   if (followingIds.length === 0) return [];
   return runSource(
     'following',
     withViewerLanguage(
-      [...buildBaseConditions(params.seenPostIds, recencyStart()), followedAuthorsSql(followingIds)],
+      [
+        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        followedAuthorsSql(followingIds),
+      ],
       params.viewerLanguages,
     ),
     MtnConfig.feed.candidateSources.perSource.following,
@@ -348,7 +360,9 @@ export async function gatherFollowingLane(params: GatherForYouCandidatesParams):
 }
 
 /** SUBSCRIBED LISTS: public posts from list authors only (feed-inclusion, not follow). */
-export async function gatherSubscribedListsLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherSubscribedListsLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const subscribedListMemberIds = resolveSubscribedListIds(params);
   if (subscribedListMemberIds.length === 0) return [];
   return runSource(
@@ -370,7 +384,9 @@ export async function gatherSubscribedListsLane(params: GatherForYouCandidatesPa
  * Language-filtered, unlike the other two lanes the engine marks `trusted` — see
  * {@link withViewerLanguage} for why.
  */
-export async function gatherAffinityLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherAffinityLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
   if (affinityAuthorIds.length === 0) return [];
   return runSource(
@@ -392,29 +408,39 @@ export async function gatherAffinityLane(params: GatherForYouCandidatesParams): 
  * ANY-overlap over the `classification_topics` array — `&&` is the direct
  * analogue of Mongo's `$in` against a multikey array field.
  */
-export async function gatherTopicsLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherTopicsLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const preferredTopics = resolvePreferredTopics(params);
   if (preferredTopics.length === 0) return [];
   return runSource(
     'topics',
-    withDiscoveryGuards([
-      ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      arrayOverlaps(posts.classificationTopics, preferredTopics),
-    ], params),
+    withDiscoveryGuards(
+      [
+        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        arrayOverlaps(posts.classificationTopics, preferredTopics),
+      ],
+      params,
+    ),
     MtnConfig.feed.candidateSources.perSource.topics,
   );
 }
 
 /** REGION (DISCOVERY): region match, sensitive excluded (SFW). */
-export async function gatherRegionLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherRegionLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const region = resolveRegion(params);
   if (!region) return [];
   return runSource(
     'region',
-    withDiscoveryGuards([
-      ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      eq(posts.classificationRegion, region),
-    ], params),
+    withDiscoveryGuards(
+      [
+        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        eq(posts.classificationRegion, region),
+      ],
+      params,
+    ),
     MtnConfig.feed.candidateSources.perSource.region,
   );
 }
@@ -428,7 +454,9 @@ export async function gatherRegionLane(params: GatherForYouCandidatesParams): Pr
  * which the federated boost subset is dampened, so a burst of remote Announces
  * no longer fakes a trending post.
  */
-export async function gatherTrendingLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherTrendingLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
   try {
     const db = getDb();
@@ -453,7 +481,9 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
 }
 
 /** GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded (SFW). */
-export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
+export async function gatherGlobalLane(
+  params: GatherForYouCandidatesParams,
+): Promise<CandidatePost[]> {
   return runSource(
     'global',
     withDiscoveryGuards(buildBaseConditions(params.seenPostIds, recencyStart()), params),
@@ -478,15 +508,16 @@ export async function gatherForYouCandidates(
 ): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
 
-  const [following, subscribedLists, affinity, topics, regionPosts, trending, global] = await Promise.all([
-    gatherFollowingLane(params),
-    gatherSubscribedListsLane(params),
-    gatherAffinityLane(params),
-    gatherTopicsLane(params),
-    gatherRegionLane(params),
-    gatherTrendingLane(params),
-    gatherGlobalLane(params),
-  ]);
+  const [following, subscribedLists, affinity, topics, regionPosts, trending, global] =
+    await Promise.all([
+      gatherFollowingLane(params),
+      gatherSubscribedListsLane(params),
+      gatherAffinityLane(params),
+      gatherTopicsLane(params),
+      gatherRegionLane(params),
+      gatherTrendingLane(params),
+      gatherGlobalLane(params),
+    ]);
 
   // Merge order = priority: TRUSTED (the viewer's chosen following/affinity
   // content) first, then DISCOVERY. A full `maxPool` clamp therefore keeps the

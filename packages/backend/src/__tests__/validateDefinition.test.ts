@@ -35,9 +35,17 @@ describe('validateDefinition', () => {
     if (!result.valid) return;
     expect(result.definition.mode).toBe('ranked');
     // Only the whitelisted ref keys survive.
-    expect(Object.keys(result.definition.sources[0]).sort()).toEqual(['enabled', 'module', 'params']);
+    expect(Object.keys(result.definition.sources[0]).sort()).toEqual([
+      'enabled',
+      'module',
+      'params',
+    ]);
     expect(result.definition.sources[0]).not.toHaveProperty('junk');
-    expect(result.definition.signals[0]).toMatchObject({ module: 'engagement', enabled: true, weight: 2 });
+    expect(result.definition.signals[0]).toMatchObject({
+      module: 'engagement',
+      enabled: true,
+      weight: 2,
+    });
   });
 
   it('accepts a chronological keyword feed', () => {

@@ -19,7 +19,9 @@ jest.mock('@expo/vector-icons/Ionicons', () => {
   return {
     __esModule: true,
     default: (props: Record<string, unknown>) => (
-      <MockText {...props} testID="glyph">{''}</MockText>
+      <MockText {...props} testID="glyph">
+        {''}
+      </MockText>
     ),
   };
 });

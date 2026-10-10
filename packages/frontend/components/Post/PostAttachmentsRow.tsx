@@ -1,5 +1,13 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  GestureResponderEvent,
+  Dimensions,
+  Platform,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { oxyServices } from '@/lib/oxyServices';
 import type {
   HydratedPostSummary,
@@ -30,7 +38,11 @@ import {
   type MeasuredRect,
 } from '@oxy.so/bloom/zoomable-media-gallery';
 import { useMediaFlight } from '@oxy.so/bloom/media-flight';
-import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import {
+  holdAcrossTransition,
+  peekVideoPlayer,
+  videoPlayerKey,
+} from '@/stores/videoPlayerRegistry';
 import { measurePanelSurface } from '@/components/shell/panelSurface';
 import { createLogger } from '@oxy.so/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
@@ -80,9 +92,21 @@ interface Props {
   postId?: string;
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
-  event?: { eventId?: string; name: string; date: string; location?: string; description?: string } | null;
+  event?: {
+    eventId?: string;
+    name: string;
+    date: string;
+    location?: string;
+    description?: string;
+  } | null;
   onEventPress?: (() => void) | null;
-  room?: { roomId: string; title: string; status?: 'scheduled' | 'live' | 'ended'; topic?: string; host?: string } | null;
+  room?: {
+    roomId: string;
+    title: string;
+    status?: 'scheduled' | 'live' | 'ended';
+    topic?: string;
+    host?: string;
+  } | null;
   onRoomPress?: (() => void) | null;
   podcast?: PostPodcastContent | null;
   /** Denormalized Mention job attachment — see `PostJobContent`. */
@@ -113,10 +137,47 @@ type AttachmentItem =
   | { type: 'room' }
   | { type: 'podcast' }
   | { type: 'job' }
-  | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string; embedParams?: EmbedPlayerParams }
-  | { type: 'video'; mediaId: string; src: string; fallbackSrc?: string; poster?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square'; durationSec?: number }
-  | { type: 'gif'; mediaId: string; src: string; width?: number; height?: number; aspectRatio?: number }
-  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square' };
+  | {
+      type: 'link';
+      url: string;
+      title?: string;
+      description?: string;
+      image?: string;
+      siteName?: string;
+      embedParams?: EmbedPlayerParams;
+    }
+  | {
+      type: 'video';
+      mediaId: string;
+      src: string;
+      fallbackSrc?: string;
+      poster?: string;
+      width?: number;
+      height?: number;
+      aspectRatio?: number;
+      orientation?: 'portrait' | 'landscape' | 'square';
+      durationSec?: number;
+    }
+  | {
+      type: 'gif';
+      mediaId: string;
+      src: string;
+      width?: number;
+      height?: number;
+      aspectRatio?: number;
+    }
+  | {
+      type: 'image';
+      mediaId: string;
+      src: string;
+      fullSrc: string;
+      mediaType: 'image' | 'gif';
+      alt?: string;
+      width?: number;
+      height?: number;
+      aspectRatio?: number;
+      orientation?: 'portrait' | 'landscape' | 'square';
+    };
 
 /**
  * Compare the fields rendered by a card, including metadata arriving after its
@@ -127,10 +188,14 @@ const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]):
   const prev = a ?? [];
   const next = b ?? [];
   if (prev.length !== next.length) return false;
-  return prev.every((preview, index) =>
-    preview.canonicalUrl === next[index].canonicalUrl && preview.requestedUrl === next[index].requestedUrl
-    && preview.title === next[index].title && preview.description === next[index].description
-    && preview.imageUrl === next[index].imageUrl && preview.publisher === next[index].publisher,
+  return prev.every(
+    (preview, index) =>
+      preview.canonicalUrl === next[index].canonicalUrl &&
+      preview.requestedUrl === next[index].requestedUrl &&
+      preview.title === next[index].title &&
+      preview.description === next[index].description &&
+      preview.imageUrl === next[index].imageUrl &&
+      preview.publisher === next[index].publisher,
   );
 };
 
@@ -141,7 +206,9 @@ function normalizedLinkUrl(url: string): string {
     const parsed = new URL(url);
     parsed.hash = ''; // A document preview is shared by anchors within the page.
     return parsed.href;
-  } catch { return url; }
+  } catch {
+    return url;
+  }
 }
 
 /** The one height every item of a multi-item row shares. */
@@ -157,817 +224,917 @@ const TALL_ROW_HEIGHT = 264;
  */
 const FLIGHT_STEP_TIMEOUT_MS = 250;
 
-const PostAttachmentsRow: React.FC<Props> = React.memo(({
-  media,
-  attachments,
-  nestedPost,
-  leftOffset = 0,
-  pollId,
-  pollData,
-  nestingDepth = 0,
-  postId,
-  article,
-  onArticlePress,
-  event,
-  onEventPress,
-  room,
-  onRoomPress,
-  podcast,
-  job,
-  text,
-  documents,
-  sensitive,
-  style
-}) => {
-  const router = useRouter();
-  // The legacy media-URL fallback (old cached DTOs without server-resolved
-  // URLs) needs only the app's one OxyServices instance — the same object
-  // OxyProvider holds — not a subscription to the whole auth context, which
-  // re-rendered every mounted attachment row on any session change (#1103).
-  // Per-provider external-embed prefs, read once (selector) so the link branch
-  // can decide between the inline player and the static card without a hook in
-  // the render loop.
-  const embedPrefs = useExternalEmbedsStore((state) => state.prefs);
+const PostAttachmentsRow: React.FC<Props> = React.memo(
+  ({
+    media,
+    attachments,
+    nestedPost,
+    leftOffset = 0,
+    pollId,
+    pollData,
+    nestingDepth = 0,
+    postId,
+    article,
+    onArticlePress,
+    event,
+    onEventPress,
+    room,
+    onRoomPress,
+    podcast,
+    job,
+    text,
+    documents,
+    sensitive,
+    style,
+  }) => {
+    const router = useRouter();
+    // The legacy media-URL fallback (old cached DTOs without server-resolved
+    // URLs) needs only the app's one OxyServices instance — the same object
+    // OxyProvider holds — not a subscription to the whole auth context, which
+    // re-rendered every mounted attachment row on any session change (#1103).
+    // Per-provider external-embed prefs, read once (selector) so the link branch
+    // can decide between the inline player and the static card without a hook in
+    // the render loop.
+    const embedPrefs = useExternalEmbedsStore((state) => state.prefs);
 
-  const mediaArray = useMemo(() => Array.isArray(media) ? media : [], [media]);
-  const attachmentDescriptors = useMemo(() => Array.isArray(attachments) ? attachments : [], [attachments]);
+    const mediaArray = useMemo(() => (Array.isArray(media) ? media : []), [media]);
+    const attachmentDescriptors = useMemo(
+      () => (Array.isArray(attachments) ? attachments : []),
+      [attachments],
+    );
 
-  const hasPoll = useMemo(() => Boolean(pollId || pollData), [pollId, pollData]);
-  const hasArticle = useMemo(() => Boolean(article && ((article.title?.trim?.() || article.body?.trim?.()))), [article]);
-  const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
-  const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
-  const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
-  const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
-  const linkItems = useMemo<AttachmentItem[]>(() => {
-    const resolved = (documents ?? []).filter((document) => Boolean(document?.canonicalUrl));
-    const byUrl = new Map<string, ClarityDocument>();
-    for (const document of resolved) {
-      byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
-      if (document.requestedUrl) byUrl.set(normalizedLinkUrl(document.requestedUrl), document);
-    }
-    // The cap precedes the profile filter, matching hydration and the composer.
-    const sourceUrls = extractUrls(text ?? '').slice(0, MAX_POST_DOCUMENTS)
-      .filter((url) => ownProfileLinkHandle(url) === undefined);
-    const seen = new Set<string>();
-    const cards: AttachmentItem[] = [];
-    for (const sourceUrl of [...sourceUrls, ...resolved.map((document) => document.canonicalUrl)]) {
-      const document = byUrl.get(normalizedLinkUrl(sourceUrl));
-      const url = document?.canonicalUrl ?? sourceUrl;
-      const key = normalizedLinkUrl(url);
-      if (seen.has(key) || cards.length >= MAX_POST_DOCUMENTS) continue;
-      seen.add(key);
-      // A source link is actionable even when indexing has not produced any
-      // metadata. Only Clarity documents supply article titles and cover images.
-      cards.push({
-        type: 'link', url, title: document?.title, description: document?.description,
-        image: document?.imageUrl, siteName: document?.publisher,
-        embedParams: parseEmbedPlayerFromUrl(url),
-      });
-    }
-    return cards;
-  }, [text, documents]);
-
-  // Resolve a media reference to a final render URL for a given context:
-  //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
-  //  - `large`: the fullscreen lightbox image (server `fullUrl`, falling back to
-  //    `url`) — a larger variant than the thumb, NOT the raw original.
-  //  - `playable`: the video source (server `url`).
-  // Prefers the server-resolved final URLs; the legacy client resolver is only a
-  // fallback for old in-memory/cached responses missing the new fields, and it
-  // requests the SAME variant the server now uses for that context so the two
-  // paths agree (the `MEDIA_VARIANT_*` taxonomy in `@mention/shared-types`).
-  const resolveMediaSrc = useCallback((mediaItem: MediaObj, context: 'thumb' | 'large' | 'playable') => {
-    const isGif = mediaItem.type === 'gif';
-    if (context === 'playable') {
-      const serverUrl = mediaItem.url || mediaItem.thumbUrl;
-      if (serverUrl) return serverUrl;
-    } else if (isGif) {
-      // GIFs animate only at the no-variant original; the thumb/full image
-      // variants are static first-frame webp. Prefer the original for every
-      // display context (card + lightbox).
-      const serverUrl = mediaItem.url || mediaItem.fullUrl || mediaItem.thumbUrl;
-      if (serverUrl) return serverUrl;
-    } else if (context === 'large') {
-      const serverUrl = mediaItem.fullUrl || mediaItem.url || mediaItem.thumbUrl;
-      if (serverUrl) return serverUrl;
-    } else {
-      const serverUrl = mediaItem.thumbUrl || mediaItem.url;
-      if (serverUrl) return serverUrl;
-    }
-    const id = String(mediaItem.id || '');
-    if (!id) return '';
-    const fallbackVariant = (context === 'playable' || isGif)
-      ? undefined
-      : (context === 'large' ? MEDIA_VARIANT_FULL : MEDIA_VARIANT_THUMB);
-    try {
-      return getCachedFileDownloadUrlSync(oxyServices, id, fallbackVariant);
-    } catch {
-      return id;
-    }
-  }, []);
-
-  const attachmentItems = useMemo(() => {
-    const results: AttachmentItem[] = [];
-    const mediaById = new Map<string, MediaObj>();
-    const usedMedia = new Set<string>();
-
-    mediaArray.forEach((m) => {
-      if (m?.id) {
-        mediaById.set(String(m.id), m);
+    const hasPoll = useMemo(() => Boolean(pollId || pollData), [pollId, pollData]);
+    const hasArticle = useMemo(
+      () => Boolean(article && (article.title?.trim?.() || article.body?.trim?.())),
+      [article],
+    );
+    const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
+    const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
+    const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
+    const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
+    const linkItems = useMemo<AttachmentItem[]>(() => {
+      const resolved = (documents ?? []).filter((document) => Boolean(document?.canonicalUrl));
+      const byUrl = new Map<string, ClarityDocument>();
+      for (const document of resolved) {
+        byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
+        if (document.requestedUrl) byUrl.set(normalizedLinkUrl(document.requestedUrl), document);
       }
-    });
+      // The cap precedes the profile filter, matching hydration and the composer.
+      const sourceUrls = extractUrls(text ?? '')
+        .slice(0, MAX_POST_DOCUMENTS)
+        .filter((url) => ownProfileLinkHandle(url) === undefined);
+      const seen = new Set<string>();
+      const cards: AttachmentItem[] = [];
+      for (const sourceUrl of [
+        ...sourceUrls,
+        ...resolved.map((document) => document.canonicalUrl),
+      ]) {
+        const document = byUrl.get(normalizedLinkUrl(sourceUrl));
+        const url = document?.canonicalUrl ?? sourceUrl;
+        const key = normalizedLinkUrl(url);
+        if (seen.has(key) || cards.length >= MAX_POST_DOCUMENTS) continue;
+        seen.add(key);
+        // A source link is actionable even when indexing has not produced any
+        // metadata. Only Clarity documents supply article titles and cover images.
+        cards.push({
+          type: 'link',
+          url,
+          title: document?.title,
+          description: document?.description,
+          image: document?.imageUrl,
+          siteName: document?.publisher,
+          embedParams: parseEmbedPlayerFromUrl(url),
+        });
+      }
+      return cards;
+    }, [text, documents]);
 
-    const addMediaItem = (mediaId: string, explicitType?: 'image' | 'video' | 'gif') => {
-      const id = String(mediaId || '');
-      if (!id || usedMedia.has(id)) return;
-      const mediaItem = mediaById.get(id);
-      if (!mediaItem) return;
-      usedMedia.add(id);
-      const resolvedType = explicitType || mediaItem.type || 'image';
-      const persistedDims = {
-        ...(mediaItem.width !== undefined ? { width: mediaItem.width } : {}),
-        ...(mediaItem.height !== undefined ? { height: mediaItem.height } : {}),
-        ...(mediaItem.aspectRatio !== undefined ? { aspectRatio: mediaItem.aspectRatio } : {}),
-        ...(mediaItem.orientation !== undefined ? { orientation: mediaItem.orientation } : {}),
-        ...(mediaItem.durationSec !== undefined ? { durationSec: mediaItem.durationSec } : {}),
-      };
-      if (resolvedType === 'video') {
-        const original = resolveMediaSrc(mediaItem, 'playable');
-        if (!original) return;
-        // Native plays the adaptive stream when the server has one — the same
-        // preference as the reel, so a flight into it carries the same source —
-        // and falls back to the original once if the stream fails. Web keeps the
-        // original: browsers other than Safari cannot play our HLS ladder.
-        const hls = Platform.OS !== 'web' ? mediaItem.hlsUrl : undefined;
-        const src = hls || original;
-        const fallbackSrc = hls ? original : undefined;
-        // Poster: prefer the server-resolved final `posterUrl`; fall back to the
-        // legacy client resolver from the RAW media id when absent (old data).
-        const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
-        results.push({ type: 'video', mediaId: id, src, fallbackSrc, poster, ...persistedDims });
-      } else if (resolvedType === 'gif') {
-        // Federated gifs carry an absolute http URL as their media id — a <video>
-        // can't play a remote `.gif`, so keep the animated-gif image render (via
-        // the proxy). Native gifs are an Oxy fileId pointing at an mp4: render an
-        // inline looping muted video (≈10–20× smaller, hardware-decoded).
-        if (/^https?:\/\//i.test(id)) {
+    // Resolve a media reference to a final render URL for a given context:
+    //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
+    //  - `large`: the fullscreen lightbox image (server `fullUrl`, falling back to
+    //    `url`) — a larger variant than the thumb, NOT the raw original.
+    //  - `playable`: the video source (server `url`).
+    // Prefers the server-resolved final URLs; the legacy client resolver is only a
+    // fallback for old in-memory/cached responses missing the new fields, and it
+    // requests the SAME variant the server now uses for that context so the two
+    // paths agree (the `MEDIA_VARIANT_*` taxonomy in `@mention/shared-types`).
+    const resolveMediaSrc = useCallback(
+      (mediaItem: MediaObj, context: 'thumb' | 'large' | 'playable') => {
+        const isGif = mediaItem.type === 'gif';
+        if (context === 'playable') {
+          const serverUrl = mediaItem.url || mediaItem.thumbUrl;
+          if (serverUrl) return serverUrl;
+        } else if (isGif) {
+          // GIFs animate only at the no-variant original; the thumb/full image
+          // variants are static first-frame webp. Prefer the original for every
+          // display context (card + lightbox).
+          const serverUrl = mediaItem.url || mediaItem.fullUrl || mediaItem.thumbUrl;
+          if (serverUrl) return serverUrl;
+        } else if (context === 'large') {
+          const serverUrl = mediaItem.fullUrl || mediaItem.url || mediaItem.thumbUrl;
+          if (serverUrl) return serverUrl;
+        } else {
+          const serverUrl = mediaItem.thumbUrl || mediaItem.url;
+          if (serverUrl) return serverUrl;
+        }
+        const id = String(mediaItem.id || '');
+        if (!id) return '';
+        const fallbackVariant =
+          context === 'playable' || isGif
+            ? undefined
+            : context === 'large'
+              ? MEDIA_VARIANT_FULL
+              : MEDIA_VARIANT_THUMB;
+        try {
+          return getCachedFileDownloadUrlSync(oxyServices, id, fallbackVariant);
+        } catch {
+          return id;
+        }
+      },
+      [],
+    );
+
+    const attachmentItems = useMemo(() => {
+      const results: AttachmentItem[] = [];
+      const mediaById = new Map<string, MediaObj>();
+      const usedMedia = new Set<string>();
+
+      mediaArray.forEach((m) => {
+        if (m?.id) {
+          mediaById.set(String(m.id), m);
+        }
+      });
+
+      const addMediaItem = (mediaId: string, explicitType?: 'image' | 'video' | 'gif') => {
+        const id = String(mediaId || '');
+        if (!id || usedMedia.has(id)) return;
+        const mediaItem = mediaById.get(id);
+        if (!mediaItem) return;
+        usedMedia.add(id);
+        const resolvedType = explicitType || mediaItem.type || 'image';
+        const persistedDims = {
+          ...(mediaItem.width !== undefined ? { width: mediaItem.width } : {}),
+          ...(mediaItem.height !== undefined ? { height: mediaItem.height } : {}),
+          ...(mediaItem.aspectRatio !== undefined ? { aspectRatio: mediaItem.aspectRatio } : {}),
+          ...(mediaItem.orientation !== undefined ? { orientation: mediaItem.orientation } : {}),
+          ...(mediaItem.durationSec !== undefined ? { durationSec: mediaItem.durationSec } : {}),
+        };
+        if (resolvedType === 'video') {
+          const original = resolveMediaSrc(mediaItem, 'playable');
+          if (!original) return;
+          // Native plays the adaptive stream when the server has one — the same
+          // preference as the reel, so a flight into it carries the same source —
+          // and falls back to the original once if the stream fails. Web keeps the
+          // original: browsers other than Safari cannot play our HLS ladder.
+          const hls = Platform.OS !== 'web' ? mediaItem.hlsUrl : undefined;
+          const src = hls || original;
+          const fallbackSrc = hls ? original : undefined;
+          // Poster: prefer the server-resolved final `posterUrl`; fall back to the
+          // legacy client resolver from the RAW media id when absent (old data).
+          const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
+          results.push({ type: 'video', mediaId: id, src, fallbackSrc, poster, ...persistedDims });
+        } else if (resolvedType === 'gif') {
+          // Federated gifs carry an absolute http URL as their media id — a <video>
+          // can't play a remote `.gif`, so keep the animated-gif image render (via
+          // the proxy). Native gifs are an Oxy fileId pointing at an mp4: render an
+          // inline looping muted video (≈10–20× smaller, hardware-decoded).
+          if (/^https?:\/\//i.test(id)) {
+            const src = resolveMediaSrc(mediaItem, 'thumb');
+            if (!src) return;
+            const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
+            results.push({
+              type: 'image',
+              mediaId: id,
+              src,
+              fullSrc,
+              mediaType: 'gif',
+              ...persistedDims,
+            });
+          } else {
+            const src = resolveMediaSrc(mediaItem, 'playable');
+            if (!src) return;
+            results.push({ type: 'gif', mediaId: id, src, ...persistedDims });
+          }
+        } else {
+          // Thumbnail for the in-feed card; a larger variant for the lightbox so
+          // opening fullscreen upgrades the image instead of reusing the thumb.
           const src = resolveMediaSrc(mediaItem, 'thumb');
           if (!src) return;
           const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
-          results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'gif', ...persistedDims });
-        } else {
-          const src = resolveMediaSrc(mediaItem, 'playable');
-          if (!src) return;
-          results.push({ type: 'gif', mediaId: id, src, ...persistedDims });
+          const alt =
+            typeof mediaItem.alt === 'string' && mediaItem.alt.trim() ? mediaItem.alt : undefined;
+          results.push({
+            type: 'image',
+            mediaId: id,
+            src,
+            fullSrc,
+            mediaType: 'image',
+            alt,
+            ...persistedDims,
+          });
         }
-      } else {
-        // Thumbnail for the in-feed card; a larger variant for the lightbox so
-        // opening fullscreen upgrades the image instead of reusing the thumb.
-        const src = resolveMediaSrc(mediaItem, 'thumb');
-        if (!src) return;
-        const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
-        const alt = typeof mediaItem.alt === 'string' && mediaItem.alt.trim() ? mediaItem.alt : undefined;
-        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image', alt, ...persistedDims });
-      }
-    };
+      };
 
-    if (attachmentDescriptors.length) {
-      attachmentDescriptors.forEach((descriptor) => {
-        if (!descriptor) return;
-        switch (descriptor.type) {
-          case 'poll':
-            if (hasPoll && !results.some(item => item.type === 'poll')) {
-              results.push({ type: 'poll' });
-            }
-            break;
-          case 'article':
-            if (hasArticle && !results.some(item => item.type === 'article')) {
-              results.push({ type: 'article' });
-            }
-            break;
-          case 'event':
-            if (hasEvent && !results.some(item => item.type === 'event')) {
-              results.push({ type: 'event' });
-            }
-            break;
-          case 'room':
-            if (hasRoom && !results.some(item => item.type === 'room')) {
-              results.push({ type: 'room' });
-            }
-            break;
-          case 'podcast':
-            if (hasPodcast && !results.some(item => item.type === 'podcast')) {
-              results.push({ type: 'podcast' });
-            }
-            break;
-          case 'job':
-            if (hasJob && !results.some(item => item.type === 'job')) {
-              results.push({ type: 'job' });
-            }
-            break;
-          case 'media':
-            if (descriptor.id) {
-              addMediaItem(descriptor.id, descriptor.mediaType);
-            }
-            break;
-          default:
-            break;
-        }
-      });
-    } else {
-      if (hasPoll) results.push({ type: 'poll' });
-      if (hasArticle) results.push({ type: 'article' });
-      if (hasEvent) results.push({ type: 'event' });
-      if (hasRoom) results.push({ type: 'room' });
-      if (hasPodcast) results.push({ type: 'podcast' });
-      if (hasJob) results.push({ type: 'job' });
-      results.push(...linkItems);
-    }
-
-    mediaArray.forEach((m) => {
-      if (!m?.id) return;
-      const id = String(m.id);
-      if (usedMedia.has(id)) return;
-      addMediaItem(id, m.type);
-    });
-
-    if (hasEvent && !results.some(item => item.type === 'event')) {
-      results.push({ type: 'event' });
-    }
-    if (hasRoom && !results.some(item => item.type === 'room')) {
-      results.push({ type: 'room' });
-    }
-    if (hasPodcast && !results.some(item => item.type === 'podcast')) {
-      results.push({ type: 'podcast' });
-    }
-    if (hasJob && !results.some(item => item.type === 'job')) {
-      results.push({ type: 'job' });
-    }
-
-    // The descriptor switch above has no `link` case, so a descriptor-driven post
-    // never picks its link cards up there — insert them all here (after the last
-    // poll/article, else before the first media), keeping their text order.
-    if (attachmentDescriptors.length && linkItems.length) {
-      let insertIdx = -1;
-      for (let i = results.length - 1; i >= 0; i--) {
-        if (results[i].type === 'poll' || results[i].type === 'article') {
-          insertIdx = i + 1;
-          break;
-        }
-      }
-      if (insertIdx === -1) {
-        const firstMediaIdx = results.findIndex(item => item.type === 'image' || item.type === 'video' || item.type === 'gif');
-        insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
-      }
-      results.splice(insertIdx, 0, ...linkItems);
-    }
-
-    return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkItems, resolveMediaSrc]);
-
-  type Item = AttachmentItem;
-
-  // The quoted post is NOT an item of the row: it is its own block, rendered
-  // below the row at the row's full width. A quote card among thumbnails would
-  // either be squeezed to their height or break the one-height rule for all of
-  // them.
-  const items: Item[] = attachmentItems;
-  const showNested = Boolean(nestedPost) && nestingDepth < 2;
-
-  const mediaItems = useMemo(() =>
-    items.filter((item): item is Extract<Item, { type: 'image' | 'video' | 'gif' }> => item.type === 'image' || item.type === 'video' || item.type === 'gif'),
-    [items]);
-
-  // Index (within `items`) of the ONE link allowed to render an inline player:
-  // the first embeddable link the viewer hasn't disabled for its provider. Every
-  // other link — embeddable or not — renders as a static preview card, so a post
-  // never shows two players. Recomputed when the items or the per-provider prefs
-  // change, so toggling a preference flips the render with no effect/state sync.
-  const primaryEmbedIndex = useMemo(
-    () => items.findIndex((item) => item.type === 'link' && canEmbed(item.embedParams, item.embedParams ? embedPrefs[item.embedParams.source] : undefined)),
-    [items, embedPrefs],
-  );
-
-  // A media cell takes the hero form only when it is the ONLY thing in the row.
-  // Derived from what the row actually HOLDS, never from a list of item types
-  // that disqualify it: such a list is wrong the moment an attachment type is
-  // added and nothing says so. It already was — `event`, `room` and `podcast`
-  // were never on it, so a video beside one of those still claimed the hero form
-  // while its neighbour was constrained to the card height.
-  const hasSingleMedia = items.length === 1 && mediaItems.length === 1;
-
-  // Every item of a multi-item row shares ONE height, so the row reads as one
-  // strip rather than a skyline. A poll or a video podcast cannot say anything
-  // useful in the standard height, so a row holding one grows for all its items.
-  const isSingleItem = items.length === 1;
-  const rowHeight = items.some((item) => item.type === 'poll' || (item.type === 'podcast' && Boolean(podcast?.episode?.videoUrl)))
-    ? TALL_ROW_HEIGHT
-    : ROW_HEIGHT;
-  const rowItemHeight = isSingleItem ? undefined : rowHeight;
-  const isTallRow = rowHeight === TALL_ROW_HEIGHT;
-  // The same two heights as classes, for the cells that take their size from
-  // layout. Literal strings: NativeWind compiles them at build time.
-  const rowCellClass = isTallRow ? 'h-[264px]' : 'h-[200px]';
-
-  const { measureAnchor, flyTo } = useMediaFlight();
-
-  // The still the flying surface shows until the destination's first frame —
-  // the same poster the row is already displaying, so the hand-off cannot flash
-  // a different image.
-  // The playable source per media, so a transition can re-acquire the exact
-  // video the row is showing rather than guessing one.
-  const mediaSrcById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of mediaItems) {
-      if (item.type === 'video') map.set(item.mediaId, item.src);
-    }
-    return map;
-  }, [mediaItems]);
-
-  const posterByMediaId = useMemo(() => {
-    const map = new Map<string, string | undefined>();
-    for (const item of mediaItems) {
-      if (item.type === 'video') map.set(item.mediaId, item.poster);
-    }
-    return map;
-  }, [mediaItems]);
-
-  // Open the fullscreen reels viewer seeded at the tapped video. The reels route
-  // selects the correct media item via the `mediaIndex` query param, so a post
-  // containing several videos (or a video among images) opens at the right one.
-  const handleVideoPress = useCallback(async (mediaId: string) => {
-    if (!postId) return;
-    const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
-    const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
-
-    // AWAIT the layer, then navigate — the order is the mechanism, not politeness.
-    // `flyTo` resolves once the flying surface has actually committed, which is
-    // what puts it in expo-video's mounted set while this row is still there;
-    // on web `_synchronizeWithFirstVideo` copies the position from the first
-    // element STILL MOUNTED, and against an empty set it silently starts at
-    // zero. Bloom resolves the promise on a short timeout too, so a video that
-    // never loads delays the push briefly instead of trapping the viewer here.
-    //
-    // Every step degrades to a plain push: no player (the row never took a
-    // lease), no anchor (virtualised away), or a media id we cannot key on all
-    // mean there is nothing to carry, not that navigation should fail.
-    const flightId = videoPlayerKey(postId, mediaId);
-    const player = peekVideoPlayer(flightId);
-    if (player) {
-      try {
-        // Take a reference for the transition itself. Between this row
-        // unmounting with its route and the reel slide mounting to take its
-        // own, NOBODY owns the player — measured, the count reaches zero in
-        // that gap and the registry does the correct thing with it, which is
-        // to destroy the video being handed over.
-        holdAcrossTransition(flightId, mediaSrcById.get(mediaId) ?? '');
-
-        // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
-        // `measureInWindow`'s callback, so a host node that never calls back —
-        // or that has no such method to begin with — leaves this awaiting for
-        // ever, and the tap that was meant to open a video does nothing at all.
-        // A transition is decoration; it must never be able to swallow the
-        // navigation it decorates, so both legs are raced and a failure of
-        // either just means no flight.
-        const from = await Promise.race([
-          measureAnchor(flightId),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), FLIGHT_STEP_TIMEOUT_MS)),
-        ]);
-        if (from) {
-          // Aim at the COLUMN the reel paints in, not at the browser window.
-          // On desktop the shell puts every route in a ~592px centre panel
-          // while the window is 1100-1920 wide, so targeting the window flew
-          // the video to 2.4x the size it lands at and then snapped it back —
-          // measured at 385ms of full-window video before the hand-off. On
-          // mobile the panel IS the window, so this is the same rect as before.
-          //
-          // Width comes from the panel and height from the window on purpose:
-          // the reel draws the full window height while the panel keeps its
-          // gutter, so neither source describes the destination alone.
-          const window = Dimensions.get('window');
-          const panel = await measurePanelSurface();
-          const destination = panel
-            ? { x: panel.x, y: 0, width: panel.width, height: window.height }
-            : { x: 0, y: 0, width: window.width, height: window.height };
-          await Promise.race([
-            flyTo(
-              flightId,
-              destination,
-              { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
-              // The reel letterboxes rather than crops, so the surface stops
-              // cropping on the way in or the picture would jump at the landing.
-              { from, contentFit: 'contain', cornerRadius: 0 },
-            ),
-            new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
-          ]);
-        }
-      } catch (error) {
-        logger.warn('Video flight skipped; opening the reel without it', { postId, mediaId, error });
-      }
-    }
-
-    router.push(`/videos${query}`);
-  }, [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId, mediaSrcById]);
-
-  // Images-only subset (in render order) powering the zoom gallery. Each entry's
-  // position is the index the gallery opens at when its thumbnail is tapped;
-  // `imageIndexByMediaId` maps a tapped media id to that position. The gallery
-  // renders `fullSrc` (a large variant) so opening fullscreen UPGRADES the image
-  // while retaining the already visible thumbnail until the large image loads.
-  const galleryImages = useMemo<GalleryImage[]>(
-    () => mediaItems
-      .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
-      .map(item => ({ uri: item.fullSrc, previewUri: item.src, alt: item.alt, aspectRatio: readMediaAspectRatio(item) })),
-    [mediaItems]
-  );
-
-  const imageIndexByMediaId = useMemo<Map<string, number>>(() => {
-    const map = new Map<string, number>();
-    let index = 0;
-    mediaItems.forEach((item) => {
-      if (item.type === 'image') {
-        map.set(item.mediaId, index);
-        index += 1;
-      }
-    });
-    return map;
-  }, [mediaItems]);
-
-  const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
-
-  // Registry of thumbnail host nodes keyed by the images-only subset index — the
-  // SAME index space the gallery opens/pages/indicator/close use. Populated via
-  // callback refs from each image thumbnail (set on mount, cleared on unmount).
-  const thumbHostsRef = useRef<Map<number, View>>(new Map());
-
-  // Stable per-index callback refs: the same index always returns the same
-  // function identity so the host ref is not detached/reattached every render.
-  const registerCallbacksRef = useRef<Map<number, RegisterThumbHost>>(new Map());
-
-  const registerThumbHost = useCallback((index: number): RegisterThumbHost => {
-    const cache = registerCallbacksRef.current;
-    const existing = cache.get(index);
-    if (existing) return existing;
-    const callback: RegisterThumbHost = (node: View | null) => {
-      if (node) {
-        thumbHostsRef.current.set(index, node);
-      } else {
-        thumbHostsRef.current.delete(index);
-      }
-    };
-    cache.set(index, callback);
-    return callback;
-  }, []);
-
-  // Measure ANY thumbnail by its images-only subset index for the close
-  // fly-back. Resolves null when the host is missing (unmounted/virtualized) so
-  // the gallery can fall back to a center fade-out.
-  const measureThumb = useCallback<MeasureThumb>((index) => {
-    return new Promise<MeasuredRect | null>((resolve) => {
-      const node = thumbHostsRef.current.get(index);
-      if (!node) {
-        resolve(null);
-        return;
-      }
-      node.measureInWindow((x, y, width, height) => {
-        if (width > 0 && height > 0) {
-          resolve({ x, y, width, height });
-        } else {
-          resolve(null);
-        }
-      });
-    });
-  }, []);
-
-  // Open the zoom gallery seeded at the tapped image's index within the
-  // images-only subset, animating from the measured thumbnail rect.
-  const handleImagePress = useCallback((mediaId: string, rect?: MeasuredRect) => {
-    if (galleryImages.length === 0) return;
-    const index = imageIndexByMediaId.get(mediaId) ?? 0;
-    galleryRef.current?.open(galleryImages, index, rect);
-  }, [galleryImages, imageIndexByMediaId]);
-
-  // Stable per-media press handler keyed by mediaId so PostAttachmentMedia's
-  // React.memo can skip a cell when the row re-renders without its media changing.
-  // The factory (and its cache) is rebuilt only when the underlying handlers
-  // change — i.e. when the media set changes — so handlers never go stale.
-  const pressHandlerByMedia = useMemo(() => {
-    const cache = new Map<string, (rect?: MeasuredRect) => void>();
-    return (mediaId: string, kind: 'video' | 'image'): ((rect?: MeasuredRect) => void) => {
-      const existing = cache.get(mediaId);
-      if (existing) return existing;
-      const handler: (rect?: MeasuredRect) => void =
-        kind === 'video'
-          ? () => handleVideoPress(mediaId)
-          : (rect?: MeasuredRect) => handleImagePress(mediaId, rect);
-      cache.set(mediaId, handler);
-      return handler;
-    };
-  }, [handleVideoPress, handleImagePress]);
-
-  const startX = useRef<number | null>(null);
-  const startY = useRef<number | null>(null);
-  const scrollViewRef = useRef<ScrollView | null>(null);
-
-  const onTouchStart = (e: GestureResponderEvent) => {
-    const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
-    if (t) {
-      startX.current = t.pageX;
-      startY.current = t.pageY;
-    }
-  };
-
-  const onMoveShouldSetResponderCapture = (e: GestureResponderEvent) => {
-    const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
-    if (!t || startX.current === null || startY.current === null) return false;
-    const dx = Math.abs(t.pageX - startX.current);
-    const dy = Math.abs(t.pageY - startY.current);
-    return dx > dy && dx > 5;
-  };
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const scrollView = scrollViewRef.current as unknown as {
-      getScrollableNode?: () => unknown;
-      _node?: unknown;
-    } | null;
-    const node = scrollView?.getScrollableNode?.() ?? scrollView?._node ?? scrollViewRef.current;
-    if (!node || typeof (node as Partial<HTMLElement>).addEventListener !== 'function') return;
-    const element = node as unknown as HTMLElement;
-
-    let isDragging = false;
-    let didDrag = false;
-    let startXPos = 0;
-    let startScrollLeft = 0;
-
-    const handleMouseDown = (event: MouseEvent) => {
-      if (event.button !== 0) return;
-      isDragging = true;
-      didDrag = false;
-      // Prevent text selection without cancelling the eventual click. Images
-      // also need dragstart cancelled: their native drag takes over mousemove.
-      event.preventDefault();
-      startXPos = event.pageX;
-      startScrollLeft = element.scrollLeft;
-      element.style.userSelect = 'none';
-    };
-
-    const stopDragging = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      element.style.removeProperty('user-select');
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!isDragging) return;
-      event.preventDefault();
-      const x = event.pageX;
-      const walk = x - startXPos;
-      if (!didDrag && Math.abs(walk) <= 5) return;
-      didDrag = true;
-      element.scrollLeft = startScrollLeft - walk;
-    };
-
-    const preventNativeDrag = (event: DragEvent) => event.preventDefault();
-    const handleClickCapture = (event: MouseEvent) => {
-      if (!didDrag || event.detail === 0) return;
-      // Stop React Native Web's Pressable (and the parent post) from treating
-      // the release of a carousel drag as a tap. Keyboard clicks still work.
-      event.preventDefault();
-      event.stopPropagation();
-      didDrag = false;
-    };
-
-    element.addEventListener('mousedown', handleMouseDown);
-    element.addEventListener('dragstart', preventNativeDrag);
-    element.addEventListener('click', handleClickCapture, true);
-    window.addEventListener('blur', stopDragging);
-    window.addEventListener('mouseup', stopDragging);
-    window.addEventListener('mousemove', handleMouseMove);
-
-    return () => {
-      element.removeEventListener('mousedown', handleMouseDown);
-      element.removeEventListener('dragstart', preventNativeDrag);
-      element.removeEventListener('click', handleClickCapture, true);
-      window.removeEventListener('blur', stopDragging);
-      window.removeEventListener('mouseup', stopDragging);
-      window.removeEventListener('mousemove', handleMouseMove);
-      element.style.removeProperty('user-select');
-    };
-  }, [items.length]);
-
-  if (items.length === 0 && !showNested) return null;
-
-  const gutterStyle = leftOffset ? { paddingLeft: Math.abs(leftOffset) } : null;
-
-  // Widths are layout's job, never JS's. An item alone in the row is laid out in
-  // a plain View and fills it (`width: '100%'`), so the first frame is already
-  // the final one — there is no measurement to wait for, and nothing to reflow
-  // when it arrives. Only a row of several items scrolls, and its cells have
-  // fixed sizes.
-  const renderItem = (item: AttachmentItem, idx: number): React.ReactNode => {
-        if (item.type === 'article') {
-          return (
-            <PostAttachmentArticle
-              key={`article-${idx}`}
-              title={article?.title?.trim()}
-              body={article?.body?.trim()}
-              onPress={onArticlePress || undefined}
-              className={isSingleItem ? 'w-full' : `w-[200px] ${rowCellClass}`}
-            />
-          );
-        }
-        if (item.type === 'event') {
-          return (
-            <PostAttachmentEvent
-              key={`event-${idx}`}
-              name={event?.name || ''}
-              date={event?.date || ''}
-              location={event?.location}
-              onPress={onEventPress || undefined}
-              className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
-            />
-          );
-        }
-        if (item.type === 'room') {
-          return (
-            <PostAttachmentRoom
-              key={`room-${idx}`}
-              roomId={room?.roomId || ''}
-              title={room?.title || ''}
-              status={room?.status}
-              topic={room?.topic}
-              host={room?.host}
-              onPress={onRoomPress || undefined}
-              className={isSingleItem ? undefined : `w-[260px] ${rowCellClass}`}
-            />
-          );
-        }
-        if (item.type === 'podcast') {
-          if (!podcast) return null;
-          return (
-            <PostPodcastAttachment
-              key={`podcast-${idx}`}
-              podcast={podcast}
-              width={isSingleItem ? '100%' : podcast.episode?.videoUrl ? 300 : 340}
-              height={rowItemHeight}
-            />
-          );
-        }
-        if (item.type === 'link') {
-          // Only the first embeddable link (and not one the viewer hid for that
-          // provider) becomes the inline external player — the post's primary
-          // media. Every other link stays a static preview card.
-          // Beside other items the player would break the one-height rule, so it
-          // is a player only when it is the row's only item.
-          if (idx === primaryEmbedIndex && isSingleItem) {
-            return (
-              <PostAttachmentExternalEmbed
-                key={`embed-${idx}`}
-                url={item.url}
-                title={item.title}
-                description={item.description}
-                image={item.image}
-                siteName={item.siteName}
-              />
-            );
+      if (attachmentDescriptors.length) {
+        attachmentDescriptors.forEach((descriptor) => {
+          if (!descriptor) return;
+          switch (descriptor.type) {
+            case 'poll':
+              if (hasPoll && !results.some((item) => item.type === 'poll')) {
+                results.push({ type: 'poll' });
+              }
+              break;
+            case 'article':
+              if (hasArticle && !results.some((item) => item.type === 'article')) {
+                results.push({ type: 'article' });
+              }
+              break;
+            case 'event':
+              if (hasEvent && !results.some((item) => item.type === 'event')) {
+                results.push({ type: 'event' });
+              }
+              break;
+            case 'room':
+              if (hasRoom && !results.some((item) => item.type === 'room')) {
+                results.push({ type: 'room' });
+              }
+              break;
+            case 'podcast':
+              if (hasPodcast && !results.some((item) => item.type === 'podcast')) {
+                results.push({ type: 'podcast' });
+              }
+              break;
+            case 'job':
+              if (hasJob && !results.some((item) => item.type === 'job')) {
+                results.push({ type: 'job' });
+              }
+              break;
+            case 'media':
+              if (descriptor.id) {
+                addMediaItem(descriptor.id, descriptor.mediaType);
+              }
+              break;
+            default:
+              break;
           }
+        });
+      } else {
+        if (hasPoll) results.push({ type: 'poll' });
+        if (hasArticle) results.push({ type: 'article' });
+        if (hasEvent) results.push({ type: 'event' });
+        if (hasRoom) results.push({ type: 'room' });
+        if (hasPodcast) results.push({ type: 'podcast' });
+        if (hasJob) results.push({ type: 'job' });
+        results.push(...linkItems);
+      }
+
+      mediaArray.forEach((m) => {
+        if (!m?.id) return;
+        const id = String(m.id);
+        if (usedMedia.has(id)) return;
+        addMediaItem(id, m.type);
+      });
+
+      if (hasEvent && !results.some((item) => item.type === 'event')) {
+        results.push({ type: 'event' });
+      }
+      if (hasRoom && !results.some((item) => item.type === 'room')) {
+        results.push({ type: 'room' });
+      }
+      if (hasPodcast && !results.some((item) => item.type === 'podcast')) {
+        results.push({ type: 'podcast' });
+      }
+      if (hasJob && !results.some((item) => item.type === 'job')) {
+        results.push({ type: 'job' });
+      }
+
+      // The descriptor switch above has no `link` case, so a descriptor-driven post
+      // never picks its link cards up there — insert them all here (after the last
+      // poll/article, else before the first media), keeping their text order.
+      if (attachmentDescriptors.length && linkItems.length) {
+        let insertIdx = -1;
+        for (let i = results.length - 1; i >= 0; i--) {
+          if (results[i].type === 'poll' || results[i].type === 'article') {
+            insertIdx = i + 1;
+            break;
+          }
+        }
+        if (insertIdx === -1) {
+          const firstMediaIdx = results.findIndex(
+            (item) => item.type === 'image' || item.type === 'video' || item.type === 'gif',
+          );
+          insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
+        }
+        results.splice(insertIdx, 0, ...linkItems);
+      }
+
+      return results;
+    }, [
+      attachmentDescriptors,
+      mediaArray,
+      hasPoll,
+      hasArticle,
+      hasEvent,
+      hasRoom,
+      hasPodcast,
+      hasJob,
+      linkItems,
+      resolveMediaSrc,
+    ]);
+
+    type Item = AttachmentItem;
+
+    // The quoted post is NOT an item of the row: it is its own block, rendered
+    // below the row at the row's full width. A quote card among thumbnails would
+    // either be squeezed to their height or break the one-height rule for all of
+    // them.
+    const items: Item[] = attachmentItems;
+    const showNested = Boolean(nestedPost) && nestingDepth < 2;
+
+    const mediaItems = useMemo(
+      () =>
+        items.filter(
+          (item): item is Extract<Item, { type: 'image' | 'video' | 'gif' }> =>
+            item.type === 'image' || item.type === 'video' || item.type === 'gif',
+        ),
+      [items],
+    );
+
+    // Index (within `items`) of the ONE link allowed to render an inline player:
+    // the first embeddable link the viewer hasn't disabled for its provider. Every
+    // other link — embeddable or not — renders as a static preview card, so a post
+    // never shows two players. Recomputed when the items or the per-provider prefs
+    // change, so toggling a preference flips the render with no effect/state sync.
+    const primaryEmbedIndex = useMemo(
+      () =>
+        items.findIndex(
+          (item) =>
+            item.type === 'link' &&
+            canEmbed(
+              item.embedParams,
+              item.embedParams ? embedPrefs[item.embedParams.source] : undefined,
+            ),
+        ),
+      [items, embedPrefs],
+    );
+
+    // A media cell takes the hero form only when it is the ONLY thing in the row.
+    // Derived from what the row actually HOLDS, never from a list of item types
+    // that disqualify it: such a list is wrong the moment an attachment type is
+    // added and nothing says so. It already was — `event`, `room` and `podcast`
+    // were never on it, so a video beside one of those still claimed the hero form
+    // while its neighbour was constrained to the card height.
+    const hasSingleMedia = items.length === 1 && mediaItems.length === 1;
+
+    // Every item of a multi-item row shares ONE height, so the row reads as one
+    // strip rather than a skyline. A poll or a video podcast cannot say anything
+    // useful in the standard height, so a row holding one grows for all its items.
+    const isSingleItem = items.length === 1;
+    const rowHeight = items.some(
+      (item) =>
+        item.type === 'poll' || (item.type === 'podcast' && Boolean(podcast?.episode?.videoUrl)),
+    )
+      ? TALL_ROW_HEIGHT
+      : ROW_HEIGHT;
+    const rowItemHeight = isSingleItem ? undefined : rowHeight;
+    const isTallRow = rowHeight === TALL_ROW_HEIGHT;
+    // The same two heights as classes, for the cells that take their size from
+    // layout. Literal strings: NativeWind compiles them at build time.
+    const rowCellClass = isTallRow ? 'h-[264px]' : 'h-[200px]';
+
+    const { measureAnchor, flyTo } = useMediaFlight();
+
+    // The still the flying surface shows until the destination's first frame —
+    // the same poster the row is already displaying, so the hand-off cannot flash
+    // a different image.
+    // The playable source per media, so a transition can re-acquire the exact
+    // video the row is showing rather than guessing one.
+    const mediaSrcById = useMemo(() => {
+      const map = new Map<string, string>();
+      for (const item of mediaItems) {
+        if (item.type === 'video') map.set(item.mediaId, item.src);
+      }
+      return map;
+    }, [mediaItems]);
+
+    const posterByMediaId = useMemo(() => {
+      const map = new Map<string, string | undefined>();
+      for (const item of mediaItems) {
+        if (item.type === 'video') map.set(item.mediaId, item.poster);
+      }
+      return map;
+    }, [mediaItems]);
+
+    // Open the fullscreen reels viewer seeded at the tapped video. The reels route
+    // selects the correct media item via the `mediaIndex` query param, so a post
+    // containing several videos (or a video among images) opens at the right one.
+    const handleVideoPress = useCallback(
+      async (mediaId: string) => {
+        if (!postId) return;
+        const mediaIndex = mediaArray.findIndex((m) => String(m?.id) === String(mediaId));
+        const query =
+          mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
+
+        // AWAIT the layer, then navigate — the order is the mechanism, not politeness.
+        // `flyTo` resolves once the flying surface has actually committed, which is
+        // what puts it in expo-video's mounted set while this row is still there;
+        // on web `_synchronizeWithFirstVideo` copies the position from the first
+        // element STILL MOUNTED, and against an empty set it silently starts at
+        // zero. Bloom resolves the promise on a short timeout too, so a video that
+        // never loads delays the push briefly instead of trapping the viewer here.
+        //
+        // Every step degrades to a plain push: no player (the row never took a
+        // lease), no anchor (virtualised away), or a media id we cannot key on all
+        // mean there is nothing to carry, not that navigation should fail.
+        const flightId = videoPlayerKey(postId, mediaId);
+        const player = peekVideoPlayer(flightId);
+        if (player) {
+          try {
+            // Take a reference for the transition itself. Between this row
+            // unmounting with its route and the reel slide mounting to take its
+            // own, NOBODY owns the player — measured, the count reaches zero in
+            // that gap and the registry does the correct thing with it, which is
+            // to destroy the video being handed over.
+            holdAcrossTransition(flightId, mediaSrcById.get(mediaId) ?? '');
+
+            // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
+            // `measureInWindow`'s callback, so a host node that never calls back —
+            // or that has no such method to begin with — leaves this awaiting for
+            // ever, and the tap that was meant to open a video does nothing at all.
+            // A transition is decoration; it must never be able to swallow the
+            // navigation it decorates, so both legs are raced and a failure of
+            // either just means no flight.
+            const from = await Promise.race([
+              measureAnchor(flightId),
+              new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), FLIGHT_STEP_TIMEOUT_MS),
+              ),
+            ]);
+            if (from) {
+              // Aim at the COLUMN the reel paints in, not at the browser window.
+              // On desktop the shell puts every route in a ~592px centre panel
+              // while the window is 1100-1920 wide, so targeting the window flew
+              // the video to 2.4x the size it lands at and then snapped it back —
+              // measured at 385ms of full-window video before the hand-off. On
+              // mobile the panel IS the window, so this is the same rect as before.
+              //
+              // Width comes from the panel and height from the window on purpose:
+              // the reel draws the full window height while the panel keeps its
+              // gutter, so neither source describes the destination alone.
+              const window = Dimensions.get('window');
+              const panel = await measurePanelSurface();
+              const destination = panel
+                ? { x: panel.x, y: 0, width: panel.width, height: window.height }
+                : { x: 0, y: 0, width: window.width, height: window.height };
+              await Promise.race([
+                flyTo(
+                  flightId,
+                  destination,
+                  { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
+                  // The reel letterboxes rather than crops, so the surface stops
+                  // cropping on the way in or the picture would jump at the landing.
+                  { from, contentFit: 'contain', cornerRadius: 0 },
+                ),
+                new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
+              ]);
+            }
+          } catch (error) {
+            logger.warn('Video flight skipped; opening the reel without it', {
+              postId,
+              mediaId,
+              error,
+            });
+          }
+        }
+
+        router.push(`/videos${query}`);
+      },
+      [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId, mediaSrcById],
+    );
+
+    // Images-only subset (in render order) powering the zoom gallery. Each entry's
+    // position is the index the gallery opens at when its thumbnail is tapped;
+    // `imageIndexByMediaId` maps a tapped media id to that position. The gallery
+    // renders `fullSrc` (a large variant) so opening fullscreen UPGRADES the image
+    // while retaining the already visible thumbnail until the large image loads.
+    const galleryImages = useMemo<GalleryImage[]>(
+      () =>
+        mediaItems
+          .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
+          .map((item) => ({
+            uri: item.fullSrc,
+            previewUri: item.src,
+            alt: item.alt,
+            aspectRatio: readMediaAspectRatio(item),
+          })),
+      [mediaItems],
+    );
+
+    const imageIndexByMediaId = useMemo<Map<string, number>>(() => {
+      const map = new Map<string, number>();
+      let index = 0;
+      mediaItems.forEach((item) => {
+        if (item.type === 'image') {
+          map.set(item.mediaId, index);
+          index += 1;
+        }
+      });
+      return map;
+    }, [mediaItems]);
+
+    const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
+
+    // Registry of thumbnail host nodes keyed by the images-only subset index — the
+    // SAME index space the gallery opens/pages/indicator/close use. Populated via
+    // callback refs from each image thumbnail (set on mount, cleared on unmount).
+    const thumbHostsRef = useRef<Map<number, View>>(new Map());
+
+    // Stable per-index callback refs: the same index always returns the same
+    // function identity so the host ref is not detached/reattached every render.
+    const registerCallbacksRef = useRef<Map<number, RegisterThumbHost>>(new Map());
+
+    const registerThumbHost = useCallback((index: number): RegisterThumbHost => {
+      const cache = registerCallbacksRef.current;
+      const existing = cache.get(index);
+      if (existing) return existing;
+      const callback: RegisterThumbHost = (node: View | null) => {
+        if (node) {
+          thumbHostsRef.current.set(index, node);
+        } else {
+          thumbHostsRef.current.delete(index);
+        }
+      };
+      cache.set(index, callback);
+      return callback;
+    }, []);
+
+    // Measure ANY thumbnail by its images-only subset index for the close
+    // fly-back. Resolves null when the host is missing (unmounted/virtualized) so
+    // the gallery can fall back to a center fade-out.
+    const measureThumb = useCallback<MeasureThumb>((index) => {
+      return new Promise<MeasuredRect | null>((resolve) => {
+        const node = thumbHostsRef.current.get(index);
+        if (!node) {
+          resolve(null);
+          return;
+        }
+        node.measureInWindow((x, y, width, height) => {
+          if (width > 0 && height > 0) {
+            resolve({ x, y, width, height });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    }, []);
+
+    // Open the zoom gallery seeded at the tapped image's index within the
+    // images-only subset, animating from the measured thumbnail rect.
+    const handleImagePress = useCallback(
+      (mediaId: string, rect?: MeasuredRect) => {
+        if (galleryImages.length === 0) return;
+        const index = imageIndexByMediaId.get(mediaId) ?? 0;
+        galleryRef.current?.open(galleryImages, index, rect);
+      },
+      [galleryImages, imageIndexByMediaId],
+    );
+
+    // Stable per-media press handler keyed by mediaId so PostAttachmentMedia's
+    // React.memo can skip a cell when the row re-renders without its media changing.
+    // The factory (and its cache) is rebuilt only when the underlying handlers
+    // change — i.e. when the media set changes — so handlers never go stale.
+    const pressHandlerByMedia = useMemo(() => {
+      const cache = new Map<string, (rect?: MeasuredRect) => void>();
+      return (mediaId: string, kind: 'video' | 'image'): ((rect?: MeasuredRect) => void) => {
+        const existing = cache.get(mediaId);
+        if (existing) return existing;
+        const handler: (rect?: MeasuredRect) => void =
+          kind === 'video'
+            ? () => handleVideoPress(mediaId)
+            : (rect?: MeasuredRect) => handleImagePress(mediaId, rect);
+        cache.set(mediaId, handler);
+        return handler;
+      };
+    }, [handleVideoPress, handleImagePress]);
+
+    const startX = useRef<number | null>(null);
+    const startY = useRef<number | null>(null);
+    const scrollViewRef = useRef<ScrollView | null>(null);
+
+    const onTouchStart = (e: GestureResponderEvent) => {
+      const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
+      if (t) {
+        startX.current = t.pageX;
+        startY.current = t.pageY;
+      }
+    };
+
+    const onMoveShouldSetResponderCapture = (e: GestureResponderEvent) => {
+      const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
+      if (!t || startX.current === null || startY.current === null) return false;
+      const dx = Math.abs(t.pageX - startX.current);
+      const dy = Math.abs(t.pageY - startY.current);
+      return dx > dy && dx > 5;
+    };
+
+    useEffect(() => {
+      if (Platform.OS !== 'web') return;
+      const scrollView = scrollViewRef.current as unknown as {
+        getScrollableNode?: () => unknown;
+        _node?: unknown;
+      } | null;
+      const node = scrollView?.getScrollableNode?.() ?? scrollView?._node ?? scrollViewRef.current;
+      if (!node || typeof (node as Partial<HTMLElement>).addEventListener !== 'function') return;
+      const element = node as unknown as HTMLElement;
+
+      let isDragging = false;
+      let didDrag = false;
+      let startXPos = 0;
+      let startScrollLeft = 0;
+
+      const handleMouseDown = (event: MouseEvent) => {
+        if (event.button !== 0) return;
+        isDragging = true;
+        didDrag = false;
+        // Prevent text selection without cancelling the eventual click. Images
+        // also need dragstart cancelled: their native drag takes over mousemove.
+        event.preventDefault();
+        startXPos = event.pageX;
+        startScrollLeft = element.scrollLeft;
+        element.style.userSelect = 'none';
+      };
+
+      const stopDragging = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        element.style.removeProperty('user-select');
+      };
+
+      const handleMouseMove = (event: MouseEvent) => {
+        if (!isDragging) return;
+        event.preventDefault();
+        const x = event.pageX;
+        const walk = x - startXPos;
+        if (!didDrag && Math.abs(walk) <= 5) return;
+        didDrag = true;
+        element.scrollLeft = startScrollLeft - walk;
+      };
+
+      const preventNativeDrag = (event: DragEvent) => event.preventDefault();
+      const handleClickCapture = (event: MouseEvent) => {
+        if (!didDrag || event.detail === 0) return;
+        // Stop React Native Web's Pressable (and the parent post) from treating
+        // the release of a carousel drag as a tap. Keyboard clicks still work.
+        event.preventDefault();
+        event.stopPropagation();
+        didDrag = false;
+      };
+
+      element.addEventListener('mousedown', handleMouseDown);
+      element.addEventListener('dragstart', preventNativeDrag);
+      element.addEventListener('click', handleClickCapture, true);
+      window.addEventListener('blur', stopDragging);
+      window.addEventListener('mouseup', stopDragging);
+      window.addEventListener('mousemove', handleMouseMove);
+
+      return () => {
+        element.removeEventListener('mousedown', handleMouseDown);
+        element.removeEventListener('dragstart', preventNativeDrag);
+        element.removeEventListener('click', handleClickCapture, true);
+        window.removeEventListener('blur', stopDragging);
+        window.removeEventListener('mouseup', stopDragging);
+        window.removeEventListener('mousemove', handleMouseMove);
+        element.style.removeProperty('user-select');
+      };
+    }, [items.length]);
+
+    if (items.length === 0 && !showNested) return null;
+
+    const gutterStyle = leftOffset ? { paddingLeft: Math.abs(leftOffset) } : null;
+
+    // Widths are layout's job, never JS's. An item alone in the row is laid out in
+    // a plain View and fills it (`width: '100%'`), so the first frame is already
+    // the final one — there is no measurement to wait for, and nothing to reflow
+    // when it arrives. Only a row of several items scrolls, and its cells have
+    // fixed sizes.
+    const renderItem = (item: AttachmentItem, idx: number): React.ReactNode => {
+      if (item.type === 'article') {
+        return (
+          <PostAttachmentArticle
+            key={`article-${idx}`}
+            title={article?.title?.trim()}
+            body={article?.body?.trim()}
+            onPress={onArticlePress || undefined}
+            className={isSingleItem ? 'w-full' : `w-[200px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'event') {
+        return (
+          <PostAttachmentEvent
+            key={`event-${idx}`}
+            name={event?.name || ''}
+            date={event?.date || ''}
+            location={event?.location}
+            onPress={onEventPress || undefined}
+            className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'room') {
+        return (
+          <PostAttachmentRoom
+            key={`room-${idx}`}
+            roomId={room?.roomId || ''}
+            title={room?.title || ''}
+            status={room?.status}
+            topic={room?.topic}
+            host={room?.host}
+            onPress={onRoomPress || undefined}
+            className={isSingleItem ? undefined : `w-[260px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'podcast') {
+        if (!podcast) return null;
+        return (
+          <PostPodcastAttachment
+            key={`podcast-${idx}`}
+            podcast={podcast}
+            width={isSingleItem ? '100%' : podcast.episode?.videoUrl ? 300 : 340}
+            height={rowItemHeight}
+          />
+        );
+      }
+      if (item.type === 'link') {
+        // Only the first embeddable link (and not one the viewer hid for that
+        // provider) becomes the inline external player — the post's primary
+        // media. Every other link stays a static preview card.
+        // Beside other items the player would break the one-height rule, so it
+        // is a player only when it is the row's only item.
+        if (idx === primaryEmbedIndex && isSingleItem) {
           return (
-            <PostAttachmentLink
-              key={`link-${idx}`}
+            <PostAttachmentExternalEmbed
+              key={`embed-${idx}`}
               url={item.url}
               title={item.title}
               description={item.description}
               image={item.image}
               siteName={item.siteName}
-              coverFill={!isSingleItem}
-              className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
             />
           );
         }
-        if (item.type === 'job') {
-          if (!job) return null;
-          return <JobCard key={`job-${idx}`} job={job} className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`} />;
-        }
-        if (item.type === 'poll') {
-          return (
-            <PostAttachmentPoll
-              key={`poll-${idx}`}
-              pollId={pollId}
-              pollData={pollData ?? undefined}
-              className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
-            />
-          );
-        }
-        if (item.type === 'gif') {
-          // Native gif = inline looping muted video; no reels routing, no lightbox.
-          return (
-            <PostAttachmentMedia
-              key={`gif-${postId ?? ''}-${item.mediaId ?? idx}`}
-              type="gif"
-              src={item.src}
-              mediaId={item.mediaId}
-              postId={postId}
-              width={item.width}
-              height={item.height}
-              aspectRatio={item.aspectRatio}
-              hasSingleMedia={hasSingleMedia}
-              tallRow={isTallRow}
-              sensitive={sensitive}
-            />
-          );
-        }
-        if (item.type === 'video' || item.type === 'image') {
-          const mediaId = item.mediaId;
-          // Images register their host node at their images-only subset index so
-          // the gallery's close fly-back can target the currently-viewed thumb.
-          const imageIndex = item.type === 'image' ? imageIndexByMediaId.get(mediaId) : undefined;
-          return (
-            <PostAttachmentMedia
-              key={`${item.type}-${postId ?? ''}-${mediaId ?? idx}`}
-              type={item.type}
-              src={item.src}
-              fallbackSrc={item.type === 'video' ? item.fallbackSrc : undefined}
-              alt={item.type === 'image' ? item.alt : undefined}
-              mediaId={mediaId}
-              poster={item.type === 'video' ? item.poster : undefined}
-              width={item.width}
-              height={item.height}
-              aspectRatio={item.aspectRatio}
-              durationSec={item.type === 'video' ? item.durationSec : undefined}
-              postId={postId}
-              onPress={pressHandlerByMedia(mediaId, item.type)}
-              registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
-              hasSingleMedia={hasSingleMedia}
-              tallRow={isTallRow}
-              sensitive={sensitive}
-            />
-          );
-        }
-        return null;
-  };
+        return (
+          <PostAttachmentLink
+            key={`link-${idx}`}
+            url={item.url}
+            title={item.title}
+            description={item.description}
+            image={item.image}
+            siteName={item.siteName}
+            coverFill={!isSingleItem}
+            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'job') {
+        if (!job) return null;
+        return (
+          <JobCard
+            key={`job-${idx}`}
+            job={job}
+            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'poll') {
+        return (
+          <PostAttachmentPoll
+            key={`poll-${idx}`}
+            pollId={pollId}
+            pollData={pollData ?? undefined}
+            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+          />
+        );
+      }
+      if (item.type === 'gif') {
+        // Native gif = inline looping muted video; no reels routing, no lightbox.
+        return (
+          <PostAttachmentMedia
+            key={`gif-${postId ?? ''}-${item.mediaId ?? idx}`}
+            type="gif"
+            src={item.src}
+            mediaId={item.mediaId}
+            postId={postId}
+            width={item.width}
+            height={item.height}
+            aspectRatio={item.aspectRatio}
+            hasSingleMedia={hasSingleMedia}
+            tallRow={isTallRow}
+            sensitive={sensitive}
+          />
+        );
+      }
+      if (item.type === 'video' || item.type === 'image') {
+        const mediaId = item.mediaId;
+        // Images register their host node at their images-only subset index so
+        // the gallery's close fly-back can target the currently-viewed thumb.
+        const imageIndex = item.type === 'image' ? imageIndexByMediaId.get(mediaId) : undefined;
+        return (
+          <PostAttachmentMedia
+            key={`${item.type}-${postId ?? ''}-${mediaId ?? idx}`}
+            type={item.type}
+            src={item.src}
+            fallbackSrc={item.type === 'video' ? item.fallbackSrc : undefined}
+            alt={item.type === 'image' ? item.alt : undefined}
+            mediaId={mediaId}
+            poster={item.type === 'video' ? item.poster : undefined}
+            width={item.width}
+            height={item.height}
+            aspectRatio={item.aspectRatio}
+            durationSec={item.type === 'video' ? item.durationSec : undefined}
+            postId={postId}
+            onPress={pressHandlerByMedia(mediaId, item.type)}
+            registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
+            hasSingleMedia={hasSingleMedia}
+            tallRow={isTallRow}
+            sensitive={sensitive}
+          />
+        );
+      }
+      return null;
+    };
 
-  return (
-    <View style={style}>
-    {items.length === 1 && (
-      // Claims the touch that no child did, as the carousel's ScrollView did, so
-      // a tap on an attachment's padding never falls through to open the post.
-      <View className="pr-3" style={gutterStyle} onStartShouldSetResponder={() => true}>
-        {renderItem(items[0], 0)}
-      </View>
-    )}
-    {items.length > 1 && (
-    <ScrollView
-      ref={scrollViewRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      nestedScrollEnabled={true}
-      directionalLockEnabled={true}
-      onTouchStart={onTouchStart}
-      onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
-      onStartShouldSetResponderCapture={() => true}
-      onStartShouldSetResponder={() => true}
-      contentContainerStyle={[styles.scroller, gutterStyle]}
-    >
-      {items.map(renderItem)}
-    </ScrollView>
-    )}
-    {showNested && nestedPost && (
-      <View className={items.length > 0 ? 'pr-3 mt-2' : 'pr-3'} style={gutterStyle}>
-        <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
-      </View>
-    )}
-    {/* Mounted on the first tap, not with the row: the viewer is ~100 hook
+    return (
+      <View style={style}>
+        {items.length === 1 && (
+          // Claims the touch that no child did, as the carousel's ScrollView did, so
+          // a tap on an attachment's padding never falls through to open the post.
+          <View className="pr-3" style={gutterStyle} onStartShouldSetResponder={() => true}>
+            {renderItem(items[0], 0)}
+          </View>
+        )}
+        {items.length > 1 && (
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            directionalLockEnabled={true}
+            onTouchStart={onTouchStart}
+            onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
+            onStartShouldSetResponderCapture={() => true}
+            onStartShouldSetResponder={() => true}
+            contentContainerStyle={[styles.scroller, gutterStyle]}
+          >
+            {items.map(renderItem)}
+          </ScrollView>
+        )}
+        {showNested && nestedPost && (
+          <View className={items.length > 0 ? 'pr-3 mt-2' : 'pr-3'} style={gutterStyle}>
+            <PostAttachmentNested nestedPost={nestedPost} nestingDepth={nestingDepth} />
+          </View>
+        )}
+        {/* Mounted on the first tap, not with the row: the viewer is ~100 hook
         slots a fling would otherwise pay per image row (#1103). */}
-    {galleryImages.length > 0 && <LazyZoomableGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
-    </View>
-  );
-}, (prevProps, nextProps) => {
-  if (!areClarityDocumentsEqual(prevProps.documents, nextProps.documents)) return false;
-  return (
-    prevProps.media === nextProps.media &&
-    prevProps.attachments === nextProps.attachments &&
-    prevProps.nestedPost === nextProps.nestedPost &&
-    prevProps.leftOffset === nextProps.leftOffset &&
-    prevProps.pollId === nextProps.pollId &&
-    prevProps.pollData === nextProps.pollData &&
-    prevProps.nestingDepth === nextProps.nestingDepth &&
-    prevProps.postId === nextProps.postId &&
-    prevProps.article === nextProps.article &&
-    prevProps.onArticlePress === nextProps.onArticlePress &&
-    prevProps.event === nextProps.event &&
-    prevProps.onEventPress === nextProps.onEventPress &&
-    prevProps.room === nextProps.room &&
-    prevProps.onRoomPress === nextProps.onRoomPress &&
-    prevProps.podcast === nextProps.podcast &&
-    prevProps.job === nextProps.job &&
-    prevProps.text === nextProps.text &&
-    prevProps.location === nextProps.location &&
-    prevProps.sources === nextProps.sources &&
-    prevProps.onSourcesPress === nextProps.onSourcesPress &&
-    prevProps.sensitive === nextProps.sensitive
-  );
-});
+        {galleryImages.length > 0 && (
+          <LazyZoomableGallery
+            ref={galleryRef}
+            measureThumb={measureThumb}
+            cornerRadius={MEDIA_CARD_RADIUS}
+            indicatorVariant="dots"
+          />
+        )}
+      </View>
+    );
+  },
+  (prevProps, nextProps) => {
+    if (!areClarityDocumentsEqual(prevProps.documents, nextProps.documents)) return false;
+    return (
+      prevProps.media === nextProps.media &&
+      prevProps.attachments === nextProps.attachments &&
+      prevProps.nestedPost === nextProps.nestedPost &&
+      prevProps.leftOffset === nextProps.leftOffset &&
+      prevProps.pollId === nextProps.pollId &&
+      prevProps.pollData === nextProps.pollData &&
+      prevProps.nestingDepth === nextProps.nestingDepth &&
+      prevProps.postId === nextProps.postId &&
+      prevProps.article === nextProps.article &&
+      prevProps.onArticlePress === nextProps.onArticlePress &&
+      prevProps.event === nextProps.event &&
+      prevProps.onEventPress === nextProps.onEventPress &&
+      prevProps.room === nextProps.room &&
+      prevProps.onRoomPress === nextProps.onRoomPress &&
+      prevProps.podcast === nextProps.podcast &&
+      prevProps.job === nextProps.job &&
+      prevProps.text === nextProps.text &&
+      prevProps.location === nextProps.location &&
+      prevProps.sources === nextProps.sources &&
+      prevProps.onSourcesPress === nextProps.onSourcesPress &&
+      prevProps.sensitive === nextProps.sensitive
+    );
+  },
+);
 
 PostAttachmentsRow.displayName = 'PostAttachmentsRow';
 

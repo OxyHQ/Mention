@@ -10,11 +10,17 @@ export function buildOwnerEntry(oxyUserId: string): PostAuthorshipEntry {
   return { oxyUserId, role: 'owner', status: 'accepted' };
 }
 
-export function buildCollaboratorEntry(oxyUserId: string, invitedAt: Date = new Date()): PostAuthorshipEntry {
+export function buildCollaboratorEntry(
+  oxyUserId: string,
+  invitedAt: Date = new Date(),
+): PostAuthorshipEntry {
   return { oxyUserId, role: 'collaborator', status: 'pending', invitedAt: invitedAt.toISOString() };
 }
 
-export function buildAuthorship(ownerId: string, collaboratorIds: string[] = []): PostAuthorshipEntry[] {
+export function buildAuthorship(
+  ownerId: string,
+  collaboratorIds: string[] = [],
+): PostAuthorshipEntry[] {
   const owner = buildOwnerEntry(ownerId);
   const collaborators = collaboratorIds.map((id) => buildCollaboratorEntry(id));
   return [owner, ...collaborators];
@@ -82,7 +88,9 @@ export function hasPendingCollabInvites(authorship: PostAuthorshipEntry[]): bool
   return getPendingCollaborators(authorship).length > 0;
 }
 
-export function getHeaderAuthorshipEntries(authorship: PostAuthorshipEntry[]): PostAuthorshipEntry[] {
+export function getHeaderAuthorshipEntries(
+  authorship: PostAuthorshipEntry[],
+): PostAuthorshipEntry[] {
   const owner = getOwner(authorship);
   if (!owner) return [];
   return [owner, ...getAcceptedCollaborators(authorship)];

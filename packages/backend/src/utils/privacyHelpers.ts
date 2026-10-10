@@ -12,7 +12,7 @@ export const ProfileVisibility = {
   FOLLOWERS_ONLY: 'followers_only',
 } as const;
 
-export type ProfileVisibilityType = typeof ProfileVisibility[keyof typeof ProfileVisibility];
+export type ProfileVisibilityType = (typeof ProfileVisibility)[keyof typeof ProfileVisibility];
 
 /**
  * Minimal interface for the OxyServices methods we need. Return types are
@@ -105,9 +105,7 @@ function getErrorStatus(error: unknown): number | undefined {
 
 function getErrorCode(error: unknown): string | undefined {
   const rawCode = readProp(error, 'code');
-  return typeof rawCode === 'string' && rawCode.length <= 64
-    ? rawCode
-    : undefined;
+  return typeof rawCode === 'string' && rawCode.length <= 64 ? rawCode : undefined;
 }
 
 function isAuthContextError(error: unknown): boolean {
@@ -134,10 +132,7 @@ export class OxyPrivacyAuthorizationError extends Error {
   readonly code?: string;
   readonly listType: 'blocked' | 'restricted';
 
-  constructor(
-    listType: 'blocked' | 'restricted',
-    upstreamError: unknown,
-  ) {
+  constructor(listType: 'blocked' | 'restricted', upstreamError: unknown) {
     super(`Oxy rejected the delegated ${listType} privacy context`);
     this.name = 'OxyPrivacyAuthorizationError';
     this.status = getErrorStatus(upstreamError);
@@ -157,10 +152,7 @@ export class OxyPrivacyUnavailableError extends Error {
   readonly code?: string;
   readonly network: boolean;
 
-  constructor(
-    listType: 'blocked' | 'restricted',
-    upstreamError: unknown,
-  ) {
+  constructor(listType: 'blocked' | 'restricted', upstreamError: unknown) {
     super(`Oxy could not resolve the delegated ${listType} privacy context`);
     this.name = 'OxyPrivacyUnavailableError';
     this.listType = listType;
@@ -208,7 +200,12 @@ const VIEWER_RELATIONS_KEY_PREFIX = 'mtn:viewer:relations:v1:';
 /** The four lists, each cached under its own key. */
 type ViewerRelation = 'blocked' | 'restricted' | 'following' | 'followers';
 
-const VIEWER_RELATIONS: readonly ViewerRelation[] = ['blocked', 'restricted', 'following', 'followers'];
+const VIEWER_RELATIONS: readonly ViewerRelation[] = [
+  'blocked',
+  'restricted',
+  'following',
+  'followers',
+];
 
 const viewerRelationsCache = createCache({
   name: 'viewerRelationsCache',
@@ -247,10 +244,7 @@ async function cachedRelation(
   read: () => Promise<string[]>,
 ): Promise<string[]> {
   if (!viewerId) return read();
-  const ids = await viewerRelationsCache.getOrCompute(
-    viewerRelationKey(relation, viewerId),
-    read,
-  );
+  const ids = await viewerRelationsCache.getOrCompute(viewerRelationKey(relation, viewerId), read);
   return [...ids];
 }
 
@@ -262,19 +256,20 @@ async function cachedRelation(
  */
 async function readPrivacyList(
   getUserList: () => Promise<unknown[]>,
-  listType: 'blocked' | 'restricted'
+  listType: 'blocked' | 'restricted',
 ): Promise<string[]> {
   try {
     const users = await getUserList();
-    return users
-      .map(extractUserIdFromBlockedRestricted)
-      .filter((id): id is string => Boolean(id));
+    return users.map(extractUserIdFromBlockedRestricted).filter((id): id is string => Boolean(id));
   } catch (error) {
     if (isAuthContextError(error)) {
-      logger.warn(`[OxyPrivacy] Rejecting request because ${listType} privacy authorization failed`, {
-        status: getErrorStatus(error),
-        code: getErrorCode(error),
-      });
+      logger.warn(
+        `[OxyPrivacy] Rejecting request because ${listType} privacy authorization failed`,
+        {
+          status: getErrorStatus(error),
+          code: getErrorCode(error),
+        },
+      );
       throw new OxyPrivacyAuthorizationError(listType, error);
     }
 
@@ -320,7 +315,10 @@ export async function getBlockedUserIds(client?: OxyClient, viewerId?: string): 
  * @param viewerId - whose list this is; keys the per-viewer cache (see
  *   {@link invalidateViewerRelations}). Omitted ⇒ read straight from Oxy.
  */
-export async function getRestrictedUserIds(client?: OxyClient, viewerId?: string): Promise<string[]> {
+export async function getRestrictedUserIds(
+  client?: OxyClient,
+  viewerId?: string,
+): Promise<string[]> {
   if (!client) {
     throw new OxyPrivacyUnavailableError('restricted', {
       code: 'MISSING_PRIVACY_CLIENT',
@@ -345,7 +343,8 @@ export async function getFollowingIds(
   client: OxyClient,
 ): Promise<string[]> {
   return cachedRelation('following', viewerId, async () =>
-    extractFollowingIds(await client.follows.following(viewerId ?? '')));
+    extractFollowingIds(await client.follows.following(viewerId ?? '')),
+  );
 }
 
 /** The viewer's FOLLOWER ids, through the same cache. See {@link getFollowingIds}. */
@@ -354,7 +353,8 @@ export async function getFollowerIds(
   client: OxyClient,
 ): Promise<string[]> {
   return cachedRelation('followers', viewerId, async () =>
-    extractFollowersIds(await client.follows.followers(viewerId ?? '')));
+    extractFollowersIds(await client.follows.followers(viewerId ?? '')),
+  );
 }
 
 /**
@@ -368,16 +368,18 @@ export function extractFollowingIds(followingRes: unknown): string[] {
   const following = readProp(followingRes, 'following') ?? readProp(followingRes, 'followingIds');
   const followingList: unknown[] = Array.isArray(following)
     ? following
-    : (Array.isArray(followingRes) ? followingRes : []);
+    : Array.isArray(followingRes)
+      ? followingRes
+      : [];
 
   return followingList
     .map((u): string | undefined =>
       typeof u === 'string'
         ? u
-        : (firstStringProp(u, ['id', '_id', 'userId'])
-          ?? firstStringProp(readProp(u, 'user'), ['id'])
-          ?? firstStringProp(readProp(u, 'profile'), ['id'])
-          ?? firstStringProp(u, ['targetId']))
+        : (firstStringProp(u, ['id', '_id', 'userId']) ??
+          firstStringProp(readProp(u, 'user'), ['id']) ??
+          firstStringProp(readProp(u, 'profile'), ['id']) ??
+          firstStringProp(u, ['targetId'])),
     )
     .filter((id): id is string => Boolean(id));
 }
@@ -390,21 +392,24 @@ export function extractFollowersIds(followersRes: unknown): string[] {
   const followers = readProp(followersRes, 'followers');
   const followersList: unknown[] = Array.isArray(followers)
     ? followers
-    : (Array.isArray(followersRes) ? followersRes : []);
+    : Array.isArray(followersRes)
+      ? followersRes
+      : [];
 
   return followersList
     .map((entry): string | undefined => {
       if (typeof entry === 'string') {
         return entry;
       }
-      return firstStringProp(entry, ['id', '_id', 'userId', 'oxyUserId'])
-        ?? firstStringProp(readProp(entry, 'user'), ['id'])
-        ?? firstStringProp(readProp(entry, 'profile'), ['id'])
-        ?? firstStringProp(entry, ['targetId']);
+      return (
+        firstStringProp(entry, ['id', '_id', 'userId', 'oxyUserId']) ??
+        firstStringProp(readProp(entry, 'user'), ['id']) ??
+        firstStringProp(readProp(entry, 'profile'), ['id']) ??
+        firstStringProp(entry, ['targetId'])
+      );
     })
     .filter((id): id is string => Boolean(id));
 }
-
 
 /**
  * A viewer's block/restrict lists, as threaded into `HydrationOptions` (and
@@ -447,10 +452,13 @@ export interface ViewerGraphContext {
 export async function resolveViewerPrivacyAndGraph(
   viewerId: string | undefined,
   client: OxyClient | undefined,
-): Promise<{
-  viewerPrivacy: ViewerPrivacyContext;
-  viewerGraph: ViewerGraphContext;
-} | undefined> {
+): Promise<
+  | {
+      viewerPrivacy: ViewerPrivacyContext;
+      viewerGraph: ViewerGraphContext;
+    }
+  | undefined
+> {
   if (!viewerId) return undefined;
 
   const oxyForFollows = client || getRuntimeOxyClient();
@@ -480,7 +488,10 @@ export async function resolveViewerPrivacyAndGraph(
  * @param client - Optional per-request OxyServices instance
  * @returns Set of user IDs followed by the viewer
  */
-export async function getFollowingIdSet(viewerId: string, client?: OxyClient): Promise<Set<string>> {
+export async function getFollowingIdSet(
+  viewerId: string,
+  client?: OxyClient,
+): Promise<Set<string>> {
   try {
     // A per-request, viewer-scoped `client` is preferred. When absent, fall back
     // to the service-authed Oxy client — NOT the process-wide request-auth
@@ -502,7 +513,11 @@ export async function getFollowingIdSet(viewerId: string, client?: OxyClient): P
  * @param client - Optional per-request OxyServices instance
  * @returns true if viewer follows target, false otherwise
  */
-export async function checkFollowAccess(viewerId: string, targetUserId: string, client?: OxyClient): Promise<boolean> {
+export async function checkFollowAccess(
+  viewerId: string,
+  targetUserId: string,
+  client?: OxyClient,
+): Promise<boolean> {
   const followingIds = await getFollowingIdSet(viewerId, client);
   return followingIds.has(targetUserId);
 }
@@ -511,8 +526,10 @@ export async function checkFollowAccess(viewerId: string, targetUserId: string, 
  * Check if a profile requires access check (private or followers_only)
  */
 export function requiresAccessCheck(profileVisibility: string | undefined): boolean {
-  return profileVisibility === ProfileVisibility.PRIVATE ||
-         profileVisibility === ProfileVisibility.FOLLOWERS_ONLY;
+  return (
+    profileVisibility === ProfileVisibility.PRIVATE ||
+    profileVisibility === ProfileVisibility.FOLLOWERS_ONLY
+  );
 }
 
 /**

@@ -230,11 +230,13 @@ describe('ChannelDeletionService — what happens to real rows', () => {
       entityId: CHANNEL,
     });
     await getDb().insert(mutes).values({ userId: VIEWER, mutedId: CHANNEL });
-    await getDb().insert(lanes).values({
-      ownerId: CHANNEL,
-      name: `${SCOPE_PREFIX}lane`,
-      nameLower: `${SCOPE_PREFIX}lane`,
-    });
+    await getDb()
+      .insert(lanes)
+      .values({
+        ownerId: CHANNEL,
+        name: `${SCOPE_PREFIX}lane`,
+        nameLower: `${SCOPE_PREFIX}lane`,
+      });
 
     await deleteChannelContent(CHANNEL, { dryRun: false });
 
@@ -260,10 +262,12 @@ describe('ChannelDeletionService — what happens to real rows', () => {
       .insert(accountLists)
       .values({ ownerOxyUserId: VIEWER, title: 'a list' })
       .returning({ id: accountLists.id });
-    await getDb().insert(accountListMembers).values([
-      { listId: list.id, oxyUserId: CHANNEL, position: 0 },
-      { listId: list.id, oxyUserId: STRANGER, position: 1 },
-    ]);
+    await getDb()
+      .insert(accountListMembers)
+      .values([
+        { listId: list.id, oxyUserId: CHANNEL, position: 0 },
+        { listId: list.id, oxyUserId: STRANGER, position: 1 },
+      ]);
     const [trend] = await getDb()
       .insert(trending)
       .values({
@@ -365,9 +369,10 @@ describe('ChannelDeletionService — what happens to real rows', () => {
       .select({ n: posts.statsLikesCount })
       .from(posts)
       .where(eq(posts.id, strangersPost.id));
-    expect(survivor.n, 'a surviving post must not keep a count that includes a deleted record').toBe(
-      2,
-    );
+    expect(
+      survivor.n,
+      'a surviving post must not keep a count that includes a deleted record',
+    ).toBe(2);
   });
 
   it('repairs the counter on a surviving post the channel had boosted', async () => {
@@ -619,7 +624,9 @@ describe('ChannelDeletionService — federation ordering', () => {
         /cascade step\(s\) failed/,
       );
     } finally {
-      await db.execute(sql`drop trigger if exists channel_deletion_batch_failure_probe_trigger on notifications`);
+      await db.execute(
+        sql`drop trigger if exists channel_deletion_batch_failure_probe_trigger on notifications`,
+      );
       await db.execute(sql`drop function if exists channel_deletion_batch_failure_probe()`);
     }
 

@@ -44,7 +44,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: oxy.listAccountMembers } } })),
+  createUserScopedOxyServices: vi.fn(() => ({
+    accounts: { members: { list: oxy.listAccountMembers } },
+  })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -67,8 +69,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }
@@ -247,7 +255,6 @@ describe('PATCH /posts/:id/lane', () => {
   });
 });
 
-
 /**
  * A CHANNEL post IS movable through this route — by the person who wrote it —
  * and the lane it may be moved into is the CHANNEL's, never the mover's.
@@ -278,7 +285,7 @@ describe('PATCH /posts/:id/lane', () => {
  * matched nothing. Seeding a lane under each owner and reading `lane_id` back
  * answers the same question about the code that actually runs.
  */
-describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s lanes', () => {
+describe("PATCH /posts/:id/lane — a channel post moves against the CHANNEL's lanes", () => {
   const CHANNEL_ACCOUNT = scope.user('channel-account');
   const OTHER_HUMAN = scope.user('other-human');
 

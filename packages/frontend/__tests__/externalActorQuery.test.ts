@@ -50,10 +50,11 @@ describe('looksLikeRemoteHandle — the shapes it already recognised', () => {
     expect(looksLikeRemoteHandle(query)).toBe(true);
   });
 
-  it.each([['a local username', '@nate'], ['a bare word', 'nate'], ['nothing', '   ']])(
-    'still stays on the local people search for %s',
-    (_label, query) => {
-      expect(looksLikeRemoteHandle(query)).toBe(false);
-    },
-  );
+  it.each([
+    ['a local username', '@nate'],
+    ['a bare word', 'nate'],
+    ['nothing', '   '],
+  ])('still stays on the local people search for %s', (_label, query) => {
+    expect(looksLikeRemoteHandle(query)).toBe(false);
+  });
 });

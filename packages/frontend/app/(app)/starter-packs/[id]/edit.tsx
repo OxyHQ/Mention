@@ -112,37 +112,47 @@ export default function EditStarterPackScreen() {
     load();
   }, [load]);
 
-  useEffect(() => () => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    },
+    [],
+  );
 
-  const runSearch = useCallback((q: string) => {
-    setSearch(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    const trimmed = q.trim();
-    if (!trimmed) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const res = await oxyServices.users.search(trimmed, { limit: 10 });
-        setResults(res.data.map((profile: User) => ({
-          id: profile.id,
-          username: profile.username,
-          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
-          avatar: profile.avatar ?? undefined,
-        })));
-      } catch (e) {
-        logger.warn('searchProfiles failed', { error: e });
+  const runSearch = useCallback(
+    (q: string) => {
+      setSearch(q);
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      const trimmed = q.trim();
+      if (!trimmed) {
         setResults([]);
-      } finally {
         setSearching(false);
+        return;
       }
-    }, SEARCH_DEBOUNCE_MS);
-  }, [oxyServices]);
+      setSearching(true);
+      searchTimer.current = setTimeout(async () => {
+        try {
+          const res = await oxyServices.users.search(trimmed, { limit: 10 });
+          setResults(
+            res.data.map((profile: User) => ({
+              id: profile.id,
+              username: profile.username,
+              name: {
+                displayName: displayNameOrHandle(profile.name.displayName, profile.username),
+              },
+              avatar: profile.avatar ?? undefined,
+            })),
+          );
+        } catch (e) {
+          logger.warn('searchProfiles failed', { error: e });
+          setResults([]);
+        } finally {
+          setSearching(false);
+        }
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    [oxyServices],
+  );
 
   const clearSearch = useCallback(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -154,49 +164,56 @@ export default function EditStarterPackScreen() {
   const setPending = useCallback((uid: string, on: boolean) => {
     setPendingIds((prev) => {
       const next = new Set(prev);
-      if (on) next.add(uid); else next.delete(uid);
+      if (on) next.add(uid);
+      else next.delete(uid);
       return next;
     });
   }, []);
 
-  const addMember = useCallback(async (profile: MemberProfile) => {
-    if (memberIdSet.has(profile.id) || pendingIds.has(profile.id)) return;
-    if (members.length >= MAX_MEMBERS) {
-      toast(`A starter pack can hold up to ${MAX_MEMBERS} accounts`, { type: 'error' });
-      return;
-    }
-    setPending(profile.id, true);
-    // Optimistic insert.
-    setMembers((prev) => [profile, ...prev]);
-    try {
-      await starterPacksService.addMembers(packId, [profile.id]);
-      toast(`Added @${profile.username}`, { type: 'success' });
-    } catch (e) {
-      logger.error('Add member failed', e);
-      setMembers((prev) => prev.filter((m) => m.id !== profile.id));
-      toast('Failed to add member', { type: 'error' });
-    } finally {
-      setPending(profile.id, false);
-    }
-  }, [packId, memberIdSet, members.length, pendingIds, setPending]);
+  const addMember = useCallback(
+    async (profile: MemberProfile) => {
+      if (memberIdSet.has(profile.id) || pendingIds.has(profile.id)) return;
+      if (members.length >= MAX_MEMBERS) {
+        toast(`A starter pack can hold up to ${MAX_MEMBERS} accounts`, { type: 'error' });
+        return;
+      }
+      setPending(profile.id, true);
+      // Optimistic insert.
+      setMembers((prev) => [profile, ...prev]);
+      try {
+        await starterPacksService.addMembers(packId, [profile.id]);
+        toast(`Added @${profile.username}`, { type: 'success' });
+      } catch (e) {
+        logger.error('Add member failed', e);
+        setMembers((prev) => prev.filter((m) => m.id !== profile.id));
+        toast('Failed to add member', { type: 'error' });
+      } finally {
+        setPending(profile.id, false);
+      }
+    },
+    [packId, memberIdSet, members.length, pendingIds, setPending],
+  );
 
-  const removeMember = useCallback(async (profile: MemberProfile) => {
-    if (pendingIds.has(profile.id)) return;
-    setPending(profile.id, true);
-    // Optimistic removal.
-    const previous = members;
-    setMembers((prev) => prev.filter((m) => m.id !== profile.id));
-    try {
-      await starterPacksService.removeMembers(packId, [profile.id]);
-      toast(`Removed @${profile.username}`, { type: 'success' });
-    } catch (e) {
-      logger.error('Remove member failed', e);
-      setMembers(previous);
-      toast('Failed to remove member', { type: 'error' });
-    } finally {
-      setPending(profile.id, false);
-    }
-  }, [packId, members, pendingIds, setPending]);
+  const removeMember = useCallback(
+    async (profile: MemberProfile) => {
+      if (pendingIds.has(profile.id)) return;
+      setPending(profile.id, true);
+      // Optimistic removal.
+      const previous = members;
+      setMembers((prev) => prev.filter((m) => m.id !== profile.id));
+      try {
+        await starterPacksService.removeMembers(packId, [profile.id]);
+        toast(`Removed @${profile.username}`, { type: 'success' });
+      } catch (e) {
+        logger.error('Remove member failed', e);
+        setMembers(previous);
+        toast('Failed to remove member', { type: 'error' });
+      } finally {
+        setPending(profile.id, false);
+      }
+    },
+    [packId, members, pendingIds, setPending],
+  );
 
   const saveDetails = useCallback(async () => {
     const trimmedName = name.trim();
@@ -270,7 +287,10 @@ export default function EditStarterPackScreen() {
   return (
     <View className="flex-1">
       {header}
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View className="gap-3 mb-3">
           <Field label="Name">
             <TextFieldInput
@@ -296,7 +316,9 @@ export default function EditStarterPackScreen() {
           <Field
             label="Add accounts"
             description={`${members.length}/${MAX_MEMBERS}`}
-            error={atCapacity ? 'This starter pack is full. Remove an account to add another.' : null}
+            error={
+              atCapacity ? 'This starter pack is full. Remove an account to add another.' : null
+            }
           >
             <Search
               label="Search people"
@@ -325,15 +347,25 @@ export default function EditStarterPackScreen() {
                 <React.Fragment key={u.id}>
                   {index > 0 && <Divider />}
                   <Item
-                    leading={<Avatar source={u.avatar} name={u.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
+                    leading={
+                      <Avatar
+                        source={u.avatar}
+                        name={u.name.displayName}
+                        size={40}
+                        variant={MEDIA_VARIANT_AVATAR}
+                      />
+                    }
                     title={u.name.displayName}
                     subtitle={`@${u.username}`}
                     onPress={blockedByCap || already || busy ? undefined : () => addMember(u)}
-                    accessibilityLabel={already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`}
+                    accessibilityLabel={
+                      already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`
+                    }
                     trailing={
                       already ? (
                         <Button
-                          appearance="subtle" tone="neutral"
+                          appearance="subtle"
+                          tone="neutral"
                           size="sm"
                           disabled
                           icon={<RiCheckLine size="xs" fill={theme.colors.success} />}
@@ -343,7 +375,8 @@ export default function EditStarterPackScreen() {
                         </Button>
                       ) : (
                         <Button
-                          appearance="solid" tone="accent"
+                          appearance="solid"
+                          tone="accent"
                           size="sm"
                           loading={busy}
                           disabled={blockedByCap}
@@ -389,12 +422,20 @@ export default function EditStarterPackScreen() {
                 <React.Fragment key={m.id}>
                   {index > 0 && <Divider />}
                   <Item
-                    leading={<Avatar source={m.avatar} name={m.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
+                    leading={
+                      <Avatar
+                        source={m.avatar}
+                        name={m.name.displayName}
+                        size={40}
+                        variant={MEDIA_VARIANT_AVATAR}
+                      />
+                    }
                     title={m.name.displayName}
                     subtitle={`@${m.username}`}
                     trailing={
                       <Button
-                        appearance="plain" tone="neutral"
+                        appearance="plain"
+                        tone="neutral"
                         size="sm"
                         loading={busy}
                         onPress={() => removeMember(m)}

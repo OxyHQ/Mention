@@ -11,32 +11,34 @@ export const MEDIA_CARD_HEIGHT = 180;
 export const SINGLE_MEDIA_MAX_HEIGHT = 420;
 /** Corner radius of post media cards (thumbnail + zoomed gallery image). */
 export const MEDIA_CARD_RADIUS = 15;
-export const POLL_ATTACHMENT_KEY = "poll";
-export const ARTICLE_ATTACHMENT_KEY = "article";
-export const EVENT_ATTACHMENT_KEY = "event";
-export const LOCATION_ATTACHMENT_KEY = "location";
-export const SOURCES_ATTACHMENT_KEY = "sources";
-export const ROOM_ATTACHMENT_KEY = "room";
-export const PODCAST_ATTACHMENT_KEY = "podcast";
+export const POLL_ATTACHMENT_KEY = 'poll';
+export const ARTICLE_ATTACHMENT_KEY = 'article';
+export const EVENT_ATTACHMENT_KEY = 'event';
+export const LOCATION_ATTACHMENT_KEY = 'location';
+export const SOURCES_ATTACHMENT_KEY = 'sources';
+export const ROOM_ATTACHMENT_KEY = 'room';
+export const PODCAST_ATTACHMENT_KEY = 'podcast';
 /** OxyHQ/Mention#952 — the ROOT post only (see `useJobAttachmentManager.ts`). */
-export const JOB_ATTACHMENT_KEY = "job";
-export const MEDIA_ATTACHMENT_PREFIX = "media:";
+export const JOB_ATTACHMENT_KEY = 'job';
+export const MEDIA_ATTACHMENT_PREFIX = 'media:';
 /**
  * A post can carry several link previews, so each detected link gets its OWN
  * carousel key (keyed by URL) — the same per-item pattern media uses. A single
  * shared "link" key would make the whole set move and be removed as one block.
  */
-export const LINK_ATTACHMENT_PREFIX = "link:";
+export const LINK_ATTACHMENT_PREFIX = 'link:';
 
 export const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;
 export const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
-export const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
+export const getMediaIdFromAttachmentKey = (key: string) =>
+  key.slice(MEDIA_ATTACHMENT_PREFIX.length);
 
 export const createLinkAttachmentKey = (url: string) => `${LINK_ATTACHMENT_PREFIX}${url}`;
 export const isLinkAttachmentKey = (key: string) => key.startsWith(LINK_ATTACHMENT_PREFIX);
-export const getUrlFromLinkAttachmentKey = (key: string) => key.slice(LINK_ATTACHMENT_PREFIX.length);
+export const getUrlFromLinkAttachmentKey = (key: string) =>
+  key.slice(LINK_ATTACHMENT_PREFIX.length);
 
-export type ComposerMediaType = "image" | "video" | "gif";
+export type ComposerMediaType = 'image' | 'video' | 'gif';
 /**
  * A media attachment staged in the composer. `alt` is the accessibility
  * description (Bluesky-style "ALT") and is only meaningful for `type: 'image'`;
@@ -54,16 +56,16 @@ export type ComposerMediaItem = { id: string; type: ComposerMediaType; alt?: str
  * nothing, in the composer and in the feed.
  */
 export const toComposerMediaType = (value?: string, mime?: string): ComposerMediaType => {
-  const lowerValue = typeof value === "string" ? value.toLowerCase() : "";
-  const lowerMime = typeof mime === "string" ? mime.toLowerCase() : "";
+  const lowerValue = typeof value === 'string' ? value.toLowerCase() : '';
+  const lowerMime = typeof mime === 'string' ? mime.toLowerCase() : '';
 
-  if (lowerValue === "video" || lowerMime.startsWith("video/")) return "video";
-  if (lowerValue === "gif") return "gif";
-  return "image";
+  if (lowerValue === 'video' || lowerMime.startsWith('video/')) return 'video';
+  if (lowerValue === 'gif') return 'gif';
+  return 'image';
 };
 
 export const normalizeUrl = (raw: string): string | null => {
-  if (!raw || typeof raw !== "string") return null;
+  if (!raw || typeof raw !== 'string') return null;
   let value = raw.trim();
   if (!value) return null;
   if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) {
@@ -77,7 +79,9 @@ export const normalizeUrl = (raw: string): string | null => {
   }
 };
 
-export const sanitizeSourcesForSubmit = (list: { id: string; title: string; url: string }[] | undefined): { url: string; title?: string }[] => {
+export const sanitizeSourcesForSubmit = (
+  list: { id: string; title: string; url: string }[] | undefined,
+): { url: string; title?: string }[] => {
   if (!Array.isArray(list) || list.length === 0) return [];
 
   const MAX_SOURCES = 5;
@@ -90,7 +94,9 @@ export const sanitizeSourcesForSubmit = (list: { id: string; title: string; url:
     normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
   });
 
-  const deduped = normalized.filter((source, index, self) => self.findIndex((s) => s.url === source.url) === index);
+  const deduped = normalized.filter(
+    (source, index, self) => self.findIndex((s) => s.url === source.url) === index,
+  );
   return deduped.slice(0, MAX_SOURCES);
 };
 
@@ -99,4 +105,5 @@ export const isValidSourceUrl = (value: string) => {
   return Boolean(normalizeUrl(value));
 };
 
-export const generateSourceId = () => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+export const generateSourceId = () =>
+  `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

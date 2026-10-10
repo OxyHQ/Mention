@@ -54,7 +54,11 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../services/PostCollaborationService', () => ({
@@ -63,7 +67,9 @@ vi.mock('../../services/PostCollaborationService', () => ({
     attachCollaborators: hoisted.attachCollaborators,
     autoAcceptInvites: hoisted.autoAcceptInvites,
     notifyPendingInvites: hoisted.notifyPendingInvites,
-    buildAuthorship: (ownerId: string) => [{ oxyUserId: ownerId, role: 'owner', status: 'accepted' }],
+    buildAuthorship: (ownerId: string) => [
+      { oxyUserId: ownerId, role: 'owner', status: 'accepted' },
+    ],
   },
   CollabValidationError: class extends Error {},
   CollabStateError: class extends Error {},
@@ -281,7 +287,9 @@ describe('stripSpamHashtagBlocks', () => {
   });
 
   it('is idempotent — a body already cleaned on ingest passes through unchanged', () => {
-    const once = stripSpamHashtagBlocks([{ source: 'author', text: 'Shipping today. #a #b #c #d' }]);
+    const once = stripSpamHashtagBlocks([
+      { source: 'author', text: 'Shipping today. #a #b #c #d' },
+    ]);
     const twice = stripSpamHashtagBlocks(once);
 
     expect(twice[0]?.text).toBe('Shipping today. #a');

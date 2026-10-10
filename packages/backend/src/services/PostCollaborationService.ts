@@ -63,7 +63,9 @@ class PostCollaborationService {
         const users = await resolveLocalMentionHandles(handles);
         resolvedFromHandles = users.map((user) => user.oxyUserId);
       } catch (err) {
-        throw new CollabValidationError(err instanceof Error ? err.message : 'Invalid collaborators');
+        throw new CollabValidationError(
+          err instanceof Error ? err.message : 'Invalid collaborators',
+        );
       }
     }
 
@@ -263,7 +265,9 @@ class PostCollaborationService {
         metadata: { ...post.metadata, federationDelivered: true, collabFederationDeferred: false },
       };
     } catch (error) {
-      logger.warn('PostCollaborationService: deferred federation on invite resolve failed', { error });
+      logger.warn('PostCollaborationService: deferred federation on invite resolve failed', {
+        error,
+      });
       return post;
     }
   }

@@ -73,7 +73,9 @@ export interface FeedInteractionData {
  * happened; this write is awaited inside a request but the value it records is
  * not "now", and a default would quietly re-date every row to insert time.
  */
-export async function trackFeedInteraction(interaction: FeedInteractionData): Promise<number | null> {
+export async function trackFeedInteraction(
+  interaction: FeedInteractionData,
+): Promise<number | null> {
   try {
     await getDb().insert(feedInteractions).values({
       userId: interaction.userId,
@@ -165,11 +167,13 @@ export async function applyImpressionSignals(
   const [post] = await getDb()
     .select({ oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
     .from(posts)
-    .where(and(
-      eq(posts.id, postId),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
-    ))
+    .where(
+      and(
+        eq(posts.id, postId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ),
+    )
     .limit(1);
   if (!post) {
     return null;
@@ -200,7 +204,8 @@ export async function applyImpressionSignals(
   //    originating feed is forwarded as the attribution surface so a video-feed
   //    view is attributed to video content, not the author.
   const dwellMs = interaction.durationMs ?? 0;
-  const signal = dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
+  const signal =
+    dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
   // Online metric: the derived view/skip signal for this impression.
   recordInteractionSignal(signal, interaction.feedDescriptor);
   await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {

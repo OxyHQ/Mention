@@ -23,7 +23,9 @@ function createServers(): SocketIOServer {
   return io;
 }
 
-function createAuthProvider(): SocketAuthProvider & { middleware: { socket: ReturnType<typeof vi.fn> } } {
+function createAuthProvider(): SocketAuthProvider & {
+  middleware: { socket: ReturnType<typeof vi.fn> };
+} {
   const middleware = vi.fn().mockResolvedValue(undefined);
   return { middleware: { socket: vi.fn().mockReturnValue(middleware) } };
 }

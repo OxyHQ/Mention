@@ -9,7 +9,18 @@ import { isAllowedOrigin } from '../utils/allowedOrigins';
 import { logger } from '../utils/logger';
 
 export type DisconnectReason =
-  | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
+  | 'server disconnect'
+  | 'client disconnect'
+  | 'transport close'
+  | 'transport error'
+  | 'ping timeout'
+  | 'parse error'
+  | 'forced close'
+  | 'forced server close'
+  | 'server shutting down'
+  | 'client namespace disconnect'
+  | 'server namespace disconnect'
+  | 'unknown transport';
 
 const SOCKET_CONFIG = {
   PING_TIMEOUT: config.socket.pingTimeout,
@@ -26,8 +37,8 @@ const SOCKET_CONFIG = {
 /** Build the Socket.IO server, including its transport, CORS and compression policy. */
 export function createSocketIoServer(server: http.Server): SocketIOServer {
   return new SocketIOServer(server, {
-    transports: ["websocket", "polling"],
-    path: "/socket.io",
+    transports: ['websocket', 'polling'],
+    path: '/socket.io',
     pingTimeout: SOCKET_CONFIG.PING_TIMEOUT,
     pingInterval: SOCKET_CONFIG.PING_INTERVAL,
     upgradeTimeout: SOCKET_CONFIG.UPGRADE_TIMEOUT,
@@ -41,26 +52,46 @@ export function createSocketIoServer(server: http.Server): SocketIOServer {
           callback(null, false);
         }
       },
-      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version", "X-Oxy-Edge-Region", "X-Oxy-Activity-Id"]
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-CSRF-Token',
+        'X-Requested-With',
+        'Accept',
+        'Accept-Version',
+        'Content-Length',
+        'Content-MD5',
+        'Date',
+        'X-Api-Version',
+        'X-Oxy-Edge-Region',
+        'X-Oxy-Activity-Id',
+      ],
     },
     perMessageDeflate: {
       threshold: SOCKET_CONFIG.COMPRESSION_THRESHOLD,
-      zlibInflateOptions: { chunkSize: SOCKET_CONFIG.CHUNK_SIZE, windowBits: SOCKET_CONFIG.WINDOW_BITS },
-      zlibDeflateOptions: { chunkSize: SOCKET_CONFIG.CHUNK_SIZE, windowBits: SOCKET_CONFIG.WINDOW_BITS, level: SOCKET_CONFIG.COMPRESSION_LEVEL },
+      zlibInflateOptions: {
+        chunkSize: SOCKET_CONFIG.CHUNK_SIZE,
+        windowBits: SOCKET_CONFIG.WINDOW_BITS,
+      },
+      zlibDeflateOptions: {
+        chunkSize: SOCKET_CONFIG.CHUNK_SIZE,
+        windowBits: SOCKET_CONFIG.WINDOW_BITS,
+        level: SOCKET_CONFIG.COMPRESSION_LEVEL,
+      },
     },
   });
 }
 
 const configureNamespaceErrorHandling = (namespace: Namespace) => {
-  namespace.on("connection_error", (error: Error) => {
+  namespace.on('connection_error', (error: Error) => {
     logger.error(`Connection error in namespace ${namespace.name}`, error);
   });
-  namespace.on("connect_error", (error: Error) => {
+  namespace.on('connect_error', (error: Error) => {
     logger.error(`Connect error in namespace ${namespace.name}`, error);
   });
-  namespace.on("connect_timeout", () => {
+  namespace.on('connect_timeout', () => {
     logger.warn(`Connection timeout in namespace ${namespace.name}`);
   });
 };
@@ -83,9 +114,12 @@ export interface SocketNamespaces {
  * Create the namespaces and wire their auth. Connection handlers are registered
  * separately, by `registerSocketHandlers`.
  */
-export function createSocketNamespaces(io: SocketIOServer, oxy: SocketAuthProvider): SocketNamespaces {
-  const notificationsNamespace = io.of("/notifications");
-  const postsNamespace = io.of("/posts");
+export function createSocketNamespaces(
+  io: SocketIOServer,
+  oxy: SocketAuthProvider,
+): SocketNamespaces {
+  const notificationsNamespace = io.of('/notifications');
+  const postsNamespace = io.of('/posts');
 
   /**
    * The one namespace on this server with NO auth middleware.
@@ -108,9 +142,13 @@ export function createSocketNamespaces(io: SocketIOServer, oxy: SocketAuthProvid
   // This matches how oxy.middleware.auth() works for HTTP — no local JWT_SECRET needed.
   // `publicNamespace` is intentionally absent from this list; see its doc comment.
   const oxySocketAuth = oxy.middleware.socket();
-  const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, io];
+  const authTargets: Array<Namespace | SocketIOServer> = [
+    notificationsNamespace,
+    postsNamespace,
+    io,
+  ];
   authTargets.forEach((namespaceOrServer) => {
-    if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
+    if (namespaceOrServer && typeof namespaceOrServer.use === 'function') {
       namespaceOrServer.use(oxySocketAuth);
       const deployment = config.deployment;
       if (deployment) {
@@ -127,11 +165,7 @@ export function createSocketNamespaces(io: SocketIOServer, oxy: SocketAuthProvid
   });
 
   // Apply verification middleware to all namespaces
-  [
-    notificationsNamespace,
-    postsNamespace,
-    publicNamespace,
-  ].forEach((namespace) => {
+  [notificationsNamespace, postsNamespace, publicNamespace].forEach((namespace) => {
     configureNamespaceErrorHandling(namespace);
   });
 

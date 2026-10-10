@@ -7,7 +7,7 @@
 export function computeExpandableText(
   text: string,
   maxChars: number,
-  isExpanded: boolean
+  isExpanded: boolean,
 ): { displayText: string; isTruncated: boolean } {
   const isTruncated = text.length > maxChars;
   if (!isTruncated || isExpanded) {

@@ -45,7 +45,9 @@ vi.mock('../../../db/federation/actorRepository', () => ({
 }));
 
 vi.mock('../../../connectors/identity', () => ({ reportFederatedActorGone: vi.fn() }));
-vi.mock('../../../connectors/oxyIdentity', () => ({ resolveOxyIdentity: mocks.resolveOxyIdentity }));
+vi.mock('../../../connectors/oxyIdentity', () => ({
+  resolveOxyIdentity: mocks.resolveOxyIdentity,
+}));
 vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 
 // Only the network call is stubbed. The bridge policy, the boilerplate patterns,
@@ -73,22 +75,22 @@ const LIVE_ACTOR = {
   inbox: 'https://bird.makeup/users/elonmusk/inbox',
   outbox: 'https://bird.makeup/users/elonmusk/outbox',
   summary:
-    "<br>This account is a replica from Twitter. Its author can't see your replies. "
-    + 'If you find this service useful, please consider supporting us via our Patreon. <br>',
+    "<br>This account is a replica from Twitter. Its author can't see your replies. " +
+    'If you find this service useful, please consider supporting us via our Patreon. <br>',
   attachment: [
     {
       type: 'PropertyValue',
       name: 'Official',
       value:
-        '<a href="https://twitter.com/elonmusk" rel="me nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">https://</span><span class="ellipsis">twitter.com/elonmusk</span></a>',
+        '<a href="https://twitter.com/elonmusk" rel="me nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">https://</span><span class="ellipsis">twitter.com/elonmusk</span></a>',
     },
     {
       type: 'PropertyValue',
       name: 'Support this service',
       value:
-        '<a href="https://www.patreon.com/birddotmakeup" rel="me nofollow noopener noreferrer" target="_blank">'
-        + '<span class="invisible">https://</span><span class="ellipsis">www.patreon.com/birddotmakeup</span></a>',
+        '<a href="https://www.patreon.com/birddotmakeup" rel="me nofollow noopener noreferrer" target="_blank">' +
+        '<span class="invisible">https://</span><span class="ellipsis">www.patreon.com/birddotmakeup</span></a>',
     },
   ],
 };
@@ -103,21 +105,27 @@ let storedRow: Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
-  mocks.resolveOxyIdentity.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com' }));
-  mocks.findActorByUri.mockResolvedValue(null);
-  mocks.upsertActor.mockImplementation(
-    (uri: string, columns: Record<string, unknown>) => {
-      storedRow = { uri, ...columns };
-      return Promise.resolve({ ...storedRow, id: 'row-1' });
-    },
+  mocks.resolveOxyIdentity.mockResolvedValue(
+    oxyIdentityFixture({
+      actorUri: ACTOR_URI,
+      transportAcct: 'elonmusk@bird.makeup',
+      canonicalAcct: 'elonmusk@x.com',
+      network: 'x.com',
+    }),
   );
+  mocks.findActorByUri.mockResolvedValue(null);
+  mocks.upsertActor.mockImplementation((uri: string, columns: Record<string, unknown>) => {
+    storedRow = { uri, ...columns };
+    return Promise.resolve({ ...storedRow, id: 'row-1' });
+  });
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
       ? new Response(JSON.stringify(LIVE_ACTOR), {
           status: 200,
           headers: { 'content-type': 'application/activity+json' },
         })
-      : new Response('', { status: 404 }));
+      : new Response('', { status: 404 }),
+  );
 });
 
 describe('ingesting a live bird.makeup actor', () => {
@@ -146,11 +154,13 @@ describe('ingesting a live bird.makeup actor', () => {
 
     expect(mocks.resolveOxyIdentity).toHaveBeenCalledTimes(1);
     expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toEqual({
-      actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', protocol: 'activitypub',
+      actorUri: ACTOR_URI,
+      transportAcct: 'elonmusk@bird.makeup',
+      protocol: 'activitypub',
     });
   });
 
-  it('leaves the bridge operator\'s own account alone', async () => {
+  it("leaves the bridge operator's own account alone", async () => {
     // No `Official` rel="me" link to X ⇒ the rule does not fire, so the actor
     // keeps the bridge identity. That is what stops the operator from being
     // published as somebody on a network they may not use.
@@ -161,19 +171,30 @@ describe('ingesting a live bird.makeup actor', () => {
       summary: '<p>I run this bridge.</p>',
       attachment: [],
     };
-    mocks.signedFetch.mockResolvedValue(new Response(JSON.stringify(admin), {
-      status: 200,
-      headers: { 'content-type': 'application/activity+json' },
-    }));
+    mocks.signedFetch.mockResolvedValue(
+      new Response(JSON.stringify(admin), {
+        status: 200,
+        headers: { 'content-type': 'application/activity+json' },
+      }),
+    );
 
-    mocks.resolveOxyIdentity.mockResolvedValue(oxyIdentityFixture({ actorUri: admin.id,
-      transportAcct: 'admin@bird.makeup', canonicalAcct: 'admin@bird.makeup', network: 'bird.makeup', bio: 'I run this bridge.' }));
+    mocks.resolveOxyIdentity.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: admin.id,
+        transportAcct: 'admin@bird.makeup',
+        canonicalAcct: 'admin@bird.makeup',
+        network: 'bird.makeup',
+        bio: 'I run this bridge.',
+      }),
+    );
     await actorService.fetchRemoteActor('https://bird.makeup/users/admin');
 
     expect(storedRow.networkAcct).toBe('admin@bird.makeup');
     expect(storedRow.summary).toBe('I run this bridge.');
     expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toMatchObject({
-      actorUri: admin.id, transportAcct: 'admin@bird.makeup', protocol: 'activitypub',
+      actorUri: admin.id,
+      transportAcct: 'admin@bird.makeup',
+      protocol: 'activitypub',
     });
   });
 });

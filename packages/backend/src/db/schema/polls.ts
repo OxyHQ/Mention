@@ -53,10 +53,8 @@ export const polls = pgTable(
     // Mongo's partial index `{postId: 1}` filtered on `$type: 'objectId'` — the
     // partial existed only to exclude the `temp_` strings, which no longer
     // exist, so the analogue is "where the poll is actually attached".
-    index('polls_post_id_idx')
-      .on(t.postId)
-      .where(sql`${t.postId} is not null`),
-  ]
+    index('polls_post_id_idx').on(t.postId).where(sql`${t.postId} is not null`),
+  ],
 );
 
 /**
@@ -77,7 +75,7 @@ export const pollOptions = pgTable(
   (t) => [
     check('poll_options_position_check', sql`${t.position} >= 0`),
     unique('poll_options_poll_id_position_key').on(t.pollId, t.position),
-  ]
+  ],
 );
 
 /**
@@ -114,5 +112,5 @@ export const pollVotes = pgTable(
     index('poll_votes_poll_id_idx').on(t.pollId),
     // "Did I vote on this poll" — the viewer-state lookup.
     index('poll_votes_poll_id_user_id_idx').on(t.pollId, t.userId),
-  ]
+  ],
 );

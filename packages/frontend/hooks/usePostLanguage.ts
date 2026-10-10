@@ -190,7 +190,9 @@ export function usePostLanguage(
       } catch (error: unknown) {
         patchOverride({ selectedTag: null });
         const status = (error as { response?: { status?: number } })?.response?.status;
-        toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), { type: 'error' });
+        toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), {
+          type: 'error',
+        });
       } finally {
         patchOverride({ isTranslating: false });
       }
@@ -223,7 +225,13 @@ export function usePostLanguage(
     if (target) selectLanguage(target);
   }, [selectedTag, options, readerLanguages, selectLanguage, patchOverride]);
 
-  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguages, options, isOwnPost });
+  const canTranslate = shouldOfferTranslation({
+    content,
+    postLanguage,
+    readerLanguages,
+    options,
+    isOwnPost,
+  });
 
   const activeTag = selectedTag ?? servedTag;
   const activeOption = activeTag ? options.find((option) => option.tag === activeTag) : undefined;

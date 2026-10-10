@@ -43,16 +43,10 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
               <SourcesIcon size={16} className="text-primary" />
             </View>
             <View className="flex-1">
-              <Text
-                className="text-foreground text-sm font-semibold"
-                numberOfLines={2}
-              >
+              <Text className="text-foreground text-sm font-semibold" numberOfLines={2}>
                 {title}
               </Text>
-              <Text
-                className="text-muted-foreground text-xs mt-0.5"
-                numberOfLines={1}
-              >
+              <Text className="text-muted-foreground text-xs mt-0.5" numberOfLines={1}>
                 {hostname}
               </Text>
             </View>

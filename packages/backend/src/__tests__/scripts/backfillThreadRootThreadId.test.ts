@@ -56,12 +56,14 @@ async function seedThreadPost(
  * The root's own `threadId` is left NULL — the broken shape the repair exists
  * for, and the reason the group's author set describes the continuations only.
  */
-async function seedBrokenThread(options: {
-  rootAuthor?: string;
-  continuationAuthor?: string;
-  root?: Partial<PostRecordInput>;
-  continuations?: number;
-} = {}): Promise<string> {
+async function seedBrokenThread(
+  options: {
+    rootAuthor?: string;
+    continuationAuthor?: string;
+    root?: Partial<PostRecordInput>;
+    continuations?: number;
+  } = {},
+): Promise<string> {
   const root = await seedThreadPost(options.rootAuthor ?? AUTHOR, options.root);
   for (let i = 0; i < (options.continuations ?? 2); i += 1) {
     await seedThreadPost(options.continuationAuthor ?? AUTHOR, {

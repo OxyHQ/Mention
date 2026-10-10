@@ -75,8 +75,7 @@ export const AT_URI_RE =
  * URL scheme. The TLD label must be alphabetic so a bare IP / numeric form never
  * matches.
  */
-export const HANDLE_RE =
-  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+export const HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 
 /** True when `subject` is a supported atproto DID. */
 export function isDid(subject: string): boolean {

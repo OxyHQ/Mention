@@ -171,7 +171,9 @@ describe('processMediaMetadataEnrichJob', () => {
     await expect(processMediaMetadataEnrichJob(postId)).rejects.toThrow('oxy unreachable');
     // A transport failure must NOT be relabelled as a pending probe — the two
     // have different causes and the pending path must stay attributable.
-    await expect(processMediaMetadataEnrichJob(postId)).rejects.not.toThrow(MediaMetadataPendingError);
+    await expect(processMediaMetadataEnrichJob(postId)).rejects.not.toThrow(
+      MediaMetadataPendingError,
+    );
   });
 
   it('is a no-op for a post with no media', async () => {

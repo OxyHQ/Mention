@@ -28,10 +28,9 @@ export function createOptionalAuth(oxy: OxyServer): RequestHandler {
     const authMiddleware = oxy.middleware.auth();
     return authMiddleware(req, res, (error?: unknown) => {
       if (error) {
-        logger.debug(
-          'Optional auth: authentication failed; continuing as unauthenticated',
-          { error },
-        );
+        logger.debug('Optional auth: authentication failed; continuing as unauthenticated', {
+          error,
+        });
         (req as AuthRequest).user = undefined;
       }
       next();

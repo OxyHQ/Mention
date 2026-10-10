@@ -17,7 +17,10 @@ vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
 vi.mock('../services/UserPreferenceService', () => ({
-  userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
+  userPreferenceService: {
+    getUserBehavior: vi.fn(async () => undefined),
+    getTopRegion: vi.fn(() => undefined),
+  },
 }));
 
 import { randomUUID } from 'node:crypto';

@@ -23,7 +23,12 @@ interface ExternalEmbedPosterProps {
  * the platform-specific player surface (iframe / WebView). Platform-neutral —
  * used by both `ExternalEmbedPlayer.web.tsx` and `.native.tsx`.
  */
-export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: ExternalEmbedPosterProps) {
+export function ExternalEmbedPoster({
+  thumb,
+  active,
+  loading,
+  onPressPlay,
+}: ExternalEmbedPosterProps) {
   // A remote link-preview thumbnail can 404 or fail to load even through the
   // proxy — fall back to the plain dim scrim + play button rather than showing a
   // broken image. Reset the error state when the thumb URL changes.

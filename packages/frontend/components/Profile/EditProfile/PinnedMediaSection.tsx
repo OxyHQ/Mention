@@ -24,10 +24,7 @@ export const PinnedMediaSection: React.FC = () => {
 
   const openPicker = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <MediaPickerSheet
-        currentMedia={media}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
+      <MediaPickerSheet currentMedia={media} onClose={() => bottomSheet.openBottomSheet(false)} />,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, media]);

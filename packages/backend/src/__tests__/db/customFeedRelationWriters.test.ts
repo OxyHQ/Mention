@@ -74,8 +74,14 @@ const RELATIONS = ['customFeedSourceLists', 'customFeedTopics'] as const;
  * the reasoning above has moved and the next reader should be told where.
  */
 const ALLOWED: ReadonlyArray<{ path: string; because: string }> = [
-  { path: 'db/feeds/customFeedRepository.ts', because: 'the two reads — the `asc(id)` ordering this test exists for' },
-  { path: 'db/schema/deferredForeignKeys.ts', because: 'declares the deferred FK on custom_feed_topics.topic_id' },
+  {
+    path: 'db/feeds/customFeedRepository.ts',
+    because: 'the two reads — the `asc(id)` ordering this test exists for',
+  },
+  {
+    path: 'db/schema/deferredForeignKeys.ts',
+    because: 'declares the deferred FK on custom_feed_topics.topic_id',
+  },
   { path: 'db/schema/feeds.ts', because: 'defines both tables' },
 ];
 

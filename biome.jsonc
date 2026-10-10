@@ -1,0 +1,175 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!.worktrees",
+      "!**/dist",
+      "!**/coverage",
+      "!**/.expo",
+      "!**/.next",
+      "!**/drizzle/meta",
+      "!**/*.generated.*",
+      // Audit evidence: frozen records, receipts and source snapshots that
+      // proof.json files describe byte for byte. Never reformat evidence.
+      "!docs/audits",
+      // scripts/validate-i18n.mjs requires every catalog to be exactly
+      // JSON.stringify(catalog, null, 2) + "\n".
+      "!packages/frontend/locales",
+      // Machine-recorded by `coverage:record` (JSON.stringify output).
+      "!packages/frontend/coverage-baseline.json",
+      // sha256-pinned in scripts/reviewed-image-publisher.mjs.
+      "!.github/scripts/reviewed-images.json",
+      // Tracked as an empty file, which is not valid JSON.
+      "!.mcp.json"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "json": { "formatter": { "trailingCommas": "none" } },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "assist": { "enabled": true, "actions": { "source": { "organizeImports": "off" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      // Ported from eslint-config-expo, where these were errors. Pinned to
+      // error so a later preset change cannot quietly soften them.
+      "correctness": {
+        "useIsNan": "error",
+        "useValidTypeof": "error",
+        "useJsxKeyInIterable": "error",
+        "noChildrenProp": "error",
+        "noRenderReturnValue": "error",
+        // Baseline: fires on existing code and was not an ESLint error.
+        // Tightening follow-ups, listed in the migration PR.
+        "useExhaustiveDependencies": "warn",
+        "noUnsafeOptionalChaining": "warn",
+        "noConstantCondition": "warn",
+        "noUnsafeFinally": "warn"
+      },
+      "suspicious": {
+        "noDuplicateParameters": "error",
+        "noDuplicateObjectKeys": "error",
+        "noDuplicateCase": "error",
+        "noDuplicateClassMembers": "error",
+        "noDuplicateJsxProps": "error",
+        "noCommentText": "error",
+        "noVar": "error",
+        // Baseline (see above).
+        "noArrayIndexKey": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noAssignInExpressions": "warn",
+        "noControlCharactersInRegex": "warn",
+        "noDuplicateTestHooks": "warn",
+        "noImplicitAnyLet": "warn",
+        "noThenProperty": "warn",
+        "noShadowRestrictedNames": "warn",
+        "noExportsInTest": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtmlWithChildren": "error",
+        // Baseline (see above).
+        "noGlobalEval": "warn"
+      },
+      "a11y": {
+        // Baseline (see above).
+        "useIframeTitle": "warn",
+        "useValidLang": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // Frontend import guards, ported from packages/frontend/eslint.config.js
+      // (`no-restricted-imports`). Messages are kept verbatim.
+      "includes": ["packages/frontend/**"],
+      "linter": {
+        "rules": {
+          // react-hooks/rules-of-hooks was an error in the frontend.
+          "correctness": { "useHookAtTopLevel": "error" },
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  // The icon barrel is an error, not a style preference.
+                  //
+                  // Metro does not tree-shake, so `import { RiHand } from '@oxy.so/bloom/icons'`
+                  // ships all 461 Remix glyphs. 166 files here were doing it, which was 334
+                  // glyphs nobody draws, 286 KiB of initial JavaScript and 277 KiB of the
+                  // largest chunk — which sat 10 KiB under its budget at the time.
+                  //
+                  // `paths` matches the module name EXACTLY, so every `@oxy.so/bloom/icons/Ri*`
+                  // subpath stays legal; only the barrel itself is named. A type-only member
+                  // has no per-glyph subpath and no runtime cost either way, so the two files
+                  // that need `BloomIconComponent` take it from the package root.
+                  "@oxy.so/bloom/icons": "Import each glyph by subpath — @oxy.so/bloom/icons/RiXxx. Metro does not tree-shake, so the barrel ships all 461. For the BloomIconComponent type, import it from @oxy.so/bloom.",
+                  // A vector-icons glyph is a Text node a screen reader reads aloud as
+                  // its private-use code point. The wrapper hides it once for every
+                  // call site; the barrel also ships every icon font.
+                  "@expo/vector-icons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
+                  "@expo/vector-icons/Ionicons": "Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.",
+                  // iPhone Safari plays a web `<video>` inline only when it carries
+                  // `playsinline`, and expo-video writes that only when the prop is
+                  // passed — so every video here showed its poster and never started on
+                  // iPhones. Bloom's VideoView defaults it on; the player itself
+                  // (`useVideoPlayer`, `createVideoPlayer`) still comes from expo-video.
+                  "expo-video": {
+                    "importNames": ["VideoView"],
+                    "message": "Render VideoView from '@oxy.so/bloom/video-view' (VideoViewHandle for its ref type): it plays inline on iPhone Safari, where expo-video's own view shows only the poster."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // The one place allowed to reach the font directly.
+      "includes": ["packages/frontend/components/common/Ionicons.tsx"],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
+      // Tests are not shipped, so the barrel costs them nothing — and a few assert
+      // on which glyph drew by importing it directly. The rule is about bundle
+      // size, so it ends where the bundle does.
+      "includes": [
+        "packages/frontend/**/__tests__/**",
+        "packages/frontend/**/*.test.ts",
+        "packages/frontend/**/*.test.tsx",
+        "packages/frontend/test-support/**"
+      ],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
+      // Baseline: test doubles that call hooks outside a component. ESLint only
+      // ever linted app/ and components/ (expo lint's default inputs), so these
+      // were never checked. Tightening follow-up, listed in the migration PR.
+      "includes": [
+        "packages/frontend/lib/__tests__/routerPendingState.test.ts",
+        "packages/frontend/test-support/stickersReact.js"
+      ],
+      "linter": { "rules": { "correctness": { "useHookAtTopLevel": "warn" } } }
+    }
+  ]
+}

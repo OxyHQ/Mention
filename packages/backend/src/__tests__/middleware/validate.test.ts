@@ -127,7 +127,10 @@ describe('validateBody — the mounted schemas', () => {
       const res = makeRes();
       const next = makeNext();
       validateBody(schemas.createFeedReview)(makeReq({ rating }), res, next);
-      expect(next, `expected rating ${JSON.stringify(rating)} to be rejected`).not.toHaveBeenCalled();
+      expect(
+        next,
+        `expected rating ${JSON.stringify(rating)} to be rejected`,
+      ).not.toHaveBeenCalled();
     }
   });
 

@@ -18,13 +18,14 @@ const AUTHOR_OXY_ID = 'oxy-author';
 const POST_URL = 'https://example.com/some-article';
 const SECOND_URL = 'https://example.org/another-article';
 
-const { getUserById, getUsersByIds, resolveDocuments, findPostLinkPreviews, cacheStore } = vi.hoisted(() => ({
-  getUserById: vi.fn(),
-  getUsersByIds: vi.fn(),
-  resolveDocuments: vi.fn(),
-  findPostLinkPreviews: vi.fn(),
-  cacheStore: new Map<string, CachedUserSummary>(),
-}));
+const { getUserById, getUsersByIds, resolveDocuments, findPostLinkPreviews, cacheStore } =
+  vi.hoisted(() => ({
+    getUserById: vi.fn(),
+    getUsersByIds: vi.fn(),
+    resolveDocuments: vi.fn(),
+    findPostLinkPreviews: vi.fn(),
+    cacheStore: new Map<string, CachedUserSummary>(),
+  }));
 
 // The FEP-8967 cards a federated post arrived with (`post_link_previews`).
 vi.mock('../../db/posts/postLinkPreviewRepository', () => ({ findPostLinkPreviews }));
@@ -143,9 +144,11 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
   function mockDocuments(documents: Record<string, ClarityDocument>): void {
     resolveDocuments.mockImplementation(async ({ urls }: { urls: string[] }) => ({
-      data: urls.map((url) => (documents[url]
-        ? { url, status: 'indexed', document: documents[url] }
-        : { url, status: 'failed' })),
+      data: urls.map((url) =>
+        documents[url]
+          ? { url, status: 'indexed', document: documents[url] }
+          : { url, status: 'failed' },
+      ),
     }));
   }
 
@@ -161,7 +164,9 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
       type: 'article',
       indexedAt: new Date().toISOString(),
     } as ClarityDocument;
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'indexed', document: resolved }] });
+    resolveDocuments.mockResolvedValue({
+      data: [{ url: POST_URL, status: 'indexed', document: resolved }],
+    });
 
     const hydrated = await hydrate();
 
@@ -173,12 +178,21 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
   it('binds an already indexed alias to the current post source URL without mutating Clarity metadata', async () => {
     const source = 'https://kpbs.org/story?utm_source=reader#section';
-    const document = { ...resolvedPreview('https://npr.org/story', 'Original article'), requestedUrl: 'https://npr.org/story?old=crawl' };
-    resolveDocuments.mockResolvedValue({ data: [{ url: 'https://kpbs.org/story?utm_source=reader', status: 'indexed', document }] });
+    const document = {
+      ...resolvedPreview('https://npr.org/story', 'Original article'),
+      requestedUrl: 'https://npr.org/story?old=crawl',
+    };
+    resolveDocuments.mockResolvedValue({
+      data: [{ url: 'https://kpbs.org/story?utm_source=reader', status: 'indexed', document }],
+    });
     const hydrated = await hydrate(source);
-    expect(hydrated.documents).toEqual([expect.objectContaining({
-      requestedUrl: source, canonicalUrl: 'https://npr.org/story', title: 'Original article',
-    })]);
+    expect(hydrated.documents).toEqual([
+      expect.objectContaining({
+        requestedUrl: source,
+        canonicalUrl: 'https://npr.org/story',
+        title: 'Original article',
+      }),
+    ]);
     expect(document.requestedUrl).toBe('https://npr.org/story?old=crawl');
   });
 
@@ -197,7 +211,9 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
       type: 'article',
       indexedAt: new Date().toISOString(),
     } as ClarityDocument;
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'indexed', document: resolved }] });
+    resolveDocuments.mockResolvedValue({
+      data: [{ url: POST_URL, status: 'indexed', document: resolved }],
+    });
 
     const hydrated = await hydrate();
 
@@ -215,17 +231,22 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     const hydrated = await hydrate(`two links: ${SECOND_URL} and ${POST_URL}`);
 
     expect(resolveDocuments).toHaveBeenCalledWith({ urls: [SECOND_URL, POST_URL] });
-    expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([SECOND_URL, POST_URL]);
+    expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([
+      SECOND_URL,
+      POST_URL,
+    ]);
     expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['Second', 'First']);
   });
 
   it('omits a pending document without disturbing resolved document order', async () => {
     const thirdUrl = 'https://example.net/third-article';
-    resolveDocuments.mockResolvedValue({ data: [
-      { url: POST_URL, status: 'resolved', document: resolvedPreview(POST_URL, 'First') },
-      { url: SECOND_URL, status: 'pending' },
-      { url: thirdUrl, status: 'resolved', document: resolvedPreview(thirdUrl, 'Third') },
-    ] });
+    resolveDocuments.mockResolvedValue({
+      data: [
+        { url: POST_URL, status: 'resolved', document: resolvedPreview(POST_URL, 'First') },
+        { url: SECOND_URL, status: 'pending' },
+        { url: thirdUrl, status: 'resolved', document: resolvedPreview(thirdUrl, 'Third') },
+      ],
+    });
 
     const hydrated = await hydrate(`${POST_URL} ${SECOND_URL} ${thirdUrl}`);
 
@@ -278,10 +299,12 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
   });
 
   it('keeps the resolved card and flags the post when only some links are pending', async () => {
-    resolveDocuments.mockResolvedValue({ data: [
-      { url: POST_URL, status: 'indexed', document: resolvedPreview(POST_URL, 'First') },
-      { url: SECOND_URL, status: 'queued' },
-    ] });
+    resolveDocuments.mockResolvedValue({
+      data: [
+        { url: POST_URL, status: 'indexed', document: resolvedPreview(POST_URL, 'First') },
+        { url: SECOND_URL, status: 'queued' },
+      ],
+    });
 
     const hydrated = await hydrate(`${POST_URL} ${SECOND_URL}`);
     expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['First']);
@@ -360,7 +383,11 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
       expect(findPostLinkPreviews).toHaveBeenCalledWith([POST_ID]);
       expect(hydrated.documents).toEqual([
-        expect.objectContaining({ canonicalUrl: POST_URL, title: 'Remote title', description: 'Remote description' }),
+        expect.objectContaining({
+          canonicalUrl: POST_URL,
+          title: 'Remote title',
+          description: 'Remote description',
+        }),
       ]);
       // No remote image ever reaches the reader.
       expect(hydrated.documents?.[0]).not.toHaveProperty('imageUrl');
@@ -375,7 +402,9 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     });
 
     it('matches the card to the link however either was spelled', async () => {
-      resolveDocuments.mockResolvedValue({ data: [{ url: 'https://Example.com/some-article', status: 'failed' }] });
+      resolveDocuments.mockResolvedValue({
+        data: [{ url: 'https://Example.com/some-article', status: 'failed' }],
+      });
       findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [card]]]));
 
       const hydrated = await hydrate('look at this https://Example.com/some-article');
@@ -394,7 +423,9 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
     it('ignores a card for a link the body does not carry', async () => {
       resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'queued' }] });
-      findPostLinkPreviews.mockResolvedValue(new Map([[POST_ID, [{ ...card, url: 'https://elsewhere.example/' }]]]));
+      findPostLinkPreviews.mockResolvedValue(
+        new Map([[POST_ID, [{ ...card, url: 'https://elsewhere.example/' }]]]),
+      );
 
       const hydrated = await hydrate();
       expect(hydrated.documents).toEqual([]);

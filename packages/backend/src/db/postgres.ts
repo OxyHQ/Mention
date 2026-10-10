@@ -72,7 +72,7 @@ export async function connectPostgres(): Promise<Database> {
   if (!url) {
     throw new Error(
       'DATABASE_URL is not set. Start a local Postgres with: ' +
-      'docker compose -f docker-compose.postgres.yml up -d postgres'
+        'docker compose -f docker-compose.postgres.yml up -d postgres',
     );
   }
 
@@ -129,7 +129,7 @@ export function getDb(): Database {
   if (!db) {
     throw new Error(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before issuing queries.'
+        'before issuing queries.',
     );
   }
   return db;
@@ -159,7 +159,7 @@ export function getPostgresClient(): postgres.Sql {
   if (!client) {
     throw new Error(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before reaching for the raw client.'
+        'before reaching for the raw client.',
     );
   }
   return client;

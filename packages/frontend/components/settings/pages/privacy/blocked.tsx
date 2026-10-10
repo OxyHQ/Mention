@@ -1,46 +1,41 @@
-import { EmptyState } from "@/components/common/EmptyState";
-import { queryClient } from "@/lib/queryClient";
-import { refreshPrivacyLists } from "@/services/privacyService";
-import { searchService } from "@/services/searchService";
-import { usePrivacyStore } from "@/stores/privacyStore";
-import { Button } from "@oxy.so/bloom/button";
+import { EmptyState } from '@/components/common/EmptyState';
+import { queryClient } from '@/lib/queryClient';
+import { refreshPrivacyLists } from '@/services/privacyService';
+import { searchService } from '@/services/searchService';
+import { usePrivacyStore } from '@/stores/privacyStore';
+import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Loading } from "@oxy.so/bloom/loading";
-import { Search } from "@oxy.so/bloom/search";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
-} from "@oxy.so/bloom/surfaces";
-import { useTheme } from "@oxy.so/bloom/theme";
-import type { User } from "@oxy.so/core";
-import { createLogger } from "@oxy.so/core/logger";
-import { queryKeys } from "@oxy.so/services/ui/client";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
+} from '@oxy.so/bloom/surfaces';
+import { useTheme } from '@oxy.so/bloom/theme';
+import type { User } from '@oxy.so/core';
+import { createLogger } from '@oxy.so/core/logger';
+import { queryKeys } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
-import React, { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
-const blockedLogger = createLogger("BlockedUsers");
+const blockedLogger = createLogger('BlockedUsers');
 
 interface BlockedUser {
   id?: string;
   _id?: string;
-  name?: User["name"];
+  name?: User['name'];
   username?: string;
   handle?: string;
   // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
   avatar?: string | null;
 }
 
-const getUserId = (user: BlockedUser): string | undefined =>
-  user.id || user._id;
+const getUserId = (user: BlockedUser): string | undefined => user.id || user._id;
 
 export default function BlockedUsersScreen() {
   const { t } = useTranslation();
@@ -62,14 +57,14 @@ export default function BlockedUsersScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BlockedUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [blocking, setBlocking] = useState<string | null>(null);
 
   const loadBlockedUsers = useCallback(async () => {
     if (!oxyServices) {
-      blockedLogger.warn("oxyServices not available");
+      blockedLogger.warn('oxyServices not available');
       setBlockedUsers([]);
       setBlockedUserIds([]);
       setLoading(false);
@@ -78,22 +73,21 @@ export default function BlockedUsersScreen() {
 
     try {
       setLoading(true);
-      blockedLogger.debug("Loading blocked users...");
+      blockedLogger.debug('Loading blocked users...');
       const blockedUsersList = await oxyServices.privacy.blocked();
-      blockedLogger.debug("Oxy response received", {
+      blockedLogger.debug('Oxy response received', {
         count: blockedUsersList?.length,
       });
       const userIds = (blockedUsersList as unknown as Record<string, unknown>[])
         .map((user) => {
-          const blockedId = user.blockedId as
-            string | { _id?: string } | undefined;
+          const blockedId = user.blockedId as string | { _id?: string } | undefined;
           if (blockedId) {
-            return typeof blockedId === "string" ? blockedId : blockedId._id;
+            return typeof blockedId === 'string' ? blockedId : blockedId._id;
           }
           return (user.id || user._id || user.userId) as string | undefined;
         })
         .filter((id): id is string => Boolean(id));
-      blockedLogger.debug("Blocked user IDs resolved", {
+      blockedLogger.debug('Blocked user IDs resolved', {
         count: userIds.length,
       });
       setBlockedUserIds(userIds);
@@ -115,20 +109,15 @@ export default function BlockedUsersScreen() {
       }
       // Preserve the blocked order; drop ids the bulk fetch couldn't resolve.
       const byId = new Map(fetched.map((user) => [user.id, user]));
-      const users = userIds
-        .map((id) => byId.get(id))
-        .filter((user): user is User => Boolean(user));
+      const users = userIds.map((id) => byId.get(id)).filter((user): user is User => Boolean(user));
       blockedLogger.debug(`Loaded users: ${users.length}`);
       setBlockedUsers(users);
     } catch (error) {
       const err = error as { response?: { data?: unknown } };
-      blockedLogger.error("Error loading blocked users", error, {
+      blockedLogger.error('Error loading blocked users', error, {
         responseData: err.response?.data,
       });
-      void showSettingsAlert(
-        t("common.error"),
-        t("settings.privacy.failedToLoadBlockedUsers"),
-      );
+      void showSettingsAlert(t('common.error'), t('settings.privacy.failedToLoadBlockedUsers'));
     } finally {
       setLoading(false);
     }
@@ -147,10 +136,7 @@ export default function BlockedUsersScreen() {
           });
           return Array.isArray(data) ? data : [];
         } catch (error) {
-          blockedLogger.warn(
-            "oxyServices.users.search failed, falling back",
-            { error },
-          );
+          blockedLogger.warn('oxyServices.users.search failed, falling back', { error });
         }
       }
       const results = await searchService.searchUsers(query);
@@ -172,15 +158,11 @@ export default function BlockedUsersScreen() {
         const results = await searchUsersViaOxy(query);
         const filtered = results.filter((user) => {
           const userId = getUserId(user);
-          return (
-            userId &&
-            !blockedUserIds.includes(userId) &&
-            userId !== currentUser?.id
-          );
+          return userId && !blockedUserIds.includes(userId) && userId !== currentUser?.id;
         });
         setSearchResults(filtered);
       } catch (error) {
-        blockedLogger.error("Error searching users", error);
+        blockedLogger.error('Error searching users', error);
       } finally {
         setSearching(false);
       }
@@ -193,10 +175,7 @@ export default function BlockedUsersScreen() {
     if (!userId) return;
 
     if (currentUser?.id === userId) {
-      void showSettingsAlert(
-        t("common.error"),
-        t("settings.privacy.cannotBlockYourself"),
-      );
+      void showSettingsAlert(t('common.error'), t('settings.privacy.cannotBlockYourself'));
       return;
     }
 
@@ -209,7 +188,7 @@ export default function BlockedUsersScreen() {
       setSearchResults((prev) => prev.filter((u) => getUserId(u) !== userId));
 
       await oxyServices.privacy.block(userId);
-      blockedLogger.info("User blocked successfully");
+      blockedLogger.info('User blocked successfully');
 
       // Drop Mention's cached copy of this viewer's blocked list so the
       // feed acts on the block now rather than when the freshness window
@@ -220,19 +199,15 @@ export default function BlockedUsersScreen() {
 
       await loadBlockedUsers();
 
-      setSearchQuery("");
-      void showSettingsAlert(
-        t("common.success"),
-        t("settings.privacy.userBlocked"),
-      );
+      setSearchQuery('');
+      void showSettingsAlert(t('common.success'), t('settings.privacy.userBlocked'));
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      blockedLogger.error("Error blocking user", error);
+      blockedLogger.error('Error blocking user', error);
       setBlockedUserIds((prev) => prev.filter((id) => id !== userId));
       setBlockedUsers((prev) => prev.filter((u) => getUserId(u) !== userId));
-      const errorMessage =
-        err.response?.data?.error || t("settings.privacy.failedToBlockUser");
-      void showSettingsAlert(t("common.error"), errorMessage);
+      const errorMessage = err.response?.data?.error || t('settings.privacy.failedToBlockUser');
+      void showSettingsAlert(t('common.error'), errorMessage);
     } finally {
       setBlocking(null);
     }
@@ -249,7 +224,7 @@ export default function BlockedUsersScreen() {
         setBlockedUsers((prev) => prev.filter((u) => getUserId(u) !== userId));
 
         await oxyServices.privacy.unblock(userId);
-        blockedLogger.info("User unblocked successfully");
+        blockedLogger.info('User unblocked successfully');
 
         await refreshPrivacyLists();
 
@@ -257,31 +232,26 @@ export default function BlockedUsersScreen() {
 
         await loadBlockedUsers();
 
-        void showSettingsAlert(
-          t("common.success"),
-          t("settings.privacy.userUnblocked"),
-        );
+        void showSettingsAlert(t('common.success'), t('settings.privacy.userUnblocked'));
       } catch (error) {
         const err = error as { response?: { data?: { error?: string } } };
-        blockedLogger.error("Error unblocking user", error, {
+        blockedLogger.error('Error unblocking user', error, {
           responseData: err.response?.data,
         });
         if (userToRemove) {
           setBlockedUserIds((prev) => [...prev, userId]);
           setBlockedUsers((prev) => [...prev, userToRemove]);
         }
-        const errorMessage =
-          err.response?.data?.error ||
-          t("settings.privacy.failedToUnblockUser");
-        void showSettingsAlert(t("common.error"), errorMessage);
+        const errorMessage = err.response?.data?.error || t('settings.privacy.failedToUnblockUser');
+        void showSettingsAlert(t('common.error'), errorMessage);
       }
     };
 
     void confirmSettingsAction({
-      title: t("settings.privacy.unblockUser"),
-      description: t("settings.privacy.unblockUserConfirm"),
-      confirmLabel: t("settings.privacy.unblock"),
-      cancelLabel: t("common.cancel"),
+      title: t('settings.privacy.unblockUser'),
+      description: t('settings.privacy.unblockUserConfirm'),
+      confirmLabel: t('settings.privacy.unblock'),
+      cancelLabel: t('common.cancel'),
       destructive: true,
     }).then((confirmed) => {
       if (confirmed) void performUnblock();
@@ -302,11 +272,11 @@ export default function BlockedUsersScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.privacy.blocked.signInRequired", {
-            defaultValue: "Sign in to manage blocked accounts",
+          label={t('settings.privacy.blocked.signInRequired', {
+            defaultValue: 'Sign in to manage blocked accounts',
           })}
-          description={t("settings.privacy.blocked.signInRequiredDesc", {
-            defaultValue: "You can block or unblock people once signed in.",
+          description={t('settings.privacy.blocked.signInRequiredDesc', {
+            defaultValue: 'You can block or unblock people once signed in.',
           })}
         />
       </View>
@@ -316,29 +286,21 @@ export default function BlockedUsersScreen() {
   return (
     <View className="gap-4">
       <View className="gap-4">
-        <SettingsSection label={t("settings.privacy.searchUsersToBlock")}>
+        <SettingsSection label={t('settings.privacy.searchUsersToBlock')}>
           <SettingsCard>
             <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiSearchLine
-                width={20}
-                height={20}
-                fill={colors.textSecondary}
-              />
+              <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
               <Search
                 value={searchQuery}
                 onValueChange={handleSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder={t("settings.privacy.searchUsersToBlock")}
-                label={t("settings.privacy.searchUsersToBlock")}
-                onClearText={() => handleSearch("")}
+                placeholder={t('settings.privacy.searchUsersToBlock')}
+                label={t('settings.privacy.searchUsersToBlock')}
+                onClearText={() => handleSearch('')}
               />
               {searching && (
-                <Loading
-                  className="text-primary"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
               )}
             </View>
           </SettingsCard>
@@ -349,7 +311,7 @@ export default function BlockedUsersScreen() {
             <SettingsCard>
               {searchResults.map((user) => {
                 const userId = getUserId(user);
-                const handle = user.username || user.handle || "";
+                const handle = user.username || user.handle || '';
                 const isBlocking = blocking === userId;
                 if (!userId || !user.name?.displayName) return null;
 
@@ -375,11 +337,7 @@ export default function BlockedUsersScreen() {
                           style={{ flex: undefined }}
                         />
                       ) : (
-                        <RiAddCircleLine
-                          width={22}
-                          height={22}
-                          fill={colors.primary}
-                        />
+                        <RiAddCircleLine width={22} height={22} fill={colors.primary} />
                       )}
                     </Button>
                   </SettingsRow>
@@ -392,32 +350,28 @@ export default function BlockedUsersScreen() {
         {searchQuery.length > 0 && !searching && searchResults.length === 0 && (
           <View className="py-4 items-center">
             <Text className="text-sm text-muted-foreground">
-              {t("settings.privacy.noUsersFound")}
+              {t('settings.privacy.noUsersFound')}
             </Text>
           </View>
         )}
 
-        <SettingsSection label={t("settings.privacy.blockedUsers")}>
+        <SettingsSection label={t('settings.privacy.blockedUsers')}>
           <SettingsCard>
             {loading ? (
               <View className="py-10 items-center">
-                <Loading
-                  className="text-primary"
-                  size="lg"
-                  style={{ flex: undefined }}
-                />
+                <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
               </View>
             ) : blockedUsers.length === 0 ? (
               <View className="py-4">
                 <EmptyState
-                  title={t("settings.privacy.noBlockedUsers")}
+                  title={t('settings.privacy.noBlockedUsers')}
                   sticker="blockedAccounts"
                 />
               </View>
             ) : (
               blockedUsers.map((user) => {
                 const userId = getUserId(user);
-                const handle = user.username || user.handle || "";
+                const handle = user.username || user.handle || '';
                 if (!userId || !user.name?.displayName) return null;
 
                 return (
@@ -435,15 +389,12 @@ export default function BlockedUsersScreen() {
                           if (userId) {
                             handleUnblock(userId);
                           } else {
-                            blockedLogger.error("No userId found for user");
-                            void showSettingsAlert(
-                              t("common.error"),
-                              "Invalid user ID",
-                            );
+                            blockedLogger.error('No userId found for user');
+                            void showSettingsAlert(t('common.error'), 'Invalid user ID');
                           }
                         }}
                       >
-                        {t("settings.privacy.unblock")}
+                        {t('settings.privacy.unblock')}
                       </Button>
                     }
                   </SettingsRow>

@@ -17,59 +17,38 @@
     {
       "id": "stores",
       "why": "Zustand stores hold the client's own truth — engagement, identity, scroll position, invalidation signals.",
-      "include": [
-        "stores/**/*.ts",
-        "stores/**/*.tsx"
-      ]
+      "include": ["stores/**/*.ts", "stores/**/*.tsx"]
     },
     {
       "id": "services",
       "why": "Every network call the app makes and the shapes it expects back.",
-      "include": [
-        "services/**/*.ts"
-      ]
+      "include": ["services/**/*.ts"]
     },
     {
       "id": "lib",
       "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
-      "include": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx"
-      ],
-      "exclude": [
-        "lib/animations/**"
-      ]
+      "include": ["lib/**/*.ts", "lib/**/*.tsx"],
+      "exclude": ["lib/animations/**"]
     },
     {
       "id": "db",
       "why": "The on-device feed cache, its schema and its migrations.",
-      "include": [
-        "db/**/*.ts"
-      ]
+      "include": ["db/**/*.ts"]
     },
     {
       "id": "providers",
       "why": "Boot order, auth routing and account-switch teardown — the components that are logic.",
-      "include": [
-        "components/providers/**/*.ts",
-        "components/providers/**/*.tsx"
-      ]
+      "include": ["components/providers/**/*.ts", "components/providers/**/*.tsx"]
     },
     {
       "id": "hooks",
       "why": "Where the app's product behaviour actually lives.",
-      "include": [
-        "hooks/**/*.ts",
-        "hooks/**/*.tsx"
-      ]
+      "include": ["hooks/**/*.ts", "hooks/**/*.tsx"]
     },
     {
       "id": "utils",
       "why": "Pure logic: intent parsing, post building, feed merging, formatting.",
-      "include": [
-        "utils/**/*.ts",
-        "utils/**/*.tsx"
-      ]
+      "include": ["utils/**/*.ts", "utils/**/*.tsx"]
     },
     {
       "id": "post-interactions",
@@ -255,7 +234,32 @@
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [],
+  "allowedBaselineDecreases": [
+    {
+      "path": "hooks/useFeedSettings.ts",
+      "metric": "lines",
+      "date": "2026-10-10",
+      "reason": "The Biome reformat (#1340) re-split this file's lines; no code or test changed. Statements, branches and functions are identical to main's CI report (94479e993); only the line count moved (33/34 -> 32/33 covered lines), so the lines percentage dipped below its whole-number pin."
+    },
+    {
+      "path": "stores/trendsStore.ts",
+      "metric": "lines",
+      "date": "2026-10-10",
+      "reason": "The Biome reformat (#1340) re-split this file's lines; no code or test changed. Statements, branches and functions are identical to main's CI report (94479e993); only the line count moved (65/73 -> 64/72 covered lines), so the lines percentage dipped below its whole-number pin."
+    },
+    {
+      "path": "utils/composeUtils.ts",
+      "metric": "lines",
+      "date": "2026-10-10",
+      "reason": "The Biome reformat (#1340) re-split this file's lines; no code or test changed. Statements, branches and functions are identical to main's CI report (94479e993); only the line count moved (30/51 -> 31/55 covered lines), so the lines percentage dipped below its whole-number pin."
+    },
+    {
+      "path": "utils/composeVariants.ts",
+      "metric": "lines",
+      "date": "2026-10-10",
+      "reason": "The Biome reformat (#1340) re-split this file's lines; no code or test changed. Statements, branches and functions are identical to main's CI report (94479e993); only the line count moved (188/199 -> 189/202 covered lines), so the lines percentage dipped below its whole-number pin."
+    }
+  ],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -269,7 +273,7 @@
     "unenforceable": 4,
     "belowBarExemptions": 9,
     "criticalPaths": 35,
-    "allowedBaselineDecreases": 0,
+    "allowedBaselineDecreases": 4,
     "snapshotAssertions": 0
   }
 }

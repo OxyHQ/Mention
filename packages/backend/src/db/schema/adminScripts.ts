@@ -74,7 +74,7 @@ export const adminScriptCursors = pgTable(
   (t) => [
     check('admin_script_cursors_scanned_check', sql`${t.scanned} >= 0`),
     uniqueIndex('admin_script_cursors_script_scope_key').on(t.script, t.scope),
-  ]
+  ],
 );
 
 /**
@@ -120,7 +120,7 @@ export const repairFetchFailures = pgTable(
     // evidence of it.
     check(
       'repair_fetch_failures_status_check',
-      sql`${t.status} is null or (${t.status} >= 100 and ${t.status} <= 599)`
+      sql`${t.status} is null or (${t.status} >= 100 and ${t.status} <= 599)`,
     ),
     // Bounded by the number of DISTINCT failing posts however many times a
     // sweep runs: a post that fails again refreshes its reason and timestamp.
@@ -129,5 +129,5 @@ export const repairFetchFailures = pgTable(
     // sweep failed to fetch for a retryable reason". Without it that read is a
     // scan.
     index('repair_fetch_failures_script_reason_idx').on(t.script, t.reason),
-  ]
+  ],
 );

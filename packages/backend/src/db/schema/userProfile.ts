@@ -129,7 +129,7 @@ export const userBehaviors = pgTable(
   (t) => [
     check(
       'user_behaviors_rates_check',
-      sql`${t.skipRate} between 0 and 1 and ${t.completionRate} between 0 and 1`
+      sql`${t.skipRate} between 0 and 1 and ${t.completionRate} between 0 and 1`,
     ),
     // Array CONTAINMENT rather than a per-element predicate: a CHECK constraint
     // cannot hold a subquery (`cannot use subquery in check constraint`), so the
@@ -137,9 +137,9 @@ export const userBehaviors = pgTable(
     // shape as `posts.reply_permission`.
     check(
       'user_behaviors_active_hours_check',
-      sql`${t.activeHours} <@ ${sql.raw(`array[${ACTIVE_HOURS.join(', ')}]::integer[]`)}`
+      sql`${t.activeHours} <@ ${sql.raw(`array[${ACTIVE_HOURS.join(', ')}]::integer[]`)}`,
     ),
-  ]
+  ],
 );
 
 /** `user_behavior_authors` — per-author affinity with its interaction breakdown. */
@@ -175,7 +175,7 @@ export const userBehaviorAuthors = pgTable(
     unique('user_behavior_authors_behavior_id_author_id_key').on(t.behaviorId, t.authorId),
     // Mongo indexed `preferredAuthors.authorId` — the reverse lookup.
     index('user_behavior_authors_author_id_idx').on(t.authorId),
-  ]
+  ],
 );
 
 /** `user_behavior_topics` — per-topic affinity. */
@@ -201,7 +201,7 @@ export const userBehaviorTopics = pgTable(
   (t) => [
     check('user_behavior_topics_weight_check', sql`${t.weight} between 0 and 1`),
     unique('user_behavior_topics_behavior_id_topic_key').on(t.behaviorId, t.topic),
-  ]
+  ],
 );
 
 /**
@@ -225,7 +225,7 @@ export const userBehaviorRegions = pgTable(
   (t) => [
     check('user_behavior_regions_count_check', sql`${t.count} >= 0`),
     unique('user_behavior_regions_behavior_id_region_key').on(t.behaviorId, t.region),
-  ]
+  ],
 );
 
 /**
@@ -394,23 +394,23 @@ export const userSettings = pgTable(
       .where(sql`${t.profileHeaderImage} is not null`),
     check(
       'user_settings_theme_mode_check',
-      sql`${t.appearanceThemeMode} in (${sql.raw(inList(THEME_MODES))})`
+      sql`${t.appearanceThemeMode} in (${sql.raw(inList(THEME_MODES))})`,
     ),
     check(
       'user_settings_post_text_expand_check',
-      sql`${t.appearancePostTextExpand} in (${sql.raw(inList(POST_TEXT_EXPANDS))})`
+      sql`${t.appearancePostTextExpand} in (${sql.raw(inList(POST_TEXT_EXPANDS))})`,
     ),
     check(
       'user_settings_post_read_more_action_check',
-      sql`${t.appearancePostReadMoreAction} in (${sql.raw(inList(POST_READ_MORE_ACTIONS))})`
+      sql`${t.appearancePostReadMoreAction} in (${sql.raw(inList(POST_READ_MORE_ACTIONS))})`,
     ),
     check(
       'user_settings_profile_visibility_check',
-      sql`${t.privacyProfileVisibility} in (${sql.raw(inList(PROFILE_VISIBILITIES))})`
+      sql`${t.privacyProfileVisibility} in (${sql.raw(inList(PROFILE_VISIBILITIES))})`,
     ),
     check(
       'user_settings_profile_media_type_check',
-      sql`${t.profileMediaType} is null or ${t.profileMediaType} in (${sql.raw(inList(PROFILE_MEDIA_TYPES))})`
+      sql`${t.profileMediaType} is null or ${t.profileMediaType} in (${sql.raw(inList(PROFILE_MEDIA_TYPES))})`,
     ),
     // The mutual exclusion Mongo got from storing one subdocument: a song's
     // fields cannot coexist with a podcast's, and neither can exist untyped.
@@ -426,26 +426,26 @@ export const userSettings = pgTable(
         or (${t.profileMediaType} = 'podcast'
           and ${t.profileMediaSyraPodcastId} is not null
           and ${t.profileMediaShowUrl} is not null
-          and ${t.profileMediaSyraTrackId} is null)`
+          and ${t.profileMediaSyraTrackId} is null)`,
     ),
     check(
       'user_settings_feed_penalties_check',
       sql`${t.feedSameAuthorPenalty} between 0.5 and 1.0
-        and ${t.feedSameTopicPenalty} between 0.5 and 1.0`
+        and ${t.feedSameTopicPenalty} between 0.5 and 1.0`,
     ),
     check(
       'user_settings_feed_recency_check',
       sql`${t.feedRecencyHalfLifeHours} between 6 and 72
-        and ${t.feedRecencyMaxAgeHours} between 24 and 336`
+        and ${t.feedRecencyMaxAgeHours} between 24 and 336`,
     ),
     check(
       'user_settings_feed_min_engagement_check',
-      sql`${t.feedMinEngagementRate} is null or ${t.feedMinEngagementRate} between 0 and 1`
+      sql`${t.feedMinEngagementRate} is null or ${t.feedMinEngagementRate} between 0 and 1`,
     ),
     check(
       'user_settings_max_consecutive_same_author_check',
       sql`${t.feedMaxConsecutiveSameAuthor} is null
-        or ${t.feedMaxConsecutiveSameAuthor} between 1 and 10`
+        or ${t.feedMaxConsecutiveSameAuthor} between 1 and 10`,
     ),
     check(
       'user_settings_external_embeds_check',
@@ -458,9 +458,9 @@ export const userSettings = pgTable(
         and (${t.embedAppleMusic} is null or ${t.embedAppleMusic} in (${sql.raw(inList(EXTERNAL_EMBED_PREFERENCES))}))
         and (${t.embedSoundcloud} is null or ${t.embedSoundcloud} in (${sql.raw(inList(EXTERNAL_EMBED_PREFERENCES))}))
         and (${t.embedFlickr} is null or ${t.embedFlickr} in (${sql.raw(inList(EXTERNAL_EMBED_PREFERENCES))}))
-        and (${t.embedBandcamp} is null or ${t.embedBandcamp} in (${sql.raw(inList(EXTERNAL_EMBED_PREFERENCES))}))`
+        and (${t.embedBandcamp} is null or ${t.embedBandcamp} in (${sql.raw(inList(EXTERNAL_EMBED_PREFERENCES))}))`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -487,12 +487,12 @@ export const userSettingsLabelActions = pgTable(
   (t) => [
     check(
       'user_settings_label_actions_action_check',
-      sql`${t.action} in (${sql.raw(inList(LABEL_PREFERENCE_ACTIONS))})`
+      sql`${t.action} in (${sql.raw(inList(LABEL_PREFERENCE_ACTIONS))})`,
     ),
     unique('user_settings_label_actions_settings_labeler_slug_key').on(
       t.settingsId,
       t.labelerId,
-      t.labelSlug
+      t.labelSlug,
     ),
-  ]
+  ],
 );

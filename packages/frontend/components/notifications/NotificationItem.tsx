@@ -92,7 +92,6 @@ interface ResolvedActor {
   kind?: PostUser['kind'];
 }
 
-
 /**
  * The cached Oxy user a row merges over its raw actor, plus whatever a profile
  * edit made in this session says about that person.
@@ -155,7 +154,10 @@ function correctedIdentity(
   return { ...cached, ...known };
 }
 
-function mergeActor(actor: GroupedActor | undefined, cached: CachedIdentity | undefined): ResolvedActor {
+function mergeActor(
+  actor: GroupedActor | undefined,
+  cached: CachedIdentity | undefined,
+): ResolvedActor {
   const username = cached?.username ?? actor?.username;
   return {
     id: actor?.id ?? cached?.id,
@@ -251,11 +253,18 @@ function postThumbnailUrl(content: unknown): string | undefined {
  * hooks or SQLite reads). Renders nothing when there is no text.
  */
 const NotificationPreview: React.FC<{ text: string }> = ({ text }) => (
-  <LinkifiedText text={text} numberOfLines={2} className="text-muted-foreground text-sm leading-5" />
+  <LinkifiedText
+    text={text}
+    numberOfLines={2}
+    className="text-muted-foreground text-sm leading-5"
+  />
 );
 
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
-const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({ actors, totalActors }) => {
+const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({
+  actors,
+  totalActors,
+}) => {
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
   return (
@@ -314,7 +323,11 @@ const NotificationActionRow: React.FC<{
     accessibilityRole="button"
     accessibilityLabel={label}
   >
-    <Text className={cn('text-base font-medium', destructive ? 'text-destructive' : 'text-foreground')}>{label}</Text>
+    <Text
+      className={cn('text-base font-medium', destructive ? 'text-destructive' : 'text-foreground')}
+    >
+      {label}
+    </Text>
     <View className="ml-3">{icon}</View>
   </Pressable>
 );
@@ -327,7 +340,11 @@ interface NotificationItemProps {
   onDelete: (ids: string[]) => void;
 }
 
-const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMarkAsRead, onDelete }) => {
+const NotificationItemComponent: React.FC<NotificationItemProps> = ({
+  item,
+  onMarkAsRead,
+  onDelete,
+}) => {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -481,7 +498,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     if (backend) return backend;
     const source = isCollabInvite ? collabPost?.content : item.leadNotification.post?.content;
     return postContentText(source)?.trim() || undefined;
-  }, [descriptor.hasPreview, item.leadNotification.preview, item.leadNotification.post, isCollabInvite, collabPost]);
+  }, [
+    descriptor.hasPreview,
+    item.leadNotification.preview,
+    item.leadNotification.post,
+    isCollabInvite,
+    collabPost,
+  ]);
 
   // Media chip: shown whenever the referenced post already carries an image on
   // the notification (the backend embeds a hydrated post for `type:'post'`) —
@@ -509,7 +532,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
   // implicit cancel. Tapping a row acts, then closes the sheet.
   const handleLongPress = useCallback(() => {
-    const rows: { key: string; icon: React.ReactNode; label: string; onPress: () => void; destructive?: boolean }[] = [];
+    const rows: {
+      key: string;
+      icon: React.ReactNode;
+      label: string;
+      onPress: () => void;
+      destructive?: boolean;
+    }[] = [];
     if (hasUnread) {
       rows.push({
         key: 'mark-read',
@@ -548,12 +577,24 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
       </View>,
     );
     bottomSheet.openBottomSheet(true);
-  }, [hasUnread, theme.colors.textSecondary, theme.colors.error, t, bottomSheet, onMarkAsRead, onDelete, item.notificationIds]);
+  }, [
+    hasUnread,
+    theme.colors.textSecondary,
+    theme.colors.error,
+    t,
+    bottomSheet,
+    onMarkAsRead,
+    onDelete,
+    item.notificationIds,
+  ]);
 
-  const openActorProfile = useCallback((actor: ResolvedActor) => {
-    const href = profileHrefForUser(actor);
-    if (href) router.push(href);
-  }, [router]);
+  const openActorProfile = useCallback(
+    (actor: ResolvedActor) => {
+      const href = profileHrefForUser(actor);
+      if (href) router.push(href);
+    },
+    [router],
+  );
 
   /**
    * The inviter as the canonical `PostUser`, or ABSENT when the actor carried no
@@ -584,22 +625,32 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         // propagate the newly-accepted co-authorship to every feed + the post
         // detail via the shared posts store, so the collaboration shows
         // everywhere without a manual refresh.
-        queryClient.setQueryData(
-          viewerQueryKeys.post(user?.id, postId),
-          result.post,
-        );
+        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
       bottomSheet.openBottomSheet(false);
-      toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), { type: 'success' });
+      toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), {
+        type: 'success',
+      });
     } catch (error) {
       logger.error('Failed to accept collab invite', error);
-      toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), { type: 'error' });
+      toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), {
+        type: 'error',
+      });
     } finally {
       setActionLoading(false);
     }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+  }, [
+    postId,
+    queryClient,
+    cachePosts,
+    onMarkAsRead,
+    item.notificationIds,
+    bottomSheet,
+    t,
+    user?.id,
+  ]);
 
   const runDecline = useCallback(async () => {
     if (!postId) return;
@@ -610,21 +661,29 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         // Flip this row to the resolved state and reflect the declined status on
         // any cached copy of the post (private posts return no post here, in which
         // case the actionable UI is simply dropped — the viewer lost view access).
-        queryClient.setQueryData(
-          viewerQueryKeys.post(user?.id, postId),
-          result.post,
-        );
+        queryClient.setQueryData(viewerQueryKeys.post(user?.id, postId), result.post);
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
       bottomSheet.openBottomSheet(false);
     } catch (error) {
       logger.error('Failed to decline collab invite', error);
-      toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), { type: 'error' });
+      toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), {
+        type: 'error',
+      });
     } finally {
       setActionLoading(false);
     }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
+  }, [
+    postId,
+    queryClient,
+    cachePosts,
+    onMarkAsRead,
+    item.notificationIds,
+    bottomSheet,
+    t,
+    user?.id,
+  ]);
 
   const openAcceptSheet = useCallback(() => {
     if (!inviter) return;
@@ -668,7 +727,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
           {/* Avatar column: avatar + themed action-badge overlay. */}
           <View className="relative mr-3">
             <ProfileHoverCard username={resolvedPrimary.handle}>
-              <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+              <Avatar
+                source={resolvedPrimary.avatar}
+                size={AVATAR_SIZE}
+                variant={MEDIA_VARIANT_AVATAR}
+              />
             </ProfileHoverCard>
             <View
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
@@ -685,7 +748,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
               plus the muted action phrase and the text preview. */}
           <View className="flex-1 gap-1">
-            {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
+            {showStrip ? (
+              <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} />
+            ) : null}
 
             {/* Byline: bold name + muted @handle + federated badge + "· time". */}
             <View className="flex-row items-end gap-2">
@@ -755,14 +820,22 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                           className="flex-row items-center gap-2"
                           accessibilityRole="button"
                         >
-                          <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+                          <Avatar
+                            source={actor.avatar}
+                            size={STACK_AVATAR_SIZE}
+                            variant={MEDIA_VARIANT_AVATAR}
+                          />
                           <UserName name={actorLabel(actor, someone)} variant="small" />
                         </Pressable>
                       </ProfileHoverCard>
                     ))}
                   </View>
                 ) : null}
-                <Pressable onPress={toggleExpanded} hitSlop={HIT_SLOP_MD} accessibilityRole="button">
+                <Pressable
+                  onPress={toggleExpanded}
+                  hitSlop={HIT_SLOP_MD}
+                  accessibilityRole="button"
+                >
                   <Text className="text-primary text-sm font-semibold">
                     {expanded
                       ? t('notification.group.showLess', { defaultValue: 'Show less' })
@@ -780,7 +853,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                 <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
                   {t('collab.accept', { defaultValue: 'Accept' })}
                 </Button>
-                <Button appearance="subtle" tone="neutral" className="flex-1" onPress={runDecline} disabled={actionLoading}>
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  className="flex-1"
+                  onPress={runDecline}
+                  disabled={actionLoading}
+                >
                   {t('collab.decline', { defaultValue: 'Decline' })}
                 </Button>
               </View>

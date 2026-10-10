@@ -3,11 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { loadPostRecord } from '../../../db/posts/postRepository';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 
 const scope = federationScope('outbox-mention-self-heal');
 
@@ -179,11 +175,13 @@ async function seedExistingPost(mentions: string[]): Promise<string> {
   const record = await seedPost(scope, {
     oxyUserId: 'oxy_alice',
     content: {
-      variants: [{
-        source: 'author',
-        tag: 'en',
-        text: 'hey <a href="https://mastodon.example/users/bob">@bob</a>',
-      }],
+      variants: [
+        {
+          source: 'author',
+          tag: 'en',
+          text: 'hey <a href="https://mastodon.example/users/bob">@bob</a>',
+        },
+      ],
     },
     mentions,
     federation: { activityId: MENTION_NOTE_ID, actorUri: ACTOR_URI },
@@ -202,7 +200,12 @@ async function storedState(postId: string): Promise<{ mentions: string[]; texts:
 
 function runSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: 'oxy_alice' },
+    {
+      uri: ACTOR_URI,
+      acct: 'alice@mastodon.social',
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: 'oxy_alice',
+    },
     { limit: 10, maxPages: 1 },
   );
 }
@@ -215,7 +218,10 @@ beforeEach(() => {
     publicKeyPem: 'public',
   });
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl');
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update.$set,
+  }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
@@ -225,7 +231,9 @@ beforeEach(() => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {

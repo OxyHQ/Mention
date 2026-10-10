@@ -64,9 +64,9 @@ export async function createPollWithOptions(
       .returning({ id: polls.id });
 
     if (input.options.length > 0) {
-      await tx.insert(pollOptions).values(
-        input.options.map((text, position) => ({ pollId: row.id, position, text })),
-      );
+      await tx
+        .insert(pollOptions)
+        .values(input.options.map((text, position) => ({ pollId: row.id, position, text })));
     }
 
     return row.id;

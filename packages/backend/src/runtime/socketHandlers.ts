@@ -4,19 +4,12 @@ import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
 } from '../services/SocketPresenceLifecycle';
-import {
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '../services/notificationReadState';
+import { markAllNotificationsRead, markNotificationRead } from '../services/notificationReadState';
 import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { createSocketRateLimiter } from '../middleware/socketRateLimit';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
-import {
-  PRESENCE_ROOM_PREFIX,
-  presenceRoom,
-  isValidPresenceUserId,
-} from '@mention/shared-types';
+import { PRESENCE_ROOM_PREFIX, presenceRoom, isValidPresenceUserId } from '@mention/shared-types';
 import type { PresenceRegistry } from './presenceRegistry';
 import type { DisconnectReason, SocketNamespaces } from './socketIoServer';
 
@@ -45,11 +38,11 @@ function registerNotificationsHandlers(
   namespace: SocketNamespaces['notificationsNamespace'],
   socketRateLimiter: SocketRateLimiter,
 ): void {
-  namespace.on("connection", (socket: AuthenticatedSocket) => {
+  namespace.on('connection', (socket: AuthenticatedSocket) => {
     logger.info('Client connected to notifications namespace');
 
     if (!socket.user?.id) {
-      logger.warn("Unauthenticated client attempted to connect to notifications namespace");
+      logger.warn('Unauthenticated client attempted to connect to notifications namespace');
       socket.disconnect(true);
       return;
     }
@@ -78,11 +71,13 @@ function registerNotificationsHandlers(
     // `notificationInbox` cache TTL and cuts off much sooner. The payload is
     // engagement metadata on a public post, which is why that window is acceptable
     // here and would not be for the read routes.
-    const socketBearer = typeof socket.handshake.auth?.token === 'string'
-      ? socket.handshake.auth.token
-      : undefined;
+    const socketBearer =
+      typeof socket.handshake.auth?.token === 'string' ? socket.handshake.auth.token : undefined;
     if (socketBearer) {
-      void resolveNotificationInboxIds(userId, createUserScopedOxyServices({ accessToken: socketBearer }))
+      void resolveNotificationInboxIds(
+        userId,
+        createUserScopedOxyServices({ accessToken: socketBearer }),
+      )
         .then((recipientIds) => {
           if (!socket.connected) return;
           for (const recipientId of recipientIds) {
@@ -96,8 +91,8 @@ function registerNotificationsHandlers(
         });
     }
 
-    socket.on("error", (error: Error) => {
-      logger.error("Notifications socket error", error);
+    socket.on('error', (error: Error) => {
+      logger.error('Notifications socket error', error);
     });
 
     // THE TWO READ-STATE HANDLERS BELOW STAY SCOPED TO THE PERSON, NOT TO THE
@@ -112,39 +107,47 @@ function registerNotificationsHandlers(
     // hours — a worse staleness window than the one the HTTP routes have, spent on
     // handlers nothing calls. Left narrow, they simply find no channel row and
     // no-op, which is the direction that fails closed.
-    socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
-      try {
-        if (!socket.user?.id) return;
-        if (!notificationId) return;
-        // Postgres, through the SAME helper the REST route uses. This used to
-        // write the Mongoose model, which nothing has read since notifications
-        // moved — so a notification marked read over the socket came back unread
-        // on the next load, for every user, with nothing in any log.
-        // `[userId]` — the narrowing the block comment above argues for, spelled
-        // out. The signature takes the recipient SCOPE so this stays a decision
-        // somebody made rather than a default nobody noticed.
-        const notification = await markNotificationRead([userId], notificationId);
-        if (notification) {
-          namespace
-            .to(userRoom)
-            .emit("notificationUpdated", notification);
+    socket.on(
+      'markNotificationRead',
+      socketRateLimiter.wrap(
+        socket,
+        'markNotificationRead',
+        async ({ notificationId }: { notificationId?: string }) => {
+          try {
+            if (!socket.user?.id) return;
+            if (!notificationId) return;
+            // Postgres, through the SAME helper the REST route uses. This used to
+            // write the Mongoose model, which nothing has read since notifications
+            // moved — so a notification marked read over the socket came back unread
+            // on the next load, for every user, with nothing in any log.
+            // `[userId]` — the narrowing the block comment above argues for, spelled
+            // out. The signature takes the recipient SCOPE so this stays a decision
+            // somebody made rather than a default nobody noticed.
+            const notification = await markNotificationRead([userId], notificationId);
+            if (notification) {
+              namespace.to(userRoom).emit('notificationUpdated', notification);
+            }
+          } catch (error) {
+            logger.error('Error marking notification as read', error);
+          }
+        },
+      ),
+    );
+
+    socket.on(
+      'markAllNotificationsRead',
+      socketRateLimiter.wrap(socket, 'markAllNotificationsRead', async () => {
+        try {
+          if (!socket.user?.id) return;
+          await markAllNotificationsRead([userId]);
+          namespace.to(userRoom).emit('allNotificationsRead');
+        } catch (error) {
+          logger.error('Error marking all notifications as read', error);
         }
-      } catch (error) {
-        logger.error("Error marking notification as read", error);
-      }
-    }));
+      }),
+    );
 
-    socket.on("markAllNotificationsRead", socketRateLimiter.wrap(socket, 'markAllNotificationsRead', async () => {
-      try {
-        if (!socket.user?.id) return;
-        await markAllNotificationsRead([userId]);
-        namespace.to(userRoom).emit("allNotificationsRead");
-      } catch (error) {
-        logger.error("Error marking all notifications as read", error);
-      }
-    }));
-
-    socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
+    socket.on('disconnect', (reason: DisconnectReason, description?: unknown) => {
       socketRateLimiter.cleanup(socket.id);
       logger.debug('Client disconnected from notifications namespace', {
         reason,
@@ -159,21 +162,21 @@ function registerPostsHandlers(
   namespace: SocketNamespaces['postsNamespace'],
   socketRateLimiter: SocketRateLimiter,
 ): void {
-  namespace.on("connection", (socket: AuthenticatedSocket) => {
+  namespace.on('connection', (socket: AuthenticatedSocket) => {
     logger.info('Client connected to posts namespace');
 
     if (!socket.user?.id) {
-      logger.warn("Unauthenticated client attempted to connect to posts namespace");
+      logger.warn('Unauthenticated client attempted to connect to posts namespace');
       socket.disconnect(true);
       return;
     }
 
-    socket.on("error", (error: Error) => {
-      logger.error("Posts socket error", error);
+    socket.on('error', (error: Error) => {
+      logger.error('Posts socket error', error);
     });
     registerContentRoomHandlers(socket, socketRateLimiter);
 
-    socket.on("disconnect", (reason: DisconnectReason) => {
+    socket.on('disconnect', (reason: DisconnectReason) => {
       socketRateLimiter.cleanup(socket.id);
       logger.debug('Client disconnected from posts namespace', { reason });
     });
@@ -185,9 +188,9 @@ function registerPostsHandlers(
 // notices and nothing else. Nothing a client sends is ever read, which is why
 // there is no rate-limited handler to register or clean up.
 function registerPublicHandlers(namespace: SocketNamespaces['publicNamespace']): void {
-  namespace.on("connection", (socket) => {
+  namespace.on('connection', (socket) => {
     logger.debug('Client connected to public namespace');
-    socket.on("disconnect", (reason: DisconnectReason) => {
+    socket.on('disconnect', (reason: DisconnectReason) => {
       logger.debug('Client disconnected from public namespace', { reason });
     });
   });
@@ -199,7 +202,7 @@ function registerMainNamespaceHandlers(
   presence: PresenceRegistry,
   socketRateLimiter: SocketRateLimiter,
 ): void {
-  io.on("connection", (socket: AuthenticatedSocket) => {
+  io.on('connection', (socket: AuthenticatedSocket) => {
     logger.info('Client connected');
 
     // registerSocketPresence installs disconnect cleanup synchronously before its
@@ -219,8 +222,8 @@ function registerMainNamespaceHandlers(
     });
 
     // Enhanced error handling
-    socket.on("error", (error: Error) => {
-      logger.error("Socket error", error);
+    socket.on('error', (error: Error) => {
+      logger.error('Socket error', error);
       // Attempt to reconnect on error
       if (socket.connected) {
         socket.disconnect();
@@ -228,81 +231,102 @@ function registerMainNamespaceHandlers(
     });
     registerContentRoomHandlers(socket, socketRateLimiter);
 
-    socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
+    socket.on('disconnect', (reason: DisconnectReason, description?: unknown) => {
       socketRateLimiter.cleanup(socket.id);
       logger.debug('Client disconnected', { reason, description });
 
       // Handle specific disconnect reasons
-      if (reason === "server disconnect") {
+      if (reason === 'server disconnect') {
         // Reconnect if server initiated the disconnect
         socket.disconnect();
       }
-      if (reason === "transport close" || reason === "transport error") {
-        logger.debug("Transport issue detected, attempting reconnection...");
+      if (reason === 'transport close' || reason === 'transport error') {
+        logger.debug('Transport issue detected, attempting reconnection...');
       }
     });
 
-    socket.on("connect_error", (error: Error) => {
-      logger.error("Connection error", error);
+    socket.on('connect_error', (error: Error) => {
+      logger.error('Connection error', error);
     });
 
-    socket.on("reconnect_attempt", (attemptNumber: number) => {
+    socket.on('reconnect_attempt', (attemptNumber: number) => {
       logger.debug(`Reconnection attempt ${attemptNumber}`);
     });
 
-    socket.on("reconnect_error", (error: Error) => {
-      logger.error("Reconnection error", error);
+    socket.on('reconnect_error', (error: Error) => {
+      logger.error('Reconnection error', error);
     });
 
-    socket.on("reconnect_failed", () => {
-      logger.error("Failed to reconnect");
+    socket.on('reconnect_failed', () => {
+      logger.error('Failed to reconnect');
     });
 
     // Get online status of a single user
-    socket.on("getPresence", socketRateLimiter.wrap(socket, 'getPresence', async (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
-      if (!targetUserId || typeof targetUserId !== 'string') return;
-      const online = await presence.isOnline(targetUserId);
-      if (typeof callback === 'function') {
-        callback({ online });
-      } else {
-        socket.emit('user:presence', { userId: targetUserId, online });
-      }
-    }));
+    socket.on(
+      'getPresence',
+      socketRateLimiter.wrap(
+        socket,
+        'getPresence',
+        async (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
+          if (!targetUserId || typeof targetUserId !== 'string') return;
+          const online = await presence.isOnline(targetUserId);
+          if (typeof callback === 'function') {
+            callback({ online });
+          } else {
+            socket.emit('user:presence', { userId: targetUserId, online });
+          }
+        },
+      ),
+    );
 
     // Get online status of multiple users
-    socket.on("getPresenceBulk", socketRateLimiter.wrap(socket, 'getPresenceBulk', async (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
-      const result = Array.isArray(userIds)
-        ? await presence.getBulk(userIds)
-        : {};
-      if (typeof callback === 'function') {
-        callback(result);
-      } else {
-        socket.emit('user:presenceBulk', result);
-      }
-    }));
+    socket.on(
+      'getPresenceBulk',
+      socketRateLimiter.wrap(
+        socket,
+        'getPresenceBulk',
+        async (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
+          const result = Array.isArray(userIds) ? await presence.getBulk(userIds) : {};
+          if (typeof callback === 'function') {
+            callback(result);
+          } else {
+            socket.emit('user:presenceBulk', result);
+          }
+        },
+      ),
+    );
 
     // Subscribe to a user's presence changes
-    socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
-      if (!isValidPresenceUserId(targetUserId)) return;
-      const room = presenceRoom(targetUserId);
-      if (!socket.rooms.has(room)) {
-        const occupied = joinedPresenceRooms(socket);
-        if (occupied.length >= MAX_PRESENCE_ROOMS_PER_SOCKET) {
-          for (const stale of occupied.slice(0, occupied.length - MAX_PRESENCE_ROOMS_PER_SOCKET + 1)) {
-            socket.leave(stale);
+    socket.on(
+      'subscribePresence',
+      socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
+        if (!isValidPresenceUserId(targetUserId)) return;
+        const room = presenceRoom(targetUserId);
+        if (!socket.rooms.has(room)) {
+          const occupied = joinedPresenceRooms(socket);
+          if (occupied.length >= MAX_PRESENCE_ROOMS_PER_SOCKET) {
+            for (const stale of occupied.slice(
+              0,
+              occupied.length - MAX_PRESENCE_ROOMS_PER_SOCKET + 1,
+            )) {
+              socket.leave(stale);
+            }
           }
+          socket.join(room);
         }
-        socket.join(room);
-      }
-      const online = await presence.isOnline(targetUserId);
-      socket.emit('user:presence', { userId: targetUserId, online });
-    }));
+        const online = await presence.isOnline(targetUserId);
+        socket.emit('user:presence', { userId: targetUserId, online });
+      }),
+    );
 
     // Unsubscribe from a user's presence changes
-    socket.on("unsubscribePresence", socketRateLimiter.wrap(socket, 'unsubscribePresence', (targetUserId: string) => {
-      if (!isValidPresenceUserId(targetUserId)) return;
-      socket.leave(presenceRoom(targetUserId));
-    }));
+    socket.on(
+      'unsubscribePresence',
+      socketRateLimiter.wrap(socket, 'unsubscribePresence', (targetUserId: string) => {
+        if (!isValidPresenceUserId(targetUserId)) return;
+        socket.leave(presenceRoom(targetUserId));
+      }),
+    );
   });
 }
 

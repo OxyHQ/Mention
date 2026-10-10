@@ -46,7 +46,14 @@ const DEFINITIONS: readonly TrendConceptDefinition[] = [
   {
     id: 'topic:petroleum',
     kind: 'topic',
-    labels: { en: 'Oil', es: 'Petróleo', fr: 'Pétrole', de: 'Erdöl', it: 'Petrolio', pt: 'Petróleo' },
+    labels: {
+      en: 'Oil',
+      es: 'Petróleo',
+      fr: 'Pétrole',
+      de: 'Erdöl',
+      it: 'Petrolio',
+      pt: 'Petróleo',
+    },
     aliases: {
       en: ['oil', 'crude oil'],
       es: ['petróleo', 'petroleo', 'crudo'],
@@ -66,7 +73,8 @@ const DEFINITIONS: readonly TrendConceptDefinition[] = [
   },
 ];
 
-const normalize = (value: string): string => value.trim().toLocaleLowerCase().replace(/[-_]+/g, ' ');
+const normalize = (value: string): string =>
+  value.trim().toLocaleLowerCase().replace(/[-_]+/g, ' ');
 
 const aliasIndex = new Map<string, TrendConceptDefinition>();
 for (const definition of DEFINITIONS) {
@@ -98,8 +106,6 @@ export function localizedConceptLabel(
 }
 
 /** Labels safe to persist on a trend row. */
-export function conceptLabels(
-  concept: TrendConceptDefinition | undefined,
-): Record<string, string> {
+export function conceptLabels(concept: TrendConceptDefinition | undefined): Record<string, string> {
   return concept ? { ...concept.labels } : {};
 }

@@ -98,19 +98,26 @@ const json = (status: number, body: unknown): Response =>
 /** What the fake Mercaria answers for each path under `/public/v1`. */
 const ROUTES: Record<string, () => Response | Promise<Response>> = {
   // An unknown field (`sku`) rides along: the SDK must not pass it through.
-  '/products/prod_available': () => json(200, { success: true, data: { ...productWire('prod_available'), sku: 'SKU-PRIVATE-1' } }),
+  '/products/prod_available': () =>
+    json(200, { success: true, data: { ...productWire('prod_available'), sku: 'SKU-PRIVATE-1' } }),
   '/products/prod_second': () => json(200, { success: true, data: productWire('prod_second') }),
-  '/products/prod_gone': () => json(410, { success: false, error: 'GONE', message: 'No longer available' }),
-  '/products/prod_missing': () => json(404, { success: false, error: 'NOT_FOUND', message: 'Product not found' }),
+  '/products/prod_gone': () =>
+    json(410, { success: false, error: 'GONE', message: 'No longer available' }),
+  '/products/prod_missing': () =>
+    json(404, { success: false, error: 'NOT_FOUND', message: 'Product not found' }),
   '/products/prod_network': () => Promise.reject(new TypeError('fetch failed')),
   '/products/prod_throttled': () =>
     new Response('Too Many Requests', { status: 429, headers: { 'content-type': 'text/plain' } }),
   // A 404 with no Mercaria body is a proxy talking, and proves nothing about the product.
   '/products/prod_proxy_404': () => new Response('<html>Not Found</html>', { status: 404 }),
-  '/products/prod_down': () => json(503, { success: false, error: 'SERVICE_UNAVAILABLE', message: 'Try later' }),
-  '/stores/store_conformance': () => json(200, { success: true, data: storeWire('store_conformance') }),
-  '/stores/store_closed': () => json(410, { success: false, error: 'GONE', message: 'Store closed' }),
-  '/collections/col_conformance': () => json(200, { success: true, data: collectionWire('col_conformance') }),
+  '/products/prod_down': () =>
+    json(503, { success: false, error: 'SERVICE_UNAVAILABLE', message: 'Try later' }),
+  '/stores/store_conformance': () =>
+    json(200, { success: true, data: storeWire('store_conformance') }),
+  '/stores/store_closed': () =>
+    json(410, { success: false, error: 'GONE', message: 'Store closed' }),
+  '/collections/col_conformance': () =>
+    json(200, { success: true, data: collectionWire('col_conformance') }),
 };
 
 interface RecordedRequest {
@@ -126,12 +133,14 @@ function installFakeMercaria(): void {
   vi.stubGlobal('fetch', async (url: string, init: MercariaFetchInit) => {
     requests.push({ url, init });
     const route = url.startsWith(prefix) ? ROUTES[url.slice(prefix.length)] : undefined;
-    if (!route) return json(404, { success: false, error: 'UNKNOWN_ROUTE', message: 'unexpected request' });
+    if (!route)
+      return json(404, { success: false, error: 'UNKNOWN_ROUTE', message: 'unexpected request' });
     return route();
   });
 }
 
-const productRefValue = (id: string): unknown => JSON.parse(JSON.stringify({ kind: 'product', id }));
+const productRefValue = (id: string): unknown =>
+  JSON.parse(JSON.stringify({ kind: 'product', id }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -146,7 +155,9 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
   it('hydrates an available product from the real wire envelope, with the SDK canonical link', async () => {
     const [result] = await hydrateMercariaProductRefs([productRefValue('prod_available')]);
 
-    expect(requests.map((request) => request.url)).toEqual([`${API_BASE}/public/v1/products/prod_available`]);
+    expect(requests.map((request) => request.url)).toEqual([
+      `${API_BASE}/public/v1/products/prod_available`,
+    ]);
     expect(result.state).toBe('available');
     if (result.state !== 'available') return;
 
@@ -167,7 +178,9 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
     expect(init.method).toBe('GET');
     expect(init.credentials).toBe('omit');
     expect(init.headers.Accept).toBe('application/json');
-    expect(Object.keys(init.headers).map((name) => name.toLowerCase())).not.toContain('authorization');
+    expect(Object.keys(init.headers).map((name) => name.toLowerCase())).not.toContain(
+      'authorization',
+    );
   });
 
   it('maps every Mercaria answer to its state, index-aligned with the input', async () => {
@@ -191,21 +204,53 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       'available',
     ]);
     expect(results[0]).toEqual({ state: 'gone', ref: { kind: 'product', id: 'prod_gone' } });
-    expect(results[1]).toEqual({ state: 'not_found', ref: { kind: 'product', id: 'prod_missing' } });
-    expect(results[2]).toEqual({ state: 'unavailable', ref: { kind: 'product', id: 'prod_network' }, retryable: true });
-    expect(results[3]).toEqual({ state: 'unavailable', ref: { kind: 'product', id: 'prod_throttled' }, retryable: true });
+    expect(results[1]).toEqual({
+      state: 'not_found',
+      ref: { kind: 'product', id: 'prod_missing' },
+    });
+    expect(results[2]).toEqual({
+      state: 'unavailable',
+      ref: { kind: 'product', id: 'prod_network' },
+      retryable: true,
+    });
+    expect(results[3]).toEqual({
+      state: 'unavailable',
+      ref: { kind: 'product', id: 'prod_throttled' },
+      retryable: true,
+    });
     // Never `not_found`: a bare 404 must not tell a caller a valid ref is dead.
-    expect(results[4]).toEqual({ state: 'unavailable', ref: { kind: 'product', id: 'prod_proxy_404' }, retryable: false });
-    expect(results[5]).toEqual({ state: 'unavailable', ref: { kind: 'product', id: 'prod_down' }, retryable: true });
+    expect(results[4]).toEqual({
+      state: 'unavailable',
+      ref: { kind: 'product', id: 'prod_proxy_404' },
+      retryable: false,
+    });
+    expect(results[5]).toEqual({
+      state: 'unavailable',
+      ref: { kind: 'product', id: 'prod_down' },
+      retryable: true,
+    });
 
     expect(requests.map((request) => request.url).sort()).toEqual(
-      ['prod_gone', 'prod_missing', 'prod_network', 'prod_throttled', 'prod_proxy_404', 'prod_down', 'prod_second']
+      [
+        'prod_gone',
+        'prod_missing',
+        'prod_network',
+        'prod_throttled',
+        'prod_proxy_404',
+        'prod_down',
+        'prod_second',
+      ]
         .map((id) => `${API_BASE}/public/v1/products/${id}`)
         .sort(),
     );
     expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
       '[MercariaHydration] Mercaria read failed',
-      expect.objectContaining({ kind: 'product', code: 'RATE_LIMITED', status: 429, retryable: true }),
+      expect.objectContaining({
+        kind: 'product',
+        code: 'RATE_LIMITED',
+        status: 429,
+        retryable: true,
+      }),
     );
   });
 
@@ -227,10 +272,15 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
   });
 
   it('treats a ref the SDK refuses to put in a path as `invalid`, still without a request', async () => {
-    const results = await hydrateMercariaProductRefs([{ kind: 'product', id: '..' }, productRefValue('prod_second')]);
+    const results = await hydrateMercariaProductRefs([
+      { kind: 'product', id: '..' },
+      productRefValue('prod_second'),
+    ]);
 
     expect(results.map((result) => result.state)).toEqual(['invalid', 'available']);
-    expect(requests.map((request) => request.url)).toEqual([`${API_BASE}/public/v1/products/prod_second`]);
+    expect(requests.map((request) => request.url)).toEqual([
+      `${API_BASE}/public/v1/products/prod_second`,
+    ]);
   });
 
   it('reads each distinct ref once and shares the result across duplicates', async () => {
@@ -242,7 +292,13 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       productRefValue('prod_available'),
     ]);
 
-    expect(results.map((result) => result.state)).toEqual(['available', 'invalid', 'available', 'gone', 'available']);
+    expect(results.map((result) => result.state)).toEqual([
+      'available',
+      'invalid',
+      'available',
+      'gone',
+      'available',
+    ]);
     expect(results[2]).toBe(results[0]);
     expect(results[4]).toBe(results[0]);
     expect(requests.map((request) => request.url).sort()).toEqual([
@@ -305,12 +361,18 @@ describe('resolveMercariaStore / resolveMercariaCollection — through @mercaria
       expect(result.collection.title).toBe('Launch');
       expect(result.url).toBe(`${WEB_BASE}/stores/night-city-goods?collection=col_conformance`);
     }
-    expect(requests.map((request) => request.url)).toEqual([`${API_BASE}/public/v1/collections/col_conformance`]);
+    expect(requests.map((request) => request.url)).toEqual([
+      `${API_BASE}/public/v1/collections/col_conformance`,
+    ]);
   });
 
   it('refuses a ref of the wrong kind without a request', async () => {
-    await expect(resolveMercariaStore({ kind: 'product', id: 'prod_available' })).resolves.toEqual({ state: 'invalid' });
-    await expect(resolveMercariaCollection({ kind: 'store', id: 'store_conformance' })).resolves.toEqual({
+    await expect(resolveMercariaStore({ kind: 'product', id: 'prod_available' })).resolves.toEqual({
+      state: 'invalid',
+    });
+    await expect(
+      resolveMercariaCollection({ kind: 'store', id: 'store_conformance' }),
+    ).resolves.toEqual({
       state: 'invalid',
     });
     expect(requests).toHaveLength(0);

@@ -230,8 +230,7 @@ export const composeStyles = StyleSheet.create({
     paddingTop: 2,
     gap: 8,
   },
-  headerChildren: {
-  },
+  headerChildren: {},
   avatarContainer: {
     alignItems: 'center',
     marginRight: 12, // AVATAR_GAP

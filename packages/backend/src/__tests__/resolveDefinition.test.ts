@@ -19,7 +19,13 @@ describe('resolveDefinition', () => {
     expect(def).not.toBeNull();
     expect(def!.mode).toBe('ranked');
     expect(sourceIds(def!)).toEqual([
-      'following', 'lists', 'affinity', 'topic', 'region', 'trending', 'globalDiscovery',
+      'following',
+      'lists',
+      'affinity',
+      'topic',
+      'region',
+      'trending',
+      'globalDiscovery',
     ]);
     expect(def!.execution?.neverBlank).toBe(true);
   });
@@ -44,7 +50,10 @@ describe('resolveDefinition', () => {
   it('author|123|media → authored media source + mediaOnly filter (no safety)', async () => {
     const def = await resolveDefinition('author|123|media' as FeedDescriptor);
     expect(def!.mode).toBe('chronological');
-    expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'media' } });
+    expect(def!.sources[0]).toMatchObject({
+      module: 'authored',
+      params: { authorId: '123', filter: 'media' },
+    });
     expect(def!.filters.some((f) => f.module === 'mediaOnly')).toBe(true);
     expect(def!.filters.some((f) => f.module === 'safety')).toBe(false);
     expect(def!.execution?.hydrateMaxDepth).toBe(1);
@@ -52,7 +61,10 @@ describe('resolveDefinition', () => {
 
   it('author|123 → authored posts source without safety filter', async () => {
     const def = await resolveDefinition('author|123' as FeedDescriptor);
-    expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'posts' } });
+    expect(def!.sources[0]).toMatchObject({
+      module: 'authored',
+      params: { authorId: '123', filter: 'posts' },
+    });
     expect(def!.filters.some((f) => f.module === 'safety')).toBe(false);
   });
 
@@ -66,7 +78,10 @@ describe('resolveDefinition', () => {
     const def = await resolveDefinition('author|123|mentions' as FeedDescriptor);
     expect(def!.id).toBe('author|123|mentions');
     expect(def!.execution?.ordered).toBeFalsy();
-    expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'mentions' } });
+    expect(def!.sources[0]).toMatchObject({
+      module: 'authored',
+      params: { authorId: '123', filter: 'mentions' },
+    });
   });
 
   it('hashtag|Cats → keywords source with lowercased hashtag', async () => {

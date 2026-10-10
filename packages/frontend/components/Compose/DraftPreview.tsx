@@ -36,19 +36,23 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
   const { t } = useTranslation();
   const { user } = useAuth();
 
-  const author = useMemo<PostUser>(() => ({
-    id: user?.id ?? '',
-    username: getNormalizedUserHandle(user) ?? '',
-    name: { displayName: user?.name?.displayName },
-    avatar: user?.avatar,
-  }), [user]);
+  const author = useMemo<PostUser>(
+    () => ({
+      id: user?.id ?? '',
+      username: getNormalizedUserHandle(user) ?? '',
+      name: { displayName: user?.name?.displayName },
+      avatar: user?.avatar,
+    }),
+    [user],
+  );
 
   const { post, remainingThreadItems } = useMemo(
-    () => draftToPreviewPost({
-      draft,
-      author,
-      resolveMediaUrl: (fileId) => oxyServices.assets.publicUrl(fileId),
-    }),
+    () =>
+      draftToPreviewPost({
+        draft,
+        author,
+        resolveMediaUrl: (fileId) => oxyServices.assets.publicUrl(fileId),
+      }),
     [draft, author],
   );
 
@@ -56,14 +60,16 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
     <PostPreviewSurface
       post={post}
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
-      subtitle={remainingThreadItems > 0 ? (
-        <Text className="text-xs text-muted-foreground mt-0.5">
-          {t('compose.draftPreviewThread', {
-            defaultValue: 'First post of {{count}} more in this thread',
-            count: remainingThreadItems,
-          })}
-        </Text>
-      ) : undefined}
+      subtitle={
+        remainingThreadItems > 0 ? (
+          <Text className="text-xs text-muted-foreground mt-0.5">
+            {t('compose.draftPreviewThread', {
+              defaultValue: 'First post of {{count}} more in this thread',
+              count: remainingThreadItems,
+            })}
+          </Text>
+        ) : undefined
+      }
       onBack={onBack}
     >
       <View className="px-4 py-3 border-t border-border">

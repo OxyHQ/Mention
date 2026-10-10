@@ -1,12 +1,12 @@
-import { z } from "zod/v4";
-import { api, formatApiError } from "../lib/api-client.js";
-import { withAuthGuard } from "../lib/auth-guard.js";
-import { formatFeed } from "../lib/formatters.js";
-import type { MentionToolRegistrar } from "../lib/tool-registry.js";
+import { z } from 'zod/v4';
+import { api, formatApiError } from '../lib/api-client.js';
+import { withAuthGuard } from '../lib/auth-guard.js';
+import { formatFeed } from '../lib/formatters.js';
+import type { MentionToolRegistrar } from '../lib/tool-registry.js';
 
 export function registerSearchTools(server: MentionToolRegistrar): void {
   server.tool(
-    "search",
+    'search',
     `Search posts on Mention (requires authorization). Supports operators: from:username, since:YYYY-MM-DD, until:YYYY-MM-DD, has:media, has:links, min_likes:N, min_boosts:N`,
     {
       query: z.string(),
@@ -21,10 +21,12 @@ export function registerSearchTools(server: MentionToolRegistrar): void {
         if (cursor) params.cursor = cursor;
         if (language) params.language = language;
 
-        const result = await api.get("/search", params);
-        return { content: [{ type: "text" as const, text: formatFeed(result as Record<string, unknown>) }] };
+        const result = await api.get('/search', params);
+        return {
+          content: [{ type: 'text' as const, text: formatFeed(result as Record<string, unknown>) }],
+        };
       } catch (error) {
-        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
     }),
   );

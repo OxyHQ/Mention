@@ -7,10 +7,7 @@ import { queryClient } from '@/lib/queryClient';
 import { usePostsStore } from '@/stores/postsStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
-import {
-    noteChannelBylineChanged,
-    resetBylineInvalidation,
-} from '@/stores/bylineInvalidation';
+import { noteChannelBylineChanged, resetBylineInvalidation } from '@/stores/bylineInvalidation';
 import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
 
 /**
@@ -40,28 +37,28 @@ import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
 jest.mock('@/stores/postsStore', () => {
-    const state = {
-        fetchFeed: jest.fn(() => Promise.resolve()),
-        fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
-        refreshFeed: jest.fn(() => Promise.resolve()),
-        loadMoreFeed: jest.fn(() => Promise.resolve()),
-        cachePosts: jest.fn(),
-        clearFeed: jest.fn(),
-        clearUserFeed: jest.fn(),
-        clearError: jest.fn(),
-        feedUI: {},
-    };
-    const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
-    usePostsStore.getState = () => state;
-    return {
-        usePostsStore,
-        useFeedSelector: () => undefined,
-        useUserFeedSelector: () => undefined,
-    };
+  const state = {
+    fetchFeed: jest.fn(() => Promise.resolve()),
+    fetchUserFeed: jest.fn(() => Promise.resolve({ pending: false })),
+    refreshFeed: jest.fn(() => Promise.resolve()),
+    loadMoreFeed: jest.fn(() => Promise.resolve()),
+    cachePosts: jest.fn(),
+    clearFeed: jest.fn(),
+    clearUserFeed: jest.fn(),
+    clearError: jest.fn(),
+    feedUI: {},
+  };
+  const usePostsStore = (selector: (value: typeof state) => unknown) => selector(state);
+  usePostsStore.getState = () => state;
+  return {
+    usePostsStore,
+    useFeedSelector: () => undefined,
+    useUserFeedSelector: () => undefined,
+  };
 });
 
 jest.mock('@/services/feedService', () => ({
-    feedService: { getFeed: jest.fn(), getUserFeed: jest.fn() },
+  feedService: { getFeed: jest.fn(), getUserFeed: jest.fn() },
 }));
 
 // Web has no SQLite and runs the memory path; native has it and reads through the
@@ -69,18 +66,18 @@ jest.mock('@/services/feedService', () => ({
 let mockDbAvailable = false;
 
 jest.mock('@/db', () => ({
-    buildFeedKey: jest.fn(() => FEED_KEY),
-    hasFeedData: jest.fn(() => mockDbAvailable),
-    isDbAvailable: jest.fn(() => mockDbAvailable),
+  buildFeedKey: jest.fn(() => FEED_KEY),
+  hasFeedData: jest.fn(() => mockDbAvailable),
+  isDbAvailable: jest.fn(() => mockDbAvailable),
 }));
 
 jest.mock('@oxy.so/core/logger', () => ({
-    ...jest.requireActual('@oxy.so/core/logger'),
-    createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn() }),
+  ...jest.requireActual('@oxy.so/core/logger'),
+  createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn() }),
 }));
 
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
-    precacheActorsFromPosts: jest.fn(),
+  precacheActorsFromPosts: jest.fn(),
 }));
 
 const VIEWER_ID = 'operator-a';
@@ -90,10 +87,10 @@ const FEED_KEY = 'feed-key';
 
 /** One post as the server holds it, including who wrote it for the channel. */
 interface ServerPost {
-    id: string;
-    authorId: string;
-    /** The human behind a channel post. Never sent while the channel is anonymous. */
-    writerId?: string;
+  id: string;
+  authorId: string;
+  /** The human behind a channel post. Never sent while the channel is anonymous. */
+  writerId?: string;
 }
 
 let serverPosts: ServerPost[] = [];
@@ -108,23 +105,23 @@ let channelDiscloses = false;
  * crosses the wire.
  */
 function page(): SlicedFeedResponse {
-    return {
-        items: serverPosts.map((post) => {
-            const authors = [{ id: post.authorId, role: 'owner' }];
-            if (post.writerId && channelDiscloses) {
-                authors.push({ id: post.writerId, role: 'writer' });
-            }
-            return {
-                id: post.id,
-                user: { id: post.authorId },
-                authors,
-            } as unknown as HydratedPost;
-        }),
-        slices: [],
-        interstitials: [],
-        hasMore: false,
-        totalCount: serverPosts.length,
-    };
+  return {
+    items: serverPosts.map((post) => {
+      const authors = [{ id: post.authorId, role: 'owner' }];
+      if (post.writerId && channelDiscloses) {
+        authors.push({ id: post.writerId, role: 'writer' });
+      }
+      return {
+        id: post.id,
+        user: { id: post.authorId },
+        authors,
+      } as unknown as HydratedPost;
+    }),
+    slices: [],
+    interstitials: [],
+    hasMore: false,
+    totalCount: serverPosts.length,
+  };
 }
 
 let latest: UseFeedStateReturn | undefined;
@@ -139,43 +136,43 @@ const openFeeds = new Set<TestRenderer.ReactTestRenderer>();
 
 /** The channel's own page: the author feed the operator returns to on Back. */
 function ChannelFeed() {
-    latest = useFeedState({
-        type: 'posts',
-        userId: CHANNEL_ID,
-        useScoped: false,
-        isAuthenticated: true,
-        currentUserId: VIEWER_ID,
-    });
-    return null;
+  latest = useFeedState({
+    type: 'posts',
+    userId: CHANNEL_ID,
+    useScoped: false,
+    isAuthenticated: true,
+    currentUserId: VIEWER_ID,
+  });
+  return null;
 }
 
 const getUserFeedMock = feedService.getUserFeed as jest.Mock;
 
 async function flush(): Promise<void> {
-    await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 /** Open the feed, as a navigation would: a fresh mount. */
 async function openFeed(): Promise<TestRenderer.ReactTestRenderer> {
-    let renderer!: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-        renderer = TestRenderer.create(
-            <QueryClientProvider client={queryClient}>
-                <ChannelFeed />
-            </QueryClientProvider>,
-        );
-    });
-    await flush();
-    openFeeds.add(renderer);
-    return renderer;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <QueryClientProvider client={queryClient}>
+        <ChannelFeed />
+      </QueryClientProvider>,
+    );
+  });
+  await flush();
+  openFeeds.add(renderer);
+  return renderer;
 }
 
 /** Navigate away from the feed: it unmounts and unsubscribes. */
 function closeFeed(renderer: TestRenderer.ReactTestRenderer): void {
-    act(() => renderer.unmount());
-    openFeeds.delete(renderer);
+  act(() => renderer.unmount());
+  openFeeds.delete(renderer);
 }
 
 /**
@@ -184,168 +181,168 @@ function closeFeed(renderer: TestRenderer.ReactTestRenderer): void {
  * settings screen is pushed OVER the channel page, which stays mounted underneath.
  */
 async function setSignPosts(discloses: boolean): Promise<void> {
-    await act(async () => {
-        channelDiscloses = discloses;
-        noteChannelBylineChanged(CHANNEL_ID);
-    });
-    await flush();
+  await act(async () => {
+    channelDiscloses = discloses;
+    noteChannelBylineChanged(CHANNEL_ID);
+  });
+  await flush();
 }
 
 /** Who the rendered rows currently name, post by post. */
 function renderedBylines(): string[][] {
-    return (latest?.items ?? []).map((item) => (item.authors ?? []).map((author) => author.id));
+  return (latest?.items ?? []).map((item) => (item.authors ?? []).map((author) => author.id));
 }
 
 describe('a channel byline converges on the feeds the operator is looking at', () => {
-    beforeAll(() => {
-        (
-            globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-        ).IS_REACT_ACT_ENVIRONMENT = true;
+  beforeAll(() => {
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  beforeEach(() => {
+    latest = undefined;
+    jest.clearAllMocks();
+    queryClient.clear();
+    resetEngagementInvalidation();
+    resetSafetyInvalidation();
+    resetBylineInvalidation();
+    serverPosts = [
+      { id: 'post-1', authorId: CHANNEL_ID, writerId: WRITER_ID },
+      { id: 'post-2', authorId: CHANNEL_ID, writerId: WRITER_ID },
+    ];
+    channelDiscloses = false;
+    mockDbAvailable = false;
+    usePostsStore.getState().feedUI = {};
+    getUserFeedMock.mockImplementation(() => Promise.resolve(page()));
+  });
+
+  afterEach(() => {
+    for (const renderer of openFeeds) {
+      act(() => renderer.unmount());
+    }
+    openFeeds.clear();
+  });
+
+  it('names the writer on the page already open when the operator turns the byline on', async () => {
+    const feed = await openFeed();
+    expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
+
+    // The direction no client-side transform could serve: while the byline was
+    // off the writer's id was never sent here, so it is not held anywhere on
+    // this device to reveal.
+    await setSignPosts(true);
+    expect(renderedBylines()).toEqual([
+      [CHANNEL_ID, WRITER_ID],
+      [CHANNEL_ID, WRITER_ID],
+    ]);
+
+    closeFeed(feed);
+  });
+
+  it('takes the writer back off the page already open when the operator turns the byline off', async () => {
+    channelDiscloses = true;
+
+    const feed = await openFeed();
+    expect(renderedBylines()).toEqual([
+      [CHANNEL_ID, WRITER_ID],
+      [CHANNEL_ID, WRITER_ID],
+    ]);
+
+    // The other direction, and the one where being late has a person's name in
+    // it: a row that keeps naming a writer whose channel has stopped disclosing.
+    await setSignPosts(false);
+    expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
+
+    closeFeed(feed);
+  });
+
+  it('applies a byline changed while the feed was unmounted on its next mount', async () => {
+    const firstVisit = await openFeed();
+    expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
+    closeFeed(firstVisit);
+
+    // Nothing is subscribed now, so only the held read's age can carry the
+    // change to the next mount.
+    channelDiscloses = true;
+    noteChannelBylineChanged(CHANNEL_ID);
+
+    const secondVisit = await openFeed();
+    expect(renderedBylines()).toEqual([
+      [CHANNEL_ID, WRITER_ID],
+      [CHANNEL_ID, WRITER_ID],
+    ]);
+    closeFeed(secondVisit);
+  });
+
+  it('still warm-starts without a request when no byline changed', async () => {
+    const firstVisit = await openFeed();
+    expect(getUserFeedMock).toHaveBeenCalledTimes(1);
+    closeFeed(firstVisit);
+
+    // The control. Without it, "refetches when the byline changes" and "always
+    // refetches" are the same test — and the second would destroy the warm
+    // start that keeps a deep-scrolled feed from resetting on every Back.
+    const secondVisit = await openFeed();
+    expect(getUserFeedMock).toHaveBeenCalledTimes(1);
+    expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
+    closeFeed(secondVisit);
+  });
+
+  it('leaves an unmounted feed alone until it is opened again', async () => {
+    const firstVisit = await openFeed();
+    expect(getUserFeedMock).toHaveBeenCalledTimes(1);
+    closeFeed(firstVisit);
+
+    // An unsubscribed feed must not be woken — the whole point of the staleness
+    // half is that it costs nothing until the feed is needed.
+    act(() => {
+      noteChannelBylineChanged(CHANNEL_ID);
+    });
+    expect(getUserFeedMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Native reads its feed out of SQLite rather than a feed query, so the same
+   * question is asked in a different place: `fetchInitial` skips the fetch
+   * entirely when the store says this feed was already loaded. That skip has to
+   * notice a byline changed since, or the rows SQLite is holding — which survive
+   * an app restart — keep naming (or not naming) the writer forever.
+   */
+  describe('on the SQLite path', () => {
+    /** Put the store in the state a previously-loaded native feed leaves behind. */
+    function seedLoadedSqliteFeed(): void {
+      mockDbAvailable = true;
+      usePostsStore.getState().feedUI = {
+        [FEED_KEY]: { isLoading: false, error: null, lastUpdated: Date.now() },
+      };
+    }
+
+    it('refetches on the next mount when the byline changed since the cache was written', async () => {
+      seedLoadedSqliteFeed();
+      const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
+
+      const firstVisit = await openFeed();
+      expect(fetchUserFeed).not.toHaveBeenCalled();
+      closeFeed(firstVisit);
+
+      noteChannelBylineChanged(CHANNEL_ID);
+
+      const secondVisit = await openFeed();
+      expect(fetchUserFeed).toHaveBeenCalledTimes(1);
+      closeFeed(secondVisit);
     });
 
-    beforeEach(() => {
-        latest = undefined;
-        jest.clearAllMocks();
-        queryClient.clear();
-        resetEngagementInvalidation();
-        resetSafetyInvalidation();
-        resetBylineInvalidation();
-        serverPosts = [
-            { id: 'post-1', authorId: CHANNEL_ID, writerId: WRITER_ID },
-            { id: 'post-2', authorId: CHANNEL_ID, writerId: WRITER_ID },
-        ];
-        channelDiscloses = false;
-        mockDbAvailable = false;
-        usePostsStore.getState().feedUI = {};
-        getUserFeedMock.mockImplementation(() => Promise.resolve(page()));
+    it('still serves the SQLite cache without a request when no byline changed', async () => {
+      seedLoadedSqliteFeed();
+      const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
+
+      const firstVisit = await openFeed();
+      closeFeed(firstVisit);
+
+      const secondVisit = await openFeed();
+      expect(fetchUserFeed).not.toHaveBeenCalled();
+      closeFeed(secondVisit);
     });
-
-    afterEach(() => {
-        for (const renderer of openFeeds) {
-            act(() => renderer.unmount());
-        }
-        openFeeds.clear();
-    });
-
-    it('names the writer on the page already open when the operator turns the byline on', async () => {
-        const feed = await openFeed();
-        expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
-
-        // The direction no client-side transform could serve: while the byline was
-        // off the writer's id was never sent here, so it is not held anywhere on
-        // this device to reveal.
-        await setSignPosts(true);
-        expect(renderedBylines()).toEqual([
-            [CHANNEL_ID, WRITER_ID],
-            [CHANNEL_ID, WRITER_ID],
-        ]);
-
-        closeFeed(feed);
-    });
-
-    it('takes the writer back off the page already open when the operator turns the byline off', async () => {
-        channelDiscloses = true;
-
-        const feed = await openFeed();
-        expect(renderedBylines()).toEqual([
-            [CHANNEL_ID, WRITER_ID],
-            [CHANNEL_ID, WRITER_ID],
-        ]);
-
-        // The other direction, and the one where being late has a person's name in
-        // it: a row that keeps naming a writer whose channel has stopped disclosing.
-        await setSignPosts(false);
-        expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
-
-        closeFeed(feed);
-    });
-
-    it('applies a byline changed while the feed was unmounted on its next mount', async () => {
-        const firstVisit = await openFeed();
-        expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
-        closeFeed(firstVisit);
-
-        // Nothing is subscribed now, so only the held read's age can carry the
-        // change to the next mount.
-        channelDiscloses = true;
-        noteChannelBylineChanged(CHANNEL_ID);
-
-        const secondVisit = await openFeed();
-        expect(renderedBylines()).toEqual([
-            [CHANNEL_ID, WRITER_ID],
-            [CHANNEL_ID, WRITER_ID],
-        ]);
-        closeFeed(secondVisit);
-    });
-
-    it('still warm-starts without a request when no byline changed', async () => {
-        const firstVisit = await openFeed();
-        expect(getUserFeedMock).toHaveBeenCalledTimes(1);
-        closeFeed(firstVisit);
-
-        // The control. Without it, "refetches when the byline changes" and "always
-        // refetches" are the same test — and the second would destroy the warm
-        // start that keeps a deep-scrolled feed from resetting on every Back.
-        const secondVisit = await openFeed();
-        expect(getUserFeedMock).toHaveBeenCalledTimes(1);
-        expect(renderedBylines()).toEqual([[CHANNEL_ID], [CHANNEL_ID]]);
-        closeFeed(secondVisit);
-    });
-
-    it('leaves an unmounted feed alone until it is opened again', async () => {
-        const firstVisit = await openFeed();
-        expect(getUserFeedMock).toHaveBeenCalledTimes(1);
-        closeFeed(firstVisit);
-
-        // An unsubscribed feed must not be woken — the whole point of the staleness
-        // half is that it costs nothing until the feed is needed.
-        act(() => {
-            noteChannelBylineChanged(CHANNEL_ID);
-        });
-        expect(getUserFeedMock).toHaveBeenCalledTimes(1);
-    });
-
-    /**
-     * Native reads its feed out of SQLite rather than a feed query, so the same
-     * question is asked in a different place: `fetchInitial` skips the fetch
-     * entirely when the store says this feed was already loaded. That skip has to
-     * notice a byline changed since, or the rows SQLite is holding — which survive
-     * an app restart — keep naming (or not naming) the writer forever.
-     */
-    describe('on the SQLite path', () => {
-        /** Put the store in the state a previously-loaded native feed leaves behind. */
-        function seedLoadedSqliteFeed(): void {
-            mockDbAvailable = true;
-            usePostsStore.getState().feedUI = {
-                [FEED_KEY]: { isLoading: false, error: null, lastUpdated: Date.now() },
-            };
-        }
-
-        it('refetches on the next mount when the byline changed since the cache was written', async () => {
-            seedLoadedSqliteFeed();
-            const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
-
-            const firstVisit = await openFeed();
-            expect(fetchUserFeed).not.toHaveBeenCalled();
-            closeFeed(firstVisit);
-
-            noteChannelBylineChanged(CHANNEL_ID);
-
-            const secondVisit = await openFeed();
-            expect(fetchUserFeed).toHaveBeenCalledTimes(1);
-            closeFeed(secondVisit);
-        });
-
-        it('still serves the SQLite cache without a request when no byline changed', async () => {
-            seedLoadedSqliteFeed();
-            const fetchUserFeed = usePostsStore.getState().fetchUserFeed as jest.Mock;
-
-            const firstVisit = await openFeed();
-            closeFeed(firstVisit);
-
-            const secondVisit = await openFeed();
-            expect(fetchUserFeed).not.toHaveBeenCalled();
-            closeFeed(secondVisit);
-        });
-    });
+  });
 });

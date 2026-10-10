@@ -4,7 +4,10 @@ import type { TunerContext } from '../FeedTuner';
 /**
  * Filter sensitive content based on user preferences.
  */
-export function filterSensitiveContent(slices: FeedPostSlice[], ctx: TunerContext): FeedPostSlice[] {
+export function filterSensitiveContent(
+  slices: FeedPostSlice[],
+  ctx: TunerContext,
+): FeedPostSlice[] {
   if (!ctx.preferences.hideSensitive) return slices;
 
   return slices.filter((slice) => {

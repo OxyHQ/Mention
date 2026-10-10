@@ -34,14 +34,24 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 // (`assets.metadataBySha256`, sha256 → fileId) is controllable and does
 // no real I/O. Hoisted so it predates the import.
 const oxyMock = vi.hoisted(() => ({
-  getServiceAssetMetadataBySha256: vi.fn<
-    (sha256s: string[]) => Promise<
-      Array<{ sha256: string; id: string; mime: string; size: number; status: 'active' | 'trash'; url?: string }>
-    >
-  >(),
+  getServiceAssetMetadataBySha256:
+    vi.fn<
+      (sha256s: string[]) => Promise<
+        Array<{
+          sha256: string;
+          id: string;
+          mime: string;
+          size: number;
+          status: 'active' | 'trash';
+          url?: string;
+        }>
+      >
+    >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ assets: { metadataBySha256: oxyMock.getServiceAssetMetadataBySha256 } }),
+  getServiceOxyClient: () => ({
+    assets: { metadataBySha256: oxyMock.getServiceAssetMetadataBySha256 },
+  }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
@@ -309,9 +319,7 @@ describe('projectRecord — post', () => {
   });
 
   it('rejects an invalid inner record', async () => {
-    const result = await projectRecord(
-      envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 42 }),
-    );
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, { text: 42 }));
     expect(result).toEqual({ ok: false, reason: 'invalid_record' });
     expect(await readPost(POST_RKEY)).toBeNull();
   });
@@ -344,7 +352,9 @@ describe('projectRecord — the record owns some of the content, not all of it',
   });
 
   it("PRESERVES the post's @mention allowlist, which the record does not carry", async () => {
-    await seedPost(POST_RKEY, SUBJECT_OXY_ID, { mentions: ['mentioned-user-a', 'mentioned-user-b'] });
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      mentions: ['mentioned-user-a', 'mentioned-user-b'],
+    });
 
     await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
 
@@ -425,7 +435,10 @@ describe('projectRecord — read-side blob resolution', () => {
   const withEmbed = {
     text: 'a post with media',
     createdAt: '2024-01-02T03:04:05.000Z',
-    embed: { type: 'media', items: [{ blob: { sha256: SHA, mediaType: 'image' }, alt: 'alt text' }] },
+    embed: {
+      type: 'media',
+      items: [{ blob: { sha256: SHA, mediaType: 'image' }, alt: 'alt text' }],
+    },
   };
 
   it('turns a content address into a native fileId MediaItem', async () => {
@@ -460,7 +473,9 @@ describe('projectRecord — read-side blob resolution', () => {
   });
 
   it('never aborts the projection when the reverse lookup fails', async () => {
-    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(new Error('files:read scope missing'));
+    oxyMock.getServiceAssetMetadataBySha256.mockRejectedValue(
+      new Error('files:read scope missing'),
+    );
 
     const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, withEmbed));
 
@@ -501,7 +516,9 @@ describe('projectRecord — self-asserted createdAt is bounded', () => {
 
   it('refuses a far-future createdAt instead of pinning the post atop every feed', async () => {
     const before = Date.now();
-    const stored = await projectWithCreatedAt(new Date(Date.now() + 400 * 24 * 3600 * 1000).toISOString());
+    const stored = await projectWithCreatedAt(
+      new Date(Date.now() + 400 * 24 * 3600 * 1000).toISOString(),
+    );
     expect(stored?.getTime()).toBeGreaterThanOrEqual(before);
     expect(stored?.getTime()).toBeLessThanOrEqual(Date.now());
   });
@@ -733,7 +750,10 @@ describe('projectRecord — tombstone', () => {
       ),
     );
 
-    const rows = await db.select({ id: bookmarks.id }).from(bookmarks).where(eq(bookmarks.id, BOOKMARK_RKEY));
+    const rows = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, BOOKMARK_RKEY));
     expect(rows).toEqual([]);
   });
 
@@ -803,7 +823,10 @@ describe('projectRecord — multilingual post (variants)', () => {
         text: 'hola',
         createdAt: createdAtIso,
         langs: ['es'],
-        embed: { type: 'media', items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }] },
+        embed: {
+          type: 'media',
+          items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }],
+        },
         variants: [
           { tag: 'es', text: 'hola' },
           { tag: 'en', text: 'hi', alt: { 'sha-img': 'a cat' } },

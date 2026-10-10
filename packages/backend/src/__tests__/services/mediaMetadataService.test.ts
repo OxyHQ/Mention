@@ -145,9 +145,11 @@ describe('MediaMetadataService.enrichFromOxy', () => {
   it('enriches an asset whose id is a uuid v7 (post-cutover Oxy ids)', async () => {
     const fileId = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const metadataByIds = vi.fn().mockResolvedValue([
-      { id: fileId, width: 720, height: 1280, durationSec: 12, orientation: 'portrait' },
-    ]);
+    const metadataByIds = vi
+      .fn()
+      .mockResolvedValue([
+        { id: fileId, width: 720, height: 1280, durationSec: 12, orientation: 'portrait' },
+      ]);
     vi.mocked(getServiceOxyClient).mockReturnValue({
       assets: { metadataByIds },
     } as never);
@@ -190,7 +192,9 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
     expect(mediaMetadataService.needsOxyRetry(pending)).toBe(true);
     expect(
-      mediaMetadataService.needsOxyRetry([{ ...pending[0], width: 720, height: 1280, durationSec: 12 }]),
+      mediaMetadataService.needsOxyRetry([
+        { ...pending[0], width: 720, height: 1280, durationSec: 12 },
+      ]),
     ).toBe(false);
   });
 
@@ -206,8 +210,12 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
     expect(mediaMetadataService.needsOxyRetry([image])).toBe(true);
     // An image has no duration to wait for: dimensions settle it.
-    expect(mediaMetadataService.needsOxyRetry([{ ...image, width: 1080, height: 1350 }])).toBe(false);
+    expect(mediaMetadataService.needsOxyRetry([{ ...image, width: 1080, height: 1350 }])).toBe(
+      false,
+    );
     // A remote (proxied) image is not Oxy's to probe.
-    expect(mediaMetadataService.needsOxyRetry([{ id: 'https://remote.example/a.jpg', type: 'image' }])).toBe(false);
+    expect(
+      mediaMetadataService.needsOxyRetry([{ id: 'https://remote.example/a.jpg', type: 'image' }]),
+    ).toBe(false);
   });
 });

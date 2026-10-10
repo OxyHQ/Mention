@@ -96,7 +96,6 @@ beforeEach(() => {
  */
 function loadSync(): typeof import('../feedWidgetSync') {
   jest.resetModules();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
   return require('../feedWidgetSync');
 }
 
@@ -166,9 +165,11 @@ describe('feedWidgetHandoffFor', () => {
    * showing another is worse than a card that is stale.
    */
   it('refuses every other descriptor, for_you included', () => {
-    (['following', 'for_you', 'saved', 'videos', 'author|abc|posts'] as const).forEach((descriptor) => {
-      expect(feedWidgetHandoffFor(decision({ descriptor }))).toBeNull();
-    });
+    (['following', 'for_you', 'saved', 'videos', 'author|abc|posts'] as const).forEach(
+      (descriptor) => {
+        expect(feedWidgetHandoffFor(decision({ descriptor }))).toBeNull();
+      },
+    );
   });
 });
 
@@ -189,9 +190,7 @@ describe('toWidgetFeedPosts', () => {
             },
           ],
         },
-        documents: [
-          document('https://example.test', 'Headline', 'https://img.test/1.jpg'),
-        ],
+        documents: [document('https://example.test', 'Headline', 'https://img.test/1.jpg')],
         user: {
           id: 'author',
           username: 'verge@mastodon.social',
@@ -251,10 +250,7 @@ describe('toWidgetFeedPosts', () => {
             { id: 'b', type: 'image', url: 'https://cloud.oxy.so/second' },
           ],
         },
-        documents: [
-          document('https://one.test', 'First'),
-          document('https://two.test', 'Second'),
-        ],
+        documents: [document('https://one.test', 'First'), document('https://two.test', 'Second')],
       }),
     ]);
 

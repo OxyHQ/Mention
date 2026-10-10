@@ -23,11 +23,18 @@ import { MtnConfig } from '@mention/shared-types';
 
 // Trending pulls in side-effecting collaborators the aggregation never touches.
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '../../services/trending/termSpace';
+import {
+  trendTermMatchSql,
+  TREND_CANDIDATE_COLUMNS,
+  TREND_TERM_COLUMNS,
+} from '../../services/trending/termSpace';
 /**
  * The aggregation returns the candidates AND the co-occurrence graph behind
  * them. The graph is `null` when clustering is off — the only thing these cases
@@ -91,7 +98,10 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
       crosspostCollapsed: options.crosspostCollapsed ?? false,
       visibility: options.visibility ?? 'public',
       createdAt: options.createdAt ?? recently(),
-      oxyUserId: options.oxyUserId === undefined ? `author-${RUN}-${createdPostIds.length}` : options.oxyUserId,
+      oxyUserId:
+        options.oxyUserId === undefined
+          ? `author-${RUN}-${createdPostIds.length}`
+          : options.oxyUserId,
       language: options.language ?? 'en',
       classificationTrendTerms: options.trendTerms,
       hashtags: options.hashtags,
@@ -106,7 +116,10 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
 
   if (options.isBoost) {
     // A boost points at an original; the aggregation excludes anything that does.
-    await db.update(posts).set({ boostOf: row.id }).where(inArray(posts.id, [row.id]));
+    await db
+      .update(posts)
+      .set({ boostOf: row.id })
+      .where(inArray(posts.id, [row.id]));
   }
   return row.id;
 }

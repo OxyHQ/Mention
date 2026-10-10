@@ -52,8 +52,7 @@ interface UseVideoRecorderOptions {
  */
 function isRecordingStoppedEarly(error: unknown): boolean {
   return (
-    error instanceof Error &&
-    error.message.includes('stopped before any data could be produced')
+    error instanceof Error && error.message.includes('stopped before any data could be produced')
   );
 }
 

@@ -109,24 +109,48 @@ describe('feedMetrics helpers', () => {
   it('emits feed_discovery_gated_total with reason/source/shadow labels', () => {
     recordDiscoveryGated('lowEffortGate', 'trending', true);
     recordDiscoveryGated('nativeEngagement', 'globalDiscovery', false);
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'lowEffortGate', source: 'trending', shadow: 'true' })).toBe(1);
-    expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'nativeEngagement', source: 'globalDiscovery', shadow: 'false' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'lowEffortGate',
+        source: 'trending',
+        shadow: 'true',
+      }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.discoveryGated, {
+        reason: 'nativeEngagement',
+        source: 'globalDiscovery',
+        shadow: 'false',
+      }),
+    ).toBe(1);
   });
 
   it('emits feed_federated_share as a per-descriptor gauge', () => {
     recordFederatedShare('for_you', 0.42);
     recordFederatedShare('author|123', 0.9);
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(0.42, 5);
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'author' })).toBeCloseTo(0.9, 5);
+    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(
+      0.42,
+      5,
+    );
+    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'author' })).toBeCloseTo(
+      0.9,
+      5,
+    );
   });
 
   it('emits impression / interaction-signal / report counters with correct labels', () => {
     recordImpression('for_you', 'federated');
     recordInteractionSignal('skip', 'hashtag|cats');
     recordReport('for_you', 'local');
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' })).toBe(1);
-    expect(metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'skip', descriptor: 'hashtag' })).toBe(1);
-    expect(metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'skip', descriptor: 'hashtag' }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' }),
+    ).toBe(1);
   });
 });
 
@@ -181,7 +205,9 @@ describe('recordReportSignal', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'federated' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'federated' }),
+    ).toBe(1);
   });
 
   it('labels a federated post carrying no activity id as federated', async () => {
@@ -200,7 +226,9 @@ describe('recordReportSignal', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'federated' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'federated' }),
+    ).toBe(1);
   });
 
   it('labels a report on a native post as local', async () => {
@@ -214,7 +242,9 @@ describe('recordReportSignal', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' }),
+    ).toBe(1);
   });
 
   it('counts a uri that resolves to no post as a local report', async () => {
@@ -231,7 +261,9 @@ describe('recordReportSignal', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.report, { descriptor: 'for_you', origin: 'local' }),
+    ).toBe(1);
   });
 });
 
@@ -250,8 +282,12 @@ describe('applyImpressionSignals metrics', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' })).toBe(1);
-    expect(metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'view', descriptor: 'for_you' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'view', descriptor: 'for_you' }),
+    ).toBe(1);
   });
 
   it('classifies a short dwell as a skip and a local post as local origin', async () => {
@@ -266,8 +302,12 @@ describe('applyImpressionSignals metrics', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'author' })).toBe(1);
-    expect(metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'skip', descriptor: 'author' })).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'author' }),
+    ).toBe(1);
+    expect(
+      metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'skip', descriptor: 'author' }),
+    ).toBe(1);
   });
 
   it('does NOT emit an impression for a viewer impressing their OWN post (self-pump guard)', async () => {
@@ -285,8 +325,12 @@ describe('applyImpressionSignals metrics', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' })).toBe(0);
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' })).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'federated', descriptor: 'for_you' }),
+    ).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' }),
+    ).toBe(0);
   });
 
   it.each([
@@ -307,8 +351,12 @@ describe('applyImpressionSignals metrics', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' })).toBe(0);
-    expect(metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'view', descriptor: 'for_you' })).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' }),
+    ).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.interactionSignal, { signal: 'view', descriptor: 'for_you' }),
+    ).toBe(0);
   });
 
   it('records nothing for a postUri that resolves to no post', async () => {
@@ -321,6 +369,8 @@ describe('applyImpressionSignals metrics', () => {
       timestamp: new Date(),
     });
 
-    expect(metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' })).toBe(0);
+    expect(
+      metrics.getCounter(FEED_METRICS.impression, { origin: 'local', descriptor: 'for_you' }),
+    ).toBe(0);
   });
 });

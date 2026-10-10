@@ -63,7 +63,9 @@ export class FollowerSnapshotJob {
   start(): void {
     if (this.isRunning) return;
     if (!isRedisRuntimeConfigured()) {
-      logger.info('[FollowerSnapshotJob] REDIS_URL not set — follower snapshot job disabled (inline no-op)');
+      logger.info(
+        '[FollowerSnapshotJob] REDIS_URL not set — follower snapshot job disabled (inline no-op)',
+      );
       return;
     }
     this.isRunning = true;
@@ -216,7 +218,9 @@ export class FollowerSnapshotJob {
       return false;
     }
     if (last && now - last.getTime() < FOLLOWER_SNAPSHOT_INTERVAL_MS) {
-      logger.debug('[FollowerSnapshotJob] last sweep is recent; not due', { lastSweepAt: last.toISOString() });
+      logger.debug('[FollowerSnapshotJob] last sweep is recent; not due', {
+        lastSweepAt: last.toISOString(),
+      });
       return false;
     }
     await this.runSnapshotSweep();

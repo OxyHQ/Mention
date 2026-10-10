@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 
-import { readdir, readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { parseDocument } from "yaml";
-import { isReviewedImagePublisher } from "./reviewed-image-publisher.mjs";
+import { readdir, readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseDocument } from 'yaml';
+import { isReviewedImagePublisher } from './reviewed-image-publisher.mjs';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const workflowsDirectory = resolve(repositoryRoot, ".github/workflows");
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const workflowsDirectory = resolve(repositoryRoot, '.github/workflows');
 const workflowNames = (await readdir(workflowsDirectory))
   .filter((name) => /\.ya?ml$/i.test(name))
   .sort();
@@ -16,17 +16,17 @@ const workflowNames = (await readdir(workflowsDirectory))
 /** A JSON array of names, or nothing at all — a malformed value is the YAML gate's business, not this one's. */
 function parseJsonNames(value) {
   const parsed = parseJsonValue(value);
-  return Array.isArray(parsed) ? parsed.filter((name) => typeof name === "string") : [];
+  return Array.isArray(parsed) ? parsed.filter((name) => typeof name === 'string') : [];
 }
 
 /** A JSON object of name → SSM ARN, or nothing at all. */
 function parseJsonObject(value) {
   const parsed = parseJsonValue(value);
-  return parsed != null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
 }
 
 function parseJsonValue(value) {
-  if (typeof value !== "string" || value.trim() === "") return undefined;
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
   try {
     return JSON.parse(value);
   } catch {
@@ -36,7 +36,7 @@ function parseJsonValue(value) {
 
 const failures = [];
 for (const workflowName of workflowNames) {
-  const source = await readFile(resolve(workflowsDirectory, workflowName), "utf8");
+  const source = await readFile(resolve(workflowsDirectory, workflowName), 'utf8');
   const document = parseDocument(source, {
     prettyErrors: true,
     strict: true,
@@ -73,7 +73,7 @@ for (const workflowName of workflowNames) {
         const env = step?.env;
         if (env == null) continue;
         const removals = [
-          ...String(env.TASK_SECRET_REMOVALS ?? "").split(/\s+/),
+          ...String(env.TASK_SECRET_REMOVALS ?? '').split(/\s+/),
           ...parseJsonNames(env.TASK_SECRET_REMOVALS_JSON),
         ].filter(Boolean);
         const overridden = Object.keys(parseJsonObject(env.TASK_SECRET_OVERRIDES_JSON));
@@ -81,18 +81,20 @@ for (const workflowName of workflowNames) {
         for (const name of both) {
           failures.push(
             `${workflowName}: ${jobName} declares ${name} in both TASK_SECRET_OVERRIDES_JSON and the removals — ` +
-              "`deploy-ecs-image.sh` refuses that at deploy time, so it fails every release rather than one review",
+              '`deploy-ecs-image.sh` refuses that at deploy time, so it fails every release rather than one review',
           );
         }
       }
     }
-    const imagePublication = isReviewedImagePublisher(
-      workflowName, workflow, (file) => readFileSync(resolve(repositoryRoot, file)),
+    const imagePublication = isReviewedImagePublisher(workflowName, workflow, (file) =>
+      readFileSync(resolve(repositoryRoot, file)),
     );
-    if (workflowName === "publish-reviewed-images.yml" && !imagePublication) {
-      failures.push(`${workflowName}: ECR-only publisher differs from its reviewed source/recipe/main/ARM contract`);
+    if (workflowName === 'publish-reviewed-images.yml' && !imagePublication) {
+      failures.push(
+        `${workflowName}: ECR-only publisher differs from its reviewed source/recipe/main/ARM contract`,
+      );
     }
-    if (source.includes("configure-aws-credentials") && !imagePublication) {
+    if (source.includes('configure-aws-credentials') && !imagePublication) {
       for (const [jobName, job] of Object.entries(workflow?.jobs || {})) {
         if (job?.environment != null) {
           failures.push(
@@ -100,34 +102,28 @@ for (const workflowName of workflowNames) {
           );
         }
       }
-      const currentMainGuardCount = source
-        .split("require-current-main.sh")
-        .length - 1;
+      const currentMainGuardCount = source.split('require-current-main.sh').length - 1;
       if (currentMainGuardCount < 2) {
         failures.push(
           `${workflowName}: AWS workflows must verify current origin/main before build and execution`,
         );
       }
-      if (source.includes("role/oxy-github-queue-image-mention")) {
-        failures.push(
-          `${workflowName}: workflows must not assume the merge-queue image role`,
-        );
+      if (source.includes('role/oxy-github-queue-image-mention')) {
+        failures.push(`${workflowName}: workflows must not assume the merge-queue image role`);
       }
-      if (source.includes("aws ecr describe-images")) {
+      if (source.includes('aws ecr describe-images')) {
         failures.push(
           `${workflowName}: deploy role lacks ecr:DescribeImages; consume the immutable build action digest instead`,
         );
       }
-      if (source.includes("aws ecs stop-task")) {
+      if (source.includes('aws ecs stop-task')) {
         failures.push(
           `${workflowName}: deploy role lacks ecs:StopTask; workflow must not depend on it`,
         );
       }
       if (
-        workflowName === "run-federated-text-backfill.yml" &&
-        (!source.includes(
-          '"busybox","timeout","-s","TERM","-k","30","3300"',
-        ) ||
+        workflowName === 'run-federated-text-backfill.yml' &&
+        (!source.includes('"busybox","timeout","-s","TERM","-k","30","3300"') ||
           !source.includes("EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'"))
       ) {
         failures.push(
@@ -135,19 +131,14 @@ for (const workflowName of workflowNames) {
         );
       }
     }
-    if (workflow?.on?.workflow_run && workflowName.startsWith("deploy-")) {
-      const currentMainGuardCount = source
-        .split("require-current-main.sh")
-        .length - 1;
+    if (workflow?.on?.workflow_run && workflowName.startsWith('deploy-')) {
+      const currentMainGuardCount = source.split('require-current-main.sh').length - 1;
       if (currentMainGuardCount < 2) {
         failures.push(
           `${workflowName}: production workflow_run releases must verify origin/main before both build and deploy`,
         );
       }
-      if (
-        source.includes("steps.changes.outputs.deploy") ||
-        source.includes("git diff --quiet")
-      ) {
+      if (source.includes('steps.changes.outputs.deploy') || source.includes('git diff --quiet')) {
         failures.push(
           `${workflowName}: production workflow_run releases must not skip artifacts from a single-commit path diff`,
         );
@@ -159,12 +150,10 @@ for (const workflowName of workflowNames) {
       // and a green rollout must move the marker forward.
       const jobs = Object.entries(workflow?.jobs || {});
       const stepRuns = (job) =>
-        (job?.steps || []).map((step) =>
-          typeof step?.run === "string" ? step.run : "",
-        );
+        (job?.steps || []).map((step) => (typeof step?.run === 'string' ? step.run : ''));
 
       const scopeJob = jobs.find(([, job]) =>
-        stepRuns(job).some((run) => run.includes("deployment-scope.sh")),
+        stepRuns(job).some((run) => run.includes('deployment-scope.sh')),
       );
       if (!scopeJob) {
         failures.push(
@@ -173,14 +162,9 @@ for (const workflowName of workflowNames) {
       } else {
         const [scopeName, job] = scopeJob;
         const checkout = (job?.steps || []).find(
-          (step) =>
-            typeof step?.uses === "string" &&
-            step.uses.startsWith("actions/checkout@"),
+          (step) => typeof step?.uses === 'string' && step.uses.startsWith('actions/checkout@'),
         );
-        if (
-          checkout?.with?.["fetch-depth"] !== 0 ||
-          checkout?.with?.["fetch-tags"] !== true
-        ) {
+        if (checkout?.with?.['fetch-depth'] !== 0 || checkout?.with?.['fetch-tags'] !== true) {
           failures.push(
             `${workflowName}: ${scopeName} must check out with fetch-depth: 0 and fetch-tags: true, otherwise the deployed/<target> marker is missing and the scope silently narrows to one commit`,
           );
@@ -188,7 +172,7 @@ for (const workflowName of workflowNames) {
       }
 
       const recordJob = jobs.find(([, job]) =>
-        stepRuns(job).some((run) => run.includes("record-deployment.sh")),
+        stepRuns(job).some((run) => run.includes('record-deployment.sh')),
       );
       if (!recordJob) {
         failures.push(
@@ -196,22 +180,18 @@ for (const workflowName of workflowNames) {
         );
       } else {
         const [recordName, job] = recordJob;
-        if (job?.permissions?.contents !== "write") {
+        if (job?.permissions?.contents !== 'write') {
           failures.push(
             `${workflowName}: ${recordName} must request job-level contents: write to move the marker`,
           );
         }
-        const needs = Array.isArray(job?.needs)
-          ? job.needs
-          : job?.needs
-            ? [job.needs]
-            : [];
+        const needs = Array.isArray(job?.needs) ? job.needs : job?.needs ? [job.needs] : [];
         if (needs.length === 0) {
           failures.push(
             `${workflowName}: ${recordName} must depend on the deploy job so the marker only moves after a green rollout`,
           );
         }
-        if (/\b(always|failure|cancelled)\s*\(/.test(String(job?.if ?? ""))) {
+        if (/\b(always|failure|cancelled)\s*\(/.test(String(job?.if ?? ''))) {
           failures.push(
             `${workflowName}: ${recordName} must not run on a failed or cancelled rollout; a marker moved past an undeployed change orphans it permanently`,
           );
@@ -229,61 +209,58 @@ for (const workflowName of workflowNames) {
        */
       if (workflow?.on?.push) {
         const branches = workflow.on.push?.branches ?? [];
-        if (branches.length !== 1 || branches[0] !== "main") {
-          failures.push(`${workflowName}: a production push trigger must be restricted to main alone`);
+        if (branches.length !== 1 || branches[0] !== 'main') {
+          failures.push(
+            `${workflowName}: a production push trigger must be restricted to main alone`,
+          );
         }
         const scopeRuns = scopeJob ? stepRuns(scopeJob[1]) : [];
-        const provenanceIndex = scopeRuns.findIndex((run) => run.includes("release-provenance.sh"));
-        const scopeIndex = scopeRuns.findIndex((run) => run.includes("deployment-scope.sh"));
+        const provenanceIndex = scopeRuns.findIndex((run) => run.includes('release-provenance.sh'));
+        const scopeIndex = scopeRuns.findIndex((run) => run.includes('deployment-scope.sh'));
         if (provenanceIndex < 0 || scopeIndex < provenanceIndex) {
           failures.push(
             `${workflowName}: a push-triggered release must decide its path through release-provenance.sh before its scope — otherwise a commit no CI run ever passed reaches production`,
           );
         }
-        if (scopeJob && scopeJob[1]?.permissions?.actions !== "read") {
-          failures.push(`${workflowName}: ${scopeJob[0]} needs job-level actions: read to verify the merge_group CI run`);
+        if (scopeJob && scopeJob[1]?.permissions?.actions !== 'read') {
+          failures.push(
+            `${workflowName}: ${scopeJob[0]} needs job-level actions: read to verify the merge_group CI run`,
+          );
         }
         if (workflow?.concurrency != null) {
           failures.push(
             `${workflowName}: with two triggers the release lane must be a JOB-level concurrency group on the deploy job; a workflow-level one lets a no-op run displace a pending release`,
           );
         }
-        if (recordJob && !String(recordJob[1]?.if ?? "").includes("outputs.released == 'true'")) {
+        if (recordJob && !String(recordJob[1]?.if ?? '').includes("outputs.released == 'true'")) {
           failures.push(
             `${workflowName}: ${recordJob[0]} must require the deploy job's \`released\` output — a deploy that stopped at a stale guard ends green having shipped nothing`,
           );
         }
       }
 
-      if (workflow?.permissions?.contents === "write") {
+      if (workflow?.permissions?.contents === 'write') {
         failures.push(
           `${workflowName}: workflow-level contents: write would hand a push-capable token to the build job; scope it to the marker job instead`,
         );
       }
 
-      if (
-        workflowName === "deploy-aws.yml" ||
-        workflowName === "deploy-mcp-aws.yml"
-      ) {
-        const buildIndex = source.indexOf("Build and push immutable");
-        const auditIndex = source.indexOf("audit-runtime-image.sh");
+      if (workflowName === 'deploy-aws.yml' || workflowName === 'deploy-mcp-aws.yml') {
+        const buildIndex = source.indexOf('Build and push immutable');
+        const auditIndex = source.indexOf('audit-runtime-image.sh');
         const productionChangesIndex = source.indexOf(
-          "Verify current main before production changes",
+          'Verify current main before production changes',
         );
-        if (
-          buildIndex < 0 ||
-          auditIndex < buildIndex ||
-          productionChangesIndex < auditIndex
-        ) {
+        if (buildIndex < 0 || auditIndex < buildIndex || productionChangesIndex < auditIndex) {
           failures.push(
             `${workflowName}: final runtime image audit must run after the immutable build and before production changes`,
           );
         }
         for (const unsupportedElbSetting of [
-          "HEALTH_CHECK_PATH:",
-          "EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH:",
-          "ENABLE_TARGET_STICKINESS:",
-          "TARGET_STICKINESS_SECONDS:",
+          'HEALTH_CHECK_PATH:',
+          'EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH:',
+          'ENABLE_TARGET_STICKINESS:',
+          'TARGET_STICKINESS_SECONDS:',
         ]) {
           if (source.includes(unsupportedElbSetting)) {
             failures.push(
@@ -292,13 +269,9 @@ for (const workflowName of workflowNames) {
           }
         }
         if (
-          workflowName === "deploy-mcp-aws.yml" &&
-          (
-            !source.includes("TASK_SECRET_OVERRIDES_JSON") ||
-            !source.includes(
-              "parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET",
-            )
-          )
+          workflowName === 'deploy-mcp-aws.yml' &&
+          (!source.includes('TASK_SECRET_OVERRIDES_JSON') ||
+            !source.includes('parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET'))
         ) {
           failures.push(
             `${workflowName}: the immutable MCP task definition must explicitly inject its JWT signing secret`,
@@ -332,21 +305,17 @@ for (const workflowName of workflowNames) {
          * and the only sign is an SSM parameter nobody can delete.
          */
         if (
-          source.includes("parameter/oxy/mention/OXY_SERVICE_API_KEY") ||
-          source.includes("parameter/oxy/mention/OXY_SERVICE_API_SECRET")
+          source.includes('parameter/oxy/mention/OXY_SERVICE_API_KEY') ||
+          source.includes('parameter/oxy/mention/OXY_SERVICE_API_SECRET')
         ) {
           failures.push(
             `${workflowName}: neither deploy may inject the Oxy service credential — both services attest their own task role, and a render carries an injected secret onto every later revision`,
           );
         }
         if (
-          workflowName === "deploy-aws.yml" &&
-          (
-            !source.includes("TASK_SECRET_OVERRIDES_JSON") ||
-            !source.includes(
-              "parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
-            )
-          )
+          workflowName === 'deploy-aws.yml' &&
+          (!source.includes('TASK_SECRET_OVERRIDES_JSON') ||
+            !source.includes('parameter/oxy/mention/MENTION_MCP_JWT_SECRET'))
         ) {
           failures.push(
             `${workflowName}: the immutable backend task definition must explicitly inject its MCP JWT verification secret`,
@@ -354,13 +323,11 @@ for (const workflowName of workflowNames) {
         }
       }
 
-      if (workflowName === "deploy-frontends.yml") {
-        const buildIndex = source.indexOf("Build frontend");
-        const staticValidationIndex = source.indexOf(
-          "validate-frontend-static-output.mjs",
-        );
+      if (workflowName === 'deploy-frontends.yml') {
+        const buildIndex = source.indexOf('Build frontend');
+        const staticValidationIndex = source.indexOf('validate-frontend-static-output.mjs');
         const productionChangesIndex = source.indexOf(
-          "Verify current main before production changes",
+          'Verify current main before production changes',
         );
         if (
           buildIndex < 0 ||
@@ -372,12 +339,10 @@ for (const workflowName of workflowNames) {
           );
         }
 
-        const productionSmokeIndex = source.indexOf("id: production_smoke");
-        const apexSmokeIndex = source.indexOf(
-          "Smoke test the apex after the backend rollout",
-        );
+        const productionSmokeIndex = source.indexOf('id: production_smoke');
+        const apexSmokeIndex = source.indexOf('Smoke test the apex after the backend rollout');
         const rollbackIndex = source.indexOf(
-          "Roll back the shell Worker after a failed production smoke",
+          'Roll back the shell Worker after a failed production smoke',
         );
         if (
           productionSmokeIndex < 0 ||
@@ -388,9 +353,7 @@ for (const workflowName of workflowNames) {
             `${workflowName}: exact deployment smoke, apex convergence and rollback must remain separate and ordered`,
           );
         }
-        if (
-          !source.includes("steps.production_smoke.outcome == 'failure'")
-        ) {
+        if (!source.includes("steps.production_smoke.outcome == 'failure'")) {
           failures.push(
             `${workflowName}: an apex/backend race must not roll back a validated deployment`,
           );
@@ -403,12 +366,12 @@ for (const workflowName of workflowNames) {
         // would restore exactly that, so the shape is asserted rather than trusted
         // to stay put. The preview leg is still Pages on purpose (it is the release
         // gate's candidate origin) and is matched narrowly enough not to trip it.
-        if (source.includes("pages deploy") && source.includes("--branch=main")) {
+        if (source.includes('pages deploy') && source.includes('--branch=main')) {
           failures.push(
             `${workflowName}: the web shell must be promoted to the Worker, not to a Cloudflare Pages production branch`,
           );
         }
-        if (!source.includes("Promote the validated assets to the shell Worker")) {
+        if (!source.includes('Promote the validated assets to the shell Worker')) {
           failures.push(
             `${workflowName}: the production promotion step must deploy the shell Worker`,
           );
@@ -420,7 +383,7 @@ for (const workflowName of workflowNames) {
         // Matched adjacent to `deploy` rather than on its own, because the flag is
         // named in the comment above that step too: a bare substring check passed
         // this file with the flag deleted from the command and only the prose left.
-        if (!source.includes("deploy --secrets-file")) {
+        if (!source.includes('deploy --secrets-file')) {
           failures.push(
             `${workflowName}: the Worker deploy must upload the shell access key with the code, or a deployed version can exist without it`,
           );
@@ -429,9 +392,7 @@ for (const workflowName of workflowNames) {
         // here authenticates, so none of them would notice the Worker serving the
         // app to anyone — which is what a lost `run_worker_first`, a dropped
         // access gate or a re-enabled `workers_dev` would each cause, silently.
-        if (
-          !source.includes("The shell Worker refuses an unauthenticated caller")
-        ) {
+        if (!source.includes('The shell Worker refuses an unauthenticated caller')) {
           failures.push(
             `${workflowName}: the deploy must assert that shell.mention.earth answers 403 without a key — nothing else would catch the app becoming publicly readable again`,
           );
@@ -446,7 +407,7 @@ for (const workflowName of workflowNames) {
     // well, because the policy reads the report `test:coverage` writes: a step
     // placed above the suite would measure the previous run's artefacts, or
     // nothing at all.
-    if (workflowName === "ci.yml") {
+    if (workflowName === 'ci.yml') {
       /**
        * The backend suite is sharded, so the two whole-suite judgements — the
        * coverage floors and the collection gate — live in ONE merge job. Deleting
@@ -454,25 +415,40 @@ for (const workflowName of workflowNames) {
        * shards and nothing judging the suite they add up to.
        */
       if (workflow?.on?.merge_group == null) {
-        failures.push(`${workflowName}: must run on merge_group, or the merge queue has no CI to wait on`);
+        failures.push(
+          `${workflowName}: must run on merge_group, or the merge queue has no CI to wait on`,
+        );
       }
-      const mergeJob = workflow?.jobs?.["ci-complete"];
-      const mergeRuns = (mergeJob?.steps || []).map((step) => (typeof step?.run === "string" ? step.run : ""));
-      if (!mergeRuns.some((run) => run.includes("--merge-reports"))) {
-        failures.push(`${workflowName}: CI complete must merge every shard's blob with vitest --merge-reports, which is where the coverage floors are enforced`);
+      const mergeJob = workflow?.jobs?.['ci-complete'];
+      const mergeRuns = (mergeJob?.steps || []).map((step) =>
+        typeof step?.run === 'string' ? step.run : '',
+      );
+      if (!mergeRuns.some((run) => run.includes('--merge-reports'))) {
+        failures.push(
+          `${workflowName}: CI complete must merge every shard's blob with vitest --merge-reports, which is where the coverage floors are enforced`,
+        );
       }
-      if (!mergeRuns.some((run) => run.includes("check:suite-collection"))) {
-        failures.push(`${workflowName}: CI complete must run the collection gate over the merged report`);
+      if (!mergeRuns.some((run) => run.includes('check:suite-collection'))) {
+        failures.push(
+          `${workflowName}: CI complete must run the collection gate over the merged report`,
+        );
       }
-      if (!mergeRuns.some((run) => run.includes("BACKEND_SHARDS"))) {
-        failures.push(`${workflowName}: CI complete must refuse a missing or extra shard before merging`);
+      if (!mergeRuns.some((run) => run.includes('BACKEND_SHARDS'))) {
+        failures.push(
+          `${workflowName}: CI complete must refuse a missing or extra shard before merging`,
+        );
       }
-      const shardList = workflow?.jobs?.["backend-test"]?.strategy?.matrix?.shard;
-      if (!Array.isArray(shardList) || String(mergeJob?.env?.BACKEND_SHARDS) !== String(shardList.length)) {
-        failures.push(`${workflowName}: CI complete's BACKEND_SHARDS must equal the length of backend-test's shard list`);
+      const shardList = workflow?.jobs?.['backend-test']?.strategy?.matrix?.shard;
+      if (
+        !Array.isArray(shardList) ||
+        String(mergeJob?.env?.BACKEND_SHARDS) !== String(shardList.length)
+      ) {
+        failures.push(
+          `${workflowName}: CI complete's BACKEND_SHARDS must equal the length of backend-test's shard list`,
+        );
       }
-      const completeNeeds = workflow?.jobs?.["ci-complete"]?.needs ?? [];
-      for (const job of ["provenance", "quality", "lockfile", "tests", "backend-test", "e2e"]) {
+      const completeNeeds = workflow?.jobs?.['ci-complete']?.needs ?? [];
+      for (const job of ['provenance', 'quality', 'lockfile', 'tests', 'backend-test', 'e2e']) {
         if (!completeNeeds.includes(job)) {
           failures.push(`${workflowName}: CI complete must need ${job}`);
         }
@@ -484,22 +460,28 @@ for (const workflowName of workflowNames) {
        * provenance answer and nothing looser.
        */
       const provenance = workflow?.jobs?.provenance;
-      const provenanceRuns = (provenance?.steps || []).map((step) => (typeof step?.run === "string" ? step.run : ""));
-      if (!provenanceRuns.some((run) => run.includes("merge-queue-verified.sh"))) {
-        failures.push(`${workflowName}: the provenance job must answer through merge-queue-verified.sh, the predicate the deploys share`);
+      const provenanceRuns = (provenance?.steps || []).map((step) =>
+        typeof step?.run === 'string' ? step.run : '',
+      );
+      if (!provenanceRuns.some((run) => run.includes('merge-queue-verified.sh'))) {
+        failures.push(
+          `${workflowName}: the provenance job must answer through merge-queue-verified.sh, the predicate the deploys share`,
+        );
       }
-      if (String(provenance?.if ?? "") !== "github.event_name == 'push'") {
+      if (String(provenance?.if ?? '') !== "github.event_name == 'push'") {
         failures.push(`${workflowName}: the provenance job must run on push alone`);
       }
-      for (const job of ["quality", "lockfile", "tests", "backend-test", "e2e"]) {
-        const condition = String(workflow?.jobs?.[job]?.if ?? "");
+      for (const job of ['quality', 'lockfile', 'tests', 'backend-test', 'e2e']) {
+        const condition = String(workflow?.jobs?.[job]?.if ?? '');
         if (condition !== "${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}") {
-          failures.push(`${workflowName}: ${job} may be skipped only on a queue-verified push; its if: must be exactly the provenance condition`);
+          failures.push(
+            `${workflowName}: ${job} may be skipped only on a queue-verified push; its if: must be exactly the provenance condition`,
+          );
         }
       }
 
-      const suiteIndex = source.indexOf("Run complete package test suite");
-      const policyIndex = source.indexOf("Enforce the frontend coverage policy");
+      const suiteIndex = source.indexOf('Run complete package test suite');
+      const policyIndex = source.indexOf('Enforce the frontend coverage policy');
       if (policyIndex < 0) {
         failures.push(
           `${workflowName}: the frontend test leg must run \`coverage:check\` — without it the critical-path floor and the no-regression ratchet enforce nothing`,
@@ -508,7 +490,7 @@ for (const workflowName of workflowNames) {
         failures.push(
           `${workflowName}: the coverage policy step must come after the suite that writes the report it reads`,
         );
-      } else if (!source.includes("COVERAGE_POLICY_BASE")) {
+      } else if (!source.includes('COVERAGE_POLICY_BASE')) {
         failures.push(
           `${workflowName}: the coverage policy step must be given a base revision, or a pull request can lower the recorded baseline in the same commit that removed the tests`,
         );
@@ -531,32 +513,45 @@ for (const workflowName of workflowNames) {
  */
 {
   const readWorkflow = async (name) =>
-    parseDocument(await readFile(resolve(workflowsDirectory, name), "utf8")).toJS();
-  const release = await readWorkflow("deploy-aws.yml");
-  const redeploy = await readWorkflow("deploy-backend-config.yml").catch(() => undefined);
+    parseDocument(await readFile(resolve(workflowsDirectory, name), 'utf8')).toJS();
+  const release = await readWorkflow('deploy-aws.yml');
+  const redeploy = await readWorkflow('deploy-backend-config.yml').catch(() => undefined);
   if (redeploy) {
-    const name = "deploy-backend-config.yml";
+    const name = 'deploy-backend-config.yml';
     const triggers = Object.keys(redeploy.on ?? {});
-    if (triggers.length !== 1 || triggers[0] !== "workflow_dispatch") {
-      failures.push(`${name}: must be triggered by workflow_dispatch alone, never by an event that can name another commit`);
+    if (triggers.length !== 1 || triggers[0] !== 'workflow_dispatch') {
+      failures.push(
+        `${name}: must be triggered by workflow_dispatch alone, never by an event that can name another commit`,
+      );
     }
     if (redeploy.on?.workflow_dispatch?.inputs?.reason?.required !== true) {
       failures.push(`${name}: must require a \`reason\` input`);
     }
     const inputNames = Object.keys(redeploy.on?.workflow_dispatch?.inputs ?? {});
-    if (inputNames.some((input) => input !== "reason")) {
-      failures.push(`${name}: must take no input but \`reason\`; a ref or SHA input would let a dispatch run code other than main's head`);
+    if (inputNames.some((input) => input !== 'reason')) {
+      failures.push(
+        `${name}: must take no input but \`reason\`; a ref or SHA input would let a dispatch run code other than main's head`,
+      );
     }
     const jobs = Object.values(redeploy.jobs ?? {});
     for (const job of jobs) {
-      if (!String(job?.if ?? "").includes("github.ref == 'refs/heads/main'")) {
+      if (!String(job?.if ?? '').includes("github.ref == 'refs/heads/main'")) {
         failures.push(`${name}: every job must be gated to github.ref == 'refs/heads/main'`);
       }
       for (const step of job?.steps ?? []) {
-        if (typeof step?.uses === "string" && step.uses.startsWith("actions/checkout@") && step.with?.ref !== undefined) {
-          failures.push(`${name}: its checkout must take no \`ref\`; github.sha of main is the only code it may run`);
+        if (
+          typeof step?.uses === 'string' &&
+          step.uses.startsWith('actions/checkout@') &&
+          step.with?.ref !== undefined
+        ) {
+          failures.push(
+            `${name}: its checkout must take no \`ref\`; github.sha of main is the only code it may run`,
+          );
         }
-        if (typeof step?.uses === "string" && /docker\/build-push-action|actions\/cache/.test(step.uses)) {
+        if (
+          typeof step?.uses === 'string' &&
+          /docker\/build-push-action|actions\/cache/.test(step.uses)
+        ) {
           failures.push(`${name}: must not build or use a cache; it redeploys the running image`);
         }
       }
@@ -570,10 +565,16 @@ for (const workflowName of workflowNames) {
       return JSON.stringify({ id: step.id, env, run: step.run });
     };
     for (const [stepName, ignoredEnv] of [
-      ["Register immutable task definition and deploy", ["IMAGE_URI", "RUN_MIGRATIONS"]],
+      ['Register immutable task definition and deploy', ['IMAGE_URI', 'RUN_MIGRATIONS']],
     ]) {
-      const original = comparable(releaseSteps.find((step) => step?.name === stepName), ignoredEnv);
-      const copy = comparable(redeploySteps.find((step) => step?.name === stepName), ignoredEnv);
+      const original = comparable(
+        releaseSteps.find((step) => step?.name === stepName),
+        ignoredEnv,
+      );
+      const copy = comparable(
+        redeploySteps.find((step) => step?.name === stepName),
+        ignoredEnv,
+      );
       if (!original || !copy) {
         failures.push(`${name}: both workflows must have a step named "${stepName}"`);
       } else if (original !== copy) {
@@ -605,12 +606,16 @@ for (const workflowName of workflowNames) {
  */
 {
   const CI_SECRET_ALLOWLIST = {
-    "add-to-roadmap.yml": ["ADD_TO_PROJECT_TOKEN"],
-    "deploy-frontends.yml": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "MENTION_SHELL_ACCESS_KEY"],
+    'add-to-roadmap.yml': ['ADD_TO_PROJECT_TOKEN'],
+    'deploy-frontends.yml': [
+      'CLOUDFLARE_ACCOUNT_ID',
+      'CLOUDFLARE_API_TOKEN',
+      'MENTION_SHELL_ACCESS_KEY',
+    ],
   };
   let secretReads = 0;
   for (const workflowName of workflowNames) {
-    const source = await readFile(resolve(workflowsDirectory, workflowName), "utf8");
+    const source = await readFile(resolve(workflowsDirectory, workflowName), 'utf8');
     // Matched as an EXPRESSION, not as text, so a comment that names the
     // pattern to explain its absence does not trip it.
     if (/\$\{\{[^}]*toJSON\s*\(\s*secrets\s*\)/.test(source)) {
@@ -621,9 +626,15 @@ for (const workflowName of workflowNames) {
         `${workflowName}: must not write an SSM parameter — runtime secrets are set in SSM by their owner, never by a workflow`,
       );
     }
-    const allowed = new Set(["GITHUB_TOKEN", ...(CI_SECRET_ALLOWLIST[workflowName] ?? [])]);
+    const allowed = new Set(['GITHUB_TOKEN', ...(CI_SECRET_ALLOWLIST[workflowName] ?? [])]);
     for (const match of source.matchAll(/\bsecrets\.([A-Za-z0-9_]+)/g)) {
-      if (source.slice(source.lastIndexOf("\n", match.index) + 1, match.index).trimStart().startsWith("#")) continue;
+      if (
+        source
+          .slice(source.lastIndexOf('\n', match.index) + 1, match.index)
+          .trimStart()
+          .startsWith('#')
+      )
+        continue;
       secretReads += 1;
       if (!allowed.has(match[1])) {
         failures.push(
@@ -635,12 +646,12 @@ for (const workflowName of workflowNames) {
   // Vacuity floor: the CI-only secrets above ARE read, so a matcher that stops
   // matching would otherwise pass every workflow silently.
   if (secretReads === 0) {
-    failures.push("the repo-secret matcher found no secret reads at all; it has stopped matching");
+    failures.push('the repo-secret matcher found no secret reads at all; it has stopped matching');
   }
 }
 
 if (failures.length > 0) {
-  console.error("GitHub Actions YAML validation failed:\n");
+  console.error('GitHub Actions YAML validation failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
@@ -648,4 +659,4 @@ if (failures.length > 0) {
 console.log(`Validated ${workflowNames.length} GitHub Actions workflow file(s).`);
 
 // Keep the closed publisher classification mutation controls in the CI gate.
-await import("./test-reviewed-image-publisher.mjs");
+await import('./test-reviewed-image-publisher.mjs');

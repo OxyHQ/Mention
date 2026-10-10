@@ -22,7 +22,11 @@ import { eq, inArray, like, or } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { lanes } from '../../db/schema/channels';
-import { federatedActorFields, federatedActors, federatedFollows } from '../../db/schema/federation';
+import {
+  federatedActorFields,
+  federatedActors,
+  federatedFollows,
+} from '../../db/schema/federation';
 import { assembleActorRecord } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';

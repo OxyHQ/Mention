@@ -1,11 +1,11 @@
-import http from "http";
+import http from 'http';
 import type { Socket } from 'socket.io';
 import { startPlatformActivity } from './src/runtime/platformActivity';
 import { getRuntimeHealthState } from './src/utils/runtimeHealth';
 import { hostname } from 'os';
 import { config, validateEnvironment } from './src/config';
-import { connectPostgres, getPostgresClient } from "./src/db/postgres";
-import { assertPostgresMigrationsCurrent } from "./src/db/migrationsFolder";
+import { connectPostgres, getPostgresClient } from './src/db/postgres';
+import { assertPostgresMigrationsCurrent } from './src/db/migrationsFolder';
 import { registerAllModules } from './src/mtn/feed/engine';
 import { startWorkers } from './src/queue/workers';
 import { registerGlobalErrorHandlers } from './src/runtime/globalErrorHandlers';
@@ -20,13 +20,13 @@ import { createRuntimeApp } from './src/runtimeApp';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
 import { presenceRoom } from '@mention/shared-types';
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
-import { leaderElection } from "./src/services/LeaderElection";
+import { leaderElection } from './src/services/LeaderElection';
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 import {
   startUserInvalidationSubscriber,
   type UserInvalidationSubscriber,
 } from './src/services/userInvalidationSubscriber';
-import { logger } from "./src/utils/logger";
+import { logger } from './src/utils/logger';
 import { getRedisClient } from './src/utils/redis';
 import {
   markMigrationsComplete,
@@ -68,9 +68,9 @@ registerSocketHandlers(io, namespaces, presence);
 const notificationsNamespace = namespaces.notificationsNamespace;
 
 // --- Expose namespaces for use in routes ---
-app.set("io", io);
-app.set("notificationsNamespace", notificationsNamespace);
-app.set("postsNamespace", namespaces.postsNamespace);
+app.set('io', io);
+app.set('notificationsNamespace', notificationsNamespace);
+app.set('postsNamespace', namespaces.postsNamespace);
 
 // --- Server Listen ---
 const PORT = config.runtime.port;
@@ -125,7 +125,7 @@ const bootServer = async () => {
   try {
     startWorkers();
   } catch (error) {
-    logger.warn("Failed to start federation queue workers", error);
+    logger.warn('Failed to start federation queue workers', error);
   }
 
   // Register MTN Protocol feed engine modules (sources / signals / filters)

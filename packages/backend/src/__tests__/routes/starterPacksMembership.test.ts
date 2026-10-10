@@ -30,7 +30,9 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../services/userSummaryCache', () => ({
+  invalidate: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
@@ -58,20 +60,26 @@ let authUserId: string | undefined = VIEWER_ID;
 const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
-  (req as express.Request & { user?: { id: string } }).user = authUserId ? { id: authUserId } : undefined;
+  (req as express.Request & { user?: { id: string } }).user = authUserId
+    ? { id: authUserId }
+    : undefined;
   next();
 });
 app.use('/starter-packs', starterPacksRoutes);
 
 /** Create a pack through the ROUTE, so every assertion covers a real write path. */
 async function createPack(body: Record<string, unknown>): Promise<request.Response> {
-  const res = await request(app).post('/starter-packs').send({ name: `Pack ${randomUUID()}`, ...body });
+  const res = await request(app)
+    .post('/starter-packs')
+    .send({ name: `Pack ${randomUUID()}`, ...body });
   if (res.status === 201) createdPackIds.push(res.body.id);
   return res;
 }
 
 /** The junction rows for a pack, in stored position order. */
-async function readMemberRows(packId: string): Promise<Array<{ oxyUserId: string; position: number }>> {
+async function readMemberRows(
+  packId: string,
+): Promise<Array<{ oxyUserId: string; position: number }>> {
   return db
     .select({ oxyUserId: starterPackMembers.oxyUserId, position: starterPackMembers.position })
     .from(starterPackMembers)
@@ -228,7 +236,10 @@ describe('membership order survives the junction', () => {
 });
 
 describe('the 150-member cap is enforced by the write API', () => {
-  const atCap = Array.from({ length: STARTER_PACK_MAX_MEMBERS }, (_, i) => `m${String(i).padStart(3, '0')}`);
+  const atCap = Array.from(
+    { length: STARTER_PACK_MAX_MEMBERS },
+    (_, i) => `m${String(i).padStart(3, '0')}`,
+  );
   const overCap = [...atCap, 'one-too-many'];
   const capMessage = `Maximum ${STARTER_PACK_MAX_MEMBERS} members allowed`;
 

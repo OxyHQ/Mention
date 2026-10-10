@@ -167,7 +167,11 @@ export interface SourceModule {
    * ranked multi-source definitions that declare `discoveryFilters` (For You).
    */
   trusted?: boolean;
-  gather(ctx: FeedEngineContext, params: Record<string, unknown>, cap: number): Promise<CandidatePost[]>;
+  gather(
+    ctx: FeedEngineContext,
+    params: Record<string, unknown>,
+    cap: number,
+  ): Promise<CandidatePost[]>;
 }
 
 export interface SignalModule {
@@ -307,10 +311,7 @@ export type FeedDefinitionMode = 'ranked' | 'chronological';
  * the engine executes. It lived on the Mongoose `CustomFeed` model until that
  * model was deleted; it was never a Mongo concept, only a field on one.
  */
-export type StoredFeedDefinition = Pick<
-  FeedDefinition,
-  'mode' | 'sources' | 'signals' | 'filters'
->;
+export type StoredFeedDefinition = Pick<FeedDefinition, 'mode' | 'sources' | 'signals' | 'filters'>;
 
 export interface FeedDefinition {
   id: string;

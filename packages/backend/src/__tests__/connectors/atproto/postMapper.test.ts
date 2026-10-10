@@ -68,7 +68,11 @@ function atUri(rkey: string): string {
   return `at://${DID}/app.bsky.feed.post/${rkey}`;
 }
 
-function postView(rkey: string, text: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+function postView(
+  rkey: string,
+  text: string,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     uri: atUri(rkey),
     cid: 'cid',
@@ -97,7 +101,10 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   vi.clearAllMocks();
   mocks.create.mockResolvedValue({ _id: 'created1' });
-  mocks.materialize.mockImplementation(async (media: unknown, attachments: unknown) => ({ media, attachments }));
+  mocks.materialize.mockImplementation(async (media: unknown, attachments: unknown) => ({
+    media,
+    attachments,
+  }));
   mocks.fetchProfile.mockResolvedValue(null);
 });
 
@@ -140,14 +147,19 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.languages).toEqual(['en', 'es']);
     expect(post?.hashtags).toEqual(expect.arrayContaining(['atproto', 'bluesky']));
     expect(post?.sensitive).toBe(true);
-    expect(post?.media).toEqual([{ id: 'https://cdn/full.jpg', type: 'image', remoteUrl: 'https://cdn/full.jpg', alt: 'a' }]);
+    expect(post?.media).toEqual([
+      { id: 'https://cdn/full.jpg', type: 'image', remoteUrl: 'https://cdn/full.jpg', alt: 'a' },
+    ]);
   });
 
   it('normalizes the whitespace of the post body, keeping the author’s paragraphs', () => {
     // Bluesky text is third-party text and used to be stored with zero trimming.
     // The author's blank line survives; the trailing spaces and the extra blank
     // lines do not (the client renders them verbatim).
-    const post = mapPostViewToNormalizedPost(postView('ws', '  uno   \r\n\r\n\r\n\r\n  dos  '), DID);
+    const post = mapPostViewToNormalizedPost(
+      postView('ws', '  uno   \r\n\r\n\r\n\r\n  dos  '),
+      DID,
+    );
     expect(post?.text).toBe('uno\n\ndos');
   });
 
@@ -173,11 +185,17 @@ describe('mapPostViewToNormalizedPost', () => {
   it('extracts video playlist media from a video embed view', () => {
     const post = mapPostViewToNormalizedPost(
       postView('vid', 'a video', {
-        embed: { $type: 'app.bsky.embed.video#view', playlist: 'https://cdn/playlist.m3u8', thumbnail: 'https://cdn/thumb.jpg' },
+        embed: {
+          $type: 'app.bsky.embed.video#view',
+          playlist: 'https://cdn/playlist.m3u8',
+          thumbnail: 'https://cdn/thumb.jpg',
+        },
       }),
       DID,
     );
-    expect(post?.media).toEqual([{ id: 'https://cdn/playlist.m3u8', type: 'video', remoteUrl: 'https://cdn/playlist.m3u8' }]);
+    expect(post?.media).toEqual([
+      { id: 'https://cdn/playlist.m3u8', type: 'video', remoteUrl: 'https://cdn/playlist.m3u8' },
+    ]);
   });
 
   it('replaces a #link facet display text with the full URL (byte-indexed)', () => {
@@ -191,7 +209,12 @@ describe('mapPostViewToNormalizedPost', () => {
           facets: [
             {
               index: { byteStart: 5, byteEnd },
-              features: [{ $type: 'app.bsky.richtext.facet#link', uri: 'https://gothamist.com/news/long-article' }],
+              features: [
+                {
+                  $type: 'app.bsky.richtext.facet#link',
+                  uri: 'https://gothamist.com/news/long-article',
+                },
+              ],
             },
           ],
         },
@@ -251,7 +274,12 @@ describe('mapPostViewToNormalizedPost', () => {
           facets: [
             {
               index: { byteStart: 3, byteEnd: 21 }, // '@ghost.bsky.social'
-              features: [{ $type: 'app.bsky.richtext.facet#mention', did: 'did:plc:ghost0000000000000000000' }],
+              features: [
+                {
+                  $type: 'app.bsky.richtext.facet#mention',
+                  did: 'did:plc:ghost0000000000000000000',
+                },
+              ],
             },
           ],
         },
@@ -296,21 +324,31 @@ describe('mapPostViewToNormalizedPost', () => {
       DID,
     );
     expect(post?.quotedUri).toBe(QUOTED_URI);
-    expect(post?.media).toEqual([{ id: 'https://cdn/q.jpg', type: 'image', remoteUrl: 'https://cdn/q.jpg', alt: 'pic' }]);
+    expect(post?.media).toEqual([
+      { id: 'https://cdn/q.jpg', type: 'image', remoteUrl: 'https://cdn/q.jpg', alt: 'pic' },
+    ]);
   });
 
   it('rejects a non-feed-post record, a wrong author, and a non-AT-URI', () => {
     // Wrong collection (a like, not a post).
     expect(
       mapPostViewToNormalizedPost(
-        { uri: `at://${DID}/app.bsky.feed.like/x`, author: { did: DID }, record: { $type: 'app.bsky.feed.like' } },
+        {
+          uri: `at://${DID}/app.bsky.feed.like/x`,
+          author: { did: DID },
+          record: { $type: 'app.bsky.feed.like' },
+        },
         DID,
       ),
     ).toBeNull();
     // Author does not match the synced actor.
-    expect(mapPostViewToNormalizedPost(postView('x', 'forged'), 'did:plc:someoneelse000000000000')).toBeNull();
+    expect(
+      mapPostViewToNormalizedPost(postView('x', 'forged'), 'did:plc:someoneelse000000000000'),
+    ).toBeNull();
     // Not an AT-URI.
-    expect(mapPostViewToNormalizedPost({ uri: 'https://bsky.app/x', author: { did: DID } }, DID)).toBeNull();
+    expect(
+      mapPostViewToNormalizedPost({ uri: 'https://bsky.app/x', author: { did: DID } }, DID),
+    ).toBeNull();
   });
 });
 
@@ -372,13 +410,21 @@ describe('importAuthorFeed', () => {
   it('stamps parentPostId + threadId when the reply parent is imported locally', async () => {
     const PARENT_URI = 'at://did:plc:parent/app.bsky.feed.post/root';
     mocks.xrpcGet.mockResolvedValue({
-      feed: [{ post: postView('reply', 'a reply', { record: { reply: { parent: { uri: PARENT_URI } } } }) }],
+      feed: [
+        {
+          post: postView('reply', 'a reply', {
+            record: { reply: { parent: { uri: PARENT_URI } } },
+          }),
+        },
+      ],
     });
     // The parent is a REAL imported post that already sits in a thread, so
     // `threadId` is inherited from it rather than falling back to its own id —
     // the branch the old mock hard-coded, and the one a mis-stamped reply would
     // silently take.
-    const root = await seedPost(scope, { federation: { activityId: 'at://did:plc:parent/app.bsky.feed.post/thread-root' } });
+    const root = await seedPost(scope, {
+      federation: { activityId: 'at://did:plc:parent/app.bsky.feed.post/thread-root' },
+    });
     const parent = await seedPost(scope, {
       federation: { activityId: PARENT_URI, actorUri: 'did:plc:parent' },
       threadId: root.id,
@@ -409,7 +455,9 @@ describe('importAuthorFeed', () => {
         },
       ],
     });
-    const quoted = await seedPost(scope, { federation: { activityId: QUOTED_URI, actorUri: 'did:plc:quoted' } });
+    const quoted = await seedPost(scope, {
+      federation: { activityId: QUOTED_URI, actorUri: 'did:plc:quoted' },
+    });
 
     await importAuthorFeed(ACTOR);
 
@@ -474,7 +522,12 @@ function makeActor(did: string, handle: string, oxyUserId: string): NormalizedEx
 }
 
 /** A feed PostView authored by an arbitrary DID (a generator mixes authors). */
-function viewBy(authorDid: string, handle: string, rkey: string, text: string): Record<string, unknown> {
+function viewBy(
+  authorDid: string,
+  handle: string,
+  rkey: string,
+  text: string,
+): Record<string, unknown> {
   return {
     uri: `at://${authorDid}/app.bsky.feed.post/${rkey}`,
     cid: 'cid',

@@ -20,17 +20,17 @@ const nativeFeedScrollOffsets = new Map<string, number>();
 
 /** Read the last native offset observed for a viewer/feed identity. */
 export function getFeedScrollOffset(key: string): number {
-    return nativeFeedScrollOffsets.get(key) ?? 0;
+  return nativeFeedScrollOffsets.get(key) ?? 0;
 }
 
 /** Save a native offset without publishing a Zustand update on every scroll. */
 export function setFeedScrollOffset(key: string, offset: number): void {
-    nativeFeedScrollOffsets.set(key, Math.max(0, offset));
+  nativeFeedScrollOffsets.set(key, Math.max(0, offset));
 }
 
 /** Drop every remembered offset when the active viewer changes. */
 export function clearFeedScrollOffsets(): void {
-    nativeFeedScrollOffsets.clear();
+  nativeFeedScrollOffsets.clear();
 }
 
 // How many posts the viewer has published this session, as a revision a feed
@@ -42,20 +42,20 @@ let localPostRevision = 0;
 const localPostRevisionListeners = new Set<() => void>();
 
 export function getLocalPostRevision(): number {
-    return localPostRevision;
+  return localPostRevision;
 }
 
 export function subscribeToLocalPostRevision(listener: () => void): () => void {
-    localPostRevisionListeners.add(listener);
-    return () => {
-        localPostRevisionListeners.delete(listener);
-    };
+  localPostRevisionListeners.add(listener);
+  return () => {
+    localPostRevisionListeners.delete(listener);
+  };
 }
 
 /** Record one more post published by the viewer this session. */
 export function advanceLocalPostRevision(): void {
-    localPostRevision += 1;
-    for (const listener of localPostRevisionListeners) {
-        listener();
-    }
+  localPostRevision += 1;
+  for (const listener of localPostRevisionListeners) {
+    listener();
+  }
 }

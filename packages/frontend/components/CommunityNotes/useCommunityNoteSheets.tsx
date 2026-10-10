@@ -1,6 +1,10 @@
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { useRouter } from 'expo-router';
-import type { CommunityNoteRating, CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';
+import type {
+  CommunityNoteRating,
+  CommunityNoteSummary,
+  HydratedPostSummary,
+} from '@mention/shared-types';
 import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { openExternalLink } from '@/utils/openExternalLink';
 import type { CommunityNoteDraft } from './WriteNoteSheet';
@@ -8,11 +12,21 @@ import type { CommunityNoteDraft } from './WriteNoteSheet';
 // Loaded when a sheet first opens, never with the post row: every feed row
 // mounts this hook, and none of them should pay for the forms (the same reason
 // `PostItem` lazy-loads its own sheets).
-const WritingTipsSheet = lazy(() => import('./WritingTipsSheet').then((m) => ({ default: m.WritingTipsSheet })));
-const WriteNoteSheet = lazy(() => import('./WriteNoteSheet').then((m) => ({ default: m.WriteNoteSheet })));
-const NoteSubmittedSheet = lazy(() => import('./NoteSubmittedSheet').then((m) => ({ default: m.NoteSubmittedSheet })));
-const RateNoteSheet = lazy(() => import('./RateNoteSheet').then((m) => ({ default: m.RateNoteSheet })));
-const AboutNoteSheet = lazy(() => import('./AboutNoteSheet').then((m) => ({ default: m.AboutNoteSheet })));
+const WritingTipsSheet = lazy(() =>
+  import('./WritingTipsSheet').then((m) => ({ default: m.WritingTipsSheet })),
+);
+const WriteNoteSheet = lazy(() =>
+  import('./WriteNoteSheet').then((m) => ({ default: m.WriteNoteSheet })),
+);
+const NoteSubmittedSheet = lazy(() =>
+  import('./NoteSubmittedSheet').then((m) => ({ default: m.NoteSubmittedSheet })),
+);
+const RateNoteSheet = lazy(() =>
+  import('./RateNoteSheet').then((m) => ({ default: m.RateNoteSheet })),
+);
+const AboutNoteSheet = lazy(() =>
+  import('./AboutNoteSheet').then((m) => ({ default: m.AboutNoteSheet })),
+);
 
 /** Where "Learn more" goes: the public explainer for how notes work. */
 export const COMMUNITY_NOTES_HELP_URL = 'https://mention.earth/help/community-notes';
@@ -69,7 +83,9 @@ export function createCommunityNoteSheets({
   const close = () => bottomSheet.openBottomSheet(false);
 
   const show = (content: React.ReactNode, scrollable = false) => {
-    bottomSheet.setBottomSheetContent(<Suspense fallback={null}>{content}</Suspense>, { scrollable });
+    bottomSheet.setBottomSheetContent(<Suspense fallback={null}>{content}</Suspense>, {
+      scrollable,
+    });
     bottomSheet.openBottomSheet(true);
   };
 
@@ -118,7 +134,11 @@ export function createCommunityNoteSheets({
 
   const openAbout = (note: CommunityNoteSummary) => {
     show(
-      <AboutNoteSheet note={note} onClose={close} onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined} />,
+      <AboutNoteSheet
+        note={note}
+        onClose={close}
+        onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined}
+      />,
       true,
     );
   };
@@ -136,7 +156,9 @@ export function createCommunityNoteSheets({
 }
 
 /** The flows for a screen that owns them (the notes hub). */
-export function useCommunityNoteSheets(handlers: CommunityNoteWriteHandlers = {}): CommunityNoteSheets {
+export function useCommunityNoteSheets(
+  handlers: CommunityNoteWriteHandlers = {},
+): CommunityNoteSheets {
   const bottomSheet = useContext(BottomSheetContext);
   const router = useRouter();
   const { submitNote, rateNote } = handlers;

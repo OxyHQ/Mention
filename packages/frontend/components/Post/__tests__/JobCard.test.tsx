@@ -11,7 +11,9 @@ jest.mock('expo-router', () => ({
 
 const mockGetUserById = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ oxyServices: { users: { get: (...args: unknown[]) => mockGetUserById(...args) } } }),
+  useAuth: () => ({
+    oxyServices: { users: { get: (...args: unknown[]) => mockGetUserById(...args) } },
+  }),
 }));
 
 jest.mock('@oxy.so/core', () => ({
@@ -106,7 +108,12 @@ describe('JobCard', () => {
     const renderer = render(
       <JobCard
         job={job({
-          location: { placeId: '5391959', countryCode: 'US', region: 'California', city: 'San Francisco' },
+          location: {
+            placeId: '5391959',
+            countryCode: 'US',
+            region: 'California',
+            city: 'San Francisco',
+          },
           workplaceType: 'remote',
           employmentType: 'full_time',
         })}
@@ -124,7 +131,7 @@ describe('JobCard', () => {
     expect(textOf(renderer)).not.toContain('undefined');
   });
 
-  it('navigates to the canonical URL\'s path when tapped', () => {
+  it("navigates to the canonical URL's path when tapped", () => {
     const renderer = render(<JobCard job={job()} />);
 
     TestRenderer.act(() => {
@@ -144,7 +151,7 @@ describe('JobCard', () => {
     expect(mockPush).toHaveBeenCalledWith('/jobs/job-1');
   });
 
-  it('resolves the employer\'s handle and navigates to their profile when the employer name is tapped', async () => {
+  it("resolves the employer's handle and navigates to their profile when the employer name is tapped", async () => {
     mockGetUserById.mockResolvedValue({ username: 'acme' });
     const renderer = render(<JobCard job={job()} />);
 
@@ -157,7 +164,7 @@ describe('JobCard', () => {
     expect(mockPush).toHaveBeenCalledWith('/@acme');
   });
 
-  it('does not navigate when the employer\'s handle cannot be resolved', async () => {
+  it("does not navigate when the employer's handle cannot be resolved", async () => {
     mockGetUserById.mockResolvedValue({ username: undefined });
     const renderer = render(<JobCard job={job()} />);
 

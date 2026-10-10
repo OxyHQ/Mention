@@ -58,7 +58,8 @@ const EXEMPT_FILES = ['packages/backend/src/services/commerce/mercariaClient.ts'
 
 const EXCLUDED_PACKAGES = new Set(['e2e']);
 const SOURCE_EXTENSION = /\.(?:tsx|ts|jsx|js|mjs|cjs)$/;
-const NON_PRODUCTION = /(?:^|\/)(?:__tests__|__mocks__|tests?|fixtures?|dist|coverage|node_modules)(?:\/|$)|\.(?:test|spec)\.(?:tsx|ts|jsx|js|mjs|cjs)$|(?:^|\/)test-[^/]*\.(?:tsx|ts|jsx|js|mjs|cjs)$/;
+const NON_PRODUCTION =
+  /(?:^|\/)(?:__tests__|__mocks__|tests?|fixtures?|dist|coverage|node_modules)(?:\/|$)|\.(?:test|spec)\.(?:tsx|ts|jsx|js|mjs|cjs)$|(?:^|\/)test-[^/]*\.(?:tsx|ts|jsx|js|mjs|cjs)$/;
 
 /** Minimum production files per package; measured at landing, set a little under. */
 const PACKAGE_FLOORS = fixtureMode
@@ -93,13 +94,13 @@ function literalsOf(file, text) {
   const found = [];
   const visit = (node) => {
     if (
-      ts.isStringLiteral(node)
-      || ts.isNoSubstitutionTemplateLiteral(node)
-      || ts.isTemplateHead(node)
-      || ts.isTemplateMiddle(node)
-      || ts.isTemplateTail(node)
-      || ts.isRegularExpressionLiteral(node)
-      || ts.isJsxText(node)
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node) ||
+      ts.isRegularExpressionLiteral(node) ||
+      ts.isJsxText(node)
     ) {
       const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
       // Backslashes are dropped before matching: a pattern that recognises the
@@ -144,12 +145,17 @@ for (const file of sourceFiles) {
 if (sourceFiles.length === 0) failures.push('production source listing is empty');
 for (const [name, floor] of Object.entries(PACKAGE_FLOORS)) {
   const count = perPackage.get(name) ?? 0;
-  if (count < floor) failures.push(`packages/${name}: production source listing is unexpectedly small (${count} < ${floor})`);
+  if (count < floor)
+    failures.push(
+      `packages/${name}: production source listing is unexpectedly small (${count} < ${floor})`,
+    );
 }
 
 for (const exempt of EXEMPT_FILES) {
   if (!sourceFiles.includes(exempt)) {
-    failures.push(`${exempt}: exempt from the commerce boundary but not a production source file; delete the exemption`);
+    failures.push(
+      `${exempt}: exempt from the commerce boundary but not a production source file; delete the exemption`,
+    );
   }
 }
 
@@ -163,7 +169,8 @@ for (const file of sourceFiles) {
   if (EXEMPT_FILES.includes(file)) continue;
   for (const { matchable, line } of literals) {
     for (const { label, pattern } of RULES) {
-      if (pattern.test(matchable)) failures.push(`${file}:${line}: ${label} outside the SDK (use @mercaria.co/sdk)`);
+      if (pattern.test(matchable))
+        failures.push(`${file}:${line}: ${label} outside the SDK (use @mercaria.co/sdk)`);
     }
   }
 }
@@ -171,16 +178,23 @@ for (const file of sourceFiles) {
 // The positive control: the SDK is consumed, so its package name must have been
 // SEEN as a literal. Zero means the walk read nothing that matters.
 if (sdkImportLiterals === 0) {
-  failures.push(`no "${SDK_PACKAGE_LITERAL}" literal was seen; the scan cannot be reading the SDK's consumers`);
+  failures.push(
+    `no "${SDK_PACKAGE_LITERAL}" literal was seen; the scan cannot be reading the SDK's consumers`,
+  );
 }
 
 if (failures.length > 0) {
-  console.error(`Commerce boundary validation failed:\n\n${failures.map((failure) => `- ${failure}`).join('\n')}`);
+  console.error(
+    `Commerce boundary validation failed:\n\n${failures.map((failure) => `- ${failure}`).join('\n')}`,
+  );
   process.exit(1);
 }
 
-const breakdown = [...perPackage.entries()].sort().map(([name, count]) => `${name} ${count}`).join(', ');
+const breakdown = [...perPackage.entries()]
+  .sort()
+  .map(([name, count]) => `${name} ${count}`)
+  .join(', ');
 console.log(
-  `Validated Mention's Mercaria boundary: ${sourceFiles.length} production source files (${breakdown}), `
-  + `${literalCount} literals, ${sdkImportLiterals} @mercaria.co/sdk import(s) seen.`,
+  `Validated Mention's Mercaria boundary: ${sourceFiles.length} production source files (${breakdown}), ` +
+    `${literalCount} literals, ${sdkImportLiterals} @mercaria.co/sdk import(s) seen.`,
 );

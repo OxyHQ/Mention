@@ -115,7 +115,7 @@ export interface PopulationVerdict {
  */
 export function evaluatePopulation(
   floors: readonly PopulationFloor[],
-  readings: readonly PopulationReading[]
+  readings: readonly PopulationReading[],
 ): PopulationVerdict {
   const lines: string[] = [];
   let ok = true;
@@ -139,9 +139,7 @@ export function evaluatePopulation(
     }
     const verdict = reading.rows >= floor.minimum ? 'ok' : 'BELOW FLOOR';
     if (reading.rows < floor.minimum) ok = false;
-    lines.push(
-      `${floor.table}: ${reading.rows} row(s), floor ${floor.minimum} — ${verdict}`
-    );
+    lines.push(`${floor.table}: ${reading.rows} row(s), floor ${floor.minimum} — ${verdict}`);
   }
   return { ok, lines };
 }
@@ -152,7 +150,7 @@ async function countRows(table: string): Promise<number> {
   // from input — so the identifier is interpolated rather than parameterised,
   // which a table name cannot be anyway.
   const rows = await getDb().execute<{ count: string }>(
-    sql.raw(`select count(*)::text as count from ${table}`)
+    sql.raw(`select count(*)::text as count from ${table}`),
   );
   const first = Array.isArray(rows) ? rows[0] : (rows as { rows?: unknown[] }).rows?.[0];
   const value = (first as { count?: string } | undefined)?.count;
@@ -179,7 +177,7 @@ async function main(): Promise<number> {
         'the connection works, so this is not an unreachable database — it is a ' +
         'REACHABLE EMPTY ONE, which every HTTP check in this pipeline reports as ' +
         'healthy. If the copy has not run yet, that is the answer: run it. If it ' +
-        'has, something emptied the target and the deploy must not proceed.'
+        'has, something emptied the target and the deploy must not proceed.',
     );
     return 1;
   }

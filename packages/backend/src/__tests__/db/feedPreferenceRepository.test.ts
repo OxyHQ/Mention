@@ -119,9 +119,11 @@ describe('storing a layout', () => {
   });
 
   /** A second save must reuse the viewer's row, not fail on its unique owner. */
-  it('saves repeatedly without duplicating the viewer\'s preference row', async () => {
+  it("saves repeatedly without duplicating the viewer's preference row", async () => {
     await replaceFeedLayout(VIEWER, [{ key: 'a', descriptor: 'for_you', pinned: true, order: 0 }]);
-    await replaceFeedLayout(VIEWER, [{ key: 'b', descriptor: 'following', pinned: true, order: 0 }]);
+    await replaceFeedLayout(VIEWER, [
+      { key: 'b', descriptor: 'following', pinned: true, order: 0 },
+    ]);
 
     const rows = await getDb()
       .select({ id: userFeedPreferences.id })

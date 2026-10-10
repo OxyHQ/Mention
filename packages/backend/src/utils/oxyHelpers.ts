@@ -3,10 +3,7 @@ import { OxyServer } from '@oxy.so/core/server';
 import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
-import {
-  config,
-  getOxyServiceCredentials,
-} from '../config';
+import { config, getOxyServiceCredentials } from '../config';
 import { logger } from './logger';
 import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { instrumentOxyEgress, measureOxyFetch } from './oxyMetrics';
@@ -35,8 +32,7 @@ interface ScopedOxyRequest {
  */
 export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
   const delegatedUserId = (
-    req.mcp?.activeUserId
-    ?? req.capability?.claims?.resource?.effectiveAccountId
+    req.mcp?.activeUserId ?? req.capability?.claims?.resource?.effectiveAccountId
   )?.trim();
   if (req.mcp || req.capability) {
     if (!delegatedUserId) {
@@ -82,13 +78,19 @@ export function createUserScopedOxyServices(
 }
 
 /** Already verified HTTP request only; an MCP or attribution proof is not a session. */
-export function createForegroundOxyProfileClient(req: ScopedOxyRequest): ForegroundOxyProfileClient | undefined {
+export function createForegroundOxyProfileClient(
+  req: ScopedOxyRequest,
+): ForegroundOxyProfileClient | undefined {
   if (!req.user || req.mcp || req.capability) return undefined;
   const token = req.accessToken;
   const configuration = process.env.MENTION_OXY_FOREGROUND_CATALOG_BINDING;
   if (!token || !configuration) throw new Error('FOREGROUND_RANKING_NOT_CONFIGURED');
   let binding: unknown;
-  try { binding = JSON.parse(configuration); } catch { throw new Error('FOREGROUND_CATALOG_INVALID'); }
+  try {
+    binding = JSON.parse(configuration);
+  } catch {
+    throw new Error('FOREGROUND_CATALOG_INVALID');
+  }
   return new ForegroundOxyProfileClient(getServiceOxyClient(), token, req.user.id, binding);
 }
 
@@ -120,7 +122,9 @@ const serviceClient: OxyServer = (() => {
        * a warning that says a working deployment is broken is how somebody ends up
        * putting the credential back.
        */
-      logger.info('[oxyHelpers] no service key pair; the Oxy client attests this task role instead');
+      logger.info(
+        '[oxyHelpers] no service key pair; the Oxy client attests this task role instead',
+      );
     } else {
       logger.warn(
         '[oxyHelpers] no Oxy service identity: neither a key pair nor an attestable task role. Calls needing one will fail.',
@@ -140,11 +144,7 @@ export function getServiceOxyClient(): OxyServer {
 }
 
 function unwrapDataEnvelope(value: unknown): unknown {
-  if (
-    value &&
-    typeof value === 'object' &&
-    'data' in value
-  ) {
+  if (value && typeof value === 'object' && 'data' in value) {
     return (value as { data?: unknown }).data;
   }
   return value;
@@ -214,7 +214,9 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
         }
         if (body.account_id !== viewerId) {
           throw Object.assign(
-            new Error('Oxy answered the viewer graph of a different account than this request serves'),
+            new Error(
+              'Oxy answered the viewer graph of a different account than this request serves',
+            ),
             { code: 'MCP_CONNECTION_ACCOUNT_MISMATCH' },
           );
         }
@@ -225,15 +227,15 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
 
   const viewerGraph = (): Promise<unknown> => {
     if (connectionToken) return readConnectionGraph(connectionToken);
-    return Promise.reject(Object.assign(
-      new Error('Viewer graph requires the existing central OAuth connection proof'),
-      { code: 'SERVICE_DELEGATION_NOT_AUTHORIZED' },
-    ));
+    return Promise.reject(
+      Object.assign(
+        new Error('Viewer graph requires the existing central OAuth connection proof'),
+        { code: 'SERVICE_DELEGATION_NOT_AUTHORIZED' },
+      ),
+    );
   };
 
-  const privacyList = async (
-    listType: 'blocked' | 'restricted',
-  ): Promise<unknown[]> => {
+  const privacyList = async (listType: 'blocked' | 'restricted'): Promise<unknown[]> => {
     if (!connectionToken) {
       throw new OxyPrivacyUnavailableError(listType, {
         code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
@@ -293,18 +295,20 @@ export async function uploadServiceUserMedia(params: {
   const baseUrl = client.baseURL.replace(/\/+$/, '');
   const url = `${baseUrl}${OXY_ASSET_USER_MEDIA_PATH}`;
 
-  const response = await measureOxyFetch('POST', OXY_ASSET_USER_MEDIA_PATH, () => fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': params.contentType,
-      'Content-Length': String(params.buffer.length),
-      'x-owner-user-id': params.ownerUserId,
-      'x-original-name': encodeURIComponent(params.fileName),
-      Accept: 'application/json',
-    },
-    body: new Uint8Array(params.buffer),
-  }));
+  const response = await measureOxyFetch('POST', OXY_ASSET_USER_MEDIA_PATH, () =>
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': params.contentType,
+        'Content-Length': String(params.buffer.length),
+        'x-owner-user-id': params.ownerUserId,
+        'x-original-name': encodeURIComponent(params.fileName),
+        Accept: 'application/json',
+      },
+      body: new Uint8Array(params.buffer),
+    }),
+  );
 
   const rawText = await response.text();
   if (!response.ok) {

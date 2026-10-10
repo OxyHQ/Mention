@@ -92,12 +92,15 @@ async function seedFan(options: {
   const root = await seedFanRoot(options.author ?? AUTHOR, options.root);
   const continuationIds: string[] = [];
   for (let i = 0; i < options.count; i += 1) {
-    const post = await seedThreadPost(options.continuationAuthors?.[i] ?? options.author ?? AUTHOR, {
-      parentPostId: root.id,
-      threadId: root.id,
-      createdAt: minute(i + 1),
-      ...(options.continuationOverrides?.[i] ?? {}),
-    });
+    const post = await seedThreadPost(
+      options.continuationAuthors?.[i] ?? options.author ?? AUTHOR,
+      {
+        parentPostId: root.id,
+        threadId: root.id,
+        createdAt: minute(i + 1),
+        ...(options.continuationOverrides?.[i] ?? {}),
+      },
+    );
     continuationIds.push(post.id);
   }
   return { rootId: root.id, continuationIds };

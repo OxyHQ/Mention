@@ -66,13 +66,13 @@ export type FeedFailureKind = 'offline' | 'transient' | 'client';
 
 /** A caught feed failure, reduced to the few facts worth acting or logging on. */
 export interface FeedFailure {
-    kind: FeedFailureKind;
-    /** HTTP status, when the server answered. `0`/absent for a transport failure. */
-    status?: number;
-    /** Machine-readable code from the body or the transport (`NETWORK`, `TIMEOUT`, …). */
-    code?: string;
-    /** Best available message. For logs — never for the UI, which owns its own copy. */
-    message: string;
+  kind: FeedFailureKind;
+  /** HTTP status, when the server answered. `0`/absent for a transport failure. */
+  status?: number;
+  /** Machine-readable code from the body or the transport (`NETWORK`, `TIMEOUT`, …). */
+  code?: string;
+  /** Best available message. For logs — never for the UI, which owns its own copy. */
+  message: string;
 }
 
 /**
@@ -84,28 +84,28 @@ export interface FeedFailure {
  * worth retrying.
  */
 export function classifyFeedFailure(error: unknown): FeedFailure {
-    const { status, code, message } = normalizeApiError(error);
+  const { status, code, message } = normalizeApiError(error);
 
-    // No status means nothing answered. `@oxy.so/core` stamps `status: 0` on its
-    // transport failures while axios leaves it undefined — both say the same
-    // thing. A TIMEOUT did reach something that then went quiet, so it is the
-    // server's problem, not the reader's connection.
-    if (status === undefined || status === 0) {
-        return { kind: code === 'TIMEOUT' ? 'transient' : 'offline', status, code, message };
-    }
+  // No status means nothing answered. `@oxy.so/core` stamps `status: 0` on its
+  // transport failures while axios leaves it undefined — both say the same
+  // thing. A TIMEOUT did reach something that then went quiet, so it is the
+  // server's problem, not the reader's connection.
+  if (status === undefined || status === 0) {
+    return { kind: code === 'TIMEOUT' ? 'transient' : 'offline', status, code, message };
+  }
 
-    // 5xx, plus the two 4xx that mean "ask again later" rather than "your
-    // request is wrong": 408 Request Timeout and 429 Too Many Requests.
-    if (status >= 500 || status === 408 || status === 429) {
-        return { kind: 'transient', status, code, message };
-    }
+  // 5xx, plus the two 4xx that mean "ask again later" rather than "your
+  // request is wrong": 408 Request Timeout and 429 Too Many Requests.
+  if (status >= 500 || status === 408 || status === 429) {
+    return { kind: 'transient', status, code, message };
+  }
 
-    return { kind: 'client', status, code, message };
+  return { kind: 'client', status, code, message };
 }
 
 /** `true` for a failure worth asking again about. */
 export function isRetryableFeedFailure(failure: FeedFailure): boolean {
-    return failure.kind !== 'client';
+  return failure.kind !== 'client';
 }
 
 /**
@@ -118,22 +118,22 @@ export function isRetryableFeedFailure(failure: FeedFailure): boolean {
  * error object. A `client` failure keeps error level: that one is a bug.
  */
 export function logFeedFailure(
-    log: Logger,
-    message: string,
-    failure: FeedFailure,
-    context?: LogContext,
+  log: Logger,
+  message: string,
+  failure: FeedFailure,
+  context?: LogContext,
 ): void {
-    const merged: LogContext = {
-        ...context,
-        status: failure.status,
-        code: failure.code,
-        reason: failure.message,
-    };
-    if (failure.kind === 'client') {
-        log.error(message, undefined, merged);
-        return;
-    }
-    log.warn(message, merged);
+  const merged: LogContext = {
+    ...context,
+    status: failure.status,
+    code: failure.code,
+    reason: failure.message,
+  };
+  if (failure.kind === 'client') {
+    log.error(message, undefined, merged);
+    return;
+  }
+  log.warn(message, merged);
 }
 
 /**
@@ -143,15 +143,15 @@ export function logFeedFailure(
  * usually comes back, and two bounded retries are how it recovers.
  */
 function deviceReportsOffline(): boolean {
-    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 function retryDelayMs(attempt: number): number {
-    return FEED_RETRY_BASE_DELAY_MS * 2 ** attempt + Math.random() * FEED_RETRY_JITTER_MS;
+  return FEED_RETRY_BASE_DELAY_MS * 2 ** attempt + Math.random() * FEED_RETRY_JITTER_MS;
 }
 
 function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -163,32 +163,29 @@ function sleep(ms: number): Promise<void> {
  * Once it aborts, the read is not a failure at all and retrying it would race
  * whatever superseded it.
  */
-export async function withFeedRetry<T>(
-    read: () => Promise<T>,
-    signal?: AbortSignal,
-): Promise<T> {
-    for (let attempt = 0; ; attempt += 1) {
-        try {
-            return await read();
-        } catch (error) {
-            if (signal?.aborted) throw error;
+export async function withFeedRetry<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      if (signal?.aborted) throw error;
 
-            const failure = classifyFeedFailure(error);
-            const isLastAttempt = attempt >= FEED_MAX_ATTEMPTS - 1;
-            if (isLastAttempt || !isRetryableFeedFailure(failure)) throw error;
+      const failure = classifyFeedFailure(error);
+      const isLastAttempt = attempt >= FEED_MAX_ATTEMPTS - 1;
+      if (isLastAttempt || !isRetryableFeedFailure(failure)) throw error;
 
-            // Retrying a request the platform already knows cannot leave the
-            // device only delays the offline state the reader needs to see.
-            if (failure.kind === 'offline' && deviceReportsOffline()) throw error;
+      // Retrying a request the platform already knows cannot leave the
+      // device only delays the offline state the reader needs to see.
+      if (failure.kind === 'offline' && deviceReportsOffline()) throw error;
 
-            logger.debug('Retrying feed read', {
-                attempt: attempt + 1,
-                of: FEED_MAX_ATTEMPTS,
-                status: failure.status,
-                code: failure.code,
-            });
-            await sleep(retryDelayMs(attempt));
-            if (signal?.aborted) throw error;
-        }
+      logger.debug('Retrying feed read', {
+        attempt: attempt + 1,
+        of: FEED_MAX_ATTEMPTS,
+        status: failure.status,
+        code: failure.code,
+      });
+      await sleep(retryDelayMs(attempt));
+      if (signal?.aborted) throw error;
     }
+  }
 }

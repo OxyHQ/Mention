@@ -135,8 +135,8 @@ function makePostRow(id: string, authorId: string, extra: Record<string, unknown
     // `inReplyTo` is a reply, and stating it here is what the row would carry
     // after `derivesReplyIntent` ran at insert.
     isReply: Boolean(
-      (extra as { parentPostId?: unknown }).parentPostId
-      || (extra as { federation?: { inReplyTo?: string } }).federation?.inReplyTo,
+      (extra as { parentPostId?: unknown }).parentPostId ||
+        (extra as { federation?: { inReplyTo?: string } }).federation?.inReplyTo,
     ),
     ...extra,
   };
@@ -160,16 +160,20 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     });
     PARENT_ID = parent.id;
 
-    SELF_PARENT_ID = (await seedPost(scope, {
-      oxyUserId: REPLY_AUTHOR_ID,
-      content: { variants: [{ source: 'author', text: 'my own earlier post', tag: 'en' }] },
-    })).id;
+    SELF_PARENT_ID = (
+      await seedPost(scope, {
+        oxyUserId: REPLY_AUTHOR_ID,
+        content: { variants: [{ source: 'author', text: 'my own earlier post', tag: 'en' }] },
+      })
+    ).id;
 
-    FEDERATED_SELF_PARENT_ID = (await seedPost(scope, {
-      oxyUserId: REPLY_AUTHOR_ID,
-      content: { variants: [{ source: 'author', text: 'my own earlier note', tag: 'en' }] },
-      federation: { activityId: 'https://remote.example/users/self/statuses/1' },
-    })).id;
+    FEDERATED_SELF_PARENT_ID = (
+      await seedPost(scope, {
+        oxyUserId: REPLY_AUTHOR_ID,
+        content: { variants: [{ source: 'author', text: 'my own earlier note', tag: 'en' }] },
+        federation: { activityId: 'https://remote.example/users/self/statuses/1' },
+      })
+    ).id;
   });
 
   afterAll(async () => {
@@ -181,8 +185,20 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     cacheStore.clear();
     getUsersByIds.mockReset();
     getUsersByIds.mockResolvedValue([
-      { id: PARENT_AUTHOR_ID, username: 'parenthandle', name: { displayName: 'Parent Author' }, badges: [], verified: false },
-      { id: REPLY_AUTHOR_ID, username: 'replyhandle', name: { displayName: 'Reply Author' }, badges: [], verified: false },
+      {
+        id: PARENT_AUTHOR_ID,
+        username: 'parenthandle',
+        name: { displayName: 'Parent Author' },
+        badges: [],
+        verified: false,
+      },
+      {
+        id: REPLY_AUTHOR_ID,
+        username: 'replyhandle',
+        name: { displayName: 'Reply Author' },
+        badges: [],
+        verified: false,
+      },
     ]);
     loadPostRecordsSpy.mockReset();
     service = new PostHydrationService();
@@ -269,10 +285,9 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     });
     const realReply = makePostRow(realReplyId, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
 
-    const hydrated = await service.hydratePosts(
-      [ownParent, continuation, realReply],
-      { viewerId: VIEWER_ID },
-    );
+    const hydrated = await service.hydratePosts([ownParent, continuation, realReply], {
+      viewerId: VIEWER_ID,
+    });
 
     const byId = new Map(hydrated.map((post) => [post.id, post]));
     expect(byId.get(continuationId)?.replyContext).toBeUndefined();
@@ -307,7 +322,9 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
       },
     });
 
-    const [hydrated] = await service.hydratePosts([unlinkedSelfContinuation], { viewerId: VIEWER_ID });
+    const [hydrated] = await service.hydratePosts([unlinkedSelfContinuation], {
+      viewerId: VIEWER_ID,
+    });
 
     expect(hydrated.replyContext).toEqual({});
     expect(hydrated.replyContext?.parentAuthor).toBeUndefined();
@@ -331,7 +348,10 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
   });
 
   it('leaves a thread root with no reply context at all', async () => {
-    const root = makePostRow(ROOT_ID, REPLY_AUTHOR_ID, { parentPostId: null, threadId: 'thread-1' });
+    const root = makePostRow(ROOT_ID, REPLY_AUTHOR_ID, {
+      parentPostId: null,
+      threadId: 'thread-1',
+    });
 
     const [hydrated] = await service.hydratePosts([root], { viewerId: VIEWER_ID });
 

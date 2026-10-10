@@ -116,9 +116,11 @@ beforeEach(() => {
     if (username === 'qatest0925') return { id: TARGET_ID, username: 'qatest0925', type: 'local' };
     throw Object.assign(new Error('not found'), { status: 404 });
   });
-  mocks.getUserById.mockImplementation(async (id: string) => (
-    id === TARGET_ID ? { id: TARGET_ID, username: 'qatest0925', type: 'local' } : { id, username: 'nate' }
-  ));
+  mocks.getUserById.mockImplementation(async (id: string) =>
+    id === TARGET_ID
+      ? { id: TARGET_ID, username: 'qatest0925', type: 'local' }
+      : { id, username: 'nate' },
+  );
   mocks.serviceRequest.mockResolvedValue({
     account_id: 'local-user-1',
     target_user_id: TARGET_ID,
@@ -142,13 +144,22 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .send({ actorUri })
       .expect(200);
 
-    expect(res.body).toMatchObject({ success: true, pending: false, changed: true, oxyUserId: TARGET_ID });
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
-      token: 'central-mcp-token',
-      tool: 'follow-user',
-      target_user_id: TARGET_ID,
-      action: 'follow',
+    expect(res.body).toMatchObject({
+      success: true,
+      pending: false,
+      changed: true,
+      oxyUserId: TARGET_ID,
     });
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/mcp/oauth/connections/follow',
+      {
+        token: 'central-mcp-token',
+        tool: 'follow-user',
+        target_user_id: TARGET_ID,
+        action: 'follow',
+      },
+    );
     expect(mocks.invalidateViewerRelations).toHaveBeenCalledWith('local-user-1');
     // No outbound activity: neither the connector nor the sharing gate is involved.
     expect(mocks.connectorFor).not.toHaveBeenCalled();
@@ -163,12 +174,16 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .send({ actorUri: '@qatest0925' })
       .expect(200);
 
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
-      token: 'central-mcp-token',
-      tool: 'unfollow-user',
-      target_user_id: TARGET_ID,
-      action: 'unfollow',
-    });
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/mcp/oauth/connections/follow',
+      {
+        token: 'central-mcp-token',
+        tool: 'unfollow-user',
+        target_user_id: TARGET_ID,
+        action: 'unfollow',
+      },
+    );
   });
 
   it('refuses when Oxy moved a different account’s edge', async () => {

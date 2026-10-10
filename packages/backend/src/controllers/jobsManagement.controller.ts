@@ -52,32 +52,58 @@ export const jobLocationInputSchema = z
   .strictObject({
     placeId: z
       .string()
-      .regex(/^[1-9][0-9]{0,11}$/, 'location.placeId must be a GeoNames place id from /jobs/places/search')
+      .regex(
+        /^[1-9][0-9]{0,11}$/,
+        'location.placeId must be a GeoNames place id from /jobs/places/search',
+      )
       .optional(),
     countryCode: z
-      .custom<CountryCode>(isCountryCode, 'location.countryCode must be an ISO 3166-1 alpha-2 country code (e.g. "ES")')
+      .custom<CountryCode>(
+        isCountryCode,
+        'location.countryCode must be an ISO 3166-1 alpha-2 country code (e.g. "ES")',
+      )
       .optional(),
   })
   .refine((location) => (location.placeId === undefined) !== (location.countryCode === undefined), {
-    message: 'location needs exactly one of placeId (a city or region) or countryCode (a country-only role)',
+    message:
+      'location needs exactly one of placeId (a city or region) or countryCode (a country-only role)',
   })
   .transform((location) => location as MentionJobLocationInput);
 
 export const jobSalarySchema = z
   .strictObject({
-    min: z.number().int('salary.min must be a whole number').nonnegative('salary.min cannot be negative').max(MAX_SALARY_AMOUNT).optional(),
-    max: z.number().int('salary.max must be a whole number').nonnegative('salary.max cannot be negative').max(MAX_SALARY_AMOUNT).optional(),
-    currency: z.custom<CurrencyCode>(isCurrencyCode, 'salary.currency must be an ISO 4217 currency code (e.g. "EUR")'),
-    interval: z.enum(MENTION_JOB_SALARY_INTERVALS, `salary.interval must be one of ${MENTION_JOB_SALARY_INTERVALS.join(', ')}`),
+    min: z
+      .number()
+      .int('salary.min must be a whole number')
+      .nonnegative('salary.min cannot be negative')
+      .max(MAX_SALARY_AMOUNT)
+      .optional(),
+    max: z
+      .number()
+      .int('salary.max must be a whole number')
+      .nonnegative('salary.max cannot be negative')
+      .max(MAX_SALARY_AMOUNT)
+      .optional(),
+    currency: z.custom<CurrencyCode>(
+      isCurrencyCode,
+      'salary.currency must be an ISO 4217 currency code (e.g. "EUR")',
+    ),
+    interval: z.enum(
+      MENTION_JOB_SALARY_INTERVALS,
+      `salary.interval must be one of ${MENTION_JOB_SALARY_INTERVALS.join(', ')}`,
+    ),
   })
   .refine((salary) => salary.min !== undefined || salary.max !== undefined, {
     message: 'salary needs at least one of min or max',
     path: ['min'],
   })
-  .refine((salary) => salary.min === undefined || salary.max === undefined || salary.min <= salary.max, {
-    message: 'salary.min cannot be greater than salary.max',
-    path: ['max'],
-  });
+  .refine(
+    (salary) => salary.min === undefined || salary.max === undefined || salary.min <= salary.max,
+    {
+      message: 'salary.min cannot be greater than salary.max',
+      path: ['max'],
+    },
+  );
 
 export const createJobSchema = z
   .object({
@@ -192,7 +218,9 @@ async function transitionJobStatus(
     if (targetStatus === 'published') {
       const entitlement = await checkJobEntitlement(existing.employerOxyUserId);
       if (!entitlement.canPublish) {
-        return res.status(402).json({ error: entitlement.reason ?? 'This account cannot publish a job right now' });
+        return res
+          .status(402)
+          .json({ error: entitlement.reason ?? 'This account cannot publish a job right now' });
       }
     }
 
@@ -224,7 +252,9 @@ class JobsManagementController {
       if (input.publish) {
         const entitlement = await checkJobEntitlement(input.employerOxyUserId);
         if (!entitlement.canPublish) {
-          return res.status(402).json({ error: entitlement.reason ?? 'This account cannot publish a job right now' });
+          return res
+            .status(402)
+            .json({ error: entitlement.reason ?? 'This account cannot publish a job right now' });
         }
       }
 
@@ -241,7 +271,8 @@ class JobsManagementController {
       if (job.status === 'published') syncJobToClarityInBackground(row);
       res.status(201).json({ job });
     } catch (error) {
-      if (isCheckViolation(error)) return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
+      if (isCheckViolation(error))
+        return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
       logger.error('[JobsManagement] Error in create:', error);
       next(createError(500, 'Error creating job'));
     }
@@ -263,7 +294,8 @@ class JobsManagementController {
       const { location: locationInput, ...patch } = parsed.data;
 
       // `undefined` leaves the location alone, `null` clears it, a value is resolved.
-      let location: MentionJobLocation | null | undefined = locationInput === null ? null : undefined;
+      let location: MentionJobLocation | null | undefined =
+        locationInput === null ? null : undefined;
       if (locationInput) {
         location = await resolveLocationOrRespond(locationInput, res);
         if (!location) return;
@@ -275,7 +307,8 @@ class JobsManagementController {
       if (job.status === 'published') syncJobToClarityInBackground(row);
       res.json({ job });
     } catch (error) {
-      if (isCheckViolation(error)) return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
+      if (isCheckViolation(error))
+        return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
       logger.error('[JobsManagement] Error in update:', error);
       next(createError(500, 'Error updating job'));
     }

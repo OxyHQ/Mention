@@ -113,7 +113,14 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
 
     service = new PostHydrationService();
     getUsersByIds.mockResolvedValue([
-      { id: AUTHOR_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false, isVerified: false },
+      {
+        id: AUTHOR_ID,
+        username: 'author',
+        name: { displayName: 'Author' },
+        badges: [],
+        verified: false,
+        isVerified: false,
+      },
     ]);
     postFind.mockReturnValue([]);
     postFindOne.mockReturnValue(null);

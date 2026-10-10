@@ -16,7 +16,11 @@ describe('findVideoElement', () => {
   });
 
   it('falls back to the <video> inside the player container', () => {
-    expect(findVideoElement(null, { querySelector: (selector: string) => (selector === 'video' ? video : null) })).toBe(video);
+    expect(
+      findVideoElement(null, {
+        querySelector: (selector: string) => (selector === 'video' ? video : null),
+      }),
+    ).toBe(video);
   });
 
   it('answers null when there is no video element (native, or not mounted yet)', () => {

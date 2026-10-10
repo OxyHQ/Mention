@@ -15,9 +15,8 @@ describe('home compose FAB', () => {
 
   it('keeps compose in navigation while Fab exposes label collapse', () => {
     expect(Number(String(bloomManifest.version).split('.')[0])).toBeGreaterThanOrEqual(6);
-    expect(source).toContain('action={<Fab');
+    expect(source).toMatch(/action=\{\s*<Fab/);
     expect(fabLabelContract.collapsed).toBe(true);
     expect(source).toContain('minimizeProgress={minimizeProgress}');
   });
-
 });

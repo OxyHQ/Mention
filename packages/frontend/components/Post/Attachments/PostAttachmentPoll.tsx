@@ -4,9 +4,8 @@ import { cn } from '@/lib/utils';
 import PollCard from '../PollCard';
 import { IS_DEVELOPMENT } from '@/config';
 
-const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
-  ? ({ cursor: 'grab' } as unknown as ViewStyle)
-  : null;
+const webGrabCursorStyle: ViewStyle | null =
+  Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
 
 interface PostAttachmentPollProps {
   pollId?: string;
@@ -19,7 +18,12 @@ interface PostAttachmentPollProps {
   style?: ViewStyle;
 }
 
-const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, className = 'w-[280px]', style }) => {
+const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({
+  pollId,
+  pollData,
+  className = 'w-[280px]',
+  style,
+}) => {
   // A live poll draws its own surface (`PollCard` is a Bloom `Card`); only the
   // static fallbacks below keep a hand-drawn frame. They are what the feed's
   // row-cost harness mounts for a poll row, and a `Card` there would add hook

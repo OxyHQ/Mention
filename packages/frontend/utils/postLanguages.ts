@@ -1,9 +1,10 @@
-import {
-  sameBaseLanguage,
-  toBaseLanguage,
-} from '@mention/shared-types/language';
+import { sameBaseLanguage, toBaseLanguage } from '@mention/shared-types/language';
 import type { PostContent, PostVariantSource } from '@mention/shared-types';
-import { CONTENT_LANGUAGES, describeContentLanguage, type ContentLanguage } from '@/constants/contentLanguages';
+import {
+  CONTENT_LANGUAGES,
+  describeContentLanguage,
+  type ContentLanguage,
+} from '@/constants/contentLanguages';
 
 /**
  * ONE rendition of a post the reader can switch to without asking for it.
@@ -48,7 +49,11 @@ export function buildPostLanguageOptions(
 
   for (const variant of content.variants ?? []) {
     if (!variant?.tag || typeof variant.text !== 'string' || variant.text.length === 0) continue;
-    byTag.set(variant.tag, { tag: variant.tag, source: variant.source ?? 'author', text: variant.text });
+    byTag.set(variant.tag, {
+      tag: variant.tag,
+      source: variant.source ?? 'author',
+      text: variant.text,
+    });
   }
 
   // The body on screen is always an option, and it leads: a post that shipped no
@@ -168,8 +173,9 @@ export function shouldOfferTranslation(params: {
   if (readerLanguages.some((language) => sameBaseLanguage(served, language))) return false;
 
   const authored = options.some(
-    (option) => option.source === 'author'
-      && readerLanguages.some((language) => sameBaseLanguage(option.tag, language)),
+    (option) =>
+      option.source === 'author' &&
+      readerLanguages.some((language) => sameBaseLanguage(option.tag, language)),
   );
   return !authored;
 }

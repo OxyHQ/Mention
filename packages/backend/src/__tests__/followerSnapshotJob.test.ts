@@ -91,7 +91,9 @@ afterEach(async () => {
   summaries = new Map();
   vi.clearAllMocks();
   if (createdAuthorIds.length > 0) {
-    await db.delete(authorFollowerSnapshots).where(inArray(authorFollowerSnapshots.oxyUserId, createdAuthorIds));
+    await db
+      .delete(authorFollowerSnapshots)
+      .where(inArray(authorFollowerSnapshots.oxyUserId, createdAuthorIds));
     await db.delete(posts).where(inArray(posts.oxyUserId, createdAuthorIds));
     createdAuthorIds.length = 0;
   }
@@ -152,7 +154,11 @@ describe('the bounded sweep reaches a never-snapshotted author FIRST', () => {
     await seedSnapshot(middle, new Date('2026-04-01T00:00:00.000Z'));
     await seedSnapshot(newest, new Date('2026-07-01T00:00:00.000Z'));
 
-    summaries = new Map([[oldest, summary(1)], [middle, summary(2)], [newest, summary(3)]]);
+    summaries = new Map([
+      [oldest, summary(1)],
+      [middle, summary(2)],
+      [newest, summary(3)],
+    ]);
 
     // Least-recently-sampled first. Sorted by id it would be aaa, mmm, zzz.
     expect(await sweptAuthorOrder()).toEqual([oldest, middle, newest]);
@@ -169,7 +175,10 @@ describe('the bounded sweep reaches a never-snapshotted author FIRST', () => {
     await seedSnapshot(sampledTwice, new Date('2026-07-02T00:00:00.000Z'));
     await seedSnapshot(sampledOnce, new Date('2026-07-01T00:00:00.000Z'));
 
-    summaries = new Map([[sampledTwice, summary(1)], [sampledOnce, summary(2)]]);
+    summaries = new Map([
+      [sampledTwice, summary(1)],
+      [sampledOnce, summary(2)],
+    ]);
 
     expect(await sweptAuthorOrder()).toEqual([sampledOnce, sampledTwice]);
   });
@@ -210,8 +219,18 @@ describe('runSnapshotSweep — what it stores', () => {
     const stalePoster = authorId('stale');
 
     await seedActivePost(active);
-    await db.insert(posts).values({ oxyUserId: privatePoster, status: 'published', visibility: 'private', createdAt: new Date() });
-    await db.insert(posts).values({ oxyUserId: draftPoster, status: 'draft', visibility: 'public', createdAt: new Date() });
+    await db.insert(posts).values({
+      oxyUserId: privatePoster,
+      status: 'published',
+      visibility: 'private',
+      createdAt: new Date(),
+    });
+    await db.insert(posts).values({
+      oxyUserId: draftPoster,
+      status: 'draft',
+      visibility: 'public',
+      createdAt: new Date(),
+    });
     await db.insert(posts).values({
       oxyUserId: stalePoster,
       status: 'published',

@@ -78,7 +78,13 @@ function toRow(post: HydratedPost): PostFeedRow {
  * the cell of one that left — re-rendering that row instance with new data
  * instead of mounting a new one.
  */
-function FeedHarness({ handle, onRender }: { handle: HarnessHandle; onRender: ProfilerOnRenderCallback }) {
+function FeedHarness({
+  handle,
+  onRender,
+}: {
+  handle: HarnessHandle;
+  onRender: ProfilerOnRenderCallback;
+}) {
   const [posts, setPosts] = useState<HydratedPost[]>([]);
   const cellsRef = React.useRef(new Map<string, number>());
   handle.setPosts = setPosts;
@@ -101,7 +107,11 @@ function FeedHarness({ handle, onRender }: { handle: HarnessHandle; onRender: Pr
   return (
     <>
       {posts.map((post) => (
-        <Profiler key={cells.get(post.id)} id={post.boost?.originalPost?.id ?? post.id} onRender={onRender}>
+        <Profiler
+          key={cells.get(post.id)}
+          id={post.boost?.originalPost?.id ?? post.id}
+          onRender={onRender}
+        >
           {renderFeedRow(toRow(post), { router, threadLineColor: '#ccc', feedDescriptor: 'perf' })}
         </Profiler>
       ))}
@@ -167,7 +177,10 @@ const HOOK_FIBER_TAGS = new Set([0, 11, 14, 15]);
  * component). Read off React's fibers: test-renderer instances expose them, and
  * the shape has been stable across React 18 and 19.
  */
-function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): { hooks: number; contexts: number } {
+function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): {
+  hooks: number;
+  contexts: number;
+} {
   // A test instance may hold either half of a fiber pair; the HostRoot's
   // `current` is the committed tree.
   let top = (renderer.root as unknown as { _fiber: FiberLike })._fiber;
@@ -179,8 +192,10 @@ function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): { hook
   while (stack.length > 0) {
     const fiber = stack.pop()!;
     if (HOOK_FIBER_TAGS.has(fiber.tag)) {
-      for (let hook = fiber.memoizedState; hook; hook = (hook.next as typeof hook) ?? null) hooks += 1;
-      for (let dep = fiber.dependencies?.firstContext; dep; dep = (dep.next as typeof dep) ?? null) contexts += 1;
+      for (let hook = fiber.memoizedState; hook; hook = (hook.next as typeof hook) ?? null)
+        hooks += 1;
+      for (let dep = fiber.dependencies?.firstContext; dep; dep = (dep.next as typeof dep) ?? null)
+        contexts += 1;
     }
     if (fiber.child) stack.push(fiber.child);
     if (fiber.sibling && fiber !== root) stack.push(fiber.sibling);
@@ -273,7 +288,10 @@ afterAll(() => {
   act(() => harness.renderer.unmount());
   const dir = join(__dirname, 'results');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, process.env.FEED_PERF_OUT ?? 'latest.json'), `${JSON.stringify(results, null, 2)}\n`);
+  writeFileSync(
+    join(dir, process.env.FEED_PERF_OUT ?? 'latest.json'),
+    `${JSON.stringify(results, null, 2)}\n`,
+  );
   console.log(JSON.stringify(results, null, 2));
 });
 
@@ -306,7 +324,8 @@ describe('feed row cost', () => {
 
       if (run === 1) {
         hostNodes = countHostNodes(renderer.toJSON()) / BATCH;
-        components = (renderer.root.findAll(() => true, { deep: true }).length - emptyComponents) / BATCH;
+        components =
+          (renderer.root.findAll(() => true, { deep: true }).length - emptyComponents) / BATCH;
         const counted = countHooksAndContexts(renderer);
         hooks = (counted.hooks - emptyHooks.hooks) / BATCH;
         contexts = (counted.contexts - emptyHooks.contexts) / BATCH;
@@ -353,7 +372,9 @@ describe('feed row cost', () => {
     renders.clear();
     act(() => {
       usePostsStore.setState({ isLoading: true, error: null, lastRefresh: Date.now() });
-      usePostsStore.setState((s) => ({ feedUI: { ...s.feedUI, perf: { isLoading: true, error: null, lastUpdated: 1 } } }));
+      usePostsStore.setState((s) => ({
+        feedUI: { ...s.feedUI, perf: { isLoading: true, error: null, lastUpdated: 1 } },
+      }));
     });
     const unrelatedStoreWrite = [...renders.values()].reduce((a, b) => a + b, 0);
 
@@ -369,10 +390,12 @@ describe('feed row cost', () => {
     const targetOnLike = renders.get(target) ?? 0;
 
     renders.clear();
-    act(() => usePostsStore.getState().updatePostEverywhere(target, (prev) => ({
-      ...prev,
-      engagement: { ...prev.engagement, views: (prev.engagement.views ?? 0) + 10 },
-    })));
+    act(() =>
+      usePostsStore.getState().updatePostEverywhere(target, (prev) => ({
+        ...prev,
+        engagement: { ...prev.engagement, views: (prev.engagement.views ?? 0) + 10 },
+      })),
+    );
     const otherRowsOnViewCount = others();
 
     results.isolation = {
@@ -392,7 +415,9 @@ describe('feed row cost', () => {
     const { handle, queryClient } = harness;
     const WINDOW = 12;
     const TOTAL = 200;
-    const feed = Array.from({ length: TOTAL }, (_, i) => makeRow(ROW_KINDS[i % ROW_KINDS.length], `fling-${i}`));
+    const feed = Array.from({ length: TOTAL }, (_, i) =>
+      makeRow(ROW_KINDS[i % ROW_KINDS.length], `fling-${i}`),
+    );
     takeRequests();
     const start = performance.now();
     let maxObservers = 0;
@@ -438,27 +463,45 @@ describe('feed row cost', () => {
         continue;
       }
       const nodeCeiling = budgets.hostNodesPerRow[kind];
-      if (measured.hostNodesPerRow > nodeCeiling) over.push(`${kind}.hostNodesPerRow ${measured.hostNodesPerRow} > ${nodeCeiling}`);
+      if (measured.hostNodesPerRow > nodeCeiling)
+        over.push(`${kind}.hostNodesPerRow ${measured.hostNodesPerRow} > ${nodeCeiling}`);
       const hookCeiling = budgets.hooksPerRow[kind];
-      if (measured.hooksPerRow > hookCeiling) over.push(`${kind}.hooksPerRow ${measured.hooksPerRow} > ${hookCeiling}`);
+      if (measured.hooksPerRow > hookCeiling)
+        over.push(`${kind}.hooksPerRow ${measured.hooksPerRow} > ${hookCeiling}`);
       const contextCeiling = budgets.contextReadsPerRow[kind];
-      if (measured.contextReadsPerRow > contextCeiling) over.push(`${kind}.contextReadsPerRow ${measured.contextReadsPerRow} > ${contextCeiling}`);
+      if (measured.contextReadsPerRow > contextCeiling)
+        over.push(`${kind}.contextReadsPerRow ${measured.contextReadsPerRow} > ${contextCeiling}`);
       const componentCeiling = budgets.componentsPerRow[kind];
-      if (measured.componentsPerRow > componentCeiling) over.push(`${kind}.componentsPerRow ${measured.componentsPerRow} > ${componentCeiling}`);
-      if (measured.requestsPerRow > budgets.requestsPerRow[kind]) over.push(`${kind}.requestsPerRow ${measured.requestsPerRow} > ${budgets.requestsPerRow[kind]}`);
-      if (measured.queryObserversPerRow > budgets.queryObserversPerRow[kind]) over.push(`${kind}.queryObserversPerRow ${measured.queryObserversPerRow} > ${budgets.queryObserversPerRow[kind]}`);
-      if (measured.rendersPerMount > budgets.maxRendersPerMount) over.push(`${kind}.rendersPerMount ${measured.rendersPerMount} > ${budgets.maxRendersPerMount}`);
+      if (measured.componentsPerRow > componentCeiling)
+        over.push(`${kind}.componentsPerRow ${measured.componentsPerRow} > ${componentCeiling}`);
+      if (measured.requestsPerRow > budgets.requestsPerRow[kind])
+        over.push(
+          `${kind}.requestsPerRow ${measured.requestsPerRow} > ${budgets.requestsPerRow[kind]}`,
+        );
+      if (measured.queryObserversPerRow > budgets.queryObserversPerRow[kind])
+        over.push(
+          `${kind}.queryObserversPerRow ${measured.queryObserversPerRow} > ${budgets.queryObserversPerRow[kind]}`,
+        );
+      if (measured.rendersPerMount > budgets.maxRendersPerMount)
+        over.push(
+          `${kind}.rendersPerMount ${measured.rendersPerMount} > ${budgets.maxRendersPerMount}`,
+        );
     }
     for (const [key, ceiling] of Object.entries(budgets.isolation)) {
       const measured = results.isolation?.[key];
-      if (measured === undefined || measured > ceiling) over.push(`isolation.${key} ${measured} > ${ceiling}`);
+      if (measured === undefined || measured > ceiling)
+        over.push(`isolation.${key} ${measured} > ${ceiling}`);
     }
     const fling = results.fling;
     if (!fling) over.push('fling: not measured');
     else {
-      if (fling.translationRequests > budgets.fling.translationRequests) over.push(`fling.translationRequests ${fling.translationRequests}`);
+      if (fling.translationRequests > budgets.fling.translationRequests)
+        over.push(`fling.translationRequests ${fling.translationRequests}`);
       const perPost = fling.requests / fling.postsVisited;
-      if (perPost > budgets.fling.maxRequestsPerPostVisited) over.push(`fling requests per post ${perPost} > ${budgets.fling.maxRequestsPerPostVisited}`);
+      if (perPost > budgets.fling.maxRequestsPerPostVisited)
+        over.push(
+          `fling requests per post ${perPost} > ${budgets.fling.maxRequestsPerPostVisited}`,
+        );
     }
     expect(over).toEqual([]);
   });

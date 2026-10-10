@@ -124,9 +124,7 @@ const MAX_RELATIONSHIP_RACE_RETRIES = 3;
  * fire, and one that would quietly start swallowing an unrelated index's
  * violation the day somebody removed the conflict clause.
  */
-async function inIdempotentTransaction<T>(
-  operation: (tx: Transaction) => Promise<T>,
-): Promise<T> {
+async function inIdempotentTransaction<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
   for (let attempt = 1; attempt <= MAX_RELATIONSHIP_RACE_RETRIES; attempt += 1) {
     try {
       return await getDb().transaction(operation);
@@ -151,10 +149,7 @@ function asVoteValue(value: number): EngagementVoteValue {
   return value === -1 ? -1 : 1;
 }
 
-async function loadPost(
-  postId: string,
-  tx: Transaction,
-): Promise<EngagementPostSnapshot> {
+async function loadPost(postId: string, tx: Transaction): Promise<EngagementPostSnapshot> {
   const [post] = await tx
     .select(POST_SNAPSHOT_COLUMNS)
     .from(posts)
@@ -281,9 +276,7 @@ export async function unsavePostCommand(input: {
     const currentPost = await loadPost(input.postId, tx);
     const [bookmark] = await tx
       .delete(bookmarks)
-      .where(
-        and(eq(bookmarks.userId, input.userId), eq(bookmarks.postId, input.postId)),
-      )
+      .where(and(eq(bookmarks.userId, input.userId), eq(bookmarks.postId, input.postId)))
       .returning({ id: bookmarks.id });
     if (!bookmark) {
       return { changed: false, post: currentPost };
@@ -517,11 +510,7 @@ export async function materializeEngagementRelationship(input: {
             .returning({ id: likes.id });
 
     if (inserted.length !== 1) return { changed: false };
-    await updateCounters(
-      input.postId,
-      tx,
-      input.kind === 'bookmark' ? { saves: 1 } : { likes: 1 },
-    );
+    await updateCounters(input.postId, tx, input.kind === 'bookmark' ? { saves: 1 } : { likes: 1 });
     return { changed: true };
   });
 }

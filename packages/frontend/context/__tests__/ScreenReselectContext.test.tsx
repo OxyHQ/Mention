@@ -13,7 +13,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
 }));
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import {
   AT_TOP_THRESHOLD,
   ScreenReselectProvider,
@@ -164,7 +164,12 @@ describe('useTabSelect', () => {
       return null;
     }
     const refresh = jest.fn();
-    render(<><Screen handler={{ refresh }} /><Strip /></>);
+    render(
+      <>
+        <Screen handler={{ refresh }} />
+        <Strip />
+      </>,
+    );
     act(() => press('following'));
     expect(select).toHaveBeenCalledWith('following');
     expect(refresh).not.toHaveBeenCalled();

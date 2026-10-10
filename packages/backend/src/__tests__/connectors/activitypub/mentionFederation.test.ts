@@ -45,7 +45,10 @@ vi.mock('../../../connectors/activitypub/constants', async () => {
   return { ...actual, FEDERATION_ENABLED: true };
 });
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
@@ -56,7 +59,9 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ users: { getMany: getUsersByIds, get: getUserById } }) }));
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds, get: getUserById } }),
+}));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {
@@ -65,7 +70,10 @@ import {
   seedActor,
   seedFollowerWithInbox,
 } from '../../helpers/federationFixtures';
-import { followService, type NoteMentionContext } from '../../../connectors/activitypub/follow.service';
+import {
+  followService,
+  type NoteMentionContext,
+} from '../../../connectors/activitypub/follow.service';
 
 const scope = federationScope('mention-federation');
 const AUTHOR = scope.user('author');
@@ -82,7 +90,11 @@ const ALICE_FOLLOWERS = `${ALICE_ACTOR}/followers`;
 const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** A top-level post as the seam hands it to `federateNewPost`. */
-function mentionPost(text: string, mentions: string[], hashtags?: string[]): {
+function mentionPost(
+  text: string,
+  mentions: string[],
+  hashtags?: string[],
+): {
   _id: string;
   content: { variants: Array<{ source: 'author'; text: string; tag: string }> };
   mentions: string[];
@@ -104,7 +116,8 @@ function deliveredInboxes(): string[] {
   return enqueueDelivery.mock.calls.map((c) => (c[0] as { targetInbox: string }).targetInbox);
 }
 function deliveredNote(): Record<string, unknown> {
-  const activity = (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
+  const activity = (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> })
+    .activityJson;
   return activity.object as Record<string, unknown>;
 }
 
@@ -182,7 +195,9 @@ describe('federateNewPost — mentions a REMOTE user', () => {
 describe('federateNewPost — mentions a LOCAL user', () => {
   it('emits a local mention anchor/tag, adds NO cc and NO extra inbox', async () => {
     // No federated actor row → resolved as a local Oxy user via the bulk lookup.
-    getUsersByIds.mockResolvedValue([{ id: 'local-oxy-id', username: 'carol', name: { displayName: 'Carol' } }]);
+    getUsersByIds.mockResolvedValue([
+      { id: 'local-oxy-id', username: 'carol', name: { displayName: 'Carol' } },
+    ]);
 
     await followService.federateNewPost(
       mentionPost('hi [mention:local-oxy-id]', ['local-oxy-id']),
@@ -208,7 +223,9 @@ describe('federateNewPost — mentions a LOCAL user', () => {
 
 describe('federateNewPost — hashtag alongside a mention', () => {
   it('still emits the Hashtag tag when the post also mentions someone', async () => {
-    getUsersByIds.mockResolvedValue([{ id: 'local-oxy-id', username: 'carol', name: { displayName: 'Carol' } }]);
+    getUsersByIds.mockResolvedValue([
+      { id: 'local-oxy-id', username: 'carol', name: { displayName: 'Carol' } },
+    ]);
 
     await followService.federateNewPost(
       mentionPost('hi [mention:local-oxy-id] #news', ['local-oxy-id'], ['news']),
@@ -217,7 +234,11 @@ describe('federateNewPost — hashtag alongside a mention', () => {
     );
 
     const tags = deliveredNote().tag as Array<Record<string, string>>;
-    expect(tags).toContainEqual({ type: 'Hashtag', href: 'https://mention.earth/hashtag/news', name: '#news' });
+    expect(tags).toContainEqual({
+      type: 'Hashtag',
+      href: 'https://mention.earth/hashtag/news',
+      name: '#news',
+    });
     expect(tags).toContainEqual({
       type: 'Mention',
       href: 'https://mention.earth/ap/users/carol',
@@ -230,7 +251,10 @@ describe('buildCreateNoteActivity — mention/reply Mention dedup', () => {
   it('does not duplicate the reply-parent Mention when the parent author is also @mentioned', () => {
     // The reply parent AND the @mention resolve to the SAME actor href.
     const sharedHref = MENTIONED_ACTOR;
-    const reply = { inReplyTo: 'https://remote.social/users/bob/statuses/9', mention: { href: sharedHref, name: `@${MENTIONED_ACCT}` } };
+    const reply = {
+      inReplyTo: 'https://remote.social/users/bob/statuses/9',
+      mention: { href: sharedHref, name: `@${MENTIONED_ACCT}` },
+    };
     const mentions: NoteMentionContext = {
       links: new Map([['remote-oxy-id', { href: sharedHref, handle: 'bob@remote.social' }]]),
       tags: [{ type: 'Mention', href: sharedHref, name: `@${MENTIONED_ACCT}` }],
@@ -239,15 +263,27 @@ describe('buildCreateNoteActivity — mention/reply Mention dedup', () => {
     };
 
     const activity = followService.buildCreateNoteActivity(
-      { _id: 'p1', content: { variants: [{ source: 'author', text: 'reply to [mention:remote-oxy-id]', tag: 'en' }] }, mentions: ['remote-oxy-id'], createdAt: ISO, parentPostId: 'parent1' },
+      {
+        _id: 'p1',
+        content: {
+          variants: [{ source: 'author', text: 'reply to [mention:remote-oxy-id]', tag: 'en' }],
+        },
+        mentions: ['remote-oxy-id'],
+        createdAt: ISO,
+        parentPostId: 'parent1',
+      },
       'alice',
       reply,
       mentions,
     );
     const note = activity.object as Record<string, unknown>;
 
-    const mentionTags = (note.tag as Array<Record<string, string>>).filter((t) => t.type === 'Mention');
-    expect(mentionTags).toEqual([{ type: 'Mention', href: sharedHref, name: `@${MENTIONED_ACCT}` }]);
+    const mentionTags = (note.tag as Array<Record<string, string>>).filter(
+      (t) => t.type === 'Mention',
+    );
+    expect(mentionTags).toEqual([
+      { type: 'Mention', href: sharedHref, name: `@${MENTIONED_ACCT}` },
+    ]);
     // cc carries the shared href exactly once.
     expect(note.cc).toEqual([ALICE_FOLLOWERS, sharedHref]);
   });

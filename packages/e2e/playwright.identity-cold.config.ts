@@ -11,8 +11,11 @@ export default defineConfig(base, {
   outputDir: 'test-results/identity-cold-live',
   reporter: [['list'], ['json', { outputFile: 'test-results/identity-cold-live/results.json' }]],
   use: {
-    trace: 'on', screenshot: 'on', storageState: { cookies: [], origins: [] },
+    trace: 'on',
+    screenshot: 'on',
+    storageState: { cookies: [], origins: [] },
     launchOptions: process.env.MENTION_E2E_CHROMIUM_EXECUTABLE
-      ? { executablePath: process.env.MENTION_E2E_CHROMIUM_EXECUTABLE } : undefined,
+      ? { executablePath: process.env.MENTION_E2E_CHROMIUM_EXECUTABLE }
+      : undefined,
   },
 });

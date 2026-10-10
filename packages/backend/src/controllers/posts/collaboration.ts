@@ -10,7 +10,10 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
-import { postCollaborationService, CollabStateError } from '../../services/PostCollaborationService';
+import {
+  postCollaborationService,
+  CollabStateError,
+} from '../../services/PostCollaborationService';
 
 // Accept a collaboration invite
 export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {

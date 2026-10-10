@@ -36,10 +36,19 @@ import enMessages from '@/locales/en.json';
  * catalog entry fails here instead of shipping a raw key.
  */
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 const messages: { [key: string]: MessageNode } = enMessages;
 
-function mockTranslate(key: string, vars?: Record<string, string> & { defaultValue?: string }): string {
+function mockTranslate(
+  key: string,
+  vars?: Record<string, string> & { defaultValue?: string },
+): string {
   // i18next resolves a dotted key against nested objects AND flat dotted keys.
   const direct = messages[key];
   const nested =
@@ -61,11 +70,22 @@ function mockTranslate(key: string, vars?: Record<string, string> & { defaultVal
 }
 
 jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { View, TouchableOpacity } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
-      onPress ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+    ContactRow: ({
+      avatarSlot,
+      identitySlot,
+      onPress,
+    }: {
+      avatarSlot: React.ReactNode;
+      identitySlot: React.ReactNode;
+      onPress?: () => void;
+    }) =>
+      onPress
+        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
+        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
   };
 });
 jest.mock('react-i18next', () => ({
@@ -200,7 +220,12 @@ jest.mock('@/utils/api', () => ({
 
 import { useChannelWriters } from '../hooks/useChannelWriters';
 import { ProfileWriters } from '../ProfileWriters';
-import { buildProfileTabDescriptors, CHANNEL_ONLY_TAB_NAMES, TAB_NAMES, type ProfileTab } from '../types';
+import {
+  buildProfileTabDescriptors,
+  CHANNEL_ONLY_TAB_NAMES,
+  TAB_NAMES,
+  type ProfileTab,
+} from '../types';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -497,8 +522,12 @@ describe('the writers list', () => {
     render(<Probe channelId={CHANNEL_ID} />, client);
     await settleHook();
 
-    expect(client.getQueryData(viewerQueryKeys.channelWriters('viewer-1', CHANNEL_ID))).toBeDefined();
-    expect(client.getQueryData(viewerQueryKeys.channelWriters('viewer-2', CHANNEL_ID))).toBeUndefined();
+    expect(
+      client.getQueryData(viewerQueryKeys.channelWriters('viewer-1', CHANNEL_ID)),
+    ).toBeDefined();
+    expect(
+      client.getQueryData(viewerQueryKeys.channelWriters('viewer-2', CHANNEL_ID)),
+    ).toBeUndefined();
   });
 });
 
@@ -576,7 +605,10 @@ describe('the writers tab on screen', () => {
       }),
     );
     const lastPageClient = newClient();
-    const lastPageRenderer = render(<ProfileWriters channelOxyUserId={CHANNEL_ID} />, lastPageClient);
+    const lastPageRenderer = render(
+      <ProfileWriters channelOxyUserId={CHANNEL_ID} />,
+      lastPageClient,
+    );
     await settleUi(lastPageRenderer);
     expect(renderedText(lastPageRenderer)).not.toContain('Load more');
   });

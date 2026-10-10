@@ -1,12 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -55,30 +48,39 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
     loadRecent();
   }, []);
 
-  const saveRecentEmoji = useCallback(async (emoji: string) => {
-    try {
-      const updated = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, MAX_RECENT_EMOJIS);
-      setRecentEmojis(updated);
-      await AsyncStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(updated));
-    } catch {
-      // Silently ignore storage errors
-    }
-  }, [recentEmojis]);
+  const saveRecentEmoji = useCallback(
+    async (emoji: string) => {
+      try {
+        const updated = [emoji, ...recentEmojis.filter((e) => e !== emoji)].slice(
+          0,
+          MAX_RECENT_EMOJIS,
+        );
+        setRecentEmojis(updated);
+        await AsyncStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(updated));
+      } catch {
+        // Silently ignore storage errors
+      }
+    },
+    [recentEmojis],
+  );
 
-  const handleEmojiPress = useCallback((emoji: string) => {
-    onSelectEmoji(emoji);
-    saveRecentEmoji(emoji);
-    onClose();
-  }, [onSelectEmoji, saveRecentEmoji, onClose]);
+  const handleEmojiPress = useCallback(
+    (emoji: string) => {
+      onSelectEmoji(emoji);
+      saveRecentEmoji(emoji);
+      onClose();
+    },
+    [onSelectEmoji, saveRecentEmoji, onClose],
+  );
 
   // Build categories with recent emojis populated
   const categories = useMemo(() => {
-    return EMOJI_CATEGORIES.map(cat => {
+    return EMOJI_CATEGORIES.map((cat) => {
       if (cat.id === 'recent') {
         return { ...cat, emojis: recentEmojis };
       }
       return cat;
-    }).filter(cat => cat.emojis.length > 0);
+    }).filter((cat) => cat.emojis.length > 0);
   }, [recentEmojis]);
 
   const handleCategoryPress = useCallback((categoryId: string) => {
@@ -100,7 +102,8 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
         safeArea={false}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -116,12 +119,12 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
         contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}
         className="border-b border-border max-h-[48px]"
       >
-        {categories.map(cat => (
+        {categories.map((cat) => (
           <TouchableOpacity
             key={cat.id}
             className={cn(
               'px-2.5 py-2.5 border-b-2 border-transparent',
-              activeCategory === cat.id && 'border-primary'
+              activeCategory === cat.id && 'border-primary',
             )}
             onPress={() => handleCategoryPress(cat.id)}
           >
@@ -136,7 +139,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 16 }}
       >
-        {categories.map(cat => {
+        {categories.map((cat) => {
           const rows = chunk(cat.emojis, NUM_COLUMNS);
           return (
             <View

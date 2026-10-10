@@ -69,11 +69,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInterstitialKind(value: unknown): value is FeedInterstitialKind {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_KINDS, value);
+  return (
+    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_KINDS, value)
+  );
 }
 
 function isInterstitialEventName(value: unknown): value is FeedInterstitialEventName {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_EVENTS, value);
+  return (
+    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_EVENTS, value)
+  );
 }
 
 export type ParsedInterstitialEvent =
@@ -115,7 +119,10 @@ export function parseInterstitialEvent(body: unknown): ParsedInterstitialEvent {
     return { ok: false, error: 'Invalid or missing event' };
   }
 
-  if (position !== undefined && (typeof position !== 'number' || !Number.isInteger(position) || position < 0)) {
+  if (
+    position !== undefined &&
+    (typeof position !== 'number' || !Number.isInteger(position) || position < 0)
+  ) {
     return { ok: false, error: 'Invalid position' };
   }
 

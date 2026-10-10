@@ -7,7 +7,11 @@
  * database.
  */
 
-import type { TrendGraphEdgeDTO, TrendGraphNodeDTO, TrendGraphResponse } from '@mention/shared-types';
+import type {
+  TrendGraphEdgeDTO,
+  TrendGraphNodeDTO,
+  TrendGraphResponse,
+} from '@mention/shared-types';
 import { getBaseLanguage } from '@oxy.so/core';
 import { desc, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';

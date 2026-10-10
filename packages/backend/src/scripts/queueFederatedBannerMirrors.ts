@@ -64,7 +64,13 @@ export async function queueFederatedBannerMirrors(options: {
   includeExisting?: boolean;
   retryFailed?: boolean;
 }): Promise<BannerQueueResult> {
-  const result: BannerQueueResult = { actors: 0, withoutBanner: 0, queued: 0, retried: 0, failedDue: 0 };
+  const result: BannerQueueResult = {
+    actors: 0,
+    withoutBanner: 0,
+    queued: 0,
+    retried: 0,
+    failedDue: 0,
+  };
 
   let after = '';
   for (;;) {
@@ -78,13 +84,15 @@ export async function queueFederatedBannerMirrors(options: {
       })
       .from(federatedActors)
       .leftJoin(userSettings, eq(userSettings.oxyUserId, federatedActors.oxyUserId))
-      .where(and(
-        gt(federatedActors.id, after),
-        isNotNull(federatedActors.headerUrl),
-        ne(federatedActors.headerUrl, ''),
-        isNotNull(federatedActors.oxyUserId),
-        ne(federatedActors.oxyUserId, ''),
-      ))
+      .where(
+        and(
+          gt(federatedActors.id, after),
+          isNotNull(federatedActors.headerUrl),
+          ne(federatedActors.headerUrl, ''),
+          isNotNull(federatedActors.oxyUserId),
+          ne(federatedActors.oxyUserId, ''),
+        ),
+      )
       .orderBy(asc(federatedActors.id))
       .limit(ACTOR_BATCH);
     if (rows.length === 0) break;
@@ -97,7 +105,13 @@ export async function queueFederatedBannerMirrors(options: {
       if (!hasBanner) result.withoutBanner += 1;
       if (hasBanner && !options.includeExisting) continue;
       if (options.dryRun) continue;
-      if (await recordFederatedBanner({ oxyUserId: row.oxyUserId, actorUri: row.uri, bannerUrl: row.headerUrl })) {
+      if (
+        await recordFederatedBanner({
+          oxyUserId: row.oxyUserId,
+          actorUri: row.uri,
+          bannerUrl: row.headerUrl,
+        })
+      ) {
         result.queued += 1;
       }
     }
@@ -140,7 +154,9 @@ if (require.main === module) {
       process.exit(0);
     })
     .catch(async (error) => {
-      logger.error(`[${SCRIPT_NAME}] failed`, { reason: error instanceof Error ? error.message : 'unknown' });
+      logger.error(`[${SCRIPT_NAME}] failed`, {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
       await closeAdminScriptResources().catch(() => undefined);
       process.exit(1);
     });

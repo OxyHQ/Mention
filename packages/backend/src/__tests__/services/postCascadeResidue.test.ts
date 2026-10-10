@@ -69,10 +69,7 @@ describe('collectPostCascadeResidue', () => {
     await notifyAbout(post.id);
 
     // The cascade CLAIMS it removes this reference. The row is still there.
-    const residue = await collectPostCascadeResidue(
-      [{ id: post.id }],
-      ['notifications.entity_id'],
-    );
+    const residue = await collectPostCascadeResidue([{ id: post.id }], ['notifications.entity_id']);
 
     // Naming matters as much as detecting: "residue found" without saying WHERE
     // sends an operator hunting through thirteen probes at the worst moment.

@@ -13,7 +13,10 @@ interface JobCurrencyFieldProps {
 }
 
 /** A salary currency, picked from `CURRENCY_CODES` — the list Clarity validates against. */
-const JobCurrencyField = memo(function JobCurrencyField({ value, onChange }: JobCurrencyFieldProps) {
+const JobCurrencyField = memo(function JobCurrencyField({
+  value,
+  onChange,
+}: JobCurrencyFieldProps) {
   const { t } = useTranslation();
   const vocabulary = useJobVocabulary();
   const [open, setOpen] = useState(false);
@@ -27,7 +30,11 @@ const JobCurrencyField = memo(function JobCurrencyField({ value, onChange }: Job
 
   return (
     <View className="border border-border rounded-[14px] overflow-hidden bg-card">
-      <Item onPress={() => setOpen(true)} title={name ? `${value} · ${name}` : value} subtitle={title} />
+      <Item
+        onPress={() => setOpen(true)}
+        title={name ? `${value} · ${name}` : value}
+        subtitle={title}
+      />
       <CodePickerDialog
         open={open}
         title={t('jobs.create.selectCurrency', { defaultValue: 'Choose a currency' })}

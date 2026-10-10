@@ -31,14 +31,14 @@
  */
 
 import { eq, inArray, sql } from 'drizzle-orm';
-import { EXTERNAL_EMBED_SOURCES, type ExternalEmbedsSettings, type FeedTuning } from '@mention/shared-types';
+import {
+  EXTERNAL_EMBED_SOURCES,
+  type ExternalEmbedsSettings,
+  type FeedTuning,
+} from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { userSettings, userSettingsLabelActions } from '../schema/userProfile';
-import type {
-  LabelAction,
-  ProfileMedia,
-  UserSettingsRecord,
-} from './userSettingsRecord';
+import type { LabelAction, ProfileMedia, UserSettingsRecord } from './userSettingsRecord';
 
 type SettingsRow = typeof userSettings.$inferSelect;
 type SettingsInsert = typeof userSettings.$inferInsert;
@@ -263,8 +263,8 @@ function expandObjectPath(path: string, value: unknown): Partial<SettingsInsert>
 export class UnknownSettingsPathError extends Error {
   constructor(path: string) {
     super(
-      `[userSettings] no column registered for "${path}". Register it in `
-      + 'SETTINGS_COLUMN_BY_PATH — an unregistered path would be dropped silently.',
+      `[userSettings] no column registered for "${path}". Register it in ` +
+        'SETTINGS_COLUMN_BY_PATH — an unregistered path would be dropped silently.',
     );
     this.name = 'UnknownSettingsPathError';
   }
@@ -317,39 +317,53 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
   }
 
   const forYou = {
-    ...(row.tuningMinLengthEnabled == null && row.tuningMinLength == null ? {} : {
-      minLength: {
-        ...(row.tuningMinLengthEnabled == null ? {} : { enabled: row.tuningMinLengthEnabled }),
-        ...(row.tuningMinLength == null ? {} : { minLength: row.tuningMinLength }),
-      },
-    }),
-    ...(row.tuningLowEffortGateEnabled == null && row.tuningMinMeaningfulTextLength == null ? {} : {
-      lowEffortGate: {
-        ...(row.tuningLowEffortGateEnabled == null ? {} : { enabled: row.tuningLowEffortGateEnabled }),
-        ...(row.tuningMinMeaningfulTextLength == null
-          ? {}
-          : { minMeaningfulTextLength: row.tuningMinMeaningfulTextLength }),
-      },
-    }),
-    ...(row.tuningNativeEngagementEnabled == null && row.tuningMinNativeEngagement == null ? {} : {
-      nativeEngagement: {
-        ...(row.tuningNativeEngagementEnabled == null
-          ? {}
-          : { enabled: row.tuningNativeEngagementEnabled }),
-        ...(row.tuningMinNativeEngagement == null
-          ? {}
-          : { minNativeEngagement: row.tuningMinNativeEngagement }),
-      },
-    }),
-    ...(row.tuningMinQualityEnabled == null && row.tuningMinQuality == null ? {} : {
-      minQuality: {
-        ...(row.tuningMinQualityEnabled == null ? {} : { enabled: row.tuningMinQualityEnabled }),
-        ...(row.tuningMinQuality == null ? {} : { minQuality: row.tuningMinQuality }),
-      },
-    }),
-    ...(row.tuningNoContentWarningEnabled == null ? {} : {
-      noContentWarning: { enabled: row.tuningNoContentWarningEnabled },
-    }),
+    ...(row.tuningMinLengthEnabled == null && row.tuningMinLength == null
+      ? {}
+      : {
+          minLength: {
+            ...(row.tuningMinLengthEnabled == null ? {} : { enabled: row.tuningMinLengthEnabled }),
+            ...(row.tuningMinLength == null ? {} : { minLength: row.tuningMinLength }),
+          },
+        }),
+    ...(row.tuningLowEffortGateEnabled == null && row.tuningMinMeaningfulTextLength == null
+      ? {}
+      : {
+          lowEffortGate: {
+            ...(row.tuningLowEffortGateEnabled == null
+              ? {}
+              : { enabled: row.tuningLowEffortGateEnabled }),
+            ...(row.tuningMinMeaningfulTextLength == null
+              ? {}
+              : { minMeaningfulTextLength: row.tuningMinMeaningfulTextLength }),
+          },
+        }),
+    ...(row.tuningNativeEngagementEnabled == null && row.tuningMinNativeEngagement == null
+      ? {}
+      : {
+          nativeEngagement: {
+            ...(row.tuningNativeEngagementEnabled == null
+              ? {}
+              : { enabled: row.tuningNativeEngagementEnabled }),
+            ...(row.tuningMinNativeEngagement == null
+              ? {}
+              : { minNativeEngagement: row.tuningMinNativeEngagement }),
+          },
+        }),
+    ...(row.tuningMinQualityEnabled == null && row.tuningMinQuality == null
+      ? {}
+      : {
+          minQuality: {
+            ...(row.tuningMinQualityEnabled == null
+              ? {}
+              : { enabled: row.tuningMinQualityEnabled }),
+            ...(row.tuningMinQuality == null ? {} : { minQuality: row.tuningMinQuality }),
+          },
+        }),
+    ...(row.tuningNoContentWarningEnabled == null
+      ? {}
+      : {
+          noContentWarning: { enabled: row.tuningNoContentWarningEnabled },
+        }),
   };
 
   return {
@@ -491,9 +505,11 @@ export async function lockProfileVisibility(
   mode: 'write' | 'read',
 ): Promise<void> {
   const key = `profile-visibility:${oxyUserId}`;
-  await tx.execute(mode === 'write'
-    ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
-    : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`);
+  await tx.execute(
+    mode === 'write'
+      ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
+      : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`,
+  );
 }
 
 /** A Mongo-shaped update, as the settings routes already build one. */
@@ -560,9 +576,9 @@ export async function replaceLabelActions(
   if (!row) return;
   await db.delete(userSettingsLabelActions).where(eq(userSettingsLabelActions.settingsId, row.id));
   if (actions.length === 0) return;
-  await db.insert(userSettingsLabelActions).values(
-    actions.map((action) => ({ settingsId: row.id, ...action })),
-  );
+  await db
+    .insert(userSettingsLabelActions)
+    .values(actions.map((action) => ({ settingsId: row.id, ...action })));
 }
 
 /**
@@ -615,7 +631,12 @@ export async function loadUserSettingsByIds(
       action: userSettingsLabelActions.action,
     })
     .from(userSettingsLabelActions)
-    .where(inArray(userSettingsLabelActions.settingsId, rows.map((row) => row.id)));
+    .where(
+      inArray(
+        userSettingsLabelActions.settingsId,
+        rows.map((row) => row.id),
+      ),
+    );
 
   const bySettingsId = new Map<string, LabelAction[]>();
   for (const entry of actions) {

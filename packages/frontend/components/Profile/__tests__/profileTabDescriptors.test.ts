@@ -10,7 +10,10 @@ import {
 } from '@/components/Profile/types';
 
 const LABELS: Record<ProfileTab, string> = Object.fromEntries(
-  [...TAB_NAMES, ...CHANNEL_ONLY_TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES].map((tab) => [tab, `label:${tab}`]),
+  [...TAB_NAMES, ...CHANNEL_ONLY_TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES].map((tab) => [
+    tab,
+    `label:${tab}`,
+  ]),
 ) as Record<ProfileTab, string>;
 
 /**
@@ -170,7 +173,13 @@ describe('profile tab descriptors', () => {
       'mentions',
       'writers',
     ]);
-    expect(notDisclosing.map((d) => d.key)).toEqual(['posts', 'media', 'videos', 'boosts', 'mentions']);
+    expect(notDisclosing.map((d) => d.key)).toEqual([
+      'posts',
+      'media',
+      'videos',
+      'boosts',
+      'mentions',
+    ]);
     // The two must actually differ; if they ever stop differing, the tab has
     // become unconditional and every assertion above still passes.
     expect(disclosing.map((d) => d.key)).not.toEqual(notDisclosing.map((d) => d.key));

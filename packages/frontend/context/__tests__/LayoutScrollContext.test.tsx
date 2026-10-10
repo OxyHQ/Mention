@@ -1,9 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import {
-  LayoutScrollProvider,
-  useLayoutScroll,
-} from '@/context/LayoutScrollContext';
+import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollContext';
 
 jest.mock('react-native-reanimated', () => ({
   useSharedValue: (initial: number) => ({ value: initial }),
@@ -11,11 +8,7 @@ jest.mock('react-native-reanimated', () => ({
 
 type LayoutScrollApi = ReturnType<typeof useLayoutScroll>;
 
-function Capture({
-  onValue,
-}: {
-  onValue: (value: LayoutScrollApi) => void;
-}) {
+function Capture({ onValue }: { onValue: (value: LayoutScrollApi) => void }) {
   onValue(useLayoutScroll());
   return null;
 }
@@ -29,7 +22,11 @@ describe('LayoutScrollContext imperative scrolling', () => {
     act(() => {
       renderer = TestRenderer.create(
         <LayoutScrollProvider>
-          <Capture onValue={(value) => { api = value; }} />
+          <Capture
+            onValue={(value) => {
+              api = value;
+            }}
+          />
         </LayoutScrollProvider>,
       );
     });
@@ -42,18 +39,9 @@ describe('LayoutScrollContext imperative scrolling', () => {
       api?.scrollToTop();
     });
 
-    expect(scrollToOffset).toHaveBeenNthCalledWith(
-      1,
-      { offset: 240, animated: false },
-    );
-    expect(scrollToOffset).toHaveBeenNthCalledWith(
-      2,
-      { offset: 0, animated: true },
-    );
-    expect(scrollToOffset).toHaveBeenNthCalledWith(
-      3,
-      { offset: 0, animated: true },
-    );
+    expect(scrollToOffset).toHaveBeenNthCalledWith(1, { offset: 240, animated: false });
+    expect(scrollToOffset).toHaveBeenNthCalledWith(2, { offset: 0, animated: true });
+    expect(scrollToOffset).toHaveBeenNthCalledWith(3, { offset: 0, animated: true });
 
     act(() => {
       unregister?.();
@@ -69,7 +57,11 @@ describe('LayoutScrollContext scroll ownership', () => {
     act(() => {
       renderer = TestRenderer.create(
         <LayoutScrollProvider>
-          <Capture onValue={(value) => { api = value; }} />
+          <Capture
+            onValue={(value) => {
+              api = value;
+            }}
+          />
         </LayoutScrollProvider>,
       );
     });
@@ -80,9 +72,13 @@ describe('LayoutScrollContext scroll ownership', () => {
     const { api, renderer } = mount();
     expect(api().getScrollOffset()).toBeNull();
     let release: (() => void) | undefined;
-    act(() => { release = api().registerScrollable({ scrollToOffset: jest.fn() }, 0); });
+    act(() => {
+      release = api().registerScrollable({ scrollToOffset: jest.fn() }, 0);
+    });
     expect(api().getScrollOffset()).toBe(0);
-    act(() => { release?.(); });
+    act(() => {
+      release?.();
+    });
     expect(api().getScrollOffset()).toBeNull();
     act(() => renderer.unmount());
   });
@@ -93,8 +89,12 @@ describe('LayoutScrollContext scroll ownership', () => {
     const notifications = { scrollToOffset: jest.fn() };
 
     let releaseHome: (() => void) | undefined;
-    act(() => { releaseHome = api().registerScrollable(home, 0); });
-    act(() => { api().setScrollY(900); });
+    act(() => {
+      releaseHome = api().registerScrollable(home, 0);
+    });
+    act(() => {
+      api().setScrollY(900);
+    });
 
     // Home goes behind; notifications comes forward at its own top.
     let releaseNotifications: (() => void) | undefined;
@@ -119,8 +119,12 @@ describe('LayoutScrollContext scroll ownership', () => {
 
   it('leaves the offset alone for a scroller that does not know where it starts', () => {
     const { api, renderer } = mount();
-    act(() => { api().setScrollY(300); });
-    act(() => { api().registerScrollable({ scrollTo: jest.fn() }); });
+    act(() => {
+      api().setScrollY(300);
+    });
+    act(() => {
+      api().registerScrollable({ scrollTo: jest.fn() });
+    });
     expect(api().getScrollOffset()).toBe(300);
     act(() => renderer.unmount());
   });

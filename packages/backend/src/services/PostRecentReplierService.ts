@@ -104,7 +104,10 @@ export const ELIGIBLE_REPLY_MATCH = and(
  * Eligibility is only the floor: a caller showing them still applies its own
  * safety and audience rules.
  */
-export async function loadNewestEligibleReplies(postId: string, limit: number): Promise<PostRecord[]> {
+export async function loadNewestEligibleReplies(
+  postId: string,
+  limit: number,
+): Promise<PostRecord[]> {
   return findPostRecords(and(eq(posts.parentPostId, postId), ELIGIBLE_REPLY_MATCH), {
     orderBy: CHRONO_DESC,
     limit,
@@ -195,12 +198,7 @@ async function trimToLimit(postId: string, tx: Transaction): Promise<void> {
 
   await tx
     .delete(postRecentRepliers)
-    .where(
-      and(
-        eq(postRecentRepliers.postId, postId),
-        notInArray(postRecentRepliers.id, newest),
-      ),
-    );
+    .where(and(eq(postRecentRepliers.postId, postId), notInArray(postRecentRepliers.id, newest)));
 }
 
 /**
@@ -219,12 +217,7 @@ export async function recordRecentReplierForPost(reply: RecentReplyLike): Promis
   const repliedAt = validDate(reply.createdAt) ?? new Date();
 
   // Draft/private replies must never leak an avatar through this index.
-  if (
-    !postId ||
-    !oxyUserId ||
-    status !== 'published' ||
-    visibility !== PostVisibility.PUBLIC
-  ) {
+  if (!postId || !oxyUserId || status !== 'published' || visibility !== PostVisibility.PUBLIC) {
     return;
   }
 
@@ -327,10 +320,7 @@ export async function repairRecentRepliersAfterPostDelete(
       return;
     } catch (error) {
       lastError = error;
-      if (
-        attempt === MAX_PROJECTION_REPAIR_ATTEMPTS ||
-        !isRetryableProjectionConflict(error)
-      ) {
+      if (attempt === MAX_PROJECTION_REPAIR_ATTEMPTS || !isRetryableProjectionConflict(error)) {
         break;
       }
     }
@@ -350,9 +340,7 @@ export async function repairRecentRepliersAfterPostDelete(
  * so it is stated in SQL rather than inherited from the storage order an array
  * used to provide.
  */
-export async function loadRecentReplierIds(
-  postIds: string[],
-): Promise<RecentReplierProjection> {
+export async function loadRecentReplierIds(postIds: string[]): Promise<RecentReplierProjection> {
   const perPostRepliers = new Map<string, string[]>();
   const allReplierIds = new Set<string>();
   const uniquePostIds = [...new Set(postIds.map(String).filter(Boolean))];

@@ -124,7 +124,10 @@ describe('getPostEditSource', () => {
 
     resolveUserSummaries.mockResolvedValue(
       new Map([
-        ['alice-id', { user: { id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } } }],
+        [
+          'alice-id',
+          { user: { id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } } },
+        ],
         // An unresolvable mention degrades to an EMPTY username and is skipped —
         // the ghost-handle rule: never render a raw id as a handle.
         ['bob-id', { user: { id: 'bob-id', username: '', name: { displayName: 'Unknown user' } } }],
@@ -202,7 +205,10 @@ describe('getPostEditSource', () => {
 
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ id: draft.id, content: expect.objectContaining({ text: 'my draft' }) }),
+      expect.objectContaining({
+        id: draft.id,
+        content: expect.objectContaining({ text: 'my draft' }),
+      }),
     );
   });
 
@@ -217,7 +223,7 @@ describe('getPostEditSource', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
   });
 
-  it("lets a CURRENT member of a CHANNEL open its post, though the channel is the author", async () => {
+  it('lets a CURRENT member of a CHANNEL open its post, though the channel is the author', async () => {
     // The defect this route shares with `updatePost`: a channel post is authored
     // by an account nobody can sign in as, so an owner-scoped lookup refused the
     // composer to the very person who wrote it. The row here is the real shape —
@@ -254,7 +260,7 @@ describe('getPostEditSource', () => {
     );
   });
 
-  it("tells the composer the author is a CHANNEL, so it does not promise a deadline", async () => {
+  it('tells the composer the author is a CHANNEL, so it does not promise a deadline', async () => {
     // The composer shows one of three notices, and the difference is not
     // cosmetic: a channel post has no 30-minute window at all, so the sentence
     // about one would be false. The kind is answered here, by the SERVER, out of
@@ -357,7 +363,9 @@ describe('getPostEditSource', () => {
     });
     // Every post created after the cutover carries one; the deleted guard would
     // have 404'd all of them.
-    expect(post.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(post.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
 
     const res = responseDouble();
     await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
@@ -385,9 +393,7 @@ describe('getPostEditSource', () => {
 
     const res = responseDouble();
     await getPostEditSource(request(reply.id, OWNER), res as unknown as Response);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ parentPostId: parent.id }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ parentPostId: parent.id }));
   });
 
   it('still serves the source when identity resolution fails', async () => {

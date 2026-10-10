@@ -209,15 +209,16 @@ class ImageUrlCache {
   private getCacheKey(fileId: string, variant?: string): string {
     return variant ? `${fileId}:${variant}` : fileId;
   }
-  
+
   /**
    * Evict oldest entries if cache exceeds max size
    */
   private evictIfNeeded(): void {
     if (this.cache.size <= this.maxSize) return;
 
-    const entries = Array.from(this.cache.entries())
-      .sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+    const entries = Array.from(this.cache.entries()).sort(
+      (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
+    );
 
     const toRemove = entries.slice(0, this.cache.size - this.maxSize);
     toRemove.forEach(([key]) => this.cache.delete(key));
@@ -229,7 +230,7 @@ class ImageUrlCache {
   get(fileId: string, variant?: string): string | null {
     const key = this.getCacheKey(fileId, variant);
     const cached = this.cache.get(key);
-    
+
     if (!cached) {
       return null;
     }
@@ -251,7 +252,7 @@ class ImageUrlCache {
   set(fileId: string, url: string, variant?: string, ttl?: number): void {
     const key = this.getCacheKey(fileId, variant);
     const expiresAt = Date.now() + (ttl || this.defaultTTL);
-    
+
     this.cache.set(key, { url, expiresAt, lastAccessedAt: Date.now() });
     this.evictIfNeeded();
   }
@@ -263,15 +264,15 @@ class ImageUrlCache {
   clearExpired(): void {
     const now = Date.now();
     const keysToDelete: string[] = [];
-    
+
     for (const [key, cached] of this.cache.entries()) {
       if (now > cached.expiresAt) {
         keysToDelete.push(key);
       }
     }
-    
+
     // Batch delete for better performance
-    keysToDelete.forEach(key => this.cache.delete(key));
+    keysToDelete.forEach((key) => this.cache.delete(key));
   }
 
   /**
@@ -294,9 +295,12 @@ export const imageUrlCache = new ImageUrlCache();
 
 // Auto-cleanup expired entries every 5 minutes
 if (typeof window !== 'undefined') {
-  setInterval(() => {
-    imageUrlCache.clearExpired();
-  }, 5 * 60 * 1000);
+  setInterval(
+    () => {
+      imageUrlCache.clearExpired();
+    },
+    5 * 60 * 1000,
+  );
 }
 
 /**
@@ -307,7 +311,7 @@ export async function getCachedFileDownloadUrl(
   resolver: FileUrlResolver | null | undefined,
   fileId: string,
   variant?: string,
-  expiresIn?: number
+  expiresIn?: number,
 ): Promise<string> {
   // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
   // backend (our CDN/media-proxy, or a remote one the server chose to expose).
@@ -353,7 +357,7 @@ export function getCachedFileDownloadUrlSync(
   resolver: FileUrlResolver | null | undefined,
   fileId: string,
   variant?: string,
-  expiresIn?: number
+  expiresIn?: number,
 ): string {
   // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
   // backend (our CDN/media-proxy, or a remote one the server chose to expose).

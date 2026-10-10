@@ -154,11 +154,13 @@ async function scheduledContinuationIds(postId: string, ownerId: string): Promis
   const [target] = await getDb()
     .select({ id: postsTable.id })
     .from(postsTable)
-    .where(and(
-      eq(postsTable.id, postId),
-      eq(postsTable.oxyUserId, ownerId),
-      eq(postsTable.status, 'scheduled'),
-    ))
+    .where(
+      and(
+        eq(postsTable.id, postId),
+        eq(postsTable.oxyUserId, ownerId),
+        eq(postsTable.status, 'scheduled'),
+      ),
+    )
     .limit(1);
   if (!target) {
     return [];

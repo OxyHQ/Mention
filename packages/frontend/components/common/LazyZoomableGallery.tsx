@@ -22,33 +22,34 @@ type OpenArgs = Parameters<ZoomableMediaGalleryHandle['open']>;
  * from the rect measured at press time, so nothing visible is lost. After
  * that the viewer stays mounted for this owner, exactly as before.
  */
-export const LazyZoomableGallery = forwardRef<ZoomableMediaGalleryHandle, ZoomableMediaGalleryProps>(
-  function LazyZoomableGallery(props, ref) {
-    const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
-    const [pending, setPending] = useState<OpenArgs | null>(null);
-    const [mounted, setMounted] = useState(false);
+export const LazyZoomableGallery = forwardRef<
+  ZoomableMediaGalleryHandle,
+  ZoomableMediaGalleryProps
+>(function LazyZoomableGallery(props, ref) {
+  const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
+  const [pending, setPending] = useState<OpenArgs | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        open: (...args: OpenArgs) => {
-          if (galleryRef.current) {
-            galleryRef.current.open(...args);
-            return;
-          }
-          setPending(args);
-          setMounted(true);
-        },
-      }),
-      [],
-    );
+  useImperativeHandle(
+    ref,
+    () => ({
+      open: (...args: OpenArgs) => {
+        if (galleryRef.current) {
+          galleryRef.current.open(...args);
+          return;
+        }
+        setPending(args);
+        setMounted(true);
+      },
+    }),
+    [],
+  );
 
-    useLayoutEffect(() => {
-      if (!pending || !galleryRef.current) return;
-      galleryRef.current.open(...pending);
-      setPending(null);
-    }, [pending, mounted]);
+  useLayoutEffect(() => {
+    if (!pending || !galleryRef.current) return;
+    galleryRef.current.open(...pending);
+    setPending(null);
+  }, [pending, mounted]);
 
-    return mounted ? <ZoomableMediaGallery ref={galleryRef} {...props} /> : null;
-  },
-);
+  return mounted ? <ZoomableMediaGallery ref={galleryRef} {...props} /> : null;
+});

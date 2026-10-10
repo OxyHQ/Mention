@@ -62,7 +62,11 @@
 
 import { Router, type Response } from 'express';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
-import { PostVisibility, type ChannelWriter, type ChannelWritersResponse } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type ChannelWriter,
+  type ChannelWritersResponse,
+} from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -237,9 +241,7 @@ async function loadWriterIds(
       )
     : grouped;
 
-  const rows = await paged
-    .orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId))
-    .limit(limit);
+  const rows = await paged.orderBy(desc(lastPostAt), desc(posts.writtenByOxyUserId)).limit(limit);
 
   // `isNotNull` narrows the ROWS, never the column's TypeScript type, so the
   // filter is what makes the non-null claim real rather than asserted.
@@ -264,7 +266,8 @@ router.get(
   // production, and this is also the only position CodeQL inspects.
   ...(config.runtime.isProduction ? [channelWritersRateLimiter] : []),
   async (req: AuthRequest, res: Response) => {
-    const channelOxyUserId = typeof req.params.oxyUserId === 'string' ? req.params.oxyUserId.trim() : '';
+    const channelOxyUserId =
+      typeof req.params.oxyUserId === 'string' ? req.params.oxyUserId.trim() : '';
     try {
       if (!channelOxyUserId || channelOxyUserId.length > MAX_OXY_USER_ID_LENGTH) {
         return sendErrorResponse(res, 400, 'Bad Request', 'oxyUserId is required');
@@ -336,7 +339,9 @@ router.get(
       }
 
       const writers: ChannelWriter[] = page.map((row) => ({
-        writer: writerSummaries.get(row.writerOxyUserId)?.user ?? degradedActorSummary(row.writerOxyUserId),
+        writer:
+          writerSummaries.get(row.writerOxyUserId)?.user ??
+          degradedActorSummary(row.writerOxyUserId),
         lastPostAt: row.lastPostAt.toISOString(),
       }));
 

@@ -11,11 +11,7 @@ interface UseScheduleManagerProps {
   toast: typeof toastFn;
 }
 
-export const useScheduleManager = ({
-  bottomSheet,
-  t,
-  toast,
-}: UseScheduleManagerProps) => {
+export const useScheduleManager = ({ bottomSheet, t, toast }: UseScheduleManagerProps) => {
   // The chosen time is state and nothing else. It used to be mirrored into a ref
   // written during render, which the composer read when building the payload —
   // three ways to be wrong at once: the write is illegal input for the React
@@ -25,18 +21,32 @@ export const useScheduleManager = ({
   // render, so it already closes over the current value.
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 
-  const clearSchedule = useCallback((options?: { silent?: boolean }) => {
-    setScheduledAt(null);
-    if (!options?.silent) {
-      toast(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }), { type: 'success' });
-    }
-  }, [t, toast]);
+  const clearSchedule = useCallback(
+    (options?: { silent?: boolean }) => {
+      setScheduledAt(null);
+      if (!options?.silent) {
+        toast(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }), {
+          type: 'success',
+        });
+      }
+    },
+    [t, toast],
+  );
 
-  const handleScheduleSelect = useCallback((date: Date) => {
-    setScheduledAt(date);
-    toast(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }), { type: 'success' });
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet, t, toast]);
+  const handleScheduleSelect = useCallback(
+    (date: Date) => {
+      setScheduledAt(date);
+      toast(
+        t('compose.schedule.set', {
+          defaultValue: 'Scheduled for {{time}}',
+          time: formatScheduledLabel(date),
+        }),
+        { type: 'success' },
+      );
+      bottomSheet.openBottomSheet(false);
+    },
+    [bottomSheet, t, toast],
+  );
 
   const handleScheduleClear = useCallback(() => {
     clearSchedule();
@@ -57,43 +67,71 @@ export const useScheduleManager = ({
     // option is dropped rather than silently rolled to tomorrow.
     const laterToday = new Date(now);
     laterToday.setHours(17, 0, 0, 0);
-    const laterTodayOption: ScheduleOption[] = laterToday > now
-      ? [{ key: 'later', label: t('compose.schedule.option.later', { defaultValue: 'Later today' }), date: laterToday }]
-      : [];
+    const laterTodayOption: ScheduleOption[] =
+      laterToday > now
+        ? [
+            {
+              key: 'later',
+              label: t('compose.schedule.option.later', { defaultValue: 'Later today' }),
+              date: laterToday,
+            },
+          ]
+        : [];
 
     return [
-      { key: '15m', label: t('compose.schedule.option.15m', { defaultValue: 'In 15 minutes' }), date: addMinutes(now, 15) },
-      { key: '1h', label: t('compose.schedule.option.1h', { defaultValue: 'In 1 hour' }), date: addMinutes(now, 60) },
-      { key: '3h', label: t('compose.schedule.option.3h', { defaultValue: 'In 3 hours' }), date: addMinutes(now, 180) },
-      { key: 'tomorrow', label: t('compose.schedule.option.tomorrow', { defaultValue: 'Tomorrow morning' }), date: tomorrowMorning },
+      {
+        key: '15m',
+        label: t('compose.schedule.option.15m', { defaultValue: 'In 15 minutes' }),
+        date: addMinutes(now, 15),
+      },
+      {
+        key: '1h',
+        label: t('compose.schedule.option.1h', { defaultValue: 'In 1 hour' }),
+        date: addMinutes(now, 60),
+      },
+      {
+        key: '3h',
+        label: t('compose.schedule.option.3h', { defaultValue: 'In 3 hours' }),
+        date: addMinutes(now, 180),
+      },
+      {
+        key: 'tomorrow',
+        label: t('compose.schedule.option.tomorrow', { defaultValue: 'Tomorrow morning' }),
+        date: tomorrowMorning,
+      },
       ...laterTodayOption,
     ];
   }, [t]);
 
-  const openScheduleSheet = useCallback((ScheduleSheetComponent: React.ComponentType<ScheduleSheetProps>) => {
-    const options = getScheduleOptions();
+  const openScheduleSheet = useCallback(
+    (ScheduleSheetComponent: React.ComponentType<ScheduleSheetProps>) => {
+      const options = getScheduleOptions();
 
-    bottomSheet.setBottomSheetContent(
-      createElement(Suspense, { fallback: null },
-        createElement(ScheduleSheetComponent, {
-          scheduledAt: scheduledAt,
-          options: options,
-          onSelect: handleScheduleSelect,
-          onClear: handleScheduleClear,
-          onClose: handleScheduleClose,
-          formatLabel: formatScheduledLabel,
-        })
-      )
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [
-    scheduledAt,
-    bottomSheet,
-    handleScheduleSelect,
-    handleScheduleClear,
-    handleScheduleClose,
-    getScheduleOptions,
-  ]);
+      bottomSheet.setBottomSheetContent(
+        createElement(
+          Suspense,
+          { fallback: null },
+          createElement(ScheduleSheetComponent, {
+            scheduledAt: scheduledAt,
+            options: options,
+            onSelect: handleScheduleSelect,
+            onClear: handleScheduleClear,
+            onClose: handleScheduleClose,
+            formatLabel: formatScheduledLabel,
+          }),
+        ),
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [
+      scheduledAt,
+      bottomSheet,
+      handleScheduleSelect,
+      handleScheduleClear,
+      handleScheduleClose,
+      getScheduleOptions,
+    ],
+  );
 
   return {
     scheduledAt,

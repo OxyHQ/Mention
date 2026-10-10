@@ -1,12 +1,16 @@
 import { Button } from '@oxy.so/bloom/button';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import React, { useMemo, useCallback } from "react";
-import { View } from "react-native";
-import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
-import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
-import { BaseWidget } from "./BaseWidget";
-import { useCachedUserSnapshot } from "@/hooks/useCachedUser";
+import React, { useMemo, useCallback } from 'react';
+import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
+import {
+  ProfileCard,
+  ProfileCardSkeletonList,
+  type ProfileCardData,
+} from '@/components/ProfileCard';
+import { BaseWidget } from './BaseWidget';
+import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData } from '@/lib/recommendations';
 
@@ -23,22 +27,28 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   const { recommendations, isLoading: loading, error } = useRecommendations();
 
   const handleShowMore = useCallback(() => {
-    router.push("/explore/who-to-follow");
+    router.push('/explore/who-to-follow');
   }, [router]);
 
   const displayedUsers = useMemo(
     () => recommendations.slice(0, MAX_DISPLAY_USERS),
-    [recommendations]
+    [recommendations],
   );
 
   if (loading) {
     return (
-      <BaseWidget title={t("Who to follow")} divider={divider}>
+      <BaseWidget title={t('Who to follow')} divider={divider}>
         {/* The loaded widget's shape — as many rows as it shows, at the same
             inset, and the "Show more" button — so the rail below it (the
             footer) stays put when the suggestions land (#1216). */}
         <View className="gap-2">
-          <ProfileCardSkeletonList count={MAX_DISPLAY_USERS} showFollowButton size="small" horizontalInset={0} showDivider={false} />
+          <ProfileCardSkeletonList
+            count={MAX_DISPLAY_USERS}
+            showFollowButton
+            size="small"
+            horizontalInset={0}
+            showDivider={false}
+          />
           <Skeleton.Box width={88} height={SHOW_MORE_HEIGHT} borderRadius={SHOW_MORE_HEIGHT / 2} />
         </View>
       </BaseWidget>
@@ -53,46 +63,57 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   }
 
   return (
-    <BaseWidget title={t("Who to follow")} divider={divider}>
+    <BaseWidget title={t('Who to follow')} divider={divider}>
       <View className="gap-2">
         {/* Compact Bloom rows align directly with the widget heading. */}
         <View>
           {displayedUsers.map((user) => (
-            <FollowRowComponent
-              key={user.id}
-              profileData={user}
-              showBorder={false}
-            />
+            <FollowRowComponent key={user.id} profileData={user} showBorder={false} />
           ))}
         </View>
-        <Button appearance="plain" size="sm" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
-          {t("Show more")}
+        <Button
+          appearance="plain"
+          size="sm"
+          onPress={handleShowMore}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {t('Show more')}
         </Button>
       </View>
     </BaseWidget>
   );
 }
 
-const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { profileData: ProfileData; showBorder?: boolean }) => {
-  const cachedUser = useCachedUserSnapshot(profileData.id);
+const FollowRowComponent = React.memo(
+  ({ profileData, showBorder = true }: { profileData: ProfileData; showBorder?: boolean }) => {
+    const cachedUser = useCachedUserSnapshot(profileData.id);
 
-  // The rail row omits the bio — the sidebar has no room for it. Everything else
-  // (identity, badges, follow button) is the shared row's.
-  const profile: ProfileCardData = {
-    id: profileData.id,
-    username: profileData.username || cachedUser?.username || '',
-    name: profileData.name,
-    avatar: profileData.avatar || cachedUser?.avatar,
-    color: profileData.color ?? cachedUser?.color,
-    verified: profileData.verified,
-    isFederated: profileData.isFederated,
-    isAgent: profileData.isAgent,
-    isAutomated: profileData.isAutomated,
-    instance: profileData.instance,
-    federation: profileData.federation,
-  };
+    // The rail row omits the bio — the sidebar has no room for it. Everything else
+    // (identity, badges, follow button) is the shared row's.
+    const profile: ProfileCardData = {
+      id: profileData.id,
+      username: profileData.username || cachedUser?.username || '',
+      name: profileData.name,
+      avatar: profileData.avatar || cachedUser?.avatar,
+      color: profileData.color ?? cachedUser?.color,
+      verified: profileData.verified,
+      isFederated: profileData.isFederated,
+      isAgent: profileData.isAgent,
+      isAutomated: profileData.isAutomated,
+      instance: profileData.instance,
+      federation: profileData.federation,
+    };
 
-  return <ProfileCard profile={profile} showFollowButton showDivider={showBorder} size="small" horizontalInset={0} />;
-});
+    return (
+      <ProfileCard
+        profile={profile}
+        showFollowButton
+        showDivider={showBorder}
+        size="small"
+        horizontalInset={0}
+      />
+    );
+  },
+);
 
 FollowRowComponent.displayName = 'FollowRowComponent';

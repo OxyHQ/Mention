@@ -35,10 +35,7 @@ import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, type JournalEntry } from '@oxy.so/
 import { readJournal } from '../../db/migrationsFolder';
 
 /** The tables `0016` created and `0024` removes. */
-const DROPPED_TABLES = [
-  'mention_backfill_checkpoints',
-  'mention_backfill_resolution_log',
-] as const;
+const DROPPED_TABLES = ['mention_backfill_checkpoints', 'mention_backfill_resolution_log'] as const;
 
 /** The migration that created them, and the one that drops them. */
 const CREATE_TAG = '0016_backfill_bookkeeping_tables';
@@ -64,7 +61,7 @@ afterAll(async () => {
  */
 async function relationExists(name: string): Promise<boolean> {
   const rows = await db.execute<{ oid: string | null }>(
-    sql`select to_regclass(${name})::text as oid`
+    sql`select to_regclass(${name})::text as oid`,
   );
   return [...rows][0]?.oid != null;
 }
@@ -72,7 +69,8 @@ async function relationExists(name: string): Promise<boolean> {
 /** The `when` recorded in the shipped journal for `tag`. */
 function journalEntry(tag: string): JournalEntry {
   const entry = readJournal().find((candidate) => candidate.tag === tag);
-  if (!entry) throw new Error(`No journal entry for ${tag} — the migration was renamed or removed.`);
+  if (!entry)
+    throw new Error(`No journal entry for ${tag} — the migration was renamed or removed.`);
   return entry;
 }
 

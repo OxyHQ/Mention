@@ -302,19 +302,23 @@ export function createCache(config: CacheConfig): Cache {
     async getMany<T>(keys: string[]): Promise<(T | undefined)[]> {
       if (keys.length === 0) return [];
 
-      return withFallback<(T | undefined)[]>('mGet', new Array(keys.length).fill(undefined), async (client) => {
-        const values = await client.mGet(keys);
+      return withFallback<(T | undefined)[]>(
+        'mGet',
+        new Array(keys.length).fill(undefined),
+        async (client) => {
+          const values = await client.mGet(keys);
 
-        // A non-array reply would make the map below throw a TypeError, which
-        // would surface as a 500 on whatever hot path is reading the cache.
-        // Treat it as a full miss so the caller degrades to a cold computation.
-        if (!Array.isArray(values)) {
-          reportNonArrayMgetReply(name, values, keys.length);
-          return new Array<T | undefined>(keys.length).fill(undefined);
-        }
+          // A non-array reply would make the map below throw a TypeError, which
+          // would surface as a 500 on whatever hot path is reading the cache.
+          // Treat it as a full miss so the caller degrades to a cold computation.
+          if (!Array.isArray(values)) {
+            reportNonArrayMgetReply(name, values, keys.length);
+            return new Array<T | undefined>(keys.length).fill(undefined);
+          }
 
-        return values.map((raw) => (raw ? decode<T>(raw)?.value : undefined));
-      });
+          return values.map((raw) => (raw ? decode<T>(raw)?.value : undefined));
+        },
+      );
     },
 
     async has(key: string): Promise<boolean> {

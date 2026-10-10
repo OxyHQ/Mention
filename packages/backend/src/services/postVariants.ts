@@ -101,7 +101,10 @@ export function getPrimaryVariant(content: StoredPostContent): PostContentVarian
  * untagged variant (no resolvable language) declares nothing.
  */
 export function declaredBaseLanguages(content: StoredPostContent): string[] {
-  return toBaseLanguages(authorVariants(content).map((variant) => variant.tag)).slice(0, MAX_AUTHOR_VARIANTS);
+  return toBaseLanguages(authorVariants(content).map((variant) => variant.tag)).slice(
+    0,
+    MAX_AUTHOR_VARIANTS,
+  );
 }
 
 /**
@@ -218,7 +221,9 @@ export function toStoredContent(
   const variants = stripSpamHashtagBlocks(
     declared.length > 0
       ? applyDetectedPrimaryTag(declared, primaryLanguage)
-      : (primary ? [primary] : []),
+      : primary
+        ? [primary]
+        : [],
   );
 
   return {
@@ -264,8 +269,10 @@ function selectVariantForTag(
   const byPrecedence: Array<(variant: PostContentVariant) => boolean> = [
     (variant) => variant.source === 'author' && variant.tag === canonical,
     (variant) => variant.source === 'machine' && variant.tag === canonical,
-    (variant) => variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
-    (variant) => variant.source === 'machine' && base !== null && toBaseLanguage(variant.tag) === base,
+    (variant) =>
+      variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
+    (variant) =>
+      variant.source === 'machine' && base !== null && toBaseLanguage(variant.tag) === base,
   ];
 
   for (const matches of byPrecedence) {
@@ -276,11 +283,16 @@ function selectVariantForTag(
 }
 
 /** Apply the localized `alt` map to the SHARED media set (never mutates it). */
-function localizeAlt(media: MediaItem[] | undefined, alt: Record<string, string> | undefined): MediaItem[] | undefined {
+function localizeAlt(
+  media: MediaItem[] | undefined,
+  alt: Record<string, string> | undefined,
+): MediaItem[] | undefined {
   if (!media || !alt) return media;
   return media.map((item) => {
     const localized = alt[item.id];
-    return typeof localized === 'string' && localized.length > 0 ? { ...item, alt: localized } : item;
+    return typeof localized === 'string' && localized.length > 0
+      ? { ...item, alt: localized }
+      : item;
   });
 }
 
@@ -290,7 +302,10 @@ function localizeAlt(media: MediaItem[] | undefined, alt: Record<string, string>
  * the viewer's Oxy account locales); an empty list — an anonymous reader, a
  * crawler, the OG renderer, MCP — resolves to the primary.
  */
-export function resolveViewerTag(candidates: readonly string[], content: StoredPostContent): string | undefined {
+export function resolveViewerTag(
+  candidates: readonly string[],
+  content: StoredPostContent,
+): string | undefined {
   const variants = variantsOf(content);
   for (const candidate of candidates) {
     const match = selectVariantForTag(variants, candidate);
@@ -307,8 +322,8 @@ export function resolveViewerTag(candidates: readonly string[], content: StoredP
 export function resolveVariant(content: StoredPostContent, requestedTag?: string): ResolvedVariant {
   const variants = variantsOf(content);
   const chosen =
-    (requestedTag !== undefined ? selectVariantForTag(variants, requestedTag) : undefined)
-    ?? getPrimaryVariant(content);
+    (requestedTag !== undefined ? selectVariantForTag(variants, requestedTag) : undefined) ??
+    getPrimaryVariant(content);
 
   if (!chosen) {
     return { text: '', media: content.media, article: content.article };
@@ -339,7 +354,11 @@ export function translationSourceFingerprint(content: StoredPostContent): string
   const source = {
     text: primary.text,
     media: (primary.media ?? []).map((item) => [item.id, item.alt ?? null]),
-    article: [primary.article?.title ?? null, primary.article?.body ?? null, primary.article?.excerpt ?? null],
+    article: [
+      primary.article?.title ?? null,
+      primary.article?.body ?? null,
+      primary.article?.excerpt ?? null,
+    ],
   };
   return createHash('sha256').update(JSON.stringify(source)).digest('hex');
 }
@@ -361,7 +380,8 @@ export function readerVariants(
   const variants = variantsOf(content);
   const authors = variants.filter((variant) => variant.source === 'author');
   const servedMachine = variants.find(
-    (variant) => variant.source === 'machine' && variant.tag !== undefined && variant.tag === servedTag,
+    (variant) =>
+      variant.source === 'machine' && variant.tag !== undefined && variant.tag === servedTag,
   );
   return servedMachine ? [...authors, servedMachine] : authors;
 }
@@ -389,7 +409,10 @@ export function readerVariants(
  * only localize media that actually exists on the post, which both rejects
  * nonsense keys and bounds the map's size.
  */
-export function validateAuthorVariants(raw: unknown, sharedMediaIds: readonly string[]): AuthorVariantValidation {
+export function validateAuthorVariants(
+  raw: unknown,
+  sharedMediaIds: readonly string[],
+): AuthorVariantValidation {
   if (raw === undefined || raw === null) {
     return { ok: true, variants: [] };
   }
@@ -498,7 +521,10 @@ function normalizeAltMap(
   const alt: Record<string, string> = {};
   for (const [mediaId, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!mediaIds.has(mediaId)) {
-      return { ok: false, error: `Language variant ${tag} localizes alt text for unknown media ${mediaId}` };
+      return {
+        ok: false,
+        error: `Language variant ${tag} localizes alt text for unknown media ${mediaId}`,
+      };
     }
     if (typeof value !== 'string') {
       return { ok: false, error: `Language variant ${tag} has a non-text alt description` };
@@ -516,7 +542,9 @@ function normalizeAltMap(
 function normalizeVariantArticle(
   raw: unknown,
   tag: string,
-): { ok: true; article: NonNullable<PostContentVariant['article']> } | { ok: false; error: string } {
+):
+  | { ok: true; article: NonNullable<PostContentVariant['article']> }
+  | { ok: false; error: string } {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, error: `Language variant ${tag} has an invalid article` };
   }

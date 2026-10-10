@@ -101,7 +101,7 @@ describe('readAdminScriptCursor', () => {
 });
 
 describe('recordAdminScriptCursor', () => {
-  it('upserts the scope\'s progress and reports that the write landed', async () => {
+  it("upserts the scope's progress and reports that the write landed", async () => {
     await expect(
       recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 500 }),
     ).resolves.toBe(true);
@@ -173,7 +173,7 @@ describe('recordAdminScriptCursor', () => {
 });
 
 describe('clearAdminScriptCursor', () => {
-  it('forgets the scope\'s progress', async () => {
+  it("forgets the scope's progress", async () => {
     await recordAdminScriptCursor(SCRIPT, SCOPE, { cursor: CURSOR, scanned: 5 });
 
     await clearAdminScriptCursor(SCRIPT, SCOPE);

@@ -36,7 +36,9 @@ const OWNED_IDS = [VIEWER, OTHER_VIEWER];
 
 async function seedMutes(userId: string, mutedIds: string[]): Promise<void> {
   if (mutedIds.length === 0) return;
-  await getDb().insert(mutes).values(mutedIds.map((mutedId) => ({ userId, mutedId })));
+  await getDb()
+    .insert(mutes)
+    .values(mutedIds.map((mutedId) => ({ userId, mutedId })));
 }
 
 beforeAll(async () => {
@@ -77,9 +79,7 @@ describe('UserPrivacyManager Oxy authority', () => {
     expect(state.blockedUserIds).toEqual(new Set(['blocked', 'duplicate']));
     expect(state.mutedUserIds).toEqual(new Set(['muted', 'duplicate']));
     expect(state.restrictedUserIds).toEqual(new Set(['restricted', 'duplicate']));
-    expect(state.excludedUserIds).toEqual(
-      new Set(['blocked', 'duplicate', 'muted', 'restricted']),
-    );
+    expect(state.excludedUserIds).toEqual(new Set(['blocked', 'duplicate', 'muted', 'restricted']));
     // The viewer id rides along with the client because it is what keys the
     // per-viewer privacy cache: without it every read goes back to Oxy.
     expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);

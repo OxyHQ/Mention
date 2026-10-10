@@ -23,8 +23,7 @@ jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
     users: {
       search: (...args: unknown[]) => mockSearchProfiles(...args),
-      byUsername: (...args: unknown[]) =>
-        mockGetProfileByUsername(...args),
+      byUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
     },
     // People search goes through the raw `http` seam rather than
     // `users.search`, because that SDK method takes no `AbortSignal`. The mock
@@ -69,13 +68,15 @@ const canonicalSearchPost: HydratedPost = {
     username: 'alice',
     name: { displayName: 'Alice' },
   },
-  authors: [{
-    id: 'author-1',
-    username: 'alice',
-    name: { displayName: 'Alice' },
-    role: 'owner',
-    status: 'accepted',
-  }],
+  authors: [
+    {
+      id: 'author-1',
+      username: 'alice',
+      name: { displayName: 'Alice' },
+      role: 'owner',
+      status: 'accepted',
+    },
+  ],
   engagement: {
     likes: 1,
     downvotes: 0,
@@ -173,17 +174,12 @@ describe('search AbortSignal propagation', () => {
 
     await searchService.searchAll('mention', true, signal);
 
-    expect(mockAuthGet).toHaveBeenCalledWith(
-      '/search',
-      expect.objectContaining({ signal }),
-    );
+    expect(mockAuthGet).toHaveBeenCalledWith('/search', expect.objectContaining({ signal }));
     expect(mockPublicGet).toHaveBeenCalledWith(
       '/search/overview',
       expect.objectContaining({ signal }),
     );
-    expect(mockGetSavedPosts).toHaveBeenCalledWith(
-      expect.objectContaining({ signal }),
-    );
+    expect(mockGetSavedPosts).toHaveBeenCalledWith(expect.objectContaining({ signal }));
   });
 
   it('issues FOUR requests for the overview, not seven', async () => {
@@ -283,9 +279,7 @@ describe('search AbortSignal propagation', () => {
         signal,
       }),
     );
-    expect(mockGetSavedPosts).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 2, signal }),
-    );
+    expect(mockGetSavedPosts).toHaveBeenCalledWith(expect.objectContaining({ page: 2, signal }));
   });
 
   it('passes the signal through the paginated people tab', async () => {
@@ -320,11 +314,13 @@ describe('search AbortSignal propagation', () => {
     mockGetSavedPosts.mockResolvedValueOnce({
       success: true,
       data: {
-        posts: [{
-          id: 'legacy-post',
-          content: { text: 'missing canonical state' },
-          isSaved: true,
-        }],
+        posts: [
+          {
+            id: 'legacy-post',
+            content: { text: 'missing canonical state' },
+            isSaved: true,
+          },
+        ],
         hasMore: false,
       },
     });

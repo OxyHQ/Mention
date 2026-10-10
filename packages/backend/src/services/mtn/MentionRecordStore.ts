@@ -42,11 +42,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxy.so/protocol';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
-import {
-  MTN_CHAIN_STATUSES,
-  mentionRepoHeads,
-  mentionSignedRecords,
-} from '../../db/schema/mtn';
+import { MTN_CHAIN_STATUSES, mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
 import { parseUserDid } from './mentionDid';
 
 /** Default page size for the log read helpers. */
@@ -63,7 +59,10 @@ const MAX_LOG_LIMIT = 500;
  * reject cannot be written here in the first place.
  */
 export type MtnChainStatus = (typeof MTN_CHAIN_STATUSES)[number];
-export const MTN_CHAIN_STATUS: { readonly CANONICAL: MtnChainStatus; readonly CONFLICT: MtnChainStatus } = {
+export const MTN_CHAIN_STATUS: {
+  readonly CANONICAL: MtnChainStatus;
+  readonly CONFLICT: MtnChainStatus;
+} = {
   CANONICAL: 'canonical',
   CONFLICT: 'conflict',
 };
@@ -227,9 +226,7 @@ export class MentionRecordStoreImpl implements RecordStore {
       )
       .limit(1);
     if (!headRecord) {
-      throw new Error(
-        `MentionRecordStore: inconsistent canonical head for ${oxyUserId}`,
-      );
+      throw new Error(`MentionRecordStore: inconsistent canonical head for ${oxyUserId}`);
     }
 
     return {
@@ -264,16 +261,12 @@ export class MentionRecordStoreImpl implements RecordStore {
   withIdempotencyKey(idempotencyKey: string): RecordStore {
     return {
       getHead: (subject) => this.getHead(subject),
-      append: (subject, env, recordId) =>
-        this.appendRecord(subject, env, recordId, idempotencyKey),
-      getLogSince: (subject, sinceSeq, limit) =>
-        this.getLogSince(subject, sinceSeq, limit),
-      resolveCursorSeq: (subject, recordId) =>
-        this.resolveCursorSeq(subject, recordId),
+      append: (subject, env, recordId) => this.appendRecord(subject, env, recordId, idempotencyKey),
+      getLogSince: (subject, sinceSeq, limit) => this.getLogSince(subject, sinceSeq, limit),
+      resolveCursorSeq: (subject, recordId) => this.resolveCursorSeq(subject, recordId),
       materializeCurrent: (subject, collection, rkey) =>
         this.materializeCurrent(subject, collection, rkey),
-      latestIssuedAtForKey: (subject, env) =>
-        this.latestIssuedAtForKey(subject, env),
+      latestIssuedAtForKey: (subject, env) => this.latestIssuedAtForKey(subject, env),
     };
   }
 
@@ -524,10 +517,7 @@ export class MentionRecordStoreImpl implements RecordStore {
           prev: null,
         })
         .where(
-          and(
-            eq(mentionSignedRecords.oxyUserId, oxyUserId),
-            gt(mentionSignedRecords.seq, tipSeq),
-          ),
+          and(eq(mentionSignedRecords.oxyUserId, oxyUserId), gt(mentionSignedRecords.seq, tipSeq)),
         )
         .returning({ id: mentionSignedRecords.id });
       const archived = archivedRows.length;
@@ -566,7 +556,11 @@ export class MentionRecordStoreImpl implements RecordStore {
     });
   }
 
-  async getLogSince(subject: string, sinceSeq: number, limit: number = DEFAULT_LOG_LIMIT): Promise<SignedRecordEnvelope[]> {
+  async getLogSince(
+    subject: string,
+    sinceSeq: number,
+    limit: number = DEFAULT_LOG_LIMIT,
+  ): Promise<SignedRecordEnvelope[]> {
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
       return [];
@@ -613,7 +607,11 @@ export class MentionRecordStoreImpl implements RecordStore {
    * branch that wins its key wins materialization, which is the whole point of
    * preserving it.
    */
-  async materializeCurrent(subject: string, collection: string, rkey: string): Promise<SignedRecordEnvelope | null> {
+  async materializeCurrent(
+    subject: string,
+    collection: string,
+    rkey: string,
+  ): Promise<SignedRecordEnvelope | null> {
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
       return null;

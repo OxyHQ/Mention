@@ -174,7 +174,9 @@ beforeEach(async () => {
   process.env.MENTION_PUBLIC_KEY = PUBLIC_KEY;
   await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
 
-  await db.delete(mentionNodeIngestWitnesses).where(eq(mentionNodeIngestWitnesses.oxyUserId, OXY_USER_ID));
+  await db
+    .delete(mentionNodeIngestWitnesses)
+    .where(eq(mentionNodeIngestWitnesses.oxyUserId, OXY_USER_ID));
   await db.delete(mentionUserNodes).where(eq(mentionUserNodes.oxyUserId, OXY_USER_ID));
   await db.insert(mentionUserNodes).values({
     oxyUserId: OXY_USER_ID,
@@ -202,7 +204,11 @@ afterEach(async () => {
 describe('ingestFromNode — happy path', () => {
   it('re-verifies + materializes + witnesses each record and advances the cursor', async () => {
     mockHead.mockResolvedValueOnce({ seq: 2, headRecordId: 'h', recordCount: 3 });
-    mockLog.mockResolvedValueOnce({ records: [envelope(0), envelope(1), envelope(2)], count: 3, head: null });
+    mockLog.mockResolvedValueOnce({
+      records: [envelope(0), envelope(1), envelope(2)],
+      count: 3,
+      head: null,
+    });
 
     await ingestFromNode(OXY_USER_ID);
 
@@ -261,7 +267,9 @@ describe('ingestFromNode — bad-signature rejection', () => {
 
     expect(mockProjectRecord).not.toHaveBeenCalled();
     expect(await witnessCount()).toBe(0);
-    expect((await nodeRow())?.lastError).toContain('rejected:public_key_not_a_current_verification_method');
+    expect((await nodeRow())?.lastError).toContain(
+      'rejected:public_key_not_a_current_verification_method',
+    );
   });
 
   it('rejects a malformed envelope that fails the contract schema', async () => {
@@ -448,9 +456,7 @@ describe('exportToNode — malformed (untrusted) push response', () => {
 
   it('advances the cursor for accepted records on a well-formed push response', async () => {
     mockHead.mockResolvedValueOnce({ seq: -1, headRecordId: null, recordCount: 0 });
-    mockGetPublicLogSince
-      .mockResolvedValueOnce([envelope(0)])
-      .mockResolvedValueOnce([]); // caught up on the 2nd iteration
+    mockGetPublicLogSince.mockResolvedValueOnce([envelope(0)]).mockResolvedValueOnce([]); // caught up on the 2nd iteration
     mockPushRecords.mockResolvedValueOnce({
       accepted: 1,
       results: [{ ok: true, recordId: 'rid-0', seq: 0 }],

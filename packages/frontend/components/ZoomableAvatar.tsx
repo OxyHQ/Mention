@@ -90,7 +90,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   // avatar crop, which is what made the zoom look pixelated.
   const resolvedThumb = imageResolver?.(fileId ?? '', MEDIA_VARIANT_AVATAR_LG);
   const resolvedFull = imageResolver?.(fileId ?? '', MEDIA_VARIANT_FULL);
-  const asyncThumb = useImageUrl(errored ? undefined : fileId, MEDIA_VARIANT_AVATAR_LG, oxyServices);
+  const asyncThumb = useImageUrl(
+    errored ? undefined : fileId,
+    MEDIA_VARIANT_AVATAR_LG,
+    oxyServices,
+  );
 
   const thumbUri = useMemo(() => {
     if (!source || errored) return undefined;
@@ -129,7 +133,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const handlePress = useCallback(() => {
     if (!zoomUri) return;
     void measureThumb().then((rect) => {
-      galleryRef.current?.open([{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1 }], 0, rect ?? undefined);
+      galleryRef.current?.open(
+        [{ uri: zoomUri, previewUri: thumbUri, aspectRatio: 1 }],
+        0,
+        rect ?? undefined,
+      );
     });
   }, [measureThumb, zoomUri, thumbUri]);
 
@@ -148,7 +156,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 
   return (
     <>
-      <Pressable onPress={handlePress} accessibilityLabel="Profile avatar" accessibilityRole="image">
+      <Pressable
+        onPress={handlePress}
+        accessibilityLabel="Profile avatar"
+        accessibilityRole="image"
+      >
         <View ref={wrapperRef} collapsable={false}>
           <Animated.View
             className={`web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-pointer${className ? ` ${className}` : ''}`}

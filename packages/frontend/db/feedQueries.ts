@@ -1,6 +1,6 @@
 /**
  * Feed queries — CRUD for feed_items + feed_meta tables.
- * 
+ *
  * Manages the mapping between feed keys and posts, preserving ordering.
  *
  * IMPORTANT: Posts must be written BEFORE feed_items due to the FOREIGN KEY
@@ -33,7 +33,11 @@ const logger = createLogger('FeedQueries');
 
 function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
   if (!json) return fallback;
-  try { return JSON.parse(json) as T; } catch { return fallback; }
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 // ── Types ────────────────────────────────────────────────────────
@@ -52,11 +56,7 @@ export interface FeedMetaData {
  * Replace an entire feed's items.
  * Writes posts FIRST, then feed_items.
  */
-export function setFeedItems(
-  feedKey: string,
-  posts: FeedItem[],
-  meta: FeedMetaData
-): void {
+export function setFeedItems(feedKey: string, posts: FeedItem[], meta: FeedMetaData): void {
   if (!feedKey) return;
 
   if (!isDbAvailable()) {
@@ -92,7 +92,11 @@ export function setFeedItems(
 
       db.runSync(
         'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
-        feedKey, postId, i, null, now
+        feedKey,
+        postId,
+        i,
+        null,
+        now,
       );
     }
 
@@ -105,7 +109,7 @@ export function setFeedItems(
       meta.nextCursor || null,
       meta.totalCount,
       meta.lastUpdated || now,
-      meta.filters ? JSON.stringify(meta.filters) : null
+      meta.filters ? JSON.stringify(meta.filters) : null,
     );
 
     db.execSync('COMMIT');
@@ -122,7 +126,7 @@ export function setFeedItems(
 export function appendFeedItems(
   feedKey: string,
   posts: FeedItem[],
-  meta: Partial<FeedMetaData>
+  meta: Partial<FeedMetaData>,
 ): void {
   if (!feedKey || !posts || posts.length === 0) return;
 
@@ -149,7 +153,7 @@ export function appendFeedItems(
     // Get current max position
     const maxRow = db.getFirstSync<{ max_pos: number | null }>(
       'SELECT MAX(position) as max_pos FROM feed_items WHERE feed_key = ?',
-      feedKey
+      feedKey,
     );
     let position = (maxRow?.max_pos ?? -1) + 1;
     const now = Date.now();
@@ -161,7 +165,11 @@ export function appendFeedItems(
 
       const result = db.runSync(
         'INSERT OR IGNORE INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, ?, ?, ?)',
-        feedKey, postId, position, null, now
+        feedKey,
+        postId,
+        position,
+        null,
+        now,
       );
       // Only advance position if the insert actually happened
       if (result.changes > 0) {
@@ -170,10 +178,14 @@ export function appendFeedItems(
     }
 
     // Update meta
-    if (meta.hasMore !== undefined || meta.nextCursor !== undefined || meta.totalCount !== undefined) {
+    if (
+      meta.hasMore !== undefined ||
+      meta.nextCursor !== undefined ||
+      meta.totalCount !== undefined
+    ) {
       const currentMeta = db.getFirstSync<FeedMetaRow>(
         'SELECT * FROM feed_meta WHERE feed_key = ?',
-        feedKey
+        feedKey,
       );
 
       db.runSync(
@@ -181,10 +193,10 @@ export function appendFeedItems(
          VALUES (?, ?, ?, ?, ?, ?)`,
         feedKey,
         meta.hasMore !== undefined ? (meta.hasMore ? 1 : 0) : (currentMeta?.has_more ?? 1),
-        meta.nextCursor !== undefined ? (meta.nextCursor || null) : (currentMeta?.next_cursor || null),
+        meta.nextCursor !== undefined ? meta.nextCursor || null : currentMeta?.next_cursor || null,
         meta.totalCount !== undefined ? meta.totalCount : (currentMeta?.total_count ?? 0),
         now,
-        meta.filters ? JSON.stringify(meta.filters) : (currentMeta?.filters_json || null)
+        meta.filters ? JSON.stringify(meta.filters) : currentMeta?.filters_json || null,
       );
     }
 
@@ -221,12 +233,14 @@ export function getAllFeedItems(
   if (!db) return [];
 
   if (reuse) {
-    const ids = db.getAllSync<{ post_id: string }>(
-      `SELECT fi.post_id FROM feed_items fi
+    const ids = db
+      .getAllSync<{ post_id: string }>(
+        `SELECT fi.post_id FROM feed_items fi
        WHERE fi.feed_key = ?
        ORDER BY fi.position ASC`,
-      feedKey
-    ).map((row) => row.post_id);
+        feedKey,
+      )
+      .map((row) => row.post_id);
     const missing = ids.filter((id) => reuse(id) === undefined);
     const fetched = missing.length > 0 ? getPostsByIds(missing) : {};
     const items: FeedItem[] = [];
@@ -243,12 +257,10 @@ export function getAllFeedItems(
      JOIN posts p ON p.id = fi.post_id
      WHERE fi.feed_key = ?
      ORDER BY fi.position ASC`,
-    feedKey
+    feedKey,
   );
 
-  return rows
-    .map(rowToFeedItem)
-    .filter((item): item is FeedItem => item !== null);
+  return rows.map(rowToFeedItem).filter((item): item is FeedItem => item !== null);
 }
 
 /**
@@ -263,10 +275,7 @@ export function getFeedMeta(feedKey: string): FeedMetaData | null {
 
   const db = getDb();
   if (!db) return null;
-  const row = db.getFirstSync<FeedMetaRow>(
-    'SELECT * FROM feed_meta WHERE feed_key = ?',
-    feedKey
-  );
+  const row = db.getFirstSync<FeedMetaRow>('SELECT * FROM feed_meta WHERE feed_key = ?', feedKey);
 
   if (!row) return null;
 
@@ -296,7 +305,7 @@ export function hasFeedData(feedKey: string): boolean {
   // syntax error`. Alias as `has_data` instead.
   const row = db.getFirstSync<{ has_data: number }>(
     'SELECT EXISTS(SELECT 1 FROM feed_items WHERE feed_key = ?) as has_data',
-    feedKey
+    feedKey,
   );
   return Boolean(row?.has_data);
 }
@@ -340,27 +349,24 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
     // Check if post already exists in this feed
     const existing = db.getFirstSync<{ post_id: string }>(
       'SELECT post_id FROM feed_items WHERE feed_key = ? AND post_id = ?',
-      feedKey, postId
+      feedKey,
+      postId,
     );
 
     if (!existing) {
       // Shift all existing positions up by 1
-      db.runSync(
-        'UPDATE feed_items SET position = position + 1 WHERE feed_key = ?',
-        feedKey
-      );
+      db.runSync('UPDATE feed_items SET position = position + 1 WHERE feed_key = ?', feedKey);
 
       // Insert at position 0
       db.runSync(
         'INSERT INTO feed_items (feed_key, post_id, position, slice_json, inserted_at) VALUES (?, ?, 0, NULL, ?)',
-        feedKey, postId, Date.now()
+        feedKey,
+        postId,
+        Date.now(),
       );
 
       // Update total count in meta
-      db.runSync(
-        'UPDATE feed_meta SET total_count = total_count + 1 WHERE feed_key = ?',
-        feedKey
-      );
+      db.runSync('UPDATE feed_meta SET total_count = total_count + 1 WHERE feed_key = ?', feedKey);
     }
 
     db.execSync('COMMIT');
@@ -404,7 +410,7 @@ export function getFeedKeysForPost(postId: string): string[] {
   if (!db) return [];
   const rows = db.getAllSync<{ feed_key: string }>(
     'SELECT feed_key FROM feed_items WHERE post_id = ?',
-    postId
+    postId,
   );
   return rows.map((row) => row.feed_key);
 }

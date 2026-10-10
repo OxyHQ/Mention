@@ -8,9 +8,7 @@ import {
   PostContent,
   HydratedPost,
 } from '@mention/shared-types';
-import {
-  mentionTextsFromContent,
-} from '@mention/shared-types/mentions';
+import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { posts as postsTable } from '../db/schema/posts';
 import {
   bumpPostCounters,
@@ -29,14 +27,28 @@ import { userPreferenceService, readInteractionSurface } from '../services/UserP
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, resolveViewerPrivacyAndGraph, ProfileVisibility, OxyClient, ViewerPrivacyContext, ViewerGraphContext } from '../utils/privacyHelpers';
+import {
+  checkFollowAccess,
+  extractFollowingIds,
+  requiresAccessCheck,
+  resolveViewerPrivacyAndGraph,
+  ProfileVisibility,
+  OxyClient,
+  ViewerPrivacyContext,
+  ViewerGraphContext,
+} from '../utils/privacyHelpers';
 import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import { enrichIngestedPosts } from '../services/postEnrichment';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
-import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
+import {
+  ChronoCursor,
+  chronoCursorSql,
+  chronoOrderBy,
+  ScoreCursor,
+} from '../mtn/feed/CursorBuilder';
 import { rankingWeight } from '../utils/rankingWeight';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { hashtagsSchema, parseFailureMessage } from './posts/composeInput';
@@ -107,9 +119,11 @@ const REPLY_ENGAGEMENT_SCORE = sql<number>`(
 )`;
 
 function replyEngagementScore(post: PostRecord): number {
-  return post.stats.likesCount
-    + post.stats.boostsCount * REPLY_BOOST_WEIGHT
-    + post.stats.commentsCount * REPLY_COMMENT_WEIGHT;
+  return (
+    post.stats.likesCount +
+    post.stats.boostsCount * REPLY_BOOST_WEIGHT +
+    post.stats.commentsCount * REPLY_COMMENT_WEIGHT
+  );
 }
 
 /**
@@ -130,7 +144,7 @@ type FollowerRef = string | { id?: string; _id?: string };
 class FeedController {
   /**
    * Transform posts to include full profile data and engagement stats
-   * 
+   *
    * @param posts - Raw post documents from database
    * @param currentUserId - Current user ID for personalization
    * @returns Array of hydrated posts with user data and engagement stats
@@ -182,7 +196,7 @@ class FeedController {
         viewerPrivacy: options.viewerPrivacy,
         viewerGraph: options.viewerGraph,
       });
-      
+
       // Ensure all posts have required fields
       return hydrated.filter((post) => {
         if (!post || !post.id) {
@@ -228,11 +242,14 @@ class FeedController {
    * @param blockedAndMutedIds - Array of user IDs to filter out
    * @returns Filtered posts array
    */
-  private filterBlockedAndMutedPosts<T extends { oxyUserId?: unknown }>(posts: T[], blockedAndMutedIds: string[]): T[] {
+  private filterBlockedAndMutedPosts<T extends { oxyUserId?: unknown }>(
+    posts: T[],
+    blockedAndMutedIds: string[],
+  ): T[] {
     if (blockedAndMutedIds.length === 0) return posts;
 
     const excludedIds = new Set(blockedAndMutedIds);
-    return posts.filter(post => {
+    return posts.filter((post) => {
       const authorId = post.oxyUserId == null ? '' : String(post.oxyUserId);
       return !excludedIds.has(authorId);
     });
@@ -290,12 +307,15 @@ class FeedController {
    */
   async createReply(req: AuthRequest, res: Response) {
     try {
-  const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
-  // Accept content as either a string or an object; normalize to PostContent shape
-  // The persisted reply content is the OUTPUT shape: the client-supplied podcast
-  // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
-  // server-denormalized show below; everything else carries over.
-  const replyContent: PostContent = typeof content === 'string' ? { text: content } : { ...(content ?? { text: '' }), podcast: undefined, job: undefined };
+      const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
+      // Accept content as either a string or an object; normalize to PostContent shape
+      // The persisted reply content is the OUTPUT shape: the client-supplied podcast
+      // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
+      // server-denormalized show below; everything else carries over.
+      const replyContent: PostContent =
+        typeof content === 'string'
+          ? { text: content }
+          : { ...(content ?? { text: '' }), podcast: undefined, job: undefined };
 
       // A reply carries composer media, so it is a write boundary like
       // `POST /posts`: the client's items go through the SAME normalizer
@@ -395,17 +415,23 @@ class FeedController {
                 switch (perm) {
                   case 'followers': {
                     if (!parentAuthorId) break;
-                    const authorFollowers = await getRuntimeOxyClient().follows.followers(parentAuthorId);
-                    canReply = authorFollowers?.followers?.some((f: FollowerRef) => {
-                      const followerId = typeof f === 'string' ? f : (f.id || f._id);
-                      return followerId === currentUserId || String(followerId) === String(currentUserId);
-                    }) || false;
+                    const authorFollowers =
+                      await getRuntimeOxyClient().follows.followers(parentAuthorId);
+                    canReply =
+                      authorFollowers?.followers?.some((f: FollowerRef) => {
+                        const followerId = typeof f === 'string' ? f : f.id || f._id;
+                        return (
+                          followerId === currentUserId ||
+                          String(followerId) === String(currentUserId)
+                        );
+                      }) || false;
                     break;
                   }
                   case 'following': {
                     if (!parentAuthorId) break;
                     try {
-                      const authorFollowing = await getRuntimeOxyClient().follows.following(parentAuthorId);
+                      const authorFollowing =
+                        await getRuntimeOxyClient().follows.following(parentAuthorId);
                       const followingIds = extractFollowingIds(authorFollowing);
                       canReply = followingIds.includes(currentUserId);
                     } catch (error) {
@@ -415,8 +441,10 @@ class FeedController {
                   }
                   case 'mentioned': {
                     canReply = parentPost.mentions.some((m: FollowerRef) => {
-                      const mentionId = typeof m === 'string' ? m : (m.id || m._id);
-                      return mentionId === currentUserId || String(mentionId) === String(currentUserId);
+                      const mentionId = typeof m === 'string' ? m : m.id || m._id;
+                      return (
+                        mentionId === currentUserId || String(mentionId) === String(currentUserId)
+                      );
                     });
                     break;
                   }
@@ -431,7 +459,7 @@ class FeedController {
           if (!canReply) {
             return res.status(403).json({
               error: 'You do not have permission to reply to this post',
-              replyPermission: permissions
+              replyPermission: permissions,
             });
           }
         }
@@ -453,25 +481,37 @@ class FeedController {
       // client's reference is untrusted: re-resolve + denormalize the show
       // server-side so a reply can never persist fabricated podcast metadata. An
       // unresolvable show — or any podcast missing a usable id — is dropped.
-      const replySanitizedPodcast = sanitizePodcast(typeof content === 'string' ? undefined : content?.podcast);
+      const replySanitizedPodcast = sanitizePodcast(
+        typeof content === 'string' ? undefined : content?.podcast,
+      );
       if (replySanitizedPodcast) {
         try {
           replyContent.podcast = await resolvePodcastContent(replySanitizedPodcast.syraPodcastId);
         } catch (podcastError) {
-          logger.warn('createReply: failed to resolve Syra podcast; dropping', { userId: currentUserId, syraPodcastId: replySanitizedPodcast.syraPodcastId, error: podcastError });
+          logger.warn('createReply: failed to resolve Syra podcast; dropping', {
+            userId: currentUserId,
+            syraPodcastId: replySanitizedPodcast.syraPodcastId,
+            error: podcastError,
+          });
         }
       }
 
       // A reply may attach a Mention job listing, same untrusted-reference
       // treatment as podcast: only the id crosses the boundary, the card is
       // denormalized server-side.
-      const replySanitizedJob = sanitizeJobInput(typeof content === 'string' ? undefined : content?.job);
+      const replySanitizedJob = sanitizeJobInput(
+        typeof content === 'string' ? undefined : content?.job,
+      );
       if (replySanitizedJob) {
         try {
           const jobContent = await resolveJobContent(replySanitizedJob.mentionJobId);
           if (jobContent) replyContent.job = jobContent;
         } catch (jobError) {
-          logger.warn('createReply: failed to resolve Mention job; dropping', { userId: currentUserId, mentionJobId: replySanitizedJob.mentionJobId, error: jobError });
+          logger.warn('createReply: failed to resolve Mention job; dropping', {
+            userId: currentUserId,
+            mentionJobId: replySanitizedJob.mentionJobId,
+            error: jobError,
+          });
         }
       }
 
@@ -508,7 +548,10 @@ class FeedController {
         };
         primaryLanguage = signals.languages[0];
       } catch (classifyError) {
-        logger.warn('createReply: baseline classification failed; saving with default pending', classifyError);
+        logger.warn(
+          'createReply: baseline classification failed; saving with default pending',
+          classifyError,
+        );
       }
 
       // If reviewReplies is enabled, set visibility to pending or use a flag
@@ -571,7 +614,12 @@ class FeedController {
       const parentAuthorId = parentPost.oxyUserId ?? undefined;
       if (parentAuthorId) {
         void affinityEventService
-          .record({ fromUserId: currentUserId, toUserId: parentAuthorId, type: 'reply', eventId: `reply:${reply.id}` })
+          .record({
+            fromUserId: currentUserId,
+            toUserId: parentAuthorId,
+            type: 'reply',
+            eventId: `reply:${reply.id}`,
+          })
           .catch(() => undefined);
       }
 
@@ -615,13 +663,13 @@ class FeedController {
 
       res.status(201).json({
         success: true,
-        reply: hydratedReply
+        reply: hydratedReply,
       });
     } catch (error) {
       logger.error('Error creating reply', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to create reply',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -697,7 +745,11 @@ class FeedController {
       // and `job` carry only an id. A boost never denormalizes a show or a job
       // card (the boosted original owns its own attachments), so both fields
       // are dropped rather than half-resolved.
-      const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined, job: undefined };
+      const boostContent: PostContent = {
+        ...(content ?? { text: '' }),
+        podcast: undefined,
+        job: undefined,
+      };
       // The comment on a boost is a body the author typed, so a profile link in
       // it becomes a mention on the same terms as every other write boundary.
       const foldedMentions = await foldProfileLinkMentions(boostContent, mentions);
@@ -765,7 +817,12 @@ class FeedController {
       const boostedAuthorId = originalPost?.oxyUserId ?? undefined;
       if (boostedAuthorId) {
         void affinityEventService
-          .record({ fromUserId: currentUserId, toUserId: boostedAuthorId, type: 'boost', eventId: `boost:${boost.id}` })
+          .record({
+            fromUserId: currentUserId,
+            toUserId: boostedAuthorId,
+            type: 'boost',
+            eventId: `boost:${boost.id}`,
+          })
           .catch(() => undefined);
       }
 
@@ -774,7 +831,9 @@ class FeedController {
 
       // Record interaction for user preference learning
       try {
-        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost', { surface });
+        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'boost', {
+          surface,
+        });
       } catch (error) {
         logger.warn('Failed to record interaction for preferences', error);
       }
@@ -805,13 +864,13 @@ class FeedController {
 
       res.status(201).json({
         success: true,
-        boost: hydratedBoost
+        boost: hydratedBoost,
       });
     } catch (error) {
       logger.error('Error creating boost', error);
       res.status(500).json({
         error: 'Failed to create boost',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -891,13 +950,13 @@ class FeedController {
 
       res.json({
         success: true,
-        message: 'Boost removed successfully'
+        message: 'Boost removed successfully',
       });
     } catch (error) {
       logger.error('Error unboosting', error);
       res.status(500).json({
         error: 'Failed to unboost',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -965,9 +1024,10 @@ class FeedController {
       // spine node (c1.parentPostId === root, c2.parentPostId === c1, …) and would
       // otherwise match the expanded parent filter, so exclude them by id. The root
       // has no parentPostId and can never appear as a reply.
-      const continuationIds = isSelfThreadRoot && parent
-        ? (await this.getSelfThreadContinuations(parent)).map((c) => c.id)
-        : [];
+      const continuationIds =
+        isSelfThreadRoot && parent
+          ? (await this.getSelfThreadContinuations(parent)).map((c) => c.id)
+          : [];
 
       const conditions: SQL[] = [
         continuationIds.length > 0
@@ -1039,9 +1099,9 @@ class FeedController {
       const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
       const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
       const nextCursor = anchor
-        ? (sort === 'best'
+        ? sort === 'best'
           ? ScoreCursor.build(replyEngagementScore(anchor), anchor.id)
-          : ChronoCursor.build(anchor.id, anchor.createdAt))
+          : ChronoCursor.build(anchor.id, anchor.createdAt)
         : undefined;
 
       return res.json({ items, hasMore, nextCursor });
@@ -1277,7 +1337,8 @@ class FeedController {
 
       // Check privacy
       const userSettings = await loadUserSettings(userId);
-      const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
+      const profileVisibility =
+        userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
       const isOwnProfile = currentUserId === userId;
 
       if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {

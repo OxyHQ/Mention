@@ -43,10 +43,7 @@ function identity(): McpEffectIdentity {
 describe('MCP effect receipt store', () => {
   it('gives exactly one concurrent request ownership of an effect', async () => {
     const input = identity();
-    const results = await Promise.all([
-      reserveMcpEffect(input),
-      reserveMcpEffect(input),
-    ]);
+    const results = await Promise.all([reserveMcpEffect(input), reserveMcpEffect(input)]);
 
     expect(results.filter((result) => result.kind === 'reserved')).toHaveLength(1);
     expect(results.filter((result) => result.kind === 'duplicate')).toHaveLength(1);
@@ -64,9 +61,15 @@ describe('MCP effect receipt store', () => {
       status: 'succeeded',
       responseStatus: 201,
     });
-    await expect(reserveMcpEffect({
-      ...input,
-      requestFingerprint: JSON.stringify({ method: 'POST', path: '/posts', body: { text: 'different' } }),
-    })).resolves.toEqual({ kind: 'conflict' });
+    await expect(
+      reserveMcpEffect({
+        ...input,
+        requestFingerprint: JSON.stringify({
+          method: 'POST',
+          path: '/posts',
+          body: { text: 'different' },
+        }),
+      }),
+    ).resolves.toEqual({ kind: 'conflict' });
   });
 });

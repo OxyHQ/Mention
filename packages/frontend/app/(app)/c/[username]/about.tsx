@@ -11,5 +11,5 @@ import { AccountInfoScreen } from '@/components/AccountInfoScreen';
  * sitting on it is a URL the account does not own.
  */
 export default function ChannelAboutRoute() {
-    return <AccountInfoScreen routedFamily="channel" />;
+  return <AccountInfoScreen routedFamily="channel" />;
 }

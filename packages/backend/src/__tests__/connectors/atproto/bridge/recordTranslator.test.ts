@@ -78,7 +78,10 @@ describe('mtnUriToStrongRef', () => {
 
 describe('translatePostRecord', () => {
   it('maps a minimal post to app.bsky.feed.post', () => {
-    const record: MentionPostRecord = { text: 'hello world', createdAt: '2026-06-30T00:00:00.000Z' };
+    const record: MentionPostRecord = {
+      text: 'hello world',
+      createdAt: '2026-06-30T00:00:00.000Z',
+    };
     expect(translatePostRecord(record)).toEqual({
       $type: 'app.bsky.feed.post',
       text: 'hello world',
@@ -167,7 +170,10 @@ describe('translatePostRecord', () => {
       embed: {
         type: 'media',
         items: [
-          { blob: { sha256: 'imgsha', mediaType: 'image', mime: 'image/png', size: 1234 }, alt: 'an image' },
+          {
+            blob: { sha256: 'imgsha', mediaType: 'image', mime: 'image/png', size: 1234 },
+            alt: 'an image',
+          },
           { blob: { sha256: 'vidsha', mediaType: 'video' } },
         ],
       },
@@ -229,7 +235,10 @@ describe('postEmbedBlobViews', () => {
     const record: MentionPostRecord = {
       text: 'media',
       createdAt: '2026-06-30T00:00:00.000Z',
-      embed: { type: 'media', items: [{ blob: { sha256: 'abc', mediaType: 'image', mime: 'image/jpeg', size: 9 } }] },
+      embed: {
+        type: 'media',
+        items: [{ blob: { sha256: 'abc', mediaType: 'image', mime: 'image/jpeg', size: 9 } }],
+      },
     };
     expect(postEmbedBlobViews(record)).toEqual([
       { sha256: 'abc', mediaType: 'image', mime: 'image/jpeg', size: 9, contentRef: 'abc' },

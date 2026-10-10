@@ -71,7 +71,9 @@ function later(minutes: number): Date {
   return new Date(Date.now() + minutes * 60 * 1000);
 }
 
-async function seedScheduled(options: { owner?: string; inMinutes?: number } = {}): Promise<string> {
+async function seedScheduled(
+  options: { owner?: string; inMinutes?: number } = {},
+): Promise<string> {
   const record = await seedPost(scope, {
     oxyUserId: options.owner ?? VIEWER_ID,
     status: 'scheduled',

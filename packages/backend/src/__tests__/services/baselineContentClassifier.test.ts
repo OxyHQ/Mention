@@ -33,7 +33,10 @@ describe('BaselineContentClassifier', () => {
     });
 
     it('normalizes a BCP-47 provided language to its primary subtag', () => {
-      const result = baselineContentClassifier.classify({ text: 'irrelevant text here', language: 'pt-BR' });
+      const result = baselineContentClassifier.classify({
+        text: 'irrelevant text here',
+        language: 'pt-BR',
+      });
       expect(result.languages).toEqual(['pt']);
     });
 
@@ -146,7 +149,7 @@ describe('BaselineContentClassifier', () => {
       expect(result.hashtagsNorm).toContain('tech');
       expect(result.hashtagsNorm).toContain('design');
       // 'tech' appears twice in text but is deduped.
-      expect(result.hashtagsNorm.filter(t => t === 'tech')).toHaveLength(1);
+      expect(result.hashtagsNorm.filter((t) => t === 'tech')).toHaveLength(1);
     });
 
     it('applies the alias map (artificialintelligence/ml/llm -> ai)', () => {
@@ -159,7 +162,7 @@ describe('BaselineContentClassifier', () => {
       expect(result.hashtagsNorm).not.toContain('ml');
       expect(result.hashtagsNorm).not.toContain('llm');
       // All three aliases collapse to a single 'ai'.
-      expect(result.hashtagsNorm.filter(t => t === 'ai')).toHaveLength(1);
+      expect(result.hashtagsNorm.filter((t) => t === 'ai')).toHaveLength(1);
     });
 
     it('returns an empty array when there are no hashtags', () => {
@@ -190,33 +193,45 @@ describe('BaselineContentClassifier', () => {
 
     it('uses whole-word matching (no substring false positives)', () => {
       // "start" must NOT trigger the 'art' topic; "scarttle" must not trigger 'art'.
-      const result = baselineContentClassifier.classify({ text: 'we will start the scartttle soon' });
+      const result = baselineContentClassifier.classify({
+        text: 'we will start the scartttle soon',
+      });
       expect(result.topics).not.toContain('art');
     });
 
     it('returns [] when nothing matches', () => {
-      expect(baselineContentClassifier.classify({ text: 'just saying hello to my friends' }).topics).toEqual([]);
+      expect(
+        baselineContentClassifier.classify({ text: 'just saying hello to my friends' }).topics,
+      ).toEqual([]);
     });
 
     it('dedupes topics from overlapping hashtag + keyword signals', () => {
       const result = baselineContentClassifier.classify({
         text: 'a recipe for the best restaurant cuisine #food',
       });
-      expect(result.topics.filter(t => t === 'food')).toHaveLength(1);
+      expect(result.topics.filter((t) => t === 'food')).toHaveLength(1);
     });
 
     it('maps expanded aliased hashtags to topics (chatgpt → ai, f1 → sports, netflix → entertainment)', () => {
       expect(baselineContentClassifier.classify({ text: 'wow #chatgpt' }).topics).toContain('ai');
-      expect(baselineContentClassifier.classify({ text: 'race day #f1' }).topics).toContain('sports');
-      expect(baselineContentClassifier.classify({ text: 'binge #netflix' }).topics).toContain('entertainment');
+      expect(baselineContentClassifier.classify({ text: 'race day #f1' }).topics).toContain(
+        'sports',
+      );
+      expect(baselineContentClassifier.classify({ text: 'binge #netflix' }).topics).toContain(
+        'entertainment',
+      );
     });
 
     it('maps expanded keyword phrases to topics (federal reserve → finance, supreme court → politics)', () => {
       expect(
-        baselineContentClassifier.classify({ text: 'the federal reserve held interest rate steady today' }).topics,
+        baselineContentClassifier.classify({
+          text: 'the federal reserve held interest rate steady today',
+        }).topics,
       ).toContain('finance');
       expect(
-        baselineContentClassifier.classify({ text: 'the supreme court issued a major ruling this morning' }).topics,
+        baselineContentClassifier.classify({
+          text: 'the supreme court issued a major ruling this morning',
+        }).topics,
       ).toContain('politics');
     });
   });
@@ -267,14 +282,20 @@ describe('BaselineContentClassifier', () => {
     });
 
     it('returns undefined when no region signal exists', () => {
-      expect(baselineContentClassifier.classify({ text: 'no signals at all' }).region).toBeUndefined();
+      expect(
+        baselineContentClassifier.classify({ text: 'no signals at all' }).region,
+      ).toBeUndefined();
     });
   });
 
   describe('sensitive', () => {
     it('passes the provided sensitive flag through when there is no NSFW signal', () => {
-      expect(baselineContentClassifier.classify({ text: 'x', sensitive: true }).sensitive).toBe(true);
-      expect(baselineContentClassifier.classify({ text: 'x', sensitive: false }).sensitive).toBe(false);
+      expect(baselineContentClassifier.classify({ text: 'x', sensitive: true }).sensitive).toBe(
+        true,
+      );
+      expect(baselineContentClassifier.classify({ text: 'x', sensitive: false }).sensitive).toBe(
+        false,
+      );
       expect(baselineContentClassifier.classify({ text: 'x' }).sensitive).toBeUndefined();
     });
 
@@ -295,20 +316,32 @@ describe('BaselineContentClassifier', () => {
     });
 
     it('matches NSFW hashtags case-insensitively and with a leading #', () => {
-      expect(baselineContentClassifier.classify({ text: 'a', hashtags: ['OnlyFans'] }).sensitive).toBe(true);
+      expect(
+        baselineContentClassifier.classify({ text: 'a', hashtags: ['OnlyFans'] }).sensitive,
+      ).toBe(true);
       expect(baselineContentClassifier.classify({ text: 'hot #XXX content' }).sensitive).toBe(true);
     });
 
     it('keeps the source sensitive flag even when there are no NSFW hashtags', () => {
       expect(
-        baselineContentClassifier.classify({ text: 'ordinary text', sensitive: true, hashtags: ['tech'] }).sensitive,
+        baselineContentClassifier.classify({
+          text: 'ordinary text',
+          sensitive: true,
+          hashtags: ['tech'],
+        }).sensitive,
       ).toBe(true);
     });
 
     it('does NOT mark a clean post sensitive (non-NSFW hashtags pass through unchanged)', () => {
-      expect(baselineContentClassifier.classify({ text: 'a normal post #tech #music' }).sensitive).toBeUndefined();
       expect(
-        baselineContentClassifier.classify({ text: 'a normal post', sensitive: false, hashtags: ['art'] }).sensitive,
+        baselineContentClassifier.classify({ text: 'a normal post #tech #music' }).sensitive,
+      ).toBeUndefined();
+      expect(
+        baselineContentClassifier.classify({
+          text: 'a normal post',
+          sensitive: false,
+          hashtags: ['art'],
+        }).sensitive,
       ).toBe(false);
     });
   });
@@ -346,7 +379,9 @@ describe('BaselineContentClassifier', () => {
 
   describe('version + classifiedAt', () => {
     it('stamps the ruleset version', () => {
-      expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
+      expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(
+        BASELINE_CLASSIFIER_VERSION,
+      );
     });
 
     it('is at v11 (uncertain language membership fails closed)', () => {
@@ -377,7 +412,11 @@ describe('BaselineContentClassifier', () => {
     });
 
     it('is deterministic for the same input', () => {
-      const input: ClassifyInput = { text: 'a recipe for great food #food', isFederated: true, instanceDomain: 'm.fr' };
+      const input: ClassifyInput = {
+        text: 'a recipe for great food #food',
+        isFederated: true,
+        instanceDomain: 'm.fr',
+      };
       const a = baselineContentClassifier.classify(input);
       const b = baselineContentClassifier.classify(input);
       // classifiedAt is a timestamp; compare everything else.
@@ -397,7 +436,10 @@ describe('BaselineContentClassifier', () => {
         },
       };
       const classifier = new BaselineContentClassifier(stub);
-      const result = classifier.classify({ text: 'this would normally map to #tech', hashtags: ['tech'] });
+      const result = classifier.classify({
+        text: 'this would normally map to #tech',
+        hashtags: ['tech'],
+      });
 
       expect(result.topics).toEqual(['injected-topic']);
       // The stub received normalized inputs (lowercased text + canonical hashtags).
@@ -427,11 +469,15 @@ describe('RuleBasedTopicClassifier (direct)', () => {
 
 describe('deriveRegion (direct)', () => {
   it('prefers federated instance over locale', () => {
-    expect(deriveRegion({ isFederated: true, instanceDomain: 'x.fr', authorLocale: 'de-DE' })).toBe('FR');
+    expect(deriveRegion({ isFederated: true, instanceDomain: 'x.fr', authorLocale: 'de-DE' })).toBe(
+      'FR',
+    );
   });
 
   it('uses locale when instance yields nothing', () => {
-    expect(deriveRegion({ isFederated: true, instanceDomain: 'x.com', authorLocale: 'de-DE' })).toBe('DE');
+    expect(
+      deriveRegion({ isFederated: true, instanceDomain: 'x.com', authorLocale: 'de-DE' }),
+    ).toBe('DE');
   });
 
   it('returns undefined when both are unknown', () => {

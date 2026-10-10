@@ -51,7 +51,11 @@ async function seedQuoted(): Promise<string> {
     visibility: PostVisibility.PUBLIC,
     status: 'published',
     content: { variants: [{ source: 'author', text: 'the quoted original' }] },
-    federation: { activityId: QUOTED_AP, actorUri: 'https://mastodon.social/users/getkirby', url: QUOTED_WEB },
+    federation: {
+      activityId: QUOTED_AP,
+      actorUri: 'https://mastodon.social/users/getkirby',
+      url: QUOTED_WEB,
+    },
   });
   created.push(record.id);
   return record.id;
@@ -75,7 +79,9 @@ afterAll(async () => {
 
 afterEach(async () => {
   if (created.length > 0) {
-    await getDb().delete(posts).where(inArray(posts.id, [...created]));
+    await getDb()
+      .delete(posts)
+      .where(inArray(posts.id, [...created]));
     created.length = 0;
   }
 });

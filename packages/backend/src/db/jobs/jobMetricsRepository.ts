@@ -37,7 +37,11 @@ function utcMidnight(now: Date = new Date()): Date {
  * and a runtime-computed key would need an unsafe cast to satisfy it. This
  * keeps every branch fully typed.
  */
-export async function recordJobMetricEvent(jobId: string, event: MentionJobMetricEvent, now = new Date()): Promise<void> {
+export async function recordJobMetricEvent(
+  jobId: string,
+  event: MentionJobMetricEvent,
+  now = new Date(),
+): Promise<void> {
   const day = utcMidnight(now);
   const db = getDb();
   const target = [mentionJobDailyMetrics.jobId, mentionJobDailyMetrics.day];
@@ -53,7 +57,10 @@ export async function recordJobMetricEvent(jobId: string, event: MentionJobMetri
       await db
         .insert(mentionJobDailyMetrics)
         .values({ jobId, day, applyStarts: 1 })
-        .onConflictDoUpdate({ target, set: { applyStarts: sql`${mentionJobDailyMetrics.applyStarts} + 1` } });
+        .onConflictDoUpdate({
+          target,
+          set: { applyStarts: sql`${mentionJobDailyMetrics.applyStarts} + 1` },
+        });
       return;
     case 'external_apply_click':
       await db

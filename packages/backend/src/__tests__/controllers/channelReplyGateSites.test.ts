@@ -58,12 +58,10 @@ const isChannelAccount = vi.fn();
 vi.mock('../../services/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
   cacheAccountMemberReads: (reader: unknown) => reader,
-  assertCanPublishAsAccount: vi.fn(
-    async (params: { callerId: string | null }) => ({
-      authorId: params.callerId,
-      authorKind: null,
-    }),
-  ),
+  assertCanPublishAsAccount: vi.fn(async (params: { callerId: string | null }) => ({
+    authorId: params.callerId,
+    authorKind: null,
+  })),
   PublishAsAccessError: class PublishAsAccessError extends Error {
     readonly status: number;
     constructor(status: number, message: string) {
@@ -94,8 +92,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }

@@ -1,11 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getUserLanguages } from '@oxy.so/core';
@@ -64,9 +57,7 @@ export function AccountSwitchReset({
   const { user, isAuthenticated, isAuthResolved } = useAuth();
   const queryClient = useQueryClient();
   const { resetTheme } = useBloomTheme();
-  const resetAppearance = useAppearanceStore(
-    (state) => state.resetViewerState,
-  );
+  const resetAppearance = useAppearanceStore((state) => state.resetViewerState);
   const prevViewerIdRef = useRef<string | null>(null);
 
   /*
@@ -94,55 +85,49 @@ export function AccountSwitchReset({
   const viewerId = !isAuthResolved
     ? null
     : isAuthenticated
-      ? (userId ? viewerCacheId(userId) : null)
+      ? userId
+        ? viewerCacheId(userId)
+        : null
       : viewerCacheId(null);
   const [readyViewerId, setReadyViewerId] = useState<string | null>(null);
 
-  const clearRuntimeState = useCallback((
-    previousViewerId: string | null | undefined,
-    clearCachedData: boolean,
-  ) => {
-    // Stop the old identity's event stream before invalidating its state.
-    socketService.disconnect();
-    liveRoomRuntimeController.resetViewerState();
+  const clearRuntimeState = useCallback(
+    (previousViewerId: string | null | undefined, clearCachedData: boolean) => {
+      // Stop the old identity's event stream before invalidating its state.
+      socketService.disconnect();
+      liveRoomRuntimeController.resetViewerState();
 
-    // `clear()` destroys active queries/mutations and removes every cache key,
-    // including legacy keys that predate the viewer-key factory.
-    queryClient.clear();
-    usePostsStore
-      .getState()
-      .resetViewerState({ clearCachedData });
-    usePrivacyStore.getState().reset();
-    useEntityFollowStore.getState().reset();
-    useExternalEmbedsStore
-      .getState()
-      .resetViewerState(previousViewerId ?? undefined);
-    useLiveRoomsStore.getState().resetViewerState();
-    resetLivePresence();
-    useTrendsStore.getState().resetViewerState();
-    clearFeedScrollOffsets();
-    // The previous viewer's engagements say nothing about the next viewer's
-    // lists, and every cache they could have marked stale is gone anyway. The
-    // same holds for the safety rules they changed — muted words and the
-    // sensitive-content toggle are per-account.
-    resetEngagementInvalidation();
-    resetSafetyInvalidation();
-    // Link cards still in flight belong to the previous viewer.
-    resetPendingDocuments();
+      // `clear()` destroys active queries/mutations and removes every cache key,
+      // including legacy keys that predate the viewer-key factory.
+      queryClient.clear();
+      usePostsStore.getState().resetViewerState({ clearCachedData });
+      usePrivacyStore.getState().reset();
+      useEntityFollowStore.getState().reset();
+      useExternalEmbedsStore.getState().resetViewerState(previousViewerId ?? undefined);
+      useLiveRoomsStore.getState().resetViewerState();
+      resetLivePresence();
+      useTrendsStore.getState().resetViewerState();
+      clearFeedScrollOffsets();
+      // The previous viewer's engagements say nothing about the next viewer's
+      // lists, and every cache they could have marked stale is gone anyway. The
+      // same holds for the safety rules they changed — muted words and the
+      // sensitive-content toggle are per-account.
+      resetEngagementInvalidation();
+      resetSafetyInvalidation();
+      // Link cards still in flight belong to the previous viewer.
+      resetPendingDocuments();
 
-    resetAppearance();
-    resetTheme();
+      resetAppearance();
+      resetTheme();
 
-    if (previousViewerId) {
-      resetRecommendationFiltersViewer(previousViewerId);
-      resetCurrentUserPrivacySettingsCache(previousViewerId);
-      void searchService.clearSearchHistory(previousViewerId);
-    }
-  }, [
-    queryClient,
-    resetAppearance,
-    resetTheme,
-  ]);
+      if (previousViewerId) {
+        resetRecommendationFiltersViewer(previousViewerId);
+        resetCurrentUserPrivacySettingsCache(previousViewerId);
+        void searchService.clearSearchHistory(previousViewerId);
+      }
+    },
+    [queryClient, resetAppearance, resetTheme],
+  );
 
   useLayoutEffect(() => {
     if (!viewerId) {
@@ -150,9 +135,7 @@ export function AccountSwitchReset({
       const previousViewerId = prevViewerIdRef.current;
       if (previousViewerId) {
         clearRuntimeState(
-          previousViewerId === viewerCacheId(null)
-            ? undefined
-            : previousViewerId,
+          previousViewerId === viewerCacheId(null) ? undefined : previousViewerId,
           true,
         );
         prevViewerIdRef.current = null;
@@ -180,8 +163,7 @@ export function AccountSwitchReset({
       const previousPrivateViewerId: string | undefined =
         prev && prev !== viewerCacheId(null)
           ? prev
-          : cacheClaim.previousViewerId &&
-              cacheClaim.previousViewerId !== viewerCacheId(null)
+          : cacheClaim.previousViewerId && cacheClaim.previousViewerId !== viewerCacheId(null)
             ? cacheClaim.previousViewerId
             : undefined;
       clearRuntimeState(previousPrivateViewerId, false);
@@ -191,11 +173,7 @@ export function AccountSwitchReset({
     if (readyViewerId !== viewerId) {
       setReadyViewerId(viewerId);
     }
-  }, [
-    viewerId,
-    readyViewerId,
-    clearRuntimeState,
-  ]);
+  }, [viewerId, readyViewerId, clearRuntimeState]);
 
   return viewerId && readyViewerId === viewerId ? <>{children}</> : <>{fallback}</>;
 }

@@ -24,7 +24,9 @@ describe('safety filter', () => {
   it('drops sensitive posts for a safe-for-work viewer', () => {
     const ctx: FeedEngineContext = { showSensitiveContent: false };
     expect(safety.keep(post({ hashtags: ['nsfw'] }), ctx, {})).toBe(false);
-    expect(safety.keep(post({ postClassification: classification({ sensitive: true }) }), ctx, {})).toBe(false);
+    expect(
+      safety.keep(post({ postClassification: classification({ sensitive: true }) }), ctx, {}),
+    ).toBe(false);
     expect(safety.keep(post({ metadata: { isSensitive: true } }), ctx, {})).toBe(false);
     expect(safety.keep(post({ federation: { sensitive: true } }), ctx, {})).toBe(false);
     expect(safety.keep(post({ hashtags: ['tech'] }), ctx, {})).toBe(true);
@@ -33,7 +35,9 @@ describe('safety filter', () => {
   it('drops sensitive posts even when showSensitiveContent is true', () => {
     const ctx: FeedEngineContext = { showSensitiveContent: true };
     expect(safety.keep(post({ hashtags: ['nsfw'] }), ctx, {})).toBe(false);
-    expect(safety.keep(post({ postClassification: classification({ sensitive: true }) }), ctx, {})).toBe(false);
+    expect(
+      safety.keep(post({ postClassification: classification({ sensitive: true }) }), ctx, {}),
+    ).toBe(false);
   });
 });
 
@@ -79,12 +83,16 @@ describe('noContentWarning filter', () => {
   });
 
   it('honors the reader turning it off', () => {
-    const ctx: FeedEngineContext = { feedTuning: { forYou: { noContentWarning: { enabled: false } } } };
+    const ctx: FeedEngineContext = {
+      feedTuning: { forYou: { noContentWarning: { enabled: false } } },
+    };
     expect(cw.keep(warned(), ctx, GATE)).toBe(true);
   });
 
   it('does NOT read the reader\u2019s setting without the marker — a custom feed is static', () => {
-    const ctx: FeedEngineContext = { feedTuning: { forYou: { noContentWarning: { enabled: false } } } };
+    const ctx: FeedEngineContext = {
+      feedTuning: { forYou: { noContentWarning: { enabled: false } } },
+    };
     expect(cw.keep(warned(), ctx, {})).toBe(false);
   });
 });
@@ -98,33 +106,48 @@ describe('author filters read the resolved account', () => {
   // `username` is always set: an EMPTY one is what marks the degraded placeholder,
   // so a fixture that forgets it silently tests the unresolved path instead of the
   // one it names.
-  const summaries = (entries: Record<string, Record<string, unknown>>): FeedEngineContext => ({
-    authorSummaries: new Map(
-      Object.entries(entries).map(([id, summary]) => [
-        id,
-        { ...summary, user: { id, name: {}, username: id, ...(summary.user as object ?? {}) } },
-      ]),
-    ),
-  } as FeedEngineContext);
+  const summaries = (entries: Record<string, Record<string, unknown>>): FeedEngineContext =>
+    ({
+      authorSummaries: new Map(
+        Object.entries(entries).map(([id, summary]) => [
+          id,
+          { ...summary, user: { id, name: {}, username: id, ...((summary.user as object) ?? {}) } },
+        ]),
+      ),
+    }) as FeedEngineContext;
   const p = (authorId = 'a1') => post({ oxyUserId: authorId });
 
   it('every one of them declares needsAuthor, or the batch never runs for it', () => {
-    for (const id of ['verifiedOnly', 'verifiedFollowsOnly', 'minFollowers', 'minAccountAge', 'authorHasAvatar']) {
+    for (const id of [
+      'verifiedOnly',
+      'verifiedFollowsOnly',
+      'minFollowers',
+      'minAccountAge',
+      'authorHasAvatar',
+    ]) {
       expect(filter(id).needsAuthor).toBe(true);
     }
   });
 
   it('verifiedOnly enforces on a resolved account and abstains on an unknown one', () => {
-    expect(filter('verifiedOnly').keep(p(), summaries({ a1: { user: { verified: true } } }), {})).toBe(true);
-    expect(filter('verifiedOnly').keep(p(), summaries({ a1: { user: { verified: false } } }), {})).toBe(false);
+    expect(
+      filter('verifiedOnly').keep(p(), summaries({ a1: { user: { verified: true } } }), {}),
+    ).toBe(true);
+    expect(
+      filter('verifiedOnly').keep(p(), summaries({ a1: { user: { verified: false } } }), {}),
+    ).toBe(false);
     expect(filter('verifiedOnly').keep(p(), {}, {})).toBe(true);
     expect(filter('verifiedOnly').keep(p(), summaries({}), {})).toBe(true);
   });
 
   it('minFollowers enforces a real floor, and abstains when the count is unknown', () => {
     const params = { minFollowers: 100 };
-    expect(filter('minFollowers').keep(p(), summaries({ a1: { followerCount: 500 } }), params)).toBe(true);
-    expect(filter('minFollowers').keep(p(), summaries({ a1: { followerCount: 5 } }), params)).toBe(false);
+    expect(
+      filter('minFollowers').keep(p(), summaries({ a1: { followerCount: 500 } }), params),
+    ).toBe(true);
+    expect(filter('minFollowers').keep(p(), summaries({ a1: { followerCount: 5 } }), params)).toBe(
+      false,
+    );
     expect(filter('minFollowers').keep(p(), summaries({ a1: {} }), params)).toBe(true);
     expect(filter('minFollowers').keep(p(), {}, params)).toBe(true);
   });
@@ -132,16 +155,38 @@ describe('author filters read the resolved account', () => {
   it('minAccountAge reads the creation date Oxy always sent', () => {
     const params = { minAgeDays: 30 };
     const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
-    expect(filter('minAccountAge').keep(p(), summaries({ a1: { accountCreatedAt: daysAgo(90) } }), params)).toBe(true);
-    expect(filter('minAccountAge').keep(p(), summaries({ a1: { accountCreatedAt: daysAgo(2) } }), params)).toBe(false);
-    expect(filter('minAccountAge').keep(p(), summaries({ a1: { accountCreatedAt: 'not a date' } }), params)).toBe(true);
+    expect(
+      filter('minAccountAge').keep(
+        p(),
+        summaries({ a1: { accountCreatedAt: daysAgo(90) } }),
+        params,
+      ),
+    ).toBe(true);
+    expect(
+      filter('minAccountAge').keep(
+        p(),
+        summaries({ a1: { accountCreatedAt: daysAgo(2) } }),
+        params,
+      ),
+    ).toBe(false);
+    expect(
+      filter('minAccountAge').keep(
+        p(),
+        summaries({ a1: { accountCreatedAt: 'not a date' } }),
+        params,
+      ),
+    ).toBe(true);
     expect(filter('minAccountAge').keep(p(), {}, params)).toBe(true);
   });
 
   it('the degraded placeholder is not read as an account with nothing filled in', () => {
     // `degradedActorSummary` is blank everywhere, so read naively it says
     // "unverified, no followers, no picture" about an account nobody resolved.
-    const degraded = { authorSummaries: new Map([['a1', { user: { id: 'a1', username: '', name: {}, avatar: null } }]]) } as FeedEngineContext;
+    const degraded = {
+      authorSummaries: new Map([
+        ['a1', { user: { id: 'a1', username: '', name: {}, avatar: null } }],
+      ]),
+    } as FeedEngineContext;
     expect(filter('verifiedOnly').keep(p(), degraded, {})).toBe(true);
     expect(filter('minFollowers').keep(p(), degraded, { minFollowers: 100 })).toBe(true);
     expect(filter('authorHasAvatar').keep(p(), degraded, { applyToFederated: true })).toBe(true);
@@ -149,9 +194,12 @@ describe('author filters read the resolved account', () => {
 });
 
 describe('authorHasAvatar filter', () => {
-  const avatar = (value: unknown, extra: Record<string, unknown> = {}): FeedEngineContext => ({
-    authorSummaries: new Map([['a1', { user: { id: 'a1', username: 'a1', name: {}, avatar: value, ...extra } }]]),
-  } as FeedEngineContext);
+  const avatar = (value: unknown, extra: Record<string, unknown> = {}): FeedEngineContext =>
+    ({
+      authorSummaries: new Map([
+        ['a1', { user: { id: 'a1', username: 'a1', name: {}, avatar: value, ...extra } }],
+      ]),
+    }) as FeedEngineContext;
   const p = () => post({ oxyUserId: 'a1' });
   const ALL = { applyToFederated: true };
 
@@ -163,7 +211,9 @@ describe('authorHasAvatar filter', () => {
 
   it('accepts any non-blank string — a file id or an absolute URL', () => {
     expect(filter('authorHasAvatar').keep(p(), avatar('file-abc'), ALL)).toBe(true);
-    expect(filter('authorHasAvatar').keep(p(), avatar('https://example.test/a.png'), ALL)).toBe(true);
+    expect(filter('authorHasAvatar').keep(p(), avatar('https://example.test/a.png'), ALL)).toBe(
+      true,
+    );
   });
 
   it('EXEMPTS federated accounts unless asked not to', () => {
@@ -185,8 +235,16 @@ describe('languagePreference filter', () => {
   it('any-overlap match; passes posts with no declared language', () => {
     const ctx: FeedEngineContext = {};
     const params = { languages: ['es'] };
-    expect(lang.keep(post({ postClassification: classification({ languages: ['en', 'es'] }) }), ctx, params)).toBe(true);
-    expect(lang.keep(post({ postClassification: classification({ languages: ['fr'] }) }), ctx, params)).toBe(false);
+    expect(
+      lang.keep(
+        post({ postClassification: classification({ languages: ['en', 'es'] }) }),
+        ctx,
+        params,
+      ),
+    ).toBe(true);
+    expect(
+      lang.keep(post({ postClassification: classification({ languages: ['fr'] }) }), ctx, params),
+    ).toBe(false);
     expect(lang.keep(post(), ctx, params)).toBe(true); // no language → pass through
   });
 });
@@ -238,7 +296,12 @@ describe('mediaOnly filter', () => {
     expect(mediaOnly.keep(post({ type: PostType.IMAGE }), {}, {})).toBe(true);
     expect(
       mediaOnly.keep(
-        post({ content: { variants: [{ source: 'author', text: '' }], media: [{ id: 'm1', type: 'image' }] } }),
+        post({
+          content: {
+            variants: [{ source: 'author', text: '' }],
+            media: [{ id: 'm1', type: 'image' }],
+          },
+        }),
         {},
         {},
       ),

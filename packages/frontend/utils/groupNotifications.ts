@@ -174,14 +174,14 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function objectId(value: unknown): string | undefined {
   const object = objectValue(value);
-  return object
-    ? stringValue(object._id) || stringValue(object.id)
-    : stringValue(value);
+  return object ? stringValue(object._id) || stringValue(object.id) : stringValue(value);
 }
 
 function extractActor(n: TRawNotification): GroupedActor {
@@ -231,7 +231,12 @@ function toSingle(n: TRawNotification): GroupedNotification {
  * the notifications screen de-dupes rows by `key` — so the ordinal is what keeps
  * the later windows from being dropped on render.
  */
-function toGroup(n: TRawNotification, groupKey: string, entityId: string, ordinal: number): GroupedNotification {
+function toGroup(
+  n: TRawNotification,
+  groupKey: string,
+  entityId: string,
+  ordinal: number,
+): GroupedNotification {
   const actor = extractActor(n);
   return {
     key: `group:${groupKey}#${ordinal}`,
@@ -253,7 +258,7 @@ function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
   const actor = extractActor(n);
 
   // Keep track of unique actors (by id)
-  const existingIds = new Set(group.actors.map(a => a.id));
+  const existingIds = new Set(group.actors.map((a) => a.id));
   if (!existingIds.has(actor.id)) {
     if (group.actors.length < MAX_GROUP_ACTORS) {
       group.actors.push(actor);

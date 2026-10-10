@@ -21,7 +21,11 @@ export interface ProfileUnavailableProps {
  * info. Each used to draw its own "Profile not found", and said it for any
  * failure, a dropped connection included (OxyHQ/Mention#1124).
  */
-export function ProfileUnavailable({ notFound, onRetry, notFoundMessage }: ProfileUnavailableProps) {
+export function ProfileUnavailable({
+  notFound,
+  onRetry,
+  notFoundMessage,
+}: ProfileUnavailableProps) {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
 
@@ -45,9 +49,12 @@ export function ProfileUnavailable({ notFound, onRetry, notFoundMessage }: Profi
     <EmptyState
       sticker="profileNotFound"
       title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-      subtitle={notFoundMessage ?? t('profile.notFound.gone', {
-        defaultValue: "This account doesn't exist, or it's no longer available.",
-      })}
+      subtitle={
+        notFoundMessage ??
+        t('profile.notFound.gone', {
+          defaultValue: "This account doesn't exist, or it's no longer available.",
+        })
+      }
       action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: () => safeBack() }}
     />
   );

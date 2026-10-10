@@ -1,4 +1,4 @@
-import express, { Response } from "express";
+import express, { Response } from 'express';
 import { type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, count, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -137,19 +137,22 @@ function pathId(value: string | string[] | undefined): string {
 }
 
 // Get notifications for current user
-router.get("/", async (req: AuthRequest, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({
-        message: "Unauthorized: User ID not found",
-        error: "AUTH_ERROR"
+        message: 'Unauthorized: User ID not found',
+        error: 'AUTH_ERROR',
       });
     }
 
     // Use cursor-based pagination for better performance at scale
     const cursor = queryString(req.query.cursor);
-    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1), MAX_NOTIFICATIONS_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1),
+      MAX_NOTIFICATIONS_PAGE_SIZE,
+    );
 
     const recipientIds = await inboxRecipientIds(req, userId);
     /** The channels among them — everything in the scope that is not the viewer. */
@@ -164,8 +167,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // 400 it used to. The codec accepts both live id shapes (`@oxy.so/db`), so
       // no cursor this server minted is ever refused.
       return res.status(400).json({
-        message: "Invalid cursor format",
-        error: "INVALID_CURSOR"
+        message: 'Invalid cursor format',
+        error: 'INVALID_CURSOR',
       });
     }
 
@@ -231,10 +234,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     const unreadCount = unreadRows[0]?.value ?? 0;
 
-  // Resolve unique actor profiles from Oxy to enrich response
-    const uniqueActorIds = Array.from(new Set(
-      notificationsRaw.map((n) => n.actorId).filter(Boolean)
-    ));
+    // Resolve unique actor profiles from Oxy to enrich response
+    const uniqueActorIds = Array.from(
+      new Set(notificationsRaw.map((n) => n.actorId).filter(Boolean)),
+    );
 
     // Channels named as the RECIPIENT of a row on this page. A notification the
     // viewer received because they operate a channel says "liked your post" about
@@ -242,9 +245,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     // inbox it arrived in or it is simply wrong on its face. Resolving the
     // channel's public profile costs nothing extra — it joins the actor batch
     // below, and a channel is usually also the actor's target anyway.
-    const channelRecipientIds = Array.from(new Set(
-      notificationsRaw.map((n) => n.recipientId).filter((id) => Boolean(id) && id !== userId),
-    ));
+    const channelRecipientIds = Array.from(
+      new Set(
+        notificationsRaw.map((n) => n.recipientId).filter((id) => Boolean(id) && id !== userId),
+      ),
+    );
 
     const profilesMap = new Map<string, ActorProfile>();
     if (uniqueActorIds.includes('system')) {
@@ -252,9 +257,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     }
     // Single bulk fetch for all real actors (chunked/deduped by the SDK) instead
     // of one getUserById HTTP request per actor.
-    const profileIdsToResolve = Array.from(new Set(
-      [...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system'),
-    ));
+    const profileIdsToResolve = Array.from(
+      new Set([...uniqueActorIds, ...channelRecipientIds].filter((id) => id !== 'system')),
+    );
     if (profileIdsToResolve.length > 0) {
       try {
         const profiles = await getServiceOxyClient().users.getMany(profileIdsToResolve);
@@ -271,14 +276,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     // a preview from the raw Mongo row: that would reveal content from a newly
     // blocked/restricted author, private profile, followers-only post, draft, or
     // other row that hydration correctly removes for this viewer.
-    const referencedPostIds = Array.from(new Set(
-      notificationsRaw
-        .filter((n) => n.entityId && (
-          (n.type === 'post' && n.entityType === 'post') ||
-          (POST_PREVIEW_TYPES.has(n.type) && (n.entityType === 'post' || n.entityType === 'reply'))
-        ))
-        .map((n) => n.entityId),
-    ));
+    const referencedPostIds = Array.from(
+      new Set(
+        notificationsRaw
+          .filter(
+            (n) =>
+              n.entityId &&
+              ((n.type === 'post' && n.entityType === 'post') ||
+                (POST_PREVIEW_TYPES.has(n.type) &&
+                  (n.entityType === 'post' || n.entityType === 'reply'))),
+          )
+          .map((n) => n.entityId),
+      ),
+    );
 
     const postPreviewMap = new Map<string, string>();
     const postMap = new Map<string, HydratedPost>();
@@ -341,11 +351,15 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           post.viewerState?.isCollaborator === true ||
           (post.user?.id !== undefined && operatedChannelIds.has(post.user.id));
 
-        if (!isOwnPost && compiledMuteWords && isMutedSubject(
-          compiledMuteWords,
-          { text: post.content.text, hashtags: post.metadata?.hashtags, authorId: post.user?.id },
-          followedAuthorIds,
-        )) {
+        if (
+          !isOwnPost &&
+          compiledMuteWords &&
+          isMutedSubject(
+            compiledMuteWords,
+            { text: post.content.text, hashtags: post.metadata?.hashtags, authorId: post.user?.id },
+            followedAuthorIds,
+          )
+        ) {
           // A muted word means "do not put this in front of me". Blanking the text but
           // keeping the row would still announce the interaction and invite a tap
           // through to the very content they muted, so the notification goes entirely.
@@ -363,10 +377,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
         postMap.set(post.id, post);
         const text = post.content.text?.trim() ?? '';
-        postPreviewMap.set(
-          post.id,
-          text.length > 200 ? `${text.slice(0, 200)}…` : text,
-        );
+        postPreviewMap.set(post.id, text.length > 200 ? `${text.slice(0, 200)}…` : text);
       }
     }
 
@@ -387,7 +398,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         // whose entityId resolved a cheap text preview above). The full hydrated
         // `post` embed stays gated to `type:'post'`.
         const preview = postPreviewMap.get(n.entityId);
-        const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(n.entityId) : undefined;
+        const embeddedPost =
+          n.type === 'post' && n.entityType === 'post' ? postMap.get(n.entityId) : undefined;
         return {
           ...serializeNotification(n),
           preview,
@@ -417,16 +429,20 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       unreadCount,
       hasMore,
       nextCursor,
-      limit
+      limit,
     });
   } catch (error) {
-    logger.error("[Notifications] Error fetching notifications:", { userId: req.user?.id, error, cursor: req.query.cursor });
+    logger.error('[Notifications] Error fetching notifications:', {
+      userId: req.user?.id,
+      error,
+      cursor: req.query.cursor,
+    });
     res.status(500).json({
-      message: "Error fetching notifications",
-      error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
+      message: 'Error fetching notifications',
+      error: error instanceof Error ? error.message : 'UNKNOWN_ERROR',
       notifications: [],
       unreadCount: 0,
-      hasMore: false
+      hasMore: false,
     });
   }
 });
@@ -445,7 +461,7 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     const enriched = await markNotificationRead(
@@ -454,20 +470,20 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
     );
 
     if (!enriched) {
-      return res.status(404).json({ message: "Notification not found" });
+      return res.status(404).json({ message: 'Notification not found' });
     }
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('notificationUpdated', enriched);
 
-    res.json({ message: "Notification marked as read", notification: enriched });
+    res.json({ message: 'Notification marked as read', notification: enriched });
   } catch (error) {
-    res.status(500).json({ message: "Error updating notification" });
+    res.status(500).json({ message: 'Error updating notification' });
   }
 };
 
-router.put("/:id/read", markAsReadHandler);
-router.patch("/:id/read", markAsReadHandler);
+router.put('/:id/read', markAsReadHandler);
+router.patch('/:id/read', markAsReadHandler);
 
 // Mark all notifications as read
 // Shared handler to mark all notifications as read
@@ -475,7 +491,7 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     await markAllNotificationsRead(await inboxRecipientIds(req, userId));
@@ -483,14 +499,14 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('allNotificationsRead');
 
-    res.json({ message: "All notifications marked as read" });
+    res.json({ message: 'All notifications marked as read' });
   } catch (error) {
-    res.status(500).json({ message: "Error updating notifications" });
+    res.status(500).json({ message: 'Error updating notifications' });
   }
 };
 
-router.put("/read-all", markAllAsReadHandler);
-router.patch("/read-all", markAllAsReadHandler);
+router.put('/read-all', markAllAsReadHandler);
+router.patch('/read-all', markAllAsReadHandler);
 
 // Unread count endpoint
 router.get('/unread-count', async (req: AuthRequest, res: Response) => {
@@ -501,10 +517,7 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
       .select({ value: count() })
       .from(notifications)
       .where(
-        and(
-          recipientScope(await inboxRecipientIds(req, userId)),
-          eq(notifications.read, false),
-        ),
+        and(recipientScope(await inboxRecipientIds(req, userId)), eq(notifications.read, false)),
       );
     res.json({ count: row?.value ?? 0 });
   } catch (error) {
@@ -557,23 +570,27 @@ router.delete('/push-token', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     const { token } = req.body || {};
-    if (typeof token !== 'string' || !token) return res.status(400).json({ message: 'Token required' });
+    if (typeof token !== 'string' || !token)
+      return res.status(400).json({ message: 'Token required' });
     await getDb()
       .delete(pushTokens)
       .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
     res.json({ ok: true });
   } catch (e) {
-    logger.error('[Notifications] Failed to unregister push token:', { userId: req.user?.id, error: e });
+    logger.error('[Notifications] Failed to unregister push token:', {
+      userId: req.user?.id,
+      error: e,
+    });
     res.status(500).json({ message: 'Failed to unregister token' });
   }
 });
 
 // Delete a notification
-router.delete("/:id", async (req: AuthRequest, res: Response) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     const [notification] = await getDb()
@@ -587,15 +604,15 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
       .returning({ id: notifications.id });
 
     if (!notification) {
-      return res.status(404).json({ message: "Notification not found" });
+      return res.status(404).json({ message: 'Notification not found' });
     }
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('notificationDeleted', notification.id);
 
-    res.json({ message: "Notification deleted" });
+    res.json({ message: 'Notification deleted' });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting notification" });
+    res.status(500).json({ message: 'Error deleting notification' });
   }
 });
 // --- Device Push Token Management ---
@@ -605,7 +622,8 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     const { token, platform, type, deviceId, locale } = req.body || {};
-    if (typeof token !== 'string' || !token) return res.status(400).json({ message: 'Token required' });
+    if (typeof token !== 'string' || !token)
+      return res.status(400).json({ message: 'Token required' });
 
     // `push_tokens.token` is GLOBALLY unique — one device, one row, owned by
     // whichever account registered it last. The conflict target is therefore the
@@ -639,7 +657,10 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
 
     res.json({ ok: true, id: row.id });
   } catch (e) {
-    logger.error('[Notifications] Failed to register push token:', { userId: req.user?.id, error: e });
+    logger.error('[Notifications] Failed to register push token:', {
+      userId: req.user?.id,
+      error: e,
+    });
     res.status(500).json({ message: 'Failed to register token' });
   }
 });

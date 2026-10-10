@@ -81,7 +81,9 @@ async function lookup(read: () => Promise<OxyAccount>): Promise<LocalFollowTarge
  * Resolve a local reference to its Oxy account, or `null` when there is none.
  * A bare token is tried as a username first, then as an account id.
  */
-export async function resolveLocalFollowTarget(ref: LocalFollowRef): Promise<LocalFollowTarget | null> {
+export async function resolveLocalFollowTarget(
+  ref: LocalFollowRef,
+): Promise<LocalFollowTarget | null> {
   const oxy = getServiceOxyClient();
   const username = ref.kind === 'username' ? ref.username : ref.value;
   const byUsername = await lookup(() => oxy.users.byUsername(username, { cache: false }));

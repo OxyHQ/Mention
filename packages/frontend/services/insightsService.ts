@@ -186,9 +186,7 @@ class InsightsService {
 
   /** Per-post analytics behind the post insights sheet. */
   async getPostInsights(postId: string): Promise<PostInsights> {
-    const response = await authenticatedClient.get<PostInsights>(
-      `${INSIGHTS_BASE}/post/${postId}`,
-    );
+    const response = await authenticatedClient.get<PostInsights>(`${INSIGHTS_BASE}/post/${postId}`);
     return response.data;
   }
 

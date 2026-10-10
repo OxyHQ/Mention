@@ -42,7 +42,7 @@ export const threadgates = pgTable(
   (t) => [
     index('threadgates_post_id_idx').on(t.postId),
     index('threadgates_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );
 
 /**
@@ -71,15 +71,15 @@ export const threadgateAllowRules = pgTable(
   (t) => [
     check(
       'threadgate_allow_rules_type_check',
-      sql`${t.type} in (${sql.raw(inList(THREADGATE_ALLOW_TYPES))})`
+      sql`${t.type} in (${sql.raw(inList(THREADGATE_ALLOW_TYPES))})`,
     ),
     check(
       'threadgate_allow_rules_list_id_check',
-      sql`(${t.type} = 'listOnly') = (${t.listId} is not null)`
+      sql`(${t.type} = 'listOnly') = (${t.listId} is not null)`,
     ),
     check('threadgate_allow_rules_position_check', sql`${t.position} >= 0`),
     unique('threadgate_allow_rules_threadgate_id_position_key').on(t.threadgateId, t.position),
-  ]
+  ],
 );
 
 /** `postgates` — quote control for one post. */
@@ -104,5 +104,5 @@ export const postgates = pgTable(
   (t) => [
     index('postgates_post_id_idx').on(t.postId),
     index('postgates_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );

@@ -51,7 +51,9 @@ const QUOTED_URI = 'https://mastodon.social/users/lemonde/statuses/1170306644297
 let seq = 0;
 
 /** A federated post whose primary body is a rendered quote of `QUOTED_URI`. */
-async function seedCandidate(body = `RE: ${QUOTED_URI}\n\n* Le combat a commencé`): Promise<string> {
+async function seedCandidate(
+  body = `RE: ${QUOTED_URI}\n\n* Le combat a commencé`,
+): Promise<string> {
   seq += 1;
   const record = await seedPost(scope, {
     oxyUserId: QUOTER,
@@ -216,9 +218,7 @@ describe('quoted-post backfill — the rows, not the call', () => {
       oxyUserId: QUOTED_AUTHOR,
       content: { variants: [{ source: 'author', tag: 'fr', text: 'imported original' }] },
     });
-    const ensure = vi
-      .spyOn(outboxSyncService, 'ensureQuotedNote')
-      .mockResolvedValue(imported.id);
+    const ensure = vi.spyOn(outboxSyncService, 'ensureQuotedNote').mockResolvedValue(imported.id);
 
     const result = await backfillQuotedPosts({ dryRun: false });
 

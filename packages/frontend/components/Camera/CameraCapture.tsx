@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraType } from 'expo-camera';
+import {
+  CameraView,
+  useCameraPermissions,
+  useMicrophonePermissions,
+  type CameraType,
+} from 'expo-camera';
 import Ionicons from '@/components/common/Ionicons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedProps,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
@@ -175,14 +176,11 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   );
   // Destructured so the callbacks below depend on the pieces they use rather
   // than on a hook result that is a new object every render.
-  const {
-    arm,
-    stop,
-    isRecording,
-    phase,
-    mode,
-    startedAt,
-  } = useVideoRecorder({ camera: getCamera, requestMicrophone, onRecorded });
+  const { arm, stop, isRecording, phase, mode, startedAt } = useVideoRecorder({
+    camera: getCamera,
+    requestMicrophone,
+    onRecorded,
+  });
 
   const takePhoto = useCallback(async () => {
     if (takingPhoto.current || phase !== 'idle') return;
@@ -488,7 +486,8 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           const selected = stop === activeStop;
           // Its own label when the zoom is ON the stop, the live figure when it
           // is merely nearest to it.
-          const text = selected && selectedStop === null ? formatMultiplier(multiplier) : `${stop}×`;
+          const text =
+            selected && selectedStop === null ? formatMultiplier(multiplier) : `${stop}×`;
           return (
             <Pressable
               key={stop}
@@ -604,9 +603,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
             >
               <Text
                 className={
-                  option === captureMode
-                    ? 'text-white text-xs font-bold'
-                    : 'text-white/50 text-xs'
+                  option === captureMode ? 'text-white text-xs font-bold' : 'text-white/50 text-xs'
                 }
               >
                 {option === 'video'

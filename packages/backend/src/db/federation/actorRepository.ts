@@ -37,14 +37,25 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import {
-  federatedActorFields,
-  federatedActors,
-  federatedFollows,
-} from '../schema/federation';
+import { federatedActorFields, federatedActors, federatedFollows } from '../schema/federation';
 import type {
   FederatedActorField,
   FederatedActorRecord,
@@ -129,7 +140,11 @@ export async function findActorByUri(
   uri: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FederatedActorRecord | null> {
-  const [row] = await db.select().from(federatedActors).where(eq(federatedActors.uri, uri)).limit(1);
+  const [row] = await db
+    .select()
+    .from(federatedActors)
+    .where(eq(federatedActors.uri, uri))
+    .limit(1);
   return row ? assembleActorRecord(row) : null;
 }
 
@@ -295,13 +310,18 @@ export async function findOtherActorHoldingHandle(
   const [row] = await db
     .select()
     .from(federatedActors)
-    .where(and(
-      or(
-        eq(federatedActors.acct, handle.acct),
-        and(eq(federatedActors.domain, handle.domain), eq(federatedActors.username, handle.username)),
+    .where(
+      and(
+        or(
+          eq(federatedActors.acct, handle.acct),
+          and(
+            eq(federatedActors.domain, handle.domain),
+            eq(federatedActors.username, handle.username),
+          ),
+        ),
+        ne(federatedActors.uri, exceptUri),
       ),
-      ne(federatedActors.uri, exceptUri),
-    ))
+    )
     .limit(1);
   return row ? assembleActorRecord(row) : null;
 }
@@ -365,7 +385,8 @@ export interface ActorScanFilter {
 function scanClauses(filter: ActorScanFilter): SQL[] {
   const clauses: SQL[] = [];
   if (filter.protocol !== undefined) clauses.push(eq(federatedActors.protocol, filter.protocol));
-  if (filter.protocolNot !== undefined) clauses.push(ne(federatedActors.protocol, filter.protocolNot));
+  if (filter.protocolNot !== undefined)
+    clauses.push(ne(federatedActors.protocol, filter.protocolNot));
   if (filter.suspended !== undefined) clauses.push(eq(federatedActors.suspended, filter.suspended));
   if (filter.zeroPostsCount) clauses.push(eq(federatedActors.postsCount, 0));
   if (filter.uri !== undefined) clauses.push(eq(federatedActors.uri, filter.uri));
@@ -380,7 +401,9 @@ function scanClauses(filter: ActorScanFilter): SQL[] {
     clauses.push(and(isNotNull(federatedActors.oxyUserId), ne(federatedActors.oxyUserId, ''))!);
   }
   if (filter.uriOrAcct !== undefined) {
-    clauses.push(or(eq(federatedActors.uri, filter.uriOrAcct), eq(federatedActors.acct, filter.uriOrAcct))!);
+    clauses.push(
+      or(eq(federatedActors.uri, filter.uriOrAcct), eq(federatedActors.acct, filter.uriOrAcct))!,
+    );
   }
   return clauses;
 }
@@ -891,7 +914,11 @@ export async function claimInstagramGraphSync(
       and(
         eq(federatedActors.id, actorId),
         isNotNull(federatedActors.oxyUserId),
-        instagramGraphDueSql({ due: cutoffs.cooldown, notBusiness: cutoffs.notBusiness, shortRetry: cutoffs.shortRetry }),
+        instagramGraphDueSql({
+          due: cutoffs.cooldown,
+          notBusiness: cutoffs.notBusiness,
+          shortRetry: cutoffs.shortRetry,
+        }),
         or(
           isNull(federatedActors.instagramGraphSyncStartedAt),
           lte(federatedActors.instagramGraphSyncStartedAt, cutoffs.staleLease),
@@ -945,7 +972,10 @@ export async function setActorRemoteCounts(
   if (counts.followingCount !== undefined) set.followingCount = counts.followingCount;
   if (counts.postsCount !== undefined) set.postsCount = counts.postsCount;
   if (Object.keys(set).length === 0) return;
-  await db.update(federatedActors).set({ ...set, updatedAt: new Date() }).where(eq(federatedActors.id, actorId));
+  await db
+    .update(federatedActors)
+    .set({ ...set, updatedAt: new Date() })
+    .where(eq(federatedActors.id, actorId));
 }
 
 /** An actor the periodic Instagram Graph sync may pick up. */
@@ -991,7 +1021,10 @@ export async function findInstagramGraphSyncCandidates(
         )`,
       ),
     )
-    .orderBy(sql`${federatedActors.instagramGraphSyncedAt} asc nulls first`, asc(federatedActors.id))
+    .orderBy(
+      sql`${federatedActors.instagramGraphSyncedAt} asc nulls first`,
+      asc(federatedActors.id),
+    )
     .limit(limit);
 }
 
@@ -1159,12 +1192,14 @@ export async function findActorsWithOutboxByUris(
   return rows.flatMap((row) =>
     row.outboxUrl === null
       ? []
-      : [{
-        uri: row.uri,
-        acct: row.acct,
-        outboxUrl: row.outboxUrl,
-        oxyUserId: optional(row.oxyUserId),
-      }],
+      : [
+          {
+            uri: row.uri,
+            acct: row.acct,
+            outboxUrl: row.outboxUrl,
+            oxyUserId: optional(row.oxyUserId),
+          },
+        ],
   );
 }
 
@@ -1226,14 +1261,16 @@ export async function findOutboxBackfillCandidates(
   return rows.flatMap((row) =>
     row.outboxUrl === null
       ? []
-      : [{
-        id: row.id,
-        uri: row.uri,
-        acct: row.acct,
-        outboxUrl: row.outboxUrl,
-        oxyUserId: optional(row.oxyUserId),
-        outboxBackfill: assembleOutboxBackfill(row),
-      }],
+      : [
+          {
+            id: row.id,
+            uri: row.uri,
+            acct: row.acct,
+            outboxUrl: row.outboxUrl,
+            oxyUserId: optional(row.oxyUserId),
+            outboxBackfill: assembleOutboxBackfill(row),
+          },
+        ],
   );
 }
 
@@ -1274,7 +1311,8 @@ function toBackfillColumns(patch: OutboxBackfillPatch): Partial<ActorInsert> {
   if (patch.cursorItemOffset !== undefined) {
     columns.outboxBackfillCursorItemOffset = patch.cursorItemOffset;
   }
-  if (patch.processedCount !== undefined) columns.outboxBackfillProcessedCount = patch.processedCount;
+  if (patch.processedCount !== undefined)
+    columns.outboxBackfillProcessedCount = patch.processedCount;
   if (patch.importedCount !== undefined) columns.outboxBackfillImportedCount = patch.importedCount;
   if (patch.existingCount !== undefined) columns.outboxBackfillExistingCount = patch.existingCount;
   if (patch.pageCount !== undefined) columns.outboxBackfillPageCount = patch.pageCount;

@@ -210,7 +210,10 @@ describe('getKnownPostLikers', () => {
     viewerFollows([upvoter, downvoter]);
     await seedLike(upvoter, 1);
     await seedLike(downvoter, -1);
-    resolveSummaries([[upvoter, 'up'], [downvoter, 'down']]);
+    resolveSummaries([
+      [upvoter, 'up'],
+      [downvoter, 'down'],
+    ]);
 
     expect(await callEndpoint({ user: { id: VIEWER } })).toMatchObject({
       body: {
@@ -249,7 +252,10 @@ describe('getKnownPostLikers', () => {
     viewerFollows(following);
     await seedLike(inside);
     await seedLike(outside);
-    resolveSummaries([[inside, 'ana'], [outside, 'bob']]);
+    resolveSummaries([
+      [inside, 'ana'],
+      [outside, 'bob'],
+    ]);
 
     const captured = await callEndpoint({ user: { id: VIEWER } });
 

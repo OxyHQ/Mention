@@ -113,7 +113,9 @@ jest.mock('@/context/LiveRoomContext', () => ({
 
 // The binder resolves the session SDK and the menu's services; the controller it
 // binds INTO is the real one, and that is what the reach case below pins.
-jest.mock('@/components/Feed/PostInteractionsBinder', () => ({ PostInteractionsBinder: () => null }));
+jest.mock('@/components/Feed/PostInteractionsBinder', () => ({
+  PostInteractionsBinder: () => null,
+}));
 jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
 jest.mock('@/stores/postsStore', () => ({ usePostsStore: { getState: () => ({}) } }));
 jest.mock('@/components/common/ContentDialog', () => ({ ContentDialogHost: () => null }));

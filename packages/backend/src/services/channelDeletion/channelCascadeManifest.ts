@@ -224,7 +224,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'database',
     why:
       'The public correction trail of a channel post: the superseded bodies of a post that no longer ' +
-      'exists. It is the channel\'s OWN writing, so destroying the channel destroys it — unlike an ' +
+      "exists. It is the channel's OWN writing, so destroying the channel destroys it — unlike an " +
       'evidence row about the channel, which outlives it. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
@@ -292,7 +292,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'database',
     why:
       'The owner (and any collaborator) entries of a destroyed post. `ON DELETE CASCADE` on `posts.id`. ' +
-      'The channel as an authorship entry on somebody ELSE\'s surviving post is a different reference and ' +
+      "The channel as an authorship entry on somebody ELSE's surviving post is a different reference and " +
       'has its own step.',
   },
   {
@@ -308,8 +308,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'Media attached to a destroyed post. `ON DELETE CASCADE` on `posts.id`. The BYTES are Oxy\'s and ' +
-      'are enumerated in OWNED_BY_OXY — this removes only Mention\'s reference to them.',
+      "Media attached to a destroyed post. `ON DELETE CASCADE` on `posts.id`. The BYTES are Oxy's and " +
+      "are enumerated in OWNED_BY_OXY — this removes only Mention's reference to them.",
   },
   {
     table: 'post_attachments',
@@ -324,10 +324,10 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'A destroyed post\'s membership of a cross-post equivalence cluster. `ON DELETE CASCADE` on '
-      + '`posts.id`. The cluster it leaves behind is repaired by `deletePostSubtree`, which reads the '
-      + 'cluster ids before the delete for exactly this reason — a channel\'s post can be the '
-      + 'PREFERRED member, and losing it silently would leave a surviving variant collapsed forever.',
+      "A destroyed post's membership of a cross-post equivalence cluster. `ON DELETE CASCADE` on " +
+      '`posts.id`. The cluster it leaves behind is repaired by `deletePostSubtree`, which reads the ' +
+      "cluster ids before the delete for exactly this reason — a channel's post can be the " +
+      'PREFERRED member, and losing it silently would leave a surviving variant collapsed forever.',
   },
   {
     table: 'post_source_keys',
@@ -356,7 +356,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'The post\'s own text, in every language rendition — and with it `post_variant_media` and ' +
+      "The post's own text, in every language rendition — and with it `post_variant_media` and " +
       '`post_variant_alt_texts`, which cascade from the variant. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
@@ -371,7 +371,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'postId',
     scope: 'channel-posts',
     action: 'database',
-    why: 'A destroyed post\'s story memberships. `ON DELETE CASCADE` on `posts.id`.',
+    why: "A destroyed post's story memberships. `ON DELETE CASCADE` on `posts.id`.",
   },
   {
     table: 'posts',
@@ -418,7 +418,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-lanes',
     action: 'database',
     why:
-      'A lane belongs to one publisher and only that publisher\'s posts carry its id, so these rows are ' +
+      "A lane belongs to one publisher and only that publisher's posts carry its id, so these rows are " +
       'inside the deleted set already. `lanes` → `posts.lane_id` is `ON DELETE SET NULL`, so a ' +
       'mis-assigned row belonging to somebody else keeps its content and loses the lane.',
   },
@@ -428,7 +428,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-lanes',
     action: 'database',
     why:
-      'A reader\'s mute of a lane that no longer exists. `lanes` → `lane_mutes.lane_id` is ' +
+      "A reader's mute of a lane that no longer exists. `lanes` → `lane_mutes.lane_id` is " +
       '`ON DELETE CASCADE` — note the pair is deliberately asymmetric: the same parent SET NULLs a post ' +
       'and CASCADEs a mute, because a post is content and a mute is a preference about content.',
   },
@@ -522,7 +522,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'depend on WHO deleted the post, so it cannot have two answers depending on the cause: this follows ' +
       'the live delete path (`POST_REFERENCE_DISPOSITION` in `PostDeletionCascade`), which retains it for ' +
       'exactly this reason. `purgeBlockedDomainContent` DOES delete these, deliberately and differently — ' +
-      'it removes a blocked instance\'s content wholesale and its cascade owns that call; the divergence ' +
+      "it removes a blocked instance's content wholesale and its cascade owns that call; the divergence " +
       'is noted here so a reader does not take this for an oversight. The other side is already designed ' +
       'for a vanished subject: `ModerationDeliveryWorker` closes the report as undeliverable rather than ' +
       'retrying, so the row is stranded by being removed, never by being kept.',
@@ -536,7 +536,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'The delivery job for a report, kept because its report is now kept: with the report surviving there ' +
       'is nothing orphaned, and deleting the job would strand a report at `queued` that nothing will ever ' +
       'deliver. It could not be deleted independently in any case — `payload_report_id` is ' +
-      '`ON DELETE CASCADE` on `reports.id`, so the job\'s lifetime is the report\'s by construction, which ' +
+      "`ON DELETE CASCADE` on `reports.id`, so the job's lifetime is the report's by construction, which " +
       'is the schema stating this same decision. The one report this cascade still removes is one the ' +
       'channel FILED (`reports.reporter`, which cannot exist — a channel can never be acted as), and even ' +
       'that leaves no stuck job: the cascade takes the job with it, and `deliverReportOutboxEvent` ' +
@@ -556,7 +556,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'A channel post that quoted somebody and was detached is listed by uri inside THEIR postgate. The ' +
       'row is theirs and stays; only the entry naming a destroyed post goes. NOT delegated — the delegate ' +
       'deletes the postgate rows that BELONG to a doomed post, which is a different question from an ' +
-      'entry naming one inside a stranger\'s row.',
+      "entry naming one inside a stranger's row.",
   },
   {
     table: 'moderation_enforcements',
@@ -566,7 +566,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why:
       'An enforcement record whose subject post is gone. Named `subject_id`, so a scanner keyed on ' +
       '"post_id" misses it — which is exactly why the coverage test keys on id SHAPE and not on a name ' +
-      'list. Executed HERE: it is not one of the preflight\'s probes, so the delegate has no leg for it.',
+      "list. Executed HERE: it is not one of the preflight's probes, so the delegate has no leg for it.",
   },
   {
     table: 'repair_fetch_failures',
@@ -576,7 +576,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why:
       'An admin repair-log row naming a post that no longer exists. Absent from the preflight probes, and ' +
       'therefore from `PostDeletionCascade` too — so this one is executed HERE. It is also the one step ' +
-      'that runs AGAINST the schema\'s own default: `deferredForeignKeys.ts` leaves this column ' +
+      "that runs AGAINST the schema's own default: `deferredForeignKeys.ts` leaves this column " +
       'unconstrained precisely because an evidence row must outlive its subject, so a USER deleting one ' +
       'post never touches it. An operator destroying a channel wholesale is the other case — the same ' +
       'distinction `purgeBlockedDomainContent` makes — and the set should be empty regardless: the rows ' +
@@ -592,7 +592,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-row',
-    why: 'The channel\'s posts. The whole point: with the channel gone their only public author is gone.',
+    why: "The channel's posts. The whole point: with the channel gone their only public author is gone.",
   },
   {
     table: 'posts',
@@ -613,7 +613,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'The channel named as an author on somebody ELSE\'s surviving post. Its own posts\' authorship rows ' +
+      "The channel named as an author on somebody ELSE's surviving post. Its own posts' authorship rows " +
       'cascade with the post (see the `post_authorships.post_id` step); this is the other direction, and ' +
       'the post belongs to a third party so only the entry goes. A channel is refused as a collaborator ' +
       'today, so this should be empty — swept so "should be" is enforced rather than assumed.',
@@ -624,7 +624,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'Other people\'s posts that @-mention the channel. Mongo held this as an array on the post and the ' +
+      "Other people's posts that @-mention the channel. Mongo held this as an array on the post and the " +
       'cascade `$pull`ed the id; the array is a junction table now and the entry is a row, but the policy ' +
       'is unchanged — the post is theirs and stays, and the mention would otherwise render a link to an ' +
       'account that no longer resolves.',
@@ -684,7 +684,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-row',
-    why: 'The channel\'s ActivityPub signing key. Deleted LAST among account rows: outbound deletes are signed with it.',
+    why: "The channel's ActivityPub signing key. Deleted LAST among account rows: outbound deletes are signed with it.",
   },
   {
     table: 'federated_actors',
@@ -718,7 +718,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'delete-row',
     why:
       'Notifications addressed to the channel. It has no session to read them — `GET /notifications` ' +
-      'expands a reader\'s operated-channel ids at request time — but the rows are real and must go.',
+      "expands a reader's operated-channel ids at request time — but the rows are real and must go.",
   },
   {
     table: 'notifications',
@@ -772,8 +772,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-row',
     why:
-      'The channel\'s settings row, which carries the writer-disclosure decision. Named in prose rather ' +
-      'than by its flag: `channelWriterDisclosure.ts` is that flag\'s one reader, and a gate enforces it. ' +
+      "The channel's settings row, which carries the writer-disclosure decision. Named in prose rather " +
+      "than by its flag: `channelWriterDisclosure.ts` is that flag's one reader, and a gate enforces it. " +
       '`user_settings_label_actions` cascades from the row.',
   },
   {
@@ -782,7 +782,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'pull-from-array',
     why:
-      'Another person\'s privacy settings naming the channel as restricted. Their row is theirs and stays; ' +
+      "Another person's privacy settings naming the channel as restricted. Their row is theirs and stays; " +
       'only the entry goes. It carries no id-shaped suffix, so the scanner cannot flag it — the manifest ' +
       'names it anyway, which is what keeps a column no gate can find from being the one nobody swept.',
   },
@@ -798,7 +798,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-row',
-    why: 'The channel\'s MTN hash chain. A channel post does emit a signed record, under the channel\'s own identity.',
+    why: "The channel's MTN hash chain. A channel post does emit a signed record, under the channel's own identity.",
   },
   {
     table: 'mention_repo_heads',
@@ -851,9 +851,9 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'The channel inside ANOTHER viewer\'s affinity entries. Mongo held this as `preferredAuthors[]`, an ' +
+      "The channel inside ANOTHER viewer's affinity entries. Mongo held this as `preferredAuthors[]`, an " +
       'array of subdocuments keyed on `authorId`, and the cascade `$pull`ed the matching element; the ' +
-      'array is a child table now, so the element is a row. The viewer\'s own behaviour row is theirs and ' +
+      "array is a child table now, so the element is a row. The viewer's own behaviour row is theirs and " +
       'stays.',
   },
   {
@@ -861,21 +861,21 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'hiddenAuthors',
     scope: 'channel-account',
     action: 'pull-from-array',
-    why: 'Another viewer\'s hidden-author list; scrubbed, never deleted. Still a `text[]` column, not a child table.',
+    why: "Another viewer's hidden-author list; scrubbed, never deleted. Still a `text[]` column, not a child table.",
   },
   {
     table: 'user_behaviors',
     column: 'mutedAuthors',
     scope: 'channel-account',
     action: 'pull-from-array',
-    why: 'Another viewer\'s muted-author list.',
+    why: "Another viewer's muted-author list.",
   },
   {
     table: 'user_behaviors',
     column: 'blockedAuthors',
     scope: 'channel-account',
     action: 'pull-from-array',
-    why: 'Another viewer\'s blocked-author list.',
+    why: "Another viewer's blocked-author list.",
   },
   {
     table: 'user_feed_preferences',
@@ -892,7 +892,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'mutedId',
     scope: 'channel-account',
     action: 'delete-row',
-    why: 'Somebody\'s mute OF the channel. The row exists only to name that pair, so it dies with the channel.',
+    why: "Somebody's mute OF the channel. The row exists only to name that pair, so it dies with the channel.",
   },
   {
     table: 'mutes',
@@ -914,7 +914,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-row',
     why:
-      'Likes BY the channel on other people\'s posts. Their `stats_likes_count` is repaired in the same ' +
+      "Likes BY the channel on other people's posts. Their `stats_likes_count` is repaired in the same " +
       'run — a surviving post must not keep a count that includes a deleted record.',
   },
   {
@@ -945,7 +945,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'authorId',
     scope: 'channel-account',
     action: 'delete-row',
-    why: 'Other people\'s subscriptions to the channel\'s output; the author they name is gone.',
+    why: "Other people's subscriptions to the channel's output; the author they name is gone.",
   },
   {
     table: 'post_recent_repliers',
@@ -953,7 +953,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'The channel inside another post\'s replier projection; that post belongs to someone else. Mongo ' +
+      "The channel inside another post's replier projection; that post belongs to someone else. Mongo " +
       'held the repliers as an array of subdocuments on the post and `$pull`ed one; the projection is a ' +
       'child table now, so the element is a row.',
   },
@@ -1038,7 +1038,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-entry',
     why:
-      'The channel\'s vote inside somebody else\'s poll. Mongo held votes as a `[String]` array inside ' +
+      "The channel's vote inside somebody else's poll. Mongo held votes as a `[String]` array inside " +
       'each embedded option; here they are rows, so the entry is a row and the poll survives one fewer ' +
       'vote. No counter to repair — the tally is a `GROUP BY`, never a denormalized column.',
   },
@@ -1077,7 +1077,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-entry',
-    why: 'The channel as a MEMBER of somebody else\'s list; the list is theirs and survives one fewer member.',
+    why: "The channel as a MEMBER of somebody else's list; the list is theirs and survives one fewer member.",
   },
   {
     table: 'custom_feeds',
@@ -1093,7 +1093,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-entry',
-    why: 'The channel as a member of somebody else\'s feed definition.',
+    why: "The channel as a member of somebody else's feed definition.",
   },
   {
     table: 'starter_packs',
@@ -1107,7 +1107,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'oxyUserId',
     scope: 'channel-account',
     action: 'delete-entry',
-    why: 'The channel as a member of somebody else\'s pack.',
+    why: "The channel as a member of somebody else's pack.",
   },
   {
     table: 'starter_pack_uses',
@@ -1116,7 +1116,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'delete-entry',
     why:
       'The channel recorded as having used a pack. Mongo held this as `usedByOxyUserIds` on the pack, so ' +
-      'the pack\'s `use_count` was the array length; the count is now its own column and is repaired ' +
+      "the pack's `use_count` was the array length; the count is now its own column and is repaired " +
       'nowhere — deliberately, since it is a lifetime tally rather than a live membership.',
   },
   {
@@ -1131,7 +1131,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     column: 'pendingRemoveMemberIds',
     scope: 'channel-account',
     action: 'pull-from-array',
-    why: 'The channel inside another scope\'s pending-removal list; the row belongs to that scope.',
+    why: "The channel inside another scope's pending-removal list; the row belongs to that scope.",
   },
   {
     table: 'trending',
@@ -1150,7 +1150,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why:
       'The account-erasure ledger (`services/accountErasure`). If Oxy reports a channel account deleted, ' +
       'the row is the record that Mention erased it and the dedupe key for the event. It holds ids and ' +
-      'counts, never content, so deleting a channel\'s content leaves it where it is.',
+      "counts, never content, so deleting a channel's content leaves it where it is.",
   },
   {
     table: 'mcp_connections',
@@ -1169,8 +1169,8 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'unset-field',
     why:
-      'A BUNDLE\'s active account, stored on somebody else\'s primary connection row. Deleting their ' +
-      'connection because its active pointer names the channel would revoke a person\'s connector over an ' +
+      "A BUNDLE's active account, stored on somebody else's primary connection row. Deleting their " +
+      "connection because its active pointer names the channel would revoke a person's connector over an " +
       'account they merely switched to, so the pointer is cleared instead (a retired legacy row, kept ' +
       'until the table is dropped). The one place this cascade NULLs a ' +
       'column itself rather than letting a constraint do it, because there is no constraint: an Oxy ' +
@@ -1207,17 +1207,26 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
  * topic ids, file ids and run ids too. Each is dismissed once, here, in writing.
  */
 export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
-  ['post_evaluation_topics.evaluationId', 'the shadow evaluation owning this probability; cascades through the evaluation when its post is deleted'],
+  [
+    'post_evaluation_topics.evaluationId',
+    'the shadow evaluation owning this probability; cascades through the evaluation when its post is deleted',
+  ],
   ['account_erasures.eventId', 'an Oxy account-event id, not an account or a post'],
-  ['account_list_members.listId', 'the AccountList the membership row belongs to; it cascades from the list'],
-  ['actor_key_pairs.keyId', 'the key pair\'s own AP key identifier, not an account'],
+  [
+    'account_list_members.listId',
+    'the AccountList the membership row belongs to; it cascades from the list',
+  ],
+  ['actor_key_pairs.keyId', "the key pair's own AP key identifier, not an account"],
   ['blocked_domain_purge_runs.runId', 'an admin purge run, not an account'],
   ['blocked_domain_purges.runId', 'an admin purge run'],
   ['blocklist_proposal_observations.proposalId', 'the proposal an observation belongs to'],
   ['blocklist_proposal_run_sources.runRowId', 'the blocklist proposal run row a source belongs to'],
   ['blocklist_proposal_runs.runId', 'a blocklist proposal run'],
   ['content_labels.labelerId', 'the Labeler service that emitted the label'],
-  ['custom_feed_definition_modules.feedId', 'the CustomFeed the module belongs to; it cascades from the feed'],
+  [
+    'custom_feed_definition_modules.feedId',
+    'the CustomFeed the module belongs to; it cascades from the feed',
+  ],
   ['custom_feed_members.feedId', 'the CustomFeed the membership row belongs to'],
   ['custom_feed_source_lists.feedId', 'the CustomFeed drawing on a list'],
   ['custom_feed_source_lists.listId', 'the AccountList a feed draws from'],
@@ -1227,50 +1236,116 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['engagement_outbox.payloadFederationActivityId', 'an ActivityPub activity id'],
   ['engagement_outbox.payloadRelationshipId', 'an Oxy relationship edge id, owned by Oxy'],
   ['entity_follows.entityId', 'a hashtag or list id; entityType is never "user"'],
-  ['federated_actor_fields.actorId', 'the FederatedActor row a profile field belongs to; it cascades from the actor'],
-  ['federated_actors.publicKeyId', 'a remote actor\'s AP key id'],
-  ['federated_media_deletions.oxyFileId', 'an Oxy file id of re-hosted federated media owed a deletion; a channel posts local media'],
+  [
+    'federated_actor_fields.actorId',
+    'the FederatedActor row a profile field belongs to; it cascades from the actor',
+  ],
+  ['federated_actors.publicKeyId', "a remote actor's AP key id"],
+  [
+    'federated_media_deletions.oxyFileId',
+    'an Oxy file id of re-hosted federated media owed a deletion; a channel posts local media',
+  ],
   ['federated_media_posters.videoFileId', 'an Oxy file id of a re-hosted federated video'],
-  ['federated_media_posters.posterFileId', 'an Oxy file id of that video\'s poster frame'],
-  ['federated_banner_mirrors.oxyUserId', 'the Oxy user of a REMOTE account whose banner is mirrored; a channel is a local account and advertises no remote banner'],
-  ['federated_banner_mirrors.actorUri', 'a remote actor\'s URI (the banner\'s provenance)'],
-  ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account; a channel is a local account'],
+  ['federated_media_posters.posterFileId', "an Oxy file id of that video's poster frame"],
+  [
+    'federated_banner_mirrors.oxyUserId',
+    'the Oxy user of a REMOTE account whose banner is mirrored; a channel is a local account and advertises no remote banner',
+  ],
+  ['federated_banner_mirrors.actorUri', "a remote actor's URI (the banner's provenance)"],
+  [
+    'federated_actors.instagramGraphUserId',
+    "Meta's Instagram user id of a remote account; a channel is a local account",
+  ],
   ['federated_follows.activityId', 'the AP activity that created the follow'],
   [
     'federated_follows.remoteActorUri',
-    'the REMOTE side of a follow edge. A channel is a local account and can never appear here; the channel\'s ' +
+    "the REMOTE side of a follow edge. A channel is a local account and can never appear here; the channel's " +
       'own rows are deleted by `local_user_id`',
   ],
-  ['federated_media_cache.oxyFileId', 'an Oxy S3 file id; the cache is keyed on a remote URL, never on an account'],
+  [
+    'federated_media_cache.oxyFileId',
+    'an Oxy S3 file id; the cache is keyed on a remote URL, never on an account',
+  ],
   ['federated_media_cache.posterFileId', 'an Oxy S3 file id for an extracted video poster'],
   ['feed_likes.feedId', 'the CustomFeed being subscribed to'],
   ['feed_reviews.feedId', 'the CustomFeed being reviewed'],
   ['gifs.klipyId', 'an upstream GIF provider id'],
   ['gifs.mp4FileId', 'an Oxy file id'],
   ['gifs.previewFileId', 'an Oxy file id'],
-  ['labeler_label_definitions.labelerId', 'the Labeler service a definition belongs to; it cascades from the labeler'],
-  ['mcp_auth_codes.clientId', 'an OAuth client id, which may name a statically configured client with no row'],
-  ['mcp_auth_codes.redirectUri', 'the OAuth redirect the code was issued for — a client URL, never a post'],
-  ['mcp_connections.bundleId', 'a grouping token; the bundle IS the set of rows sharing it, so there is no parent row'],
+  [
+    'labeler_label_definitions.labelerId',
+    'the Labeler service a definition belongs to; it cascades from the labeler',
+  ],
+  [
+    'mcp_auth_codes.clientId',
+    'an OAuth client id, which may name a statically configured client with no row',
+  ],
+  [
+    'mcp_auth_codes.redirectUri',
+    'the OAuth redirect the code was issued for — a client URL, never a post',
+  ],
+  [
+    'mcp_connections.bundleId',
+    'a grouping token; the bundle IS the set of rows sharing it, so there is no parent row',
+  ],
   ['mcp_connections.clientId', 'an OAuth client id'],
   ['mcp_effect_receipts.clientId', 'the OAuth client that invoked the external MCP effect'],
-  ['mcp_registered_clients.clientId', 'the dynamically registered client\'s own id'],
-  ['mcp_registered_clients.redirectUris', 'the OAuth redirects a client registered — client URLs, never posts'],
-  ['mention_job_application_answers.applicationId', 'the MentionJobApplication row an answer belongs to; it cascades from the application'],
-  ['mention_job_application_notes.applicationId', 'the MentionJobApplication row a note belongs to; it cascades from the application'],
-  ['mention_job_application_notes.authorOxyUserId', 'the operator who wrote an internal note on a job application; an organization/project operator, never a channel'],
-  ['mention_job_applications.applicantOxyUserId', 'the applicant\'s Oxy account id; always a `personal` account, never a channel'],
-  ['mention_job_applications.assignedToOxyUserId', 'an employer-account operator assigned to review an application; an organization/project operator, never a channel'],
-  ['mention_job_applications.jobId', 'the MentionJob row an application belongs to; it cascades from the job'],
-  ['mention_job_applications.resumeFileId', 'an Oxy S3 file id for the uploaded resume, not an account'],
-  ['mention_job_daily_metrics.jobId', 'the MentionJob row a metrics day belongs to; it cascades from the job'],
-  ['mention_jobs.authorOxyUserId', 'who created a job row, for audit only; an organization/project operator, never a channel'],
-  ['mention_jobs.clarityDocumentId', 'Clarity\'s own foreign document id, not an Oxy account at all'],
-  ['mention_jobs.locationPlaceId', 'a GeoNames place id from Clarity\'s gazetteer — a location, not an account or a post'],
-  ['mention_jobs.employerOxyUserId', 'the organization/project account a job is published under — jobs are restricted to those two kinds, never a channel'],
+  ['mcp_registered_clients.clientId', "the dynamically registered client's own id"],
+  [
+    'mcp_registered_clients.redirectUris',
+    'the OAuth redirects a client registered — client URLs, never posts',
+  ],
+  [
+    'mention_job_application_answers.applicationId',
+    'the MentionJobApplication row an answer belongs to; it cascades from the application',
+  ],
+  [
+    'mention_job_application_notes.applicationId',
+    'the MentionJobApplication row a note belongs to; it cascades from the application',
+  ],
+  [
+    'mention_job_application_notes.authorOxyUserId',
+    'the operator who wrote an internal note on a job application; an organization/project operator, never a channel',
+  ],
+  [
+    'mention_job_applications.applicantOxyUserId',
+    "the applicant's Oxy account id; always a `personal` account, never a channel",
+  ],
+  [
+    'mention_job_applications.assignedToOxyUserId',
+    'an employer-account operator assigned to review an application; an organization/project operator, never a channel',
+  ],
+  [
+    'mention_job_applications.jobId',
+    'the MentionJob row an application belongs to; it cascades from the job',
+  ],
+  [
+    'mention_job_applications.resumeFileId',
+    'an Oxy S3 file id for the uploaded resume, not an account',
+  ],
+  [
+    'mention_job_daily_metrics.jobId',
+    'the MentionJob row a metrics day belongs to; it cascades from the job',
+  ],
+  [
+    'mention_jobs.authorOxyUserId',
+    'who created a job row, for audit only; an organization/project operator, never a channel',
+  ],
+  [
+    'mention_jobs.clarityDocumentId',
+    "Clarity's own foreign document id, not an Oxy account at all",
+  ],
+  [
+    'mention_jobs.locationPlaceId',
+    "a GeoNames place id from Clarity's gazetteer — a location, not an account or a post",
+  ],
+  [
+    'mention_jobs.employerOxyUserId',
+    'the organization/project account a job is published under — jobs are restricted to those two kinds, never a channel',
+  ],
   ['mention_node_ingest_witnesses.recordId', 'a signed-record id within a chain'],
   ['mention_repo_heads.headRecordId', 'the signed record at the head of a chain'],
-  ['mention_signed_records.recordId', 'the record\'s own id'],
+  ['mention_signed_records.recordId', "the record's own id"],
   ['moderation_enforcements.caseId', 'a CrowdSource case id; CrowdSource owns cases'],
   ['moderation_enforcements.decisionId', 'a CrowdSource decision id'],
   ['moderation_events.caseId', 'a CrowdSource case id'],
@@ -1278,16 +1353,25 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['moderation_outbox.payloadEventId', 'a CrowdSource event id'],
   ['poll_options.pollId', 'the Poll an option belongs to; it cascades from the poll'],
   ['poll_votes.optionId', 'the option a vote was cast for'],
-  ['poll_votes.pollId', 'denormalized from the option so one-vote-per-poll can be a UNIQUE constraint'],
-  ['post_attachments.attachmentId', 'an Oxy file id or an external attachment id, never an account'],
+  [
+    'poll_votes.pollId',
+    'denormalized from the option so one-vote-per-poll can be a UNIQUE constraint',
+  ],
+  [
+    'post_attachments.attachmentId',
+    'an Oxy file id or an external attachment id, never an account',
+  ],
   ['post_classification_topic_refs.topicId', 'a topic id'],
   [
     'post_equivalence_members.clusterId',
     'the cross-post equivalence cluster a member belongs to; it cascades from the cluster',
   ],
-  ['post_imports.importBatchId', "an Oxy Move job id, a grouping token"],
+  ['post_imports.importBatchId', 'an Oxy Move job id, a grouping token'],
   ['post_imports.sourceId', "the imported item's id on another platform"],
-  ['post_media.mediaId', 'an Oxy file id, or a remote URL for federated media the cache never rewrote'],
+  [
+    'post_media.mediaId',
+    'an Oxy file id, or a remote URL for federated media the cache never rewrote',
+  ],
   ['post_variant_alt_texts.mediaId', 'an Oxy file id the localized alt text describes'],
   ['post_variant_alt_texts.variantId', 'the language rendition the alt text belongs to'],
   ['post_variant_media.mediaId', 'an Oxy file id'],
@@ -1298,30 +1382,48 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['posts.contentPollId', 'the Poll row the post owns, removed by `polls.post_id`'],
   ['posts.contentRoomId', 'a Syra live-room id, owned by Syra'],
   ['posts.federationActivityId', 'the AP activity id of a federated post; a channel post is local'],
-  ['posts.federationActorUri', 'the remote actor uri of a federated post; never set for a local channel'],
+  [
+    'posts.federationActorUri',
+    'the remote actor uri of a federated post; never set for a local channel',
+  ],
   ['push_tokens.deviceId', 'a device identifier'],
   ['reports.crowdSourceCaseId', 'a CrowdSource case id'],
   ['reports.crowdSourceReportId', 'a CrowdSource report id'],
   ['reports.decisionId', 'a CrowdSource decision id'],
   ['starter_pack_members.packId', 'the StarterPack the membership row belongs to'],
   ['starter_pack_uses.packId', 'the StarterPack that was used'],
-  ['starter_packs.sourceUri', 'the remote pack URL an imported pack was mirrored from, not a post uri'],
+  [
+    'starter_packs.sourceUri',
+    'the remote pack URL an imported pack was mirrored from, not a post uri',
+  ],
   ['threadgate_allow_rules.listId', 'the AccountList a `listOnly` rule admits'],
-  ['threadgate_allow_rules.threadgateId', 'the Threadgate a rule belongs to; it cascades from the gate'],
+  [
+    'threadgate_allow_rules.threadgateId',
+    'the Threadgate a rule belongs to; it cascades from the gate',
+  ],
   ['topic_stats.topicId', 'a topic id'],
   ['trend_graphs.edges', 'term-to-term co-occurrence edges, not accounts'],
   ['trending.topicId', 'a topic id'],
   ['trending.conceptId', 'a language-independent Oxy concept id'],
   ['trend_story_posts.trendId', 'the retained trend row this membership belongs to'],
-  ['user_behavior_authors.behaviorId', 'the UserBehavior row an affinity entry belongs to; it cascades from the row'],
+  [
+    'user_behavior_authors.behaviorId',
+    'the UserBehavior row an affinity entry belongs to; it cascades from the row',
+  ],
   ['user_behavior_regions.behaviorId', 'the UserBehavior row a region entry belongs to'],
   ['user_behavior_topics.behaviorId', 'the UserBehavior row a topic entry belongs to'],
   ['user_behavior_topics.topicId', 'a topic id'],
-  ['user_saved_feeds.preferenceId', 'the UserFeedPreference row a saved feed belongs to; it cascades from the row'],
+  [
+    'user_saved_feeds.preferenceId',
+    'the UserFeedPreference row a saved feed belongs to; it cascades from the row',
+  ],
   ['user_settings.profileMediaSyraPodcastId', 'a Syra podcast id'],
   ['user_settings.profileMediaSyraTrackId', 'a Syra track id'],
   ['user_settings_label_actions.labelerId', 'a subscribed Labeler service'],
-  ['user_settings_label_actions.settingsId', 'the UserSettings row a label action belongs to; it cascades from the row'],
+  [
+    'user_settings_label_actions.settingsId',
+    'the UserSettings row a label action belongs to; it cascades from the row',
+  ],
 ]);
 
 /**
@@ -1348,13 +1450,13 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
 export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map([
   [
     'mention_signed_records.rkey / .subject_did / .envelope',
-    'A post record\'s `rkey` IS the `posts.id`, and the DID embeds the oxyUserId; the envelope is a signed ' +
+    "A post record's `rkey` IS the `posts.id`, and the DID embeds the oxyUserId; the envelope is a signed " +
       'document that must round-trip, so nothing may rewrite it. REACHED: the whole chain is deleted by ' +
       '`oxy_user_id`, so no per-column sweep is needed.',
   ],
   [
     'mention_repo_heads.subject_did',
-    'Embeds the channel\'s oxyUserId. REACHED: the row is deleted by `oxy_user_id`.',
+    "Embeds the channel's oxyUserId. REACHED: the row is deleted by `oxy_user_id`.",
   ],
   [
     'federation_delivery_queue.activity_json.actor / .object',
@@ -1377,7 +1479,7 @@ export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map(
     'Ranking telemetry and saved feeds embed `author|<oxyUserId>` or `lane|<laneId>` inside an opaque ' +
       'descriptor string. NOT REACHED for third-party rows: these are provenance labels, not pointers — ' +
       'nothing dereferences them to render, and a descriptor naming a gone author simply ranks nothing. ' +
-      'The channel\'s OWN rows are deleted outright, `user_saved_feeds` by cascade from the preference row.',
+      "The channel's OWN rows are deleted outright, `user_saved_feeds` by cascade from the preference row.",
   ],
   [
     'moderation_events.payload / moderation_outbox.payload_decision',
@@ -1388,7 +1490,7 @@ export const EMBEDDED_CHANNEL_REFERENCES: ReadonlyMap<string, string> = new Map(
   ],
   [
     'user_settings.privacy_restricted_users',
-    'Another person\'s settings naming the channel as restricted. SCRUBBED by an explicit ' +
+    "Another person's settings naming the channel as restricted. SCRUBBED by an explicit " +
       '`pull-from-array` step, because their settings row is theirs and only the entry goes. Listed here ' +
       'for continuity with the Mongo cascade, where it WAS a blind spot (a nested path under a `privacy` ' +
       'subdocument); on Postgres it is a first-class `text[]` column the manifest names directly, so it is ' +
@@ -1414,7 +1516,7 @@ export const OWNED_BY_OXY: ReadonlyMap<string, string> = new Map([
   ],
   [
     'The channel account itself (`users`, kind: channel)',
-    'Deleted via the SDK\'s `archiveAccount` (a soft archive, not a row removal). Mention has no way to hard-delete it.',
+    "Deleted via the SDK's `archiveAccount` (a soft archive, not a row removal). Mention has no way to hard-delete it.",
   ],
   [
     'Follow edges to the channel (the Oxy graph)',
@@ -1423,7 +1525,7 @@ export const OWNED_BY_OXY: ReadonlyMap<string, string> = new Map([
   ],
   [
     'Media uploaded by the channel (Oxy S3 assets)',
-    'Post media are bare Oxy file ids. Mention deletes the posts that referenced them; the bytes are Oxy\'s ' +
+    "Post media are bare Oxy file ids. Mention deletes the posts that referenced them; the bytes are Oxy's " +
       'to collect and there is no Mention-side call that removes them.',
   ],
   [

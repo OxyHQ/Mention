@@ -15,12 +15,27 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useReselect } from '@/context/ScreenReselectContext';
 import { useTabPager } from '@/context/TabPagerContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
-import { BAR_TABS, CHROME_HIDDEN_BY_PAGE, barToPage, pageIndexByName, type BarTabName } from '@/components/navigation/tabs';
+import {
+  BAR_TABS,
+  CHROME_HIDDEN_BY_PAGE,
+  barToPage,
+  pageIndexByName,
+  type BarTabName,
+} from '@/components/navigation/tabs';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 
-function NotificationGlyph({ count, label, ...iconProps }: React.ComponentProps<typeof RiNotification3Line> & { count: number; label: string }) {
-  return <View><RiNotification3Line {...iconProps} /><UnreadBadge count={count} accessibilityLabel={label} /></View>;
+function NotificationGlyph({
+  count,
+  label,
+  ...iconProps
+}: React.ComponentProps<typeof RiNotification3Line> & { count: number; label: string }) {
+  return (
+    <View>
+      <RiNotification3Line {...iconProps} />
+      <UnreadBadge count={count} accessibilityLabel={label} />
+    </View>
+  );
 }
 
 /** Mention owns destinations and pager state; Bloom owns all navigation chrome. */
@@ -33,45 +48,83 @@ export const BottomBar = () => {
   const unreadCount = useUnreadCount();
   const minimizeProgress = useBottomBarHidden();
   const { progress, chromeProgress, activeIndex, activePage, selectTab } = useTabPager();
-  const glyphs = useMemo<Record<BarTabName, React.ReactNode>>(() => ({
-    index: <RiHome5Line />,
-    videos: <RiVideoLine />,
-    notifications: <NotificationGlyph count={unreadCount} label={t('notification.badge', { count: unreadCount, defaultValue: '{{count}} unread notifications' })} />,
-    // `name` gives a photo-less account its initial on a tinted disc — the same
-    // fallback the Oxy account menu draws — instead of the generic placeholder.
-    you: <Avatar size={26} source={user?.avatar} name={avatarName} variant={MEDIA_VARIANT_AVATAR} />,
-  }), [unreadCount, t, user?.avatar, avatarName]);
-  const items = useMemo(() => BAR_TABS.map(tab => ({ name: tab.name, label: t(tab.bar.labelKey), icon: glyphs[tab.name] })), [glyphs, t]);
-  const onValueChange = useCallback((value: string) => {
-    haptic('light');
-    // The tab already in front is not a destination; pressing it again means
-    // "back to the top", then "reload" (`ScreenReselectContext`).
-    if (BAR_TABS[activeIndex]?.name === value) {
-      reselect();
-      return;
-    }
-    const index = BAR_TABS.findIndex(tab => tab.name === value);
-    if (index >= 0) selectTab(barToPage(index));
-  }, [activeIndex, haptic, reselect, selectTab]);
-  const onValueLongPress = useCallback((value: string) => {
-    if (value !== 'you') return;
-    haptic('heavy');
-    showBottomSheet?.('ManageAccount');
-  }, [haptic, showBottomSheet]);
-  const chromeStyle = useAnimatedStyle(() => ({
-    opacity: 1 - chromeProgress.value,
-    transform: [{ translateY: chromeProgress.value * 160 }],
-  }), [chromeProgress]);
+  const glyphs = useMemo<Record<BarTabName, React.ReactNode>>(
+    () => ({
+      index: <RiHome5Line />,
+      videos: <RiVideoLine />,
+      notifications: (
+        <NotificationGlyph
+          count={unreadCount}
+          label={t('notification.badge', {
+            count: unreadCount,
+            defaultValue: '{{count}} unread notifications',
+          })}
+        />
+      ),
+      // `name` gives a photo-less account its initial on a tinted disc — the same
+      // fallback the Oxy account menu draws — instead of the generic placeholder.
+      you: (
+        <Avatar size={26} source={user?.avatar} name={avatarName} variant={MEDIA_VARIANT_AVATAR} />
+      ),
+    }),
+    [unreadCount, t, user?.avatar, avatarName],
+  );
+  const items = useMemo(
+    () =>
+      BAR_TABS.map((tab) => ({
+        name: tab.name,
+        label: t(tab.bar.labelKey),
+        icon: glyphs[tab.name],
+      })),
+    [glyphs, t],
+  );
+  const onValueChange = useCallback(
+    (value: string) => {
+      haptic('light');
+      // The tab already in front is not a destination; pressing it again means
+      // "back to the top", then "reload" (`ScreenReselectContext`).
+      if (BAR_TABS[activeIndex]?.name === value) {
+        reselect();
+        return;
+      }
+      const index = BAR_TABS.findIndex((tab) => tab.name === value);
+      if (index >= 0) selectTab(barToPage(index));
+    },
+    [activeIndex, haptic, reselect, selectTab],
+  );
+  const onValueLongPress = useCallback(
+    (value: string) => {
+      if (value !== 'you') return;
+      haptic('heavy');
+      showBottomSheet?.('ManageAccount');
+    },
+    [haptic, showBottomSheet],
+  );
+  const chromeStyle = useAnimatedStyle(
+    () => ({
+      opacity: 1 - chromeProgress.value,
+      transform: [{ translateY: chromeProgress.value * 160 }],
+    }),
+    [chromeProgress],
+  );
   const hidden = activePage >= 0 && CHROME_HIDDEN_BY_PAGE[activePage] === 1;
-  return <Animated.View style={chromeStyle} pointerEvents={hidden ? 'none' : 'auto'}>
-    <BloomBottomBar
-      items={items}
-      value={BAR_TABS[activeIndex]?.name ?? ''}
-      activeProgress={progress}
-      onValueChange={onValueChange}
-      onValueLongPress={onValueLongPress}
-      minimizeProgress={minimizeProgress}
-      action={<Fab icon={RiQuillPenLine} accessibilityLabel={t('sidebar.compose')} onPress={() => selectTab(pageIndexByName('write'))} />}
-    />
-  </Animated.View>;
+  return (
+    <Animated.View style={chromeStyle} pointerEvents={hidden ? 'none' : 'auto'}>
+      <BloomBottomBar
+        items={items}
+        value={BAR_TABS[activeIndex]?.name ?? ''}
+        activeProgress={progress}
+        onValueChange={onValueChange}
+        onValueLongPress={onValueLongPress}
+        minimizeProgress={minimizeProgress}
+        action={
+          <Fab
+            icon={RiQuillPenLine}
+            accessibilityLabel={t('sidebar.compose')}
+            onPress={() => selectTab(pageIndexByName('write'))}
+          />
+        }
+      />
+    </Animated.View>
+  );
 };

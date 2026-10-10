@@ -45,8 +45,7 @@ const DEFAULT_PROGUARD = 'getDefaultProguardFile("proguard-android.txt")';
 const OPTIMIZED_PROGUARD = 'getDefaultProguardFile("proguard-android-optimize.txt")';
 
 const DEBUG_SIGNING_CONFIG = 'signingConfig signingConfigs.debug';
-const CONDITIONAL_SIGNING_CONFIG =
-  `signingConfig project.hasProperty('${STORE_FILE}') ? signingConfigs.release : signingConfigs.debug`;
+const CONDITIONAL_SIGNING_CONFIG = `signingConfig project.hasProperty('${STORE_FILE}') ? signingConfigs.release : signingConfigs.debug`;
 
 const RELEASE_SIGNING_CONFIG = `        release {
             // Populated only when the Oxy release keystore properties are

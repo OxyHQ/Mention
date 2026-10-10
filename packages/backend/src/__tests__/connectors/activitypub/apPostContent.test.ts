@@ -12,14 +12,15 @@ import { metrics } from '../../../utils/metrics';
  */
 
 const h = vi.hoisted(() => ({
-  materializeFederatedMedia: vi.fn<
-    (
-      media: MediaItem[],
-      attachments: ExtractedMediaAttachment[],
-      ownerOxyUserId: string | null | undefined,
-      context?: { activityId?: string; actorUri?: string },
-    ) => Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] }>
-  >(),
+  materializeFederatedMedia:
+    vi.fn<
+      (
+        media: MediaItem[],
+        attachments: ExtractedMediaAttachment[],
+        ownerOxyUserId: string | null | undefined,
+        context?: { activityId?: string; actorUri?: string },
+      ) => Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] }>
+    >(),
 }));
 
 vi.mock('../../../connectors/shared/federatedMedia', () => ({
@@ -40,22 +41,33 @@ beforeEach(() => {
   metrics.reset();
   h.materializeFederatedMedia.mockReset();
   // Default: pass media through unchanged (nothing dropped).
-  h.materializeFederatedMedia.mockImplementation(async (media, attachments) => ({ media, attachments }));
+  h.materializeFederatedMedia.mockImplementation(async (media, attachments) => ({
+    media,
+    attachments,
+  }));
 });
 
 describe('extractApContentHtml', () => {
   it('prefers a non-empty top-level content', () => {
-    expect(extractApContentHtml({ content: '<p>hi</p>', contentMap: { es: '<p>hola</p>' } })).toBe('<p>hi</p>');
+    expect(extractApContentHtml({ content: '<p>hi</p>', contentMap: { es: '<p>hola</p>' } })).toBe(
+      '<p>hi</p>',
+    );
   });
 
   it('falls back to the declared primary-language contentMap variant', () => {
     expect(
-      extractApContentHtml({ content: '', language: 'es', contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
+      extractApContentHtml({
+        content: '',
+        language: 'es',
+        contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' },
+      }),
     ).toBe('<p>hola</p>');
   });
 
   it('falls back to the first non-empty contentMap variant when no language resolves', () => {
-    expect(extractApContentHtml({ content: '', contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } })).toBe('<p>hi</p>');
+    expect(
+      extractApContentHtml({ content: '', contentMap: { en: '<p>hi</p>', es: '<p>hola</p>' } }),
+    ).toBe('<p>hi</p>');
   });
 
   it('returns empty string when neither content nor contentMap is usable', () => {
@@ -80,10 +92,12 @@ describe('ActivityPub custom emoji normalization', () => {
   });
 
   it('removes exact declared tokens and their orphaned Misskey zero-width spacing', () => {
-    expect(removeDeclaredCustomEmoji(
-      '\u200B:ohayo_usagi:\u200B Hola \u200B:long_bunny_smile:\u200B',
-      [':ohayo_usagi:', ':long_bunny_smile:'],
-    )).toBe('Hola');
+    expect(
+      removeDeclaredCustomEmoji('\u200B:ohayo_usagi:\u200B Hola \u200B:long_bunny_smile:\u200B', [
+        ':ohayo_usagi:',
+        ':long_bunny_smile:',
+      ]),
+    ).toBe('Hola');
   });
 
   it('preserves undeclared colon text and Unicode emoji', () => {
@@ -132,7 +146,8 @@ describe('rewriteHashtagAnchors', () => {
   });
 
   it('rewrites a Mastodon hashtag anchor (inner span) to #tag — unchanged from prior behavior', () => {
-    const html = '<a href="https://mastodon.social/tags/art" class="mention hashtag" rel="tag">#<span>art</span></a>';
+    const html =
+      '<a href="https://mastodon.social/tags/art" class="mention hashtag" rel="tag">#<span>art</span></a>';
     expect(rewriteHashtagAnchors(html)).toBe('#art');
   });
 
@@ -155,7 +170,8 @@ describe('buildFederatedNoteContent', () => {
   it('rejects the reported Misskey custom-emoji-only shape', async () => {
     const built = await buildFederatedNoteContent(
       {
-        content: '<p>\u200B:ohayo_usagi:\u200B\u200B:right_side_balloon_with_tail:\u200B\u200B:long_bunny_smile:\u200B</p>',
+        content:
+          '<p>\u200B:ohayo_usagi:\u200B\u200B:right_side_balloon_with_tail:\u200B\u200B:long_bunny_smile:\u200B</p>',
         tag: [
           { type: 'Emoji', name: ':ohayo_usagi:' },
           { type: 'Emoji', name: ':right_side_balloon_with_tail:' },
@@ -166,10 +182,12 @@ describe('buildFederatedNoteContent', () => {
       { ingestPath: 'inbox' },
     );
     expect(built).toEqual({ skip: true, reason: 'empty-after-custom-emoji-removal' });
-    expect(metrics.getCounter('federation_import_content_total', {
-      path: 'inbox',
-      decision: 'empty-after-custom-emoji-removal',
-    })).toBe(1);
+    expect(
+      metrics.getCounter('federation_import_content_total', {
+        path: 'inbox',
+        decision: 'empty-after-custom-emoji-removal',
+      }),
+    ).toBe(1);
   });
 
   it('removes declared custom emoji while preserving prose, Unicode emoji and undeclared colon text', async () => {
@@ -196,7 +214,9 @@ describe('buildFederatedNoteContent', () => {
       {
         content: '<p>:photo_frame:</p>',
         tag: [{ type: 'Emoji', name: ':photo_frame:' }],
-        attachment: [{ type: 'Document', mediaType: 'image/png', url: 'https://remote.example/photo.png' }],
+        attachment: [
+          { type: 'Document', mediaType: 'image/png', url: 'https://remote.example/photo.png' },
+        ],
       },
       'owner-1',
       {},
@@ -251,7 +271,13 @@ describe('buildFederatedNoteContent', () => {
     const note = {
       content:
         '<p>Climate news <a class="hashtag" rel="tag" href="https://bsky.app/search?q=%23ClimateCrisis">#ClimateCrisis</a></p>',
-      tag: [{ type: 'Hashtag', name: '#ClimateCrisis', href: 'https://bsky.app/search?q=%23ClimateCrisis' }],
+      tag: [
+        {
+          type: 'Hashtag',
+          name: '#ClimateCrisis',
+          href: 'https://bsky.app/search?q=%23ClimateCrisis',
+        },
+      ],
     };
     const built = await buildFederatedNoteContent(note, 'owner-1', {});
     if (built.skip) throw new Error('expected content');
@@ -297,7 +323,11 @@ describe('buildFederatedNoteContent', () => {
   });
 
   it('recovers text from a contentMap-only note (empty top-level content)', async () => {
-    const built = await buildFederatedNoteContent({ content: '', contentMap: { es: '<p>hola mundo</p>' } }, 'owner-1', {});
+    const built = await buildFederatedNoteContent(
+      { content: '', contentMap: { es: '<p>hola mundo</p>' } },
+      'owner-1',
+      {},
+    );
     expect(built.skip).toBeFalsy();
     if (built.skip) throw new Error('expected content');
     expect(built.text).toBe('hola mundo');
@@ -310,7 +340,9 @@ describe('buildFederatedNoteContent', () => {
     const built = await buildFederatedNoteContent(
       {
         content: '',
-        attachment: [{ type: 'Document', mediaType: 'image/png', url: 'https://remote.example/a.png' }],
+        attachment: [
+          { type: 'Document', mediaType: 'image/png', url: 'https://remote.example/a.png' },
+        ],
       },
       'owner-1',
       {},
@@ -337,7 +369,11 @@ describe('buildFederatedNoteContent', () => {
   });
 
   it('keeps an all-hashtag note: tags captured and the body is not blanked', async () => {
-    const built = await buildFederatedNoteContent({ content: '<p>#art #photo #nature #travel</p>' }, 'owner-1', {});
+    const built = await buildFederatedNoteContent(
+      { content: '<p>#art #photo #nature #travel</p>' },
+      'owner-1',
+      {},
+    );
     expect(built.skip).toBeFalsy();
     if (built.skip) throw new Error('expected content');
     expect(built.hashtags).toEqual(expect.arrayContaining(['art', 'photo', 'nature', 'travel']));
@@ -475,7 +511,11 @@ describe('multilingual ingest — a contentMap is one body PER LANGUAGE, not a f
   });
 
   it('stores the single declared language of a monolingual note as its primary variant', async () => {
-    const built = await buildFederatedNoteContent({ content: '<p>hello</p>', language: 'en' }, 'owner-1', {});
+    const built = await buildFederatedNoteContent(
+      { content: '<p>hello</p>', language: 'en' },
+      'owner-1',
+      {},
+    );
     if (built.skip) throw new Error('expected content');
 
     expect(built.variants).toEqual([{ tag: 'en', source: 'author', text: 'hello' }]);
@@ -528,7 +568,10 @@ describe('multilingual ingest — a contentMap is one body PER LANGUAGE, not a f
       attachments: [],
     });
     const built = await buildFederatedNoteContent(
-      { content: '', attachment: [{ type: 'Document', url: 'https://x/y.png', mediaType: 'image/png' }] },
+      {
+        content: '',
+        attachment: [{ type: 'Document', url: 'https://x/y.png', mediaType: 'image/png' }],
+      },
       'owner-1',
       {},
     );

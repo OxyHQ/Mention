@@ -26,7 +26,9 @@ import { logger } from '../../utils/logger';
 function toleranceWarnings(): Record<string, unknown>[] {
   return vi
     .mocked(logger.warn)
-    .mock.calls.filter(([message]) => message === '[adminScript] run completed with tolerated failures')
+    .mock.calls.filter(
+      ([message]) => message === '[adminScript] run completed with tolerated failures',
+    )
     .map(([, context]) => context as Record<string, unknown>);
 }
 
@@ -82,7 +84,9 @@ describe('assertAdminRunComplete — a tolerated kind', () => {
   it('throws ABOVE the stated fraction, naming the rate, the ceiling and the reason', () => {
     expect(() =>
       assertAdminRunComplete('sweep', { remoteUnavailable: 61 }, REMOTE_TOLERANCE),
-    ).toThrow(/remoteUnavailable=61 \(10\.17% of 600 scanned, over the 10\.00% allowed for: origins that are down/);
+    ).toThrow(
+      /remoteUnavailable=61 \(10\.17% of 600 scanned, over the 10\.00% allowed for: origins that are down/,
+    );
   });
 
   it('WARNS whenever a tolerated kind is non-zero, with the rate and the threshold', () => {
@@ -104,7 +108,11 @@ describe('assertAdminRunComplete — a tolerated kind', () => {
 
   it('refuses to tolerate anything when NOTHING was scanned — a fraction of zero is undefined', () => {
     expect(() =>
-      assertAdminRunComplete('sweep', { remoteUnavailable: 3 }, { ...REMOTE_TOLERANCE, scanned: 0 }),
+      assertAdminRunComplete(
+        'sweep',
+        { remoteUnavailable: 3 },
+        { ...REMOTE_TOLERANCE, scanned: 0 },
+      ),
     ).toThrow('nothing scanned; no rate to measure');
   });
 

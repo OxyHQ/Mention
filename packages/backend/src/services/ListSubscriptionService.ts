@@ -55,7 +55,10 @@ export class ListSubscriptionService {
         .set({ subscriberCount: sql`${accountLists.subscriberCount} + 1` })
         .where(eq(accountLists.id, listId));
     } catch (error) {
-      logger.error('[ListSubscriptionService] Failed to increment subscriberCount', { listId, error });
+      logger.error('[ListSubscriptionService] Failed to increment subscriberCount', {
+        listId,
+        error,
+      });
     }
   }
 
@@ -76,7 +79,10 @@ export class ListSubscriptionService {
         .set({ subscriberCount: sql`${accountLists.subscriberCount} - 1` })
         .where(and(eq(accountLists.id, listId), gt(accountLists.subscriberCount, 0)));
     } catch (error) {
-      logger.error('[ListSubscriptionService] Failed to decrement subscriberCount', { listId, error });
+      logger.error('[ListSubscriptionService] Failed to decrement subscriberCount', {
+        listId,
+        error,
+      });
     }
   }
 
@@ -147,10 +153,13 @@ export class ListSubscriptionService {
       .limit(MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED + 1);
 
     if (members.length > MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED) {
-      logger.warn('[ListSubscriptionService] Subscribed-list author count exceeds cap; truncating', {
-        userId,
-        cap: MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED,
-      });
+      logger.warn(
+        '[ListSubscriptionService] Subscribed-list author count exceeds cap; truncating',
+        {
+          userId,
+          cap: MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED,
+        },
+      );
       return members.slice(0, MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED).map((row) => row.oxyUserId);
     }
 

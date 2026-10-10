@@ -3,7 +3,6 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 jest.mock('@/utils/feedTelemetry', () => ({ reportInterstitialEvent: jest.fn() }));
 
-// eslint-disable-next-line import/first
 import { useInterstitialImpression } from '../interstitialTelemetry';
 
 /**

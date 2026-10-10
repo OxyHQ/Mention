@@ -10,11 +10,9 @@ import { PostVisibility, type HydratedPost, type PostContent } from '@mention/sh
  * the contract the preview depends on, so a rename in the DTO should break these
  * tests rather than slip past a cast.
  */
-export function scheduledPostFixture(overrides: {
-  id?: string;
-  content?: PostContent;
-  scheduledFor?: Date | null;
-} = {}): HydratedPost {
+export function scheduledPostFixture(
+  overrides: { id?: string; content?: PostContent; scheduledFor?: Date | null } = {},
+): HydratedPost {
   const { id = 'post-soon', scheduledFor = null } = overrides;
 
   return {

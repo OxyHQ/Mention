@@ -123,10 +123,7 @@ import { getRemoteHost } from '../connectors/shared/url';
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 /**
  * How many DISTINCT sources must block a domain before it may be presented as a
@@ -185,7 +182,11 @@ const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-
  */
 export type BlockSeverity = 'suspend' | 'silence' | 'noop';
 
-const BLOCK_SEVERITIES: ReadonlySet<string> = new Set<BlockSeverity>(['suspend', 'silence', 'noop']);
+const BLOCK_SEVERITIES: ReadonlySet<string> = new Set<BlockSeverity>([
+  'suspend',
+  'silence',
+  'noop',
+]);
 
 /** One entry as published by a source, after validation. */
 export interface PublishedBlock {
@@ -310,9 +311,7 @@ function normalizeComment(value: unknown): string | undefined {
     .replace(/\s+/g, ' ')
     .trim();
   if (cleaned.length === 0) return undefined;
-  return cleaned.length > MAX_COMMENT_LENGTH
-    ? `${cleaned.slice(0, MAX_COMMENT_LENGTH)}…`
-    : cleaned;
+  return cleaned.length > MAX_COMMENT_LENGTH ? `${cleaned.slice(0, MAX_COMMENT_LENGTH)}…` : cleaned;
 }
 
 /** A published SHA-256 digest, or nothing. */
@@ -346,9 +345,8 @@ export function parseDomainBlocks(payload: unknown): {
     }
     const record = raw as Record<string, unknown>;
 
-    const severityRaw = typeof record.severity === 'string'
-      ? record.severity.trim().toLowerCase()
-      : '';
+    const severityRaw =
+      typeof record.severity === 'string' ? record.severity.trim().toLowerCase() : '';
     if (!BLOCK_SEVERITIES.has(severityRaw)) {
       rejected += 1;
       continue;
@@ -394,10 +392,7 @@ export function parseDomainBlocks(payload: unknown): {
  * failure. Only a transport error, an unexpected status, or an unparseable body
  * is `failed`, and even then the run carries on with the sources that answered.
  */
-export async function pollSource(
-  source: string,
-  timeoutMs: number,
-): Promise<SourcePollResult> {
+export async function pollSource(source: string, timeoutMs: number): Promise<SourcePollResult> {
   const url = `https://${source}${DOMAIN_BLOCKS_PATH}`;
 
   // The fetch's own rejection is folded into a VALUE before the race, not caught
@@ -441,7 +436,13 @@ export async function pollSource(
   // (publishing disabled, or the instance requires auth for it) both mean the
   // same thing to us: this instance does not publish a blocklist.
   if (response.status === 404 || response.status === 403 || response.status === 401) {
-    return { source, outcome: 'not-published', status: response.status, entries: [], rejectedEntries: 0 };
+    return {
+      source,
+      outcome: 'not-published',
+      status: response.status,
+      entries: [],
+      rejectedEntries: 0,
+    };
   }
 
   if (!response.ok) {
@@ -513,7 +514,10 @@ export function buildCorroboration(
 ): { byDomain: Map<string, DomainCorroboration>; obfuscation: ObfuscationTally } {
   // The vote set rides WITH its corroboration rather than in a parallel map, so
   // the two can never be looked up separately and disagree.
-  const accumulated = new Map<string, { corroboration: DomainCorroboration; voters: Set<string> }>();
+  const accumulated = new Map<
+    string,
+    { corroboration: DomainCorroboration; voters: Set<string> }
+  >();
   const obfuscation: ObfuscationTally = { seen: 0, resolved: 0, unresolved: 0 };
 
   for (const result of results) {
@@ -677,7 +681,7 @@ async function loadFollowFootprints(): Promise<FollowFootprints> {
       .where(
         lastId === null
           ? eq(federatedFollows.status, 'accepted')
-          : and(eq(federatedFollows.status, 'accepted'), gt(federatedFollows.id, lastId))
+          : and(eq(federatedFollows.status, 'accepted'), gt(federatedFollows.id, lastId)),
       )
       .orderBy(asc(federatedFollows.id))
       .limit(FOLLOW_PAGE_SIZE);
@@ -728,7 +732,7 @@ async function measurePostFootprint(
       .where(
         lastId === null
           ? eq(federatedActors.domain, domain)
-          : and(eq(federatedActors.domain, domain), gt(federatedActors.id, lastId))
+          : and(eq(federatedActors.domain, domain), gt(federatedActors.id, lastId)),
       )
       .orderBy(asc(federatedActors.id))
       .limit(ACTOR_PAGE_SIZE);
@@ -761,11 +765,11 @@ async function measurePostFootprint(
 /** Rank by what a block would cost US, and only then by how many others agree. */
 function compareCandidates(a: BlocklistCandidate, b: BlocklistCandidate): number {
   return (
-    b.footprint.posts - a.footprint.posts
-    || b.footprint.actors - a.footprint.actors
-    || b.footprint.localUsersFollowing - a.footprint.localUsersFollowing
-    || b.sourceCount - a.sourceCount
-    || a.domain.localeCompare(b.domain)
+    b.footprint.posts - a.footprint.posts ||
+    b.footprint.actors - a.footprint.actors ||
+    b.footprint.localUsersFollowing - a.footprint.localUsersFollowing ||
+    b.sourceCount - a.sourceCount ||
+    a.domain.localeCompare(b.domain)
   );
 }
 
@@ -778,11 +782,13 @@ function compareCandidates(a: BlocklistCandidate, b: BlocklistCandidate): number
 export async function reportFederationBlocklistCandidates(
   options: ReportFederationBlocklistOptions = {},
 ): Promise<BlocklistIntelReport> {
-  const sources = [...new Set(
-    (options.sources ?? BLOCKLIST_SOURCE_INSTANCES)
-      .map((source) => normalizePublishedDomain(source))
-      .filter((source): source is string => source !== null),
-  )];
+  const sources = [
+    ...new Set(
+      (options.sources ?? BLOCKLIST_SOURCE_INSTANCES)
+        .map((source) => normalizePublishedDomain(source))
+        .filter((source): source is string => source !== null),
+    ),
+  ];
   const minSources = Math.max(1, options.minSources ?? DEFAULT_MIN_SOURCES);
   const sourceTimeoutMs = options.sourceTimeoutMs ?? DEFAULT_SOURCE_TIMEOUT_MS;
   const concurrency = Math.min(
@@ -796,7 +802,8 @@ export async function reportFederationBlocklistCandidates(
   });
 
   const settled = await mapWithConcurrency(sources, concurrency, (source) =>
-    pollSource(source, sourceTimeoutMs));
+    pollSource(source, sourceTimeoutMs),
+  );
 
   const pollResults: SourcePollResult[] = settled.map((result, index) => {
     if (result.status === 'fulfilled') return result.value;
@@ -850,9 +857,8 @@ export async function reportFederationBlocklistCandidates(
     // Nothing held from that domain means nothing to attribute — skip the query
     // rather than issue one that can only answer zero. Follow edges are read
     // from the bucketed pass, which does NOT depend on an actor row surviving.
-    const { posts, actorsWithoutLocalUser } = actors > 0
-      ? await measurePostFootprint(domain)
-      : { posts: 0, actorsWithoutLocalUser: 0 };
+    const { posts, actorsWithoutLocalUser } =
+      actors > 0 ? await measurePostFootprint(domain) : { posts: 0, actorsWithoutLocalUser: 0 };
 
     candidates.push({
       domain,
@@ -992,11 +998,16 @@ export function renderReportTable(
     ]),
   );
   const renderRow = (row: Record<string, string>): string =>
-    columns.map((column) => row[column].padEnd(widths.get(column) ?? 0)).join('  ').trimEnd();
+    columns
+      .map((column) => row[column].padEnd(widths.get(column) ?? 0))
+      .join('  ')
+      .trimEnd();
 
   const lines = [renderRow(header), ...rows.map(renderRow)];
   if (report.candidates.length > shown.length) {
-    lines.push(`… ${report.candidates.length - shown.length} further candidates omitted (raise BLOCKLIST_REPORT_LIMIT)`);
+    lines.push(
+      `… ${report.candidates.length - shown.length} further candidates omitted (raise BLOCKLIST_REPORT_LIMIT)`,
+    );
   }
   return lines;
 }
@@ -1011,7 +1022,10 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 /** Comma-separated source hostnames from the environment, or nothing. */
 function parseSources(value: string | undefined): string[] | undefined {
   if (!value) return undefined;
-  const parsed = value.split(',').map((entry) => entry.trim()).filter(Boolean);
+  const parsed = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   return parsed.length > 0 ? parsed : undefined;
 }
 

@@ -8,90 +8,90 @@ import { logger } from '../utils/logger';
  */
 export function startSchedulers(): void {
   try {
-    const { crosspostReconciliationJob } = require("../services/CrosspostReconciliationJob");
+    const { crosspostReconciliationJob } = require('../services/CrosspostReconciliationJob');
     crosspostReconciliationJob.start();
   } catch (error) {
-    logger.warn("Failed to start cross-post reconciliation job", error);
+    logger.warn('Failed to start cross-post reconciliation job', error);
   }
 
   // Feed job scheduler
   try {
-    const { feedJobScheduler } = require("../services/FeedJobScheduler");
+    const { feedJobScheduler } = require('../services/FeedJobScheduler');
     feedJobScheduler.start();
   } catch (error) {
-    logger.warn("Failed to start feed job scheduler", error);
+    logger.warn('Failed to start feed job scheduler', error);
   }
 
   // Trending Service (30-min calculation interval)
   try {
-    const { trendingService } = require("../services/TrendingService");
+    const { trendingService } = require('../services/TrendingService');
     trendingService.initialize();
   } catch (error) {
-    logger.warn("Failed to initialize trending service", error);
+    logger.warn('Failed to initialize trending service', error);
   }
 
   // Post Classification Service (5-min interval; no-ops unless inference is configured)
   try {
-    const { postClassificationService } = require("../services/PostClassificationService");
+    const { postClassificationService } = require('../services/PostClassificationService');
     postClassificationService.start();
   } catch (error) {
-    logger.warn("Failed to start post classification service", error);
+    logger.warn('Failed to start post classification service', error);
   }
 
   // Topic Service (daily AI enrichment of topic metadata)
   try {
-    const { topicService } = require("../services/TopicService");
+    const { topicService } = require('../services/TopicService');
     topicService.start();
   } catch (error) {
-    logger.warn("Failed to initialize topic service", error);
+    logger.warn('Failed to initialize topic service', error);
   }
 
   // Federation Job Scheduler (also owns the media-cache worker + eviction jobs)
   try {
-    const { federationJobScheduler } = require("../services/FederationJobScheduler");
+    const { federationJobScheduler } = require('../services/FederationJobScheduler');
     federationJobScheduler.start();
   } catch (error) {
-    logger.warn("Failed to start federation job scheduler", error);
+    logger.warn('Failed to start federation job scheduler', error);
   }
 
   // MTN Node Scheduler (B3 bidirectional node sync: leader-gated liveness probes
   // + ingest of pull nodes / export to push nodes). Background only — NEVER on a
   // request path; the feed/hydration hot path never queries a node.
   try {
-    const { mentionNodeScheduler } = require("../services/mtn/MentionNodeScheduler");
+    const { mentionNodeScheduler } = require('../services/mtn/MentionNodeScheduler');
     mentionNodeScheduler.start();
   } catch (error) {
-    logger.warn("Failed to start MTN node scheduler", error);
+    logger.warn('Failed to start MTN node scheduler', error);
   }
 
   // Follower Snapshot Job (leader-gated + env-gated on REDIS_URL): samples
   // follower counts for active authors, powering the `risingCreators` feed
   // source's follower-growth delta. Timers are unref'd; inline no-op without Redis.
   try {
-    const { followerSnapshotJob } = require("../services/followerSnapshotJob");
+    const { followerSnapshotJob } = require('../services/followerSnapshotJob');
     followerSnapshotJob.start();
   } catch (error) {
-    logger.warn("Failed to start follower snapshot job", error);
+    logger.warn('Failed to start follower snapshot job', error);
   }
 
   // Expiry sweep (leader-gated): the Postgres stand-in for Mongo's TTL indexes.
   // Deletes rows past each `db/expiry.ts` registry entry's retention, in bounded
   // batches, every ten minutes (OxyHQ/Mention#1187).
   try {
-    const { expirySweepJob } = require("../services/ExpirySweepJob");
+    const { expirySweepJob } = require('../services/ExpirySweepJob');
     expirySweepJob.start();
   } catch (error) {
-    logger.warn("Failed to start expiry sweep job", error);
+    logger.warn('Failed to start expiry sweep job', error);
   }
 
   // SEO sitemaps (leader-gated): every child sitemap built in one pass when the
   // cached catalog is six hours old. Requests only read the cache, so no
   // crawler can make a sitemap query the database (#1160).
   try {
-    const { sitemapBuildJob } = require("../services/seoSitemap");
+    const { sitemapBuildJob } = require('../services/seoSitemap');
     sitemapBuildJob.start();
   } catch (error) {
-    logger.warn("Failed to start sitemap build job", error);
+    logger.warn('Failed to start sitemap build job', error);
   }
 
   // CrowdSource reconciliation (leader-gated, and gated on being able to deliver):
@@ -99,10 +99,12 @@ export function startSchedulers(): void {
   // outbox DISPATCHER runs on every task (lease-claimed in Postgres); this sweep
   // scans the whole table, so one task is enough.
   try {
-    const { moderationReconciliationJob } = require("../services/moderation/ModerationReconciliationJob");
+    const {
+      moderationReconciliationJob,
+    } = require('../services/moderation/ModerationReconciliationJob');
     moderationReconciliationJob.start();
   } catch (error) {
-    logger.warn("Failed to start moderation reconciliation job", error);
+    logger.warn('Failed to start moderation reconciliation job', error);
   }
 
   // Oxy account-deletion reconciliation (leader-gated): reads Oxy's signed
@@ -110,10 +112,12 @@ export function startSchedulers(): void {
   // erasures, so a missed webhook can never leave a deleted person's data here
   // (OxyHQ/Mention#1169). Single-flight across replicas by leadership.
   try {
-    const { accountEventReconciliationJob } = require("../services/accountErasure/AccountEventReconciliationJob");
+    const {
+      accountEventReconciliationJob,
+    } = require('../services/accountErasure/AccountEventReconciliationJob');
     accountEventReconciliationJob.start();
   } catch (error) {
-    logger.warn("Failed to start account event reconciliation job", error);
+    logger.warn('Failed to start account event reconciliation job', error);
   }
 
   // Blocklist proposal sweep (leader-gated): reads the blocklists other
@@ -123,10 +127,12 @@ export function startSchedulers(): void {
   // history, not in this timer, so a weekly sweep still happens on a service
   // that redeploys daily.
   try {
-    const { blocklistProposalScheduler } = require("../services/federation/BlocklistProposalScheduler");
+    const {
+      blocklistProposalScheduler,
+    } = require('../services/federation/BlocklistProposalScheduler');
     blocklistProposalScheduler.start();
   } catch (error) {
-    logger.warn("Failed to start blocklist proposal scheduler", error);
+    logger.warn('Failed to start blocklist proposal scheduler', error);
   }
 }
 
@@ -141,93 +147,99 @@ export function startSchedulers(): void {
  */
 export function stopSchedulers(): void {
   try {
-    const { crosspostReconciliationJob } = require("../services/CrosspostReconciliationJob");
+    const { crosspostReconciliationJob } = require('../services/CrosspostReconciliationJob');
     crosspostReconciliationJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop cross-post reconciliation job", error);
+    logger.warn('Failed to stop cross-post reconciliation job', error);
   }
 
   try {
-    const { feedJobScheduler } = require("../services/FeedJobScheduler");
+    const { feedJobScheduler } = require('../services/FeedJobScheduler');
     feedJobScheduler.stop();
   } catch (error) {
-    logger.warn("Failed to stop feed job scheduler", error);
+    logger.warn('Failed to stop feed job scheduler', error);
   }
 
   try {
-    const { trendingService } = require("../services/TrendingService");
+    const { trendingService } = require('../services/TrendingService');
     trendingService.cleanup();
   } catch (error) {
-    logger.warn("Failed to stop trending service", error);
+    logger.warn('Failed to stop trending service', error);
   }
 
   try {
-    const { postClassificationService } = require("../services/PostClassificationService");
+    const { postClassificationService } = require('../services/PostClassificationService');
     postClassificationService.stop();
   } catch (error) {
-    logger.warn("Failed to stop post classification service", error);
+    logger.warn('Failed to stop post classification service', error);
   }
 
   try {
-    const { topicService } = require("../services/TopicService");
+    const { topicService } = require('../services/TopicService');
     topicService.stop();
   } catch (error) {
-    logger.warn("Failed to stop topic service", error);
+    logger.warn('Failed to stop topic service', error);
   }
 
   try {
-    const { federationJobScheduler } = require("../services/FederationJobScheduler");
+    const { federationJobScheduler } = require('../services/FederationJobScheduler');
     federationJobScheduler.stop();
   } catch (error) {
-    logger.warn("Failed to stop federation job scheduler", error);
+    logger.warn('Failed to stop federation job scheduler', error);
   }
 
   try {
-    const { mentionNodeScheduler } = require("../services/mtn/MentionNodeScheduler");
+    const { mentionNodeScheduler } = require('../services/mtn/MentionNodeScheduler');
     mentionNodeScheduler.stop();
   } catch (error) {
-    logger.warn("Failed to stop MTN node scheduler", error);
+    logger.warn('Failed to stop MTN node scheduler', error);
   }
 
   try {
-    const { followerSnapshotJob } = require("../services/followerSnapshotJob");
+    const { followerSnapshotJob } = require('../services/followerSnapshotJob');
     followerSnapshotJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop follower snapshot job", error);
+    logger.warn('Failed to stop follower snapshot job', error);
   }
 
   try {
-    const { expirySweepJob } = require("../services/ExpirySweepJob");
+    const { expirySweepJob } = require('../services/ExpirySweepJob');
     expirySweepJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop expiry sweep job", error);
+    logger.warn('Failed to stop expiry sweep job', error);
   }
 
   try {
-    const { sitemapBuildJob } = require("../services/seoSitemap");
+    const { sitemapBuildJob } = require('../services/seoSitemap');
     sitemapBuildJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop sitemap build job", error);
+    logger.warn('Failed to stop sitemap build job', error);
   }
 
   try {
-    const { moderationReconciliationJob } = require("../services/moderation/ModerationReconciliationJob");
+    const {
+      moderationReconciliationJob,
+    } = require('../services/moderation/ModerationReconciliationJob');
     moderationReconciliationJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop moderation reconciliation job", error);
+    logger.warn('Failed to stop moderation reconciliation job', error);
   }
 
   try {
-    const { accountEventReconciliationJob } = require("../services/accountErasure/AccountEventReconciliationJob");
+    const {
+      accountEventReconciliationJob,
+    } = require('../services/accountErasure/AccountEventReconciliationJob');
     accountEventReconciliationJob.stop();
   } catch (error) {
-    logger.warn("Failed to stop account event reconciliation job", error);
+    logger.warn('Failed to stop account event reconciliation job', error);
   }
 
   try {
-    const { blocklistProposalScheduler } = require("../services/federation/BlocklistProposalScheduler");
+    const {
+      blocklistProposalScheduler,
+    } = require('../services/federation/BlocklistProposalScheduler');
     blocklistProposalScheduler.stop();
   } catch (error) {
-    logger.warn("Failed to stop blocklist proposal scheduler", error);
+    logger.warn('Failed to stop blocklist proposal scheduler', error);
   }
 }

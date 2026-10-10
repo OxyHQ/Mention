@@ -55,11 +55,6 @@
     "src/scripts/fixtures/*.json",
     "package.json"
   ],
-  "exclude": [
-    "dist",
-    "src/__tests__",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ],
+  "exclude": ["dist", "src/__tests__", "**/*.test.ts", "**/*.spec.ts"],
   "references": [{ "path": "../shared-types" }]
 }

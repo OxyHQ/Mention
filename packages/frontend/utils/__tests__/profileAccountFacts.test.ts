@@ -39,9 +39,13 @@ describe('profileAccountFacts', () => {
 
   it('keeps a local account on its own Oxy record', () => {
     expect(
-      profileAccountFacts({ createdAt: '2024-01-01T00:00:00.000Z', _count: { followers: 5, following: 7 } }, false, {
-        followersCount: 999,
-      }),
+      profileAccountFacts(
+        { createdAt: '2024-01-01T00:00:00.000Z', _count: { followers: 5, following: 7 } },
+        false,
+        {
+          followersCount: 999,
+        },
+      ),
     ).toEqual({ createdAt: '2024-01-01T00:00:00.000Z', followersCount: 5, followingCount: 7 });
   });
 

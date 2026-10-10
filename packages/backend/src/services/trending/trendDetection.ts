@@ -20,16 +20,8 @@ import { isNsfwHashtag } from '../contentClassification/nsfw';
 import { isTopicSlug } from '../contentClassification/taxonomy';
 import { isTrendStopWord } from './termExtraction';
 import { trendCandidateUnionSql } from './termSpace';
-import {
-  buildClusterMap,
-  clusterTrendTerms,
-  type TrendTermPair,
-} from './trendClustering';
-import {
-  buildTrendGraph,
-  type TrendGraphNodeInput,
-  type TrendGraphSnapshot,
-} from './trendGraph';
+import { buildClusterMap, clusterTrendTerms, type TrendTermPair } from './trendClustering';
+import { buildTrendGraph, type TrendGraphNodeInput, type TrendGraphSnapshot } from './trendGraph';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
@@ -77,10 +69,7 @@ export interface TermCandidateResult {
 }
 
 /** Required breadth for a candidate, based on how explicitly authors named it. */
-export function requiredAuthorsForTerm(input: {
-  term: string;
-  hashtagVolume: number;
-}): number {
+export function requiredAuthorsForTerm(input: { term: string; hashtagVolume: number }): number {
   return input.term.includes(' ') || input.hashtagVolume > 0
     ? MtnConfig.trending.detection.minAuthors
     : MtnConfig.trending.detection.minBareEntityAuthors;
@@ -251,7 +240,10 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     // Edges but no stories is a real and informative state — it says the
     // network is talking about several separate things — so the graph is
     // still worth keeping.
-    return { candidates: solo, graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], [], new Map()) };
+    return {
+      candidates: solo,
+      graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], [], new Map()),
+    };
   }
 
   const aliases = buildClusterMap(clusters);
@@ -283,7 +275,13 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     // reports the story's volume instead. Reading a cluster total as a term
     // total is how a graph ends up drawing links that do not follow from its
     // own numbers.
-    graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], linkedPairs, aliases),
+    graph: buildTrendGraph(
+      now,
+      graphNodes(solo),
+      [...pairs, ...conceptPairs],
+      linkedPairs,
+      aliases,
+    ),
   };
 }
 
@@ -313,13 +311,8 @@ async function aggregateTermRows(
   termsSql: SQL,
   membersOf: ReadonlyMap<string, string[]>,
 ): Promise<TermCandidate[]> {
-  const {
-    minVolume,
-    maxActors,
-    authorPostCap,
-    minLanguageShare,
-    minRegionShare,
-  } = MtnConfig.trending.detection;
+  const { minVolume, maxActors, authorPostCap, minLanguageShare, minRegionShare } =
+    MtnConfig.trending.detection;
 
   // TWO grouping levels, because volume is per-AUTHOR-capped: a term's volume
   // is assembled from what each author contributed, not from a flat post
@@ -469,64 +462,66 @@ async function aggregateTermRows(
     having c.volume >= ${minVolume}
   `);
 
-  return rows
-    // Blocklisted NSFW/adult terms never trend, whatever their numbers.
-    .filter((row) => !isNsfwHashtag(row.term))
-    // Stop words are filtered AGAIN here, not only at extraction.
-    //
-    // Extraction runs once, when a post arrives, so a term stored before a
-    // word joined the list keeps counting for as long as the window holds it
-    // — `why` and `will` stayed on the live list after the change that was
-    // supposed to remove them, and would have kept their place for a day.
-    // Filtering at detection makes the list retroactive the moment the batch
-    // runs, and makes it impossible for the version of the word list that
-    // happened to be deployed when a post arrived to decide what trends now.
-    // The extraction-time filter still earns its place: it keeps the stored
-    // arrays and their index small. This is the one that decides.
-    .filter((row) => !isTrendStopWord(row.term))
-    // A term that IS one of our own category names is a shelf label, not a
-    // thing on the shelf. `classification_topics` stopped proposing
-    // candidates for exactly this reason, but the same words also arrive as
-    // hashtags an author typed — `#news` reached the live list with fifteen
-    // authors and named a row "News · News" — so the rule belongs on the term
-    // itself rather than on one of the fields it can travel in.
-    //
-    // Not a word list: it is the taxonomy already maintained for labelling,
-    // read as a stop-list for candidacy. A category gained or renamed there
-    // changes this with it.
-    .filter((row) => !isTopicSlug(row.term))
-    // A capital in prose is useful but weaker evidence than an explicit tag or
-    // a complete multi-word name. This is where generic institutional nouns
-    // such as `Estado` and name fragments such as `City` otherwise scrape over
-    // the global three-author floor and become fallback filler.
-    .map((row) => {
-      const languages = row.languages ?? [];
-      const corpus = corpusSizeFor(languages, corpusByLanguage);
-      const concept = resolveTrendConcept(row.term, languages);
-      return {
-        measurement: {
-          term: row.term,
-          volume: row.volume,
-          recentVolume: row.recentVolume,
-          authorCount: row.authorCount,
-          requiredAuthorCount: requiredAuthorsForTerm(row),
-          // Set only when the corpus size is known. Absent means "not
-          // measured", which the ceiling treats as passing — losing the guard
-          // is the right cost of a failed count, losing the term is not.
-          ...(corpus ? { documentFrequency: row.volume / corpus } : {}),
-        },
-        actorIds: row.actorIds ?? [],
-        hashtagVolume: row.hashtagVolume,
-        topicVolume: row.topicVolume,
-        languages,
-        regions: row.regions ?? [],
-        // A term that was never merged reports itself, so every downstream
-        // reader can treat `members` as the row's term list without first
-        // asking whether clustering ran.
-        members: membersOf.get(row.term) ?? [row.term],
-        ...(concept ? { conceptId: concept.id } : {}),
-      };
-    });
+  return (
+    rows
+      // Blocklisted NSFW/adult terms never trend, whatever their numbers.
+      .filter((row) => !isNsfwHashtag(row.term))
+      // Stop words are filtered AGAIN here, not only at extraction.
+      //
+      // Extraction runs once, when a post arrives, so a term stored before a
+      // word joined the list keeps counting for as long as the window holds it
+      // — `why` and `will` stayed on the live list after the change that was
+      // supposed to remove them, and would have kept their place for a day.
+      // Filtering at detection makes the list retroactive the moment the batch
+      // runs, and makes it impossible for the version of the word list that
+      // happened to be deployed when a post arrived to decide what trends now.
+      // The extraction-time filter still earns its place: it keeps the stored
+      // arrays and their index small. This is the one that decides.
+      .filter((row) => !isTrendStopWord(row.term))
+      // A term that IS one of our own category names is a shelf label, not a
+      // thing on the shelf. `classification_topics` stopped proposing
+      // candidates for exactly this reason, but the same words also arrive as
+      // hashtags an author typed — `#news` reached the live list with fifteen
+      // authors and named a row "News · News" — so the rule belongs on the term
+      // itself rather than on one of the fields it can travel in.
+      //
+      // Not a word list: it is the taxonomy already maintained for labelling,
+      // read as a stop-list for candidacy. A category gained or renamed there
+      // changes this with it.
+      .filter((row) => !isTopicSlug(row.term))
+      // A capital in prose is useful but weaker evidence than an explicit tag or
+      // a complete multi-word name. This is where generic institutional nouns
+      // such as `Estado` and name fragments such as `City` otherwise scrape over
+      // the global three-author floor and become fallback filler.
+      .map((row) => {
+        const languages = row.languages ?? [];
+        const corpus = corpusSizeFor(languages, corpusByLanguage);
+        const concept = resolveTrendConcept(row.term, languages);
+        return {
+          measurement: {
+            term: row.term,
+            volume: row.volume,
+            recentVolume: row.recentVolume,
+            authorCount: row.authorCount,
+            requiredAuthorCount: requiredAuthorsForTerm(row),
+            // Set only when the corpus size is known. Absent means "not
+            // measured", which the ceiling treats as passing — losing the guard
+            // is the right cost of a failed count, losing the term is not.
+            ...(corpus ? { documentFrequency: row.volume / corpus } : {}),
+          },
+          actorIds: row.actorIds ?? [],
+          hashtagVolume: row.hashtagVolume,
+          topicVolume: row.topicVolume,
+          languages,
+          regions: row.regions ?? [],
+          // A term that was never merged reports itself, so every downstream
+          // reader can treat `members` as the row's term list without first
+          // asking whether clustering ran.
+          members: membersOf.get(row.term) ?? [row.term],
+          ...(concept ? { conceptId: concept.id } : {}),
+        };
+      })
+  );
 }
 
 /**
@@ -605,10 +600,7 @@ function clusteredTermsSql(aliases: ReadonlyMap<string, string>): SQL {
  * Fail-soft: without pairs nothing merges and every term reports alone, which
  * is exactly the behaviour before clustering existed.
  */
-async function loadTermPairs(
-  windowMatch: SQL,
-  terms: readonly string[],
-): Promise<TrendTermPair[]> {
+async function loadTermPairs(windowMatch: SQL, terms: readonly string[]): Promise<TrendTermPair[]> {
   if (terms.length < 2) return [];
 
   try {
@@ -666,9 +658,7 @@ async function loadTermPairs(
  * ceiling, which is a weaker list for one batch. Throwing instead would trade
  * the whole batch for one guard.
  */
-async function countWindowPostsByLanguage(
-  windowMatch: SQL,
-): Promise<Map<string | null, number>> {
+async function countWindowPostsByLanguage(windowMatch: SQL): Promise<Map<string | null, number>> {
   const byLanguage = new Map<string | null, number>();
   try {
     const rows = await getDb()

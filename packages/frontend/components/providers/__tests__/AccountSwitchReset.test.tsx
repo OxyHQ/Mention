@@ -106,8 +106,7 @@ jest.mock('@/stores/trendsStore', () => ({
 }));
 
 jest.mock('@/lib/recommendationFilters', () => ({
-  resetRecommendationFiltersViewer: (...args: unknown[]) =>
-    mockResetRecommendationFilters(...args),
+  resetRecommendationFiltersViewer: (...args: unknown[]) => mockResetRecommendationFilters(...args),
 }));
 
 jest.mock('@/hooks/usePrivacySettings', () => ({
@@ -154,20 +153,17 @@ const mockUseAppearanceStore = useAppearanceStore as unknown as jest.Mock;
 const mockGetPostsState = usePostsStore.getState as jest.Mock;
 const mockGetPrivacyState = usePrivacyStore.getState as jest.Mock;
 const mockGetEntityFollowState = useEntityFollowStore.getState as jest.Mock;
-const mockGetExternalEmbedsState =
-  useExternalEmbedsStore.getState as jest.Mock;
+const mockGetExternalEmbedsState = useExternalEmbedsStore.getState as jest.Mock;
 const mockGetLiveRoomsState = useLiveRoomsStore.getState as jest.Mock;
 const mockGetTrendsState = useTrendsStore.getState as jest.Mock;
 const mockSetReaderLanguages = jest.fn();
 const mockClearFeedScrollOffsets = clearFeedScrollOffsets as jest.Mock;
 const mockResetEngagementInvalidation = resetEngagementInvalidation as jest.Mock;
 const mockResetSafetyInvalidation = resetSafetyInvalidation as jest.Mock;
-const mockSetFeedViewerRequestScope =
-  setFeedViewerRequestScope as jest.Mock;
+const mockSetFeedViewerRequestScope = setFeedViewerRequestScope as jest.Mock;
 const mockClearSearchHistory = searchService.clearSearchHistory as jest.Mock;
 const mockDisconnectSocket = socketService.disconnect as jest.Mock;
-const mockResetLiveRoom =
-  liveRoomRuntimeController.resetViewerState as jest.Mock;
+const mockResetLiveRoom = liveRoomRuntimeController.resetViewerState as jest.Mock;
 const mockClaimViewerCache = claimViewerCache as jest.Mock;
 
 function Probe({ viewerId }: { viewerId: string | null }) {
@@ -220,9 +216,7 @@ describe('AccountSwitchReset identity boundary', () => {
     });
     mockUseBloomTheme.mockReturnValue({ resetTheme: mockResetTheme });
     mockUseAppearanceStore.mockImplementation(
-      (selector: (state: {
-        resetViewerState: typeof mockResetAppearance;
-      }) => unknown) =>
+      (selector: (state: { resetViewerState: typeof mockResetAppearance }) => unknown) =>
         selector({ resetViewerState: mockResetAppearance }),
     );
     mockGetPostsState.mockReturnValue({ resetViewerState: mockResetPosts });
@@ -312,9 +306,7 @@ describe('AccountSwitchReset identity boundary', () => {
       ([viewerId]) => viewerId === 'viewer-b',
     );
     expect(viewerBRenderCall).toBeGreaterThanOrEqual(0);
-    expect(clearOrder).toBeLessThan(
-      mockChildRender.mock.invocationCallOrder[viewerBRenderCall],
-    );
+    expect(clearOrder).toBeLessThan(mockChildRender.mock.invocationCallOrder[viewerBRenderCall]);
 
     act(() => {
       renderer!.unmount();

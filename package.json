@@ -59,7 +59,9 @@
     "validate:suite-collection": "bun ./scripts/test-validate-suite-collection.mjs",
     "check:suite-collection": "bun ./scripts/validate-suite-collection.mjs",
     "typecheck:frontend": "bun run --cwd packages/frontend typecheck",
-    "lint": "bun run --parallel lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend",
+    "lint": "biome check . && bun run --parallel lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
     "lint:shared-types": "bun run --cwd packages/shared-types lint",
     "lint:backend": "bun run --cwd packages/backend lint",
     "lint:mcp": "bun run --cwd packages/mcp lint",
@@ -78,6 +80,7 @@
     "postinstall": "bun run build:shared-types"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@oxy.so/doctor": "1.1.0",
     "@types/node": "catalog:",
     "semver": "^7.8.5",

@@ -85,15 +85,11 @@ function serviceErrorLogContext(err: unknown): {
   const record = asServiceClientError(err);
   return {
     status:
-      coerceStatus(record?.status)
-      ?? coerceStatus(record?.statusCode)
-      ?? coerceStatus(record?.response?.status),
+      coerceStatus(record?.status) ??
+      coerceStatus(record?.statusCode) ??
+      coerceStatus(record?.response?.status),
     code: isNonEmptyString(record?.code) ? record.code : undefined,
-    errorKind: err instanceof Error
-      ? 'Error'
-      : record
-        ? 'service-client'
-        : typeof err,
+    errorKind: err instanceof Error ? 'Error' : record ? 'service-client' : typeof err,
   };
 }
 
@@ -185,17 +181,12 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
     // The public key drives the actor's advertised key material. Without it the
     // actor doc is incomplete and remote servers cannot verify our signatures.
     // Surface at error level — historically these failures were invisible.
-    logger.error(
-      '[Federation] public-key lookup failed',
-      serviceErrorLogContext(err),
-    );
+    logger.error('[Federation] public-key lookup failed', serviceErrorLogContext(err));
     throw new Error(`Failed to fetch federation public key: ${message}`);
   }
 
   if (!isNonEmptyString(response?.keyId) || !isNonEmptyString(response?.publicKeyPem)) {
-    logger.error(
-      '[Federation] public-key lookup returned a malformed payload',
-    );
+    logger.error('[Federation] public-key lookup returned a malformed payload');
     throw new Error('Malformed federation public-key response');
   }
 
@@ -229,9 +220,7 @@ export async function signViaOxy(keyId: string, signingString: string): Promise<
   }
 
   if (!isNonEmptyString(response?.signature)) {
-    logger.error(
-      '[Federation] signing request returned a malformed payload',
-    );
+    logger.error('[Federation] signing request returned a malformed payload');
     throw new Error('Malformed federation signing response');
   }
 

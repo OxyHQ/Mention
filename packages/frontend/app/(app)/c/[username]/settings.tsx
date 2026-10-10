@@ -25,11 +25,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { clearedFieldsFromAccountUpdate } from '@oxy.so/services/ui/client';
 import { createLogger } from '@oxy.so/core/logger';
-import {
-  getNormalizedUserHandle,
-  type AccountNode,
-  type UpdateAccountInput,
-} from '@oxy.so/core';
+import { getNormalizedUserHandle, type AccountNode, type UpdateAccountInput } from '@oxy.so/core';
 import {
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
@@ -39,7 +35,10 @@ import {
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import { confirmDialog } from '@/utils/alerts';
-import { channelAccountService, type ChannelAccountSettings } from '@/services/channelAccountService';
+import {
+  channelAccountService,
+  type ChannelAccountSettings,
+} from '@/services/channelAccountService';
 import { channelDeletionService } from '@/services/channelDeletionService';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -116,8 +115,14 @@ export default function ChannelAccountSettingsScreen() {
   const routeHandle = String(username ?? '');
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const { user, oxyServices, canUsePrivateApi, isAuthenticated, isAuthResolved, isPrivateApiPending } =
-    useAuth();
+  const {
+    user,
+    oxyServices,
+    canUsePrivateApi,
+    isAuthenticated,
+    isAuthResolved,
+    isPrivateApiPending,
+  } = useAuth();
   const viewerId = user?.id;
 
   const header = (
@@ -157,7 +162,8 @@ export default function ChannelAccountSettingsScreen() {
         <OxyAuthPrompt
           label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
           description={t('channels.signInRequiredDesc', {
-            defaultValue: 'A channel is an account people follow without following the people who write for it.',
+            defaultValue:
+              'A channel is an account people follow without following the people who write for it.',
           })}
         />
       </View>
@@ -285,9 +291,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
       noteIdentityChanged(updated.account, viewerId, {
         cleared: clearedFieldsFromAccountUpdate(input),
       });
-      toast.success(
-        t('channels.settings.profileSaved', { defaultValue: 'Channel updated' }),
-      );
+      toast.success(t('channels.settings.profileSaved', { defaultValue: 'Channel updated' }));
     },
     onError: (error) => {
       const fallback = t('channels.settings.profileSaveFailed', {
@@ -467,7 +471,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
     <ScrollView
       className="flex-1"
       contentContainerClassName="py-2"
-      showsVerticalScrollIndicator={false}>
+      showsVerticalScrollIndicator={false}
+    >
       {/* Written with the SAME controls the create-a-channel form uses, so the
           two screens read as one flow rather than two dialects of the same
           three fields. Not a `SettingsListGroup`: nothing here is a row to tap,
@@ -483,7 +488,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           <Pressable
             onPress={openAvatarPicker}
             accessibilityRole="button"
-            className="bg-muted rounded-full px-4 py-2">
+            className="bg-muted rounded-full px-4 py-2"
+          >
             <Text className="text-foreground text-[14px] font-semibold">
               {t('channels.settings.changePicture', { defaultValue: 'Change picture' })}
             </Text>
@@ -532,7 +538,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           max: MAX_ACCOUNT_CATEGORIES,
           defaultValue:
             'The first category is the channel’s primary — the only one shown on its profile. The rest appear on its about page. Choose up to {{max}}.',
-        })}>
+        })}
+      >
         {categories.map((id, index) => {
           const known = isKnownAccountCategoryId(id);
           // An id from a newer vocabulary keeps its ROW — it counts against the
@@ -566,7 +573,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
                     <Pressable
                       onPress={() => handlePromoteCategory(id)}
                       accessibilityRole="button"
-                      className="bg-muted rounded-full px-3 py-1.5">
+                      className="bg-muted rounded-full px-3 py-1.5"
+                    >
                       <Text className="text-foreground text-[13px] font-semibold">
                         {t('channels.settings.makePrimary', { defaultValue: 'Make primary' })}
                       </Text>
@@ -579,7 +587,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
                       category: label,
                       defaultValue: `Remove ${label}`,
                     })}
-                    className="p-1">
+                    className="p-1"
+                  >
                     <RiCloseLine width={18} height={18} fill={colors.textSecondary} />
                   </Pressable>
                 </View>
@@ -648,7 +657,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         footer={t('channels.settings.signPostsFooter', {
           defaultValue:
             'The channel signs its own posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.',
-        })}>
+        })}
+      >
         <SettingsListItem
           icon={<RiUserLine width={20} height={20} fill={colors.textSecondary} />}
           title={t('channels.settings.signPosts', { defaultValue: 'Name the writer' })}
@@ -674,7 +684,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           footer={t('channels.settings.deleteFooter', {
             defaultValue:
               'Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.',
-          })}>
+          })}
+        >
           <SettingsListItem
             icon={<RiDeleteBinLine width={20} height={20} fill={colors.error} />}
             title={

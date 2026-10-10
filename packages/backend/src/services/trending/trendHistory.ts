@@ -43,7 +43,11 @@ const HISTORY_WINDOW_MS = TRENDING_RETENTION_SECONDS * 1000;
 export async function getTrendingHistory(
   page: number = 1,
   limit: number = 10,
-): Promise<{ days: Array<{ date: string; trends: SerializedTrend[] }>; page: number; totalPages: number }> {
+): Promise<{
+  days: Array<{ date: string; trends: SerializedTrend[] }>;
+  page: number;
+  totalPages: number;
+}> {
   const cacheKey = `trending:history:${page}:${limit}`;
   const redis = await getRedisClient();
 

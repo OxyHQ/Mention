@@ -153,7 +153,12 @@ describe('GET /jobs/places/search', () => {
       .query({ q: ' barc ', countryCode: 'ES', kind: 'city', limit: '5' });
 
     expect(res.status).toBe(200);
-    expect(placesClient.search).toHaveBeenCalledWith({ q: 'barc', countryCode: 'ES', kind: 'city', limit: 5 });
+    expect(placesClient.search).toHaveBeenCalledWith({
+      q: 'barc',
+      countryCode: 'ES',
+      kind: 'city',
+      limit: 5,
+    });
     expect(res.body).toEqual({
       places: [
         { id: '3128760', kind: 'city', name: 'Barcelona', countryCode: 'ES', region: 'Catalonia' },
@@ -163,8 +168,16 @@ describe('GET /jobs/places/search', () => {
   });
 
   it('defaults the limit to 10', async () => {
-    await request(app).get('/jobs/places/search').set('x-test-user', OUTSIDER_ID).query({ q: 'barc' });
-    expect(placesClient.search).toHaveBeenCalledWith({ q: 'barc', countryCode: undefined, kind: undefined, limit: 10 });
+    await request(app)
+      .get('/jobs/places/search')
+      .set('x-test-user', OUTSIDER_ID)
+      .query({ q: 'barc' });
+    expect(placesClient.search).toHaveBeenCalledWith({
+      q: 'barc',
+      countryCode: undefined,
+      kind: undefined,
+      limit: 10,
+    });
   });
 
   it('rejects a missing query, an unknown country, an unknown kind and an oversized limit with field-level issues', async () => {
@@ -174,13 +187,21 @@ describe('GET /jobs/places/search', () => {
       .query({ countryCode: 'XK', kind: 'village', limit: '500' });
 
     expect(res.status).toBe(400);
-    expect(res.body.issues.map((issue: { path: string }) => issue.path).sort()).toEqual(['countryCode', 'kind', 'limit', 'q']);
+    expect(res.body.issues.map((issue: { path: string }) => issue.path).sort()).toEqual([
+      'countryCode',
+      'kind',
+      'limit',
+      'q',
+    ]);
     expect(placesClient.search).not.toHaveBeenCalled();
   });
 
   it('answers 503 when Clarity cannot', async () => {
     placesClient.search.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
-    const res = await request(app).get('/jobs/places/search').set('x-test-user', OUTSIDER_ID).query({ q: 'barc' });
+    const res = await request(app)
+      .get('/jobs/places/search')
+      .set('x-test-user', OUTSIDER_ID)
+      .query({ q: 'barc' });
     expect(res.status).toBe(503);
   });
 });
@@ -208,7 +229,11 @@ describe('job locations are resolved, never trusted', () => {
   it('stores a region place as its own region, with no city', async () => {
     const res = await createJob({ location: { placeId: CATALONIA.id } });
     expect(res.status).toBe(201);
-    expect(res.body.job.location).toEqual({ placeId: '3336901', countryCode: 'ES', region: 'Catalonia' });
+    expect(res.body.job.location).toEqual({
+      placeId: '3336901',
+      countryCode: 'ES',
+      region: 'Catalonia',
+    });
   });
 
   it('accepts a country-only role without calling Clarity', async () => {
@@ -225,7 +250,9 @@ describe('job locations are resolved, never trusted', () => {
   });
 
   it('rejects client-supplied city/region/raw text instead of ignoring it', async () => {
-    const res = await createJob({ location: { placeId: BARCELONA.id, city: 'Gotham', raw: 'Gotham' } });
+    const res = await createJob({
+      location: { placeId: BARCELONA.id, city: 'Gotham', raw: 'Gotham' },
+    });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation error');
     expect(res.body.issues[0].path).toBe('location');
@@ -253,8 +280,13 @@ describe('job locations are resolved, never trusted', () => {
   it('answers 400 on location.placeId for a place Clarity does not have, and writes nothing', async () => {
     const res = await createJob({ location: { placeId: '999999999' }, title: 'Nowhere Engineer' });
     expect(res.status).toBe(400);
-    expect(res.body.issues).toEqual([{ path: 'location.placeId', message: expect.stringContaining('999999999') }]);
-    const rows = await db.select().from(mentionJobs).where(eq(mentionJobs.employerOxyUserId, EMPLOYER_ID));
+    expect(res.body.issues).toEqual([
+      { path: 'location.placeId', message: expect.stringContaining('999999999') },
+    ]);
+    const rows = await db
+      .select()
+      .from(mentionJobs)
+      .where(eq(mentionJobs.employerOxyUserId, EMPLOYER_ID));
     expect(rows).toHaveLength(0);
   });
 
@@ -283,18 +315,38 @@ describe('job locations are resolved, never trusted', () => {
     const created = await createJob({ location: { placeId: BARCELONA.id } });
     const id = created.body.job.id;
 
-    const toRegion = await request(app).put(`/jobs/${id}`).set('x-test-user', OPERATOR_ID).send({ location: { placeId: CATALONIA.id } });
+    const toRegion = await request(app)
+      .put(`/jobs/${id}`)
+      .set('x-test-user', OPERATOR_ID)
+      .send({ location: { placeId: CATALONIA.id } });
     expect(toRegion.status).toBe(200);
-    expect(toRegion.body.job.location).toEqual({ placeId: '3336901', countryCode: 'ES', region: 'Catalonia' });
+    expect(toRegion.body.job.location).toEqual({
+      placeId: '3336901',
+      countryCode: 'ES',
+      region: 'Catalonia',
+    });
 
-    const toCountry = await request(app).put(`/jobs/${id}`).set('x-test-user', OPERATOR_ID).send({ location: { countryCode: 'PT' } });
+    const toCountry = await request(app)
+      .put(`/jobs/${id}`)
+      .set('x-test-user', OPERATOR_ID)
+      .send({ location: { countryCode: 'PT' } });
     expect(toCountry.body.job.location).toEqual({ countryCode: 'PT' });
-    expect(await getJobById(id)).toMatchObject({ locationPlaceId: null, locationRegion: null, locationCity: null });
+    expect(await getJobById(id)).toMatchObject({
+      locationPlaceId: null,
+      locationRegion: null,
+      locationCity: null,
+    });
 
-    const untouched = await request(app).put(`/jobs/${id}`).set('x-test-user', OPERATOR_ID).send({ title: 'Renamed' });
+    const untouched = await request(app)
+      .put(`/jobs/${id}`)
+      .set('x-test-user', OPERATOR_ID)
+      .send({ title: 'Renamed' });
     expect(untouched.body.job.location).toEqual({ countryCode: 'PT' });
 
-    const cleared = await request(app).put(`/jobs/${id}`).set('x-test-user', OPERATOR_ID).send({ location: null });
+    const cleared = await request(app)
+      .put(`/jobs/${id}`)
+      .set('x-test-user', OPERATOR_ID)
+      .send({ location: null });
     expect(cleared.status).toBe(200);
     expect(cleared.body.job.location).toBeUndefined();
   });
@@ -302,7 +354,9 @@ describe('job locations are resolved, never trusted', () => {
 
 describe('job salaries use closed vocabularies', () => {
   it('accepts an ISO 4217 currency and every Clarity interval, including week', async () => {
-    const res = await createJob({ salary: { min: 900, max: 1200, currency: 'GBP', interval: 'week' } });
+    const res = await createJob({
+      salary: { min: 900, max: 1200, currency: 'GBP', interval: 'week' },
+    });
     expect(res.status).toBe(201);
     expect(res.body.job.salary).toEqual({ min: 900, max: 1200, currency: 'GBP', interval: 'week' });
   });

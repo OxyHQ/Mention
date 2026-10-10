@@ -31,7 +31,11 @@ import type {
 import type { ModuleKind } from './engine/types';
 import { feedModuleRegistry, FeedModuleRegistry } from './engine/FeedModuleRegistry';
 
-const EMPTY_SCHEMA: ModuleParamsSchema = { type: 'object', properties: {}, additionalProperties: false };
+const EMPTY_SCHEMA: ModuleParamsSchema = {
+  type: 'object',
+  properties: {},
+  additionalProperties: false,
+};
 
 /** `array of strings` with a cap — the common source-param shape. */
 function stringArray(maxItems: number): ModuleParamProperty {
@@ -82,7 +86,10 @@ export const MODULE_PARAMS_SCHEMAS: Record<string, ModuleParamsSchema> = {
   maxLength: schema({ maxLength: { type: 'number' } }),
   minLength: schema({ minLength: { type: 'number' } }),
   minQuality: schema({ minQuality: { type: 'number' } }),
-  noLowEffort: schema({ minMeaningfulTextLength: { type: 'number' }, maxEmojiRatio: { type: 'number' } }),
+  noLowEffort: schema({
+    minMeaningfulTextLength: { type: 'number' },
+    maxEmojiRatio: { type: 'number' },
+  }),
   linkCount: schema({ minLinks: { type: 'number' }, maxLinks: { type: 'number' } }),
   domainAllowlist: schema({ domains: stringArray(100) }),
   domainDenylist: schema({ domains: stringArray(100) }),
@@ -120,8 +127,23 @@ interface ModuleMeta {
 }
 
 /** number-range builder. */
-function num(key: string, label: string, min: number, max: number, step: number, def?: number): RawParam {
-  return { key, control: 'number-range', label, min, max, step, ...(def !== undefined ? { default: def } : {}) };
+function num(
+  key: string,
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  def?: number,
+): RawParam {
+  return {
+    key,
+    control: 'number-range',
+    label,
+    min,
+    max,
+    step,
+    ...(def !== undefined ? { default: def } : {}),
+  };
 }
 
 /** free-entry multiselect (tag input) builder. */
@@ -130,7 +152,12 @@ function tags(key: string, label: string, maxItems: number): RawParam {
 }
 
 /** fixed-option multiselect builder. */
-function pick(key: string, label: string, options: Array<{ value: string; label: string }>, maxItems: number): RawParam {
+function pick(
+  key: string,
+  label: string,
+  options: Array<{ value: string; label: string }>,
+  maxItems: number,
+): RawParam {
   return { key, control: 'multiselect', label, options, maxItems };
 }
 
@@ -145,63 +172,102 @@ const HOUR_MS = 60 * 60 * 1000;
 const MODULE_METADATA: Record<string, ModuleMeta> = {
   // ── Sources ──────────────────────────────────────────────────────────────
   keywords: {
-    category: 'source', label: 'Keywords & hashtags',
+    category: 'source',
+    label: 'Keywords & hashtags',
     description: 'Posts matching any of these keywords or hashtags.',
     params: [tags('keywords', 'Keywords', 50), tags('hashtags', 'Hashtags', 50)],
   },
   accounts: {
-    category: 'source', label: 'Accounts',
+    category: 'source',
+    label: 'Accounts',
     description: 'Posts from a chosen set of accounts.',
     params: [tags('authorIds', 'Accounts', 200)],
   },
   topic: { category: 'source', label: 'Topic', description: 'Posts classified under a topic.' },
-  starterPack: { category: 'source', label: 'Starter pack', description: 'Posts from a starter pack’s members.' },
+  starterPack: {
+    category: 'source',
+    label: 'Starter pack',
+    description: 'Posts from a starter pack’s members.',
+  },
   quotes: {
-    category: 'source', label: 'Quotes',
+    category: 'source',
+    label: 'Quotes',
     description: 'Quote posts of a post or from chosen accounts.',
     params: [tags('authorIds', 'Accounts', 200)],
   },
-  instance: { category: 'source', label: 'Instance', description: 'Posts from a federated instance.' },
+  instance: {
+    category: 'source',
+    label: 'Instance',
+    description: 'Posts from a federated instance.',
+  },
   links: { category: 'source', label: 'Links', description: 'Posts linking to a domain.' },
   moreLikeThis: {
-    category: 'source', label: 'More like this',
+    category: 'source',
+    label: 'More like this',
     description: 'Posts similar to a seed post (topics, hashtags, author).',
     params: [tags('topics', 'Topics', 20), tags('hashtags', 'Hashtags', 20)],
   },
   nearby: {
-    category: 'source', label: 'Nearby',
+    category: 'source',
+    label: 'Nearby',
     description: 'Posts near a location.',
     params: [num('radiusKm', 'Radius (km)', 1, 500, 1, 25)],
   },
-  risingCreators: { category: 'source', label: 'Rising creators', description: 'Posts from fast-growing new creators.' },
+  risingCreators: {
+    category: 'source',
+    label: 'Rising creators',
+    description: 'Posts from fast-growing new creators.',
+  },
   trending: { category: 'source', label: 'Trending', description: 'Recent high-engagement posts.' },
-  globalDiscovery: { category: 'source', label: 'Global discovery', description: 'Recent public posts, for serendipity.' },
+  globalDiscovery: {
+    category: 'source',
+    label: 'Global discovery',
+    description: 'Recent public posts, for serendipity.',
+  },
   questions: { category: 'source', label: 'Questions', description: 'Posts that ask a question.' },
   news: { category: 'source', label: 'News', description: 'Posts sharing news links.' },
-  newVoices: { category: 'source', label: 'New voices', description: 'Posts from accounts new to the network.' },
-  topReplies: { category: 'source', label: 'Top replies', description: 'The most-engaged replies.' },
-  curated: { category: 'source', label: 'Curated', description: 'An editorially curated set of posts.' },
+  newVoices: {
+    category: 'source',
+    label: 'New voices',
+    description: 'Posts from accounts new to the network.',
+  },
+  topReplies: {
+    category: 'source',
+    label: 'Top replies',
+    description: 'The most-engaged replies.',
+  },
+  curated: {
+    category: 'source',
+    label: 'Curated',
+    description: 'An editorially curated set of posts.',
+  },
 
   // ── Filters: quality / low-effort ─────────────────────────────────────────
   minQuality: {
-    category: 'quality', label: 'Minimum quality',
-    description: 'Keep only posts whose classified quality is at or above the threshold. Posts without a trusted score pass through.',
+    category: 'quality',
+    label: 'Minimum quality',
+    description:
+      'Keep only posts whose classified quality is at or above the threshold. Posts without a trusted score pass through.',
     params: [num('minQuality', 'Quality floor', 0, 1, 0.05, 0.3)],
   },
   noLowEffort: {
-    category: 'quality', label: 'No low-effort',
-    description: 'Drop emoji-only, shortcode-only, and text-empty posts (unless they carry media). Optionally drop emoji-heavy posts.',
+    category: 'quality',
+    label: 'No low-effort',
+    description:
+      'Drop emoji-only, shortcode-only, and text-empty posts (unless they carry media). Optionally drop emoji-heavy posts.',
     params: [
       num('minMeaningfulTextLength', 'Minimum real text', 0, 200, 1, 12),
       num('maxEmojiRatio', 'Max emoji ratio', 0, 1, 0.05, 0.5),
     ],
   },
   noBots: {
-    category: 'quality', label: 'No bots',
+    category: 'quality',
+    label: 'No bots',
     description: 'Drop RSS/bridge mirrors and link-only news bots.',
   },
   minEngagement: {
-    category: 'engagement', label: 'Minimum engagement',
+    category: 'engagement',
+    label: 'Minimum engagement',
     description: 'Keep only posts meeting each engagement threshold.',
     params: [
       num('minLikes', 'Min likes', 0, 100000, 1),
@@ -211,136 +277,208 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
     ],
   },
   minLength: {
-    category: 'quality', label: 'Minimum length',
+    category: 'quality',
+    label: 'Minimum length',
     description: 'Drop posts shorter than this many characters.',
     params: [num('minLength', 'Min characters', 0, 500, 1)],
   },
   maxLength: {
-    category: 'quality', label: 'Maximum length',
+    category: 'quality',
+    label: 'Maximum length',
     description: 'Drop posts longer than this many characters.',
     params: [num('maxLength', 'Max characters', 0, 5000, 1)],
   },
   recencyWindow: {
-    category: 'recency', label: 'Recency window',
+    category: 'recency',
+    label: 'Recency window',
     description: 'Keep only posts newer than this window.',
     params: [num('windowMs', 'Window (hours)', HOUR_MS, 30 * 24 * HOUR_MS, HOUR_MS, 24 * HOUR_MS)],
   },
 
   // ── Filters: media / content type ─────────────────────────────────────────
   mediaOnly: { category: 'media', label: 'Media only', description: 'Keep only posts with media.' },
-  videoOnly: { category: 'media', label: 'Videos only', description: 'Keep only posts with a video.' },
-  hasImage: { category: 'media', label: 'Has image', description: 'Keep only posts with an image.' },
+  videoOnly: {
+    category: 'media',
+    label: 'Videos only',
+    description: 'Keep only posts with a video.',
+  },
+  hasImage: {
+    category: 'media',
+    label: 'Has image',
+    description: 'Keep only posts with an image.',
+  },
   hasGif: { category: 'media', label: 'Has GIF', description: 'Keep only posts with a GIF.' },
   hasPoll: { category: 'media', label: 'Has poll', description: 'Keep only posts with a poll.' },
-  hasAltText: { category: 'media', label: 'Has alt text', description: 'Keep only posts whose media has alt text.' },
-  textOnly: { category: 'media', label: 'Text only', description: 'Keep only text posts (no media or poll).' },
+  hasAltText: {
+    category: 'media',
+    label: 'Has alt text',
+    description: 'Keep only posts whose media has alt text.',
+  },
+  textOnly: {
+    category: 'media',
+    label: 'Text only',
+    description: 'Keep only text posts (no media or poll).',
+  },
   noBoosts: { category: 'media', label: 'No boosts', description: 'Drop boost/repost posts.' },
   noReplies: { category: 'media', label: 'No replies', description: 'Drop replies.' },
   onlyReplies: { category: 'media', label: 'Only replies', description: 'Keep only replies.' },
   excludeQuotes: { category: 'media', label: 'No quotes', description: 'Drop quote posts.' },
-  originalOnly: { category: 'media', label: 'Original only', description: 'Keep only original posts (no boosts or quotes).' },
+  originalOnly: {
+    category: 'media',
+    label: 'Original only',
+    description: 'Keep only original posts (no boosts or quotes).',
+  },
 
   // ── Filters: links / network ──────────────────────────────────────────────
   linkCount: {
-    category: 'network', label: 'Link count',
+    category: 'network',
+    label: 'Link count',
     description: 'Keep only posts whose number of links is within the range.',
     params: [num('minLinks', 'Min links', 0, 20, 1), num('maxLinks', 'Max links', 0, 20, 1)],
   },
-  hasLink: { category: 'network', label: 'Has link', description: 'Keep only posts that contain a link.' },
-  localOnly: { category: 'network', label: 'Local only', description: 'Keep only local (non-federated) posts.' },
-  federatedOnly: { category: 'network', label: 'Federated only', description: 'Keep only federated posts.' },
+  hasLink: {
+    category: 'network',
+    label: 'Has link',
+    description: 'Keep only posts that contain a link.',
+  },
+  localOnly: {
+    category: 'network',
+    label: 'Local only',
+    description: 'Keep only local (non-federated) posts.',
+  },
+  federatedOnly: {
+    category: 'network',
+    label: 'Federated only',
+    description: 'Keep only federated posts.',
+  },
   domainAllowlist: {
-    category: 'network', label: 'Domain allowlist',
+    category: 'network',
+    label: 'Domain allowlist',
     description: 'Keep only posts linking to an allowed domain.',
     params: [tags('domains', 'Domains', 100)],
   },
   domainDenylist: {
-    category: 'network', label: 'Domain denylist',
+    category: 'network',
+    label: 'Domain denylist',
     description: 'Drop posts linking to a denied domain.',
     params: [tags('domains', 'Domains', 100)],
   },
   instanceAllowlist: {
-    category: 'network', label: 'Instance allowlist',
+    category: 'network',
+    label: 'Instance allowlist',
     description: 'Keep only local posts + posts from an allowed instance.',
     params: [tags('instances', 'Instances', 100)],
   },
   instanceDenylist: {
-    category: 'network', label: 'Instance denylist',
+    category: 'network',
+    label: 'Instance denylist',
     description: 'Drop posts from a denied instance.',
     params: [tags('instances', 'Instances', 100)],
   },
 
   // ── Filters: language ─────────────────────────────────────────────────────
   languagePreference: {
-    category: 'language', label: 'Languages',
-    description: 'Keep only posts in one of these languages (posts with no declared language pass through).',
+    category: 'language',
+    label: 'Languages',
+    description:
+      'Keep only posts in one of these languages (posts with no declared language pass through).',
     params: [tags('languages', 'Languages', 20)],
   },
   languageStrict: {
-    category: 'language', label: 'Declared language required',
+    category: 'language',
+    label: 'Declared language required',
     description: 'Drop posts with no declared language.',
   },
 
   // ── Filters: topics / words ───────────────────────────────────────────────
   topicAllowlist: {
-    category: 'topics', label: 'Topic allowlist',
+    category: 'topics',
+    label: 'Topic allowlist',
     description: 'Keep only posts whose topics overlap the allowlist.',
     params: [tags('topics', 'Topics', 100)],
   },
   topicDenylist: {
-    category: 'topics', label: 'Topic denylist',
+    category: 'topics',
+    label: 'Topic denylist',
     description: 'Drop posts whose topics overlap the denylist.',
     params: [tags('topics', 'Topics', 100)],
   },
   customMuteWords: {
-    category: 'topics', label: 'Mute words',
+    category: 'topics',
+    label: 'Mute words',
     description: 'Drop posts matching any of these words.',
     params: [tags('words', 'Words', 200)],
   },
   keywordDenylist: {
-    category: 'topics', label: 'Keyword denylist',
+    category: 'topics',
+    label: 'Keyword denylist',
     description: 'Drop posts matching any of these keywords.',
     params: [tags('keywords', 'Keywords', 50)],
   },
   sentimentFilter: {
-    category: 'topics', label: 'Sentiment',
+    category: 'topics',
+    label: 'Sentiment',
     description: 'Keep only posts with the selected classified sentiment.',
-    params: [pick('sentiments', 'Sentiments', [
-      { value: 'positive', label: 'Positive' },
-      { value: 'neutral', label: 'Neutral' },
-      { value: 'negative', label: 'Negative' },
-    ], 3)],
+    params: [
+      pick(
+        'sentiments',
+        'Sentiments',
+        [
+          { value: 'positive', label: 'Positive' },
+          { value: 'neutral', label: 'Neutral' },
+          { value: 'negative', label: 'Negative' },
+        ],
+        3,
+      ),
+    ],
   },
 
   // ── Filters: authors ──────────────────────────────────────────────────────
   muteBlock: {
-    category: 'authors', label: 'Muted accounts',
+    category: 'authors',
+    label: 'Muted accounts',
     description: 'Drop posts from these accounts.',
     params: [tags('excludedIds', 'Accounts', 1000)],
   },
   excludeFollowing: {
-    category: 'authors', label: 'Exclude following',
+    category: 'authors',
+    label: 'Exclude following',
     description: 'Drop posts from accounts you already follow (discovery).',
   },
-  verifiedOnly: { category: 'authors', label: 'Verified only', description: 'Keep only posts by verified accounts.' },
+  verifiedOnly: {
+    category: 'authors',
+    label: 'Verified only',
+    description: 'Keep only posts by verified accounts.',
+  },
   verifiedFollowsOnly: {
-    category: 'authors', label: 'Verified follows only',
+    category: 'authors',
+    label: 'Verified follows only',
     description: 'Keep only posts by verified accounts you follow.',
   },
   minFollowers: {
-    category: 'authors', label: 'Minimum followers',
+    category: 'authors',
+    label: 'Minimum followers',
     description: 'Keep only posts by accounts with at least this many followers.',
     params: [num('minFollowers', 'Min followers', 0, 10000000, 1)],
   },
   minAccountAge: {
-    category: 'authors', label: 'Minimum account age',
+    category: 'authors',
+    label: 'Minimum account age',
     description: 'Keep only posts by accounts older than this many days.',
     params: [num('minAgeDays', 'Min age (days)', 0, 3650, 1)],
   },
 
   // ── Filters: safety ───────────────────────────────────────────────────────
-  onlySensitive: { category: 'safety', label: 'Sensitive only', description: 'Keep only sensitive posts.' },
-  excludeSensitive: { category: 'safety', label: 'Exclude sensitive', description: 'Drop sensitive posts.' },
+  onlySensitive: {
+    category: 'safety',
+    label: 'Sensitive only',
+    description: 'Keep only sensitive posts.',
+  },
+  excludeSensitive: {
+    category: 'safety',
+    label: 'Exclude sensitive',
+    description: 'Drop sensitive posts.',
+  },
   authorHasAvatar: {
     category: 'authors',
     label: 'Author has a picture',
@@ -357,25 +495,46 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
 const SIGNAL_LABELS: Record<string, { label: string; description: string }> = {
   engagement: { label: 'Engagement', description: 'Rank by likes, boosts, comments, and views.' },
   recency: { label: 'Recency', description: 'Favor newer posts.' },
-  authorRelationship: { label: 'Relationship', description: 'Favor posts from accounts you interact with.' },
+  authorRelationship: {
+    label: 'Relationship',
+    description: 'Favor posts from accounts you interact with.',
+  },
   authorAuthority: { label: 'Authority', description: 'A modest lift for established accounts.' },
-  personalization: { label: 'Personalization', description: 'Favor posts matching your topics, type, and language.' },
+  personalization: {
+    label: 'Personalization',
+    description: 'Favor posts matching your topics, type, and language.',
+  },
   quality: { label: 'Quality', description: 'Favor higher-quality posts, downrank spam.' },
   trendingVelocity: { label: 'Trending', description: 'Favor posts gaining engagement quickly.' },
   timeOfDay: { label: 'Time of day', description: 'A light time-of-day relevance adjustment.' },
   diversity: { label: 'Diversity', description: 'Mix authors and topics across the page.' },
   mediaBoost: { label: 'Media boost', description: 'Favor posts with media.' },
   positivity: { label: 'Positivity', description: 'Favor positive-sentiment posts.' },
-  conversational: { label: 'Conversational', description: 'Favor constructive, conversational posts.' },
-  coldStartBoost: { label: 'Cold-start boost', description: 'Surface fresh posts and new authors.' },
+  conversational: {
+    label: 'Conversational',
+    description: 'Favor constructive, conversational posts.',
+  },
+  coldStartBoost: {
+    label: 'Cold-start boost',
+    description: 'Surface fresh posts and new authors.',
+  },
   penalizeSeen: { label: 'Penalize seen', description: 'Downrank posts you have already seen.' },
   verifiedBoost: { label: 'Verified boost', description: 'A small lift for verified authors.' },
   dwellTime: { label: 'Dwell time', description: 'Favor posts people spend longer reading.' },
   socialProof: { label: 'Social proof', description: 'Lift posts your network engaged with.' },
-  reciprocityBoost: { label: 'Reciprocity', description: 'Favor accounts you mutually engage with.' },
+  reciprocityBoost: {
+    label: 'Reciprocity',
+    description: 'Favor accounts you mutually engage with.',
+  },
   noveltyBoost: { label: 'Novelty', description: 'Explore topics you have not seen recently.' },
-  localBoost: { label: 'Local boost', description: 'A modest lift for local (non-federated) posts.' },
-  languageMismatchPenalty: { label: 'Off-language penalty', description: 'Downrank discovery posts not in your languages.' },
+  localBoost: {
+    label: 'Local boost',
+    description: 'A modest lift for local (non-federated) posts.',
+  },
+  languageMismatchPenalty: {
+    label: 'Off-language penalty',
+    description: 'Downrank discovery posts not in your languages.',
+  },
   trustTierBoost: {
     label: 'Account standing',
     description: 'A small lift for accounts with more standing on Oxy. Never a penalty.',
@@ -401,7 +560,11 @@ function defaultCategory(kind: ModuleKind): ModuleCategory {
 
 /** Humanize a camelCase module id into a fallback label (e.g. `hasAltText` → `Has alt text`). */
 function humanize(id: string): string {
-  const spaced = id.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase().trim();
+  const spaced = id
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .trim();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
@@ -453,7 +616,9 @@ function toEntry(id: string, kind: ModuleKind): ModuleCatalogEntry {
  * Build the builder-facing module catalog from a registry (defaults to the
  * shared, server-populated singleton).
  */
-export function buildModuleCatalog(registry: FeedModuleRegistry = feedModuleRegistry): ModuleCatalog {
+export function buildModuleCatalog(
+  registry: FeedModuleRegistry = feedModuleRegistry,
+): ModuleCatalog {
   const catalog: ModuleCatalog = { sources: [], signals: [], filters: [] };
 
   for (const module of registry.list()) {

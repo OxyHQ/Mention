@@ -19,14 +19,15 @@ jest.mock('@oxy.so/core', () => ({
 }));
 
 jest.mock('@/stores/appearanceStore', () => ({
-  useAppearanceStore: (selector: (state: unknown) => unknown) => selector({
-    mySettings: {
-      appearance: {
-        postTextExpand: 'default',
-        postReadMoreAction: mockReadMoreAction,
+  useAppearanceStore: (selector: (state: unknown) => unknown) =>
+    selector({
+      mySettings: {
+        appearance: {
+          postTextExpand: 'default',
+          postReadMoreAction: mockReadMoreAction,
+        },
       },
-    },
-  }),
+    }),
 }));
 
 jest.mock('@/components/ProfileHoverCard', () => ({
@@ -51,14 +52,13 @@ describe('PostContentText — truncated link destination', () => {
       mockReadMoreAction = mode;
       let renderer: TestRenderer.ReactTestRenderer | undefined;
       act(() => {
-        renderer = TestRenderer.create(
-          <PostContentText content={LONG_POST} postId="post-1" />,
-        );
+        renderer = TestRenderer.create(<PostContentText content={LONG_POST} postId="post-1" />);
       });
       if (!renderer) throw new Error('render produced no tree');
 
       const link = renderer.root.findAll(
-        (node) => typeof node.props.onPress === 'function' &&
+        (node) =>
+          typeof node.props.onPress === 'function' &&
           typeof node.props.children === 'string' &&
           node.props.children.startsWith('https://'),
       )[0];

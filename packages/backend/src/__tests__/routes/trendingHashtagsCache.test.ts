@@ -52,14 +52,23 @@ vi.mock('../../utils/redis', () => ({
     ping: vi.fn().mockResolvedValue('PONG'),
     get: async (key: string) => store.get(key) ?? null,
     mGet: async (keys: string[]) => keys.map((key) => store.get(key) ?? null),
-    setEx: async (key: string, _ttl: number, value: string) => { store.set(key, value); },
-    del: async (keys: string[]) => { for (const key of keys) store.delete(key); },
+    setEx: async (key: string, _ttl: number, value: string) => {
+      store.set(key, value);
+    },
+    del: async (keys: string[]) => {
+      for (const key of keys) store.delete(key);
+    },
     exists: async (key: string) => (store.has(key) ? 1 : 0),
     multi: () => {
       const queued: Array<[string, string]> = [];
       const chain = {
-        setEx: (key: string, _ttl: number, value: string) => { queued.push([key, value]); return chain; },
-        exec: async () => { for (const [key, value] of queued) store.set(key, value); },
+        setEx: (key: string, _ttl: number, value: string) => {
+          queued.push([key, value]);
+          return chain;
+        },
+        exec: async () => {
+          for (const [key, value] of queued) store.set(key, value);
+        },
       };
       return chain;
     },
@@ -111,7 +120,9 @@ const POSTS_WITH_TAG = 15;
 async function seedTaggedPosts(): Promise<void> {
   for (let index = 0; index < POSTS_WITH_TAG; index += 1) {
     await seedPost(scope, {
-      content: { variants: [{ source: 'author', text: `a trending probe ${index} #${TAG}`, tag: 'en' }] },
+      content: {
+        variants: [{ source: 'author', text: `a trending probe ${index} #${TAG}`, tag: 'en' }],
+      },
       hashtags: [TAG],
     });
   }
@@ -122,7 +133,10 @@ interface TrendingBody {
 }
 
 async function trending(days: number): Promise<TrendingBody> {
-  const res = await request(app).get('/hashtags').query({ days: String(days) }).expect(200);
+  const res = await request(app)
+    .get('/hashtags')
+    .query({ days: String(days) })
+    .expect(200);
   return res.body as TrendingBody;
 }
 

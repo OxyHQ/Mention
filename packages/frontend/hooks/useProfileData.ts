@@ -3,7 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useUserByUsername } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountCategoryId, AccountKind, User } from '@oxy.so/core';
-import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
+import {
+  useAppearanceStore,
+  type UserAppearance,
+  type ProfileMedia,
+} from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxy.so/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
@@ -149,10 +153,7 @@ function computeDesign(
     displayName: displayNameOrHandle(profile.name.displayName, profile.username),
     bannerUrl: bannerUrl?.startsWith('http') ? bannerUrl : undefined,
     avatar: profile.avatar ?? undefined,
-    color:
-      presetColor ||
-      HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] ||
-      'blue',
+    color: presetColor || HEX_TO_APP_COLOR[appearance?.appearance?.primaryColor ?? ''] || 'blue',
     // The public design DTO normalizes "no media" to `null`/absent.
     profileMedia: appearance?.profileMedia ?? undefined,
   };
@@ -256,11 +257,13 @@ export function useProfileData(username?: string): {
   // Oxy's canonical username and proven network aliases are public routes.
   // Shared-contract validation rejects transport-only and incomplete identity data.
   const federatedProfile =
-    federatedQuery.data && isPublicProfileHandle(handle, federatedQuery.data.username, federatedQuery.data)
+    federatedQuery.data &&
+    isPublicProfileHandle(handle, federatedQuery.data.username, federatedQuery.data)
       ? federatedQuery.data
       : null;
 
-  const profile = (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile ?? documentProfile;
+  const profile =
+    (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile ?? documentProfile;
   const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
   const queryError = isFederated ? federatedQuery.error : localQuery.error;
@@ -289,13 +292,8 @@ export function useProfileData(username?: string): {
   const appearance = appearanceQuery.data ?? null;
 
   const refresh = useCallback(async () => {
-    const profileRequest = isFederated
-      ? federatedQuery.refetch()
-      : localQuery.refetch();
-    await Promise.all([
-      profileRequest,
-      ...(userId ? [appearanceQuery.refetch()] : []),
-    ]);
+    const profileRequest = isFederated ? federatedQuery.refetch() : localQuery.refetch();
+    await Promise.all([profileRequest, ...(userId ? [appearanceQuery.refetch()] : [])]);
   }, [appearanceQuery, federatedQuery, isFederated, localQuery, userId]);
 
   const profileData = useMemo<ProfileData | null>(() => {
@@ -311,9 +309,27 @@ export function useProfileData(username?: string): {
     );
     const communities = Array.isArray(profile.communities)
       ? profile.communities.flatMap((entry): Community[] => {
-          if (entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string') {
-            const c = entry as { id?: string; name: string; description?: string; icon?: string; memberCount?: number };
-            return [{ id: c.id, name: c.name, description: c.description, icon: c.icon, memberCount: c.memberCount }];
+          if (
+            entry &&
+            typeof entry === 'object' &&
+            typeof (entry as { name?: unknown }).name === 'string'
+          ) {
+            const c = entry as {
+              id?: string;
+              name: string;
+              description?: string;
+              icon?: string;
+              memberCount?: number;
+            };
+            return [
+              {
+                id: c.id,
+                name: c.name,
+                description: c.description,
+                icon: c.icon,
+                memberCount: c.memberCount,
+              },
+            ];
           }
           return [];
         })

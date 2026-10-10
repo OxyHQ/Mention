@@ -10,11 +10,7 @@
 
 import { lt } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import {
-  TRENDING_RETENTION_SECONDS,
-  trendBatches,
-  trending,
-} from '../../db/schema/discovery';
+import { TRENDING_RETENTION_SECONDS, trendBatches, trending } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
 import type { TrendItem } from './trendItems';
 import type { TrendingKind } from './trendRow';
@@ -148,11 +144,15 @@ export async function saveTrendingBatch(
         target: [trending.name, trending.calculatedAt, trending.type],
       })
       .returning({ id: trending.id, name: trending.name, type: trending.type });
-    await saveMembershipsFailSoft(inserted.map((row) => {
-      const item = sorted.find((candidate) => candidate.name === row.name);
-      return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
-    }));
-    logger.debug(`[Trending] Saved ${inserted.length} trends for batch ${calculatedAt.toISOString()}`);
+    await saveMembershipsFailSoft(
+      inserted.map((row) => {
+        const item = sorted.find((candidate) => candidate.name === row.name);
+        return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
+      }),
+    );
+    logger.debug(
+      `[Trending] Saved ${inserted.length} trends for batch ${calculatedAt.toISOString()}`,
+    );
     return { insertedCount: inserted.length, rejected: rejectedOf(inserted) };
   } catch (error) {
     // A multi-row INSERT is ONE statement: a constraint violation on any row
@@ -184,10 +184,12 @@ export async function saveTrendingBatch(
         });
       }
     }
-    await saveMembershipsFailSoft(accepted.map((row) => {
-      const item = sorted.find((candidate) => candidate.name === row.name);
-      return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
-    }));
+    await saveMembershipsFailSoft(
+      accepted.map((row) => {
+        const item = sorted.find((candidate) => candidate.name === row.name);
+        return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
+      }),
+    );
     return { insertedCount: accepted.length, rejected: rejectedOf(accepted) };
   }
 }

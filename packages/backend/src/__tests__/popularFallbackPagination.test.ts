@@ -148,7 +148,10 @@ async function create(
   created.push(record.id);
   // `stats` is owned by the engagement batch and is not part of
   // `PostRecordInput`, so a ranking fixture writes the column directly.
-  await db.update(posts).set({ statsLikesCount: likes }).where(inArray(posts.id, [record.id]));
+  await db
+    .update(posts)
+    .set({ statsLikesCount: likes })
+    .where(inArray(posts.id, [record.id]));
   return record.id;
 }
 
@@ -258,7 +261,11 @@ describe('the ScoreCursor keyset payload', () => {
   });
 
   it('keeps carrying the rolling exclusion list alongside it', () => {
-    const cursor = ScoreCursor.build(3, ANCHOR, { asOf: NOW, tiebreakAt: NOW, excludeIds: [OTHER] });
+    const cursor = ScoreCursor.build(3, ANCHOR, {
+      asOf: NOW,
+      tiebreakAt: NOW,
+      excludeIds: [OTHER],
+    });
     expect(ScoreCursor.parse(cursor)?.excludeIds).toContain(OTHER);
   });
 
@@ -439,14 +446,19 @@ describe('popularSource — reader-language predicate', () => {
     const german = await create(60, RECENT, DE);
 
     expect(await gatherIds({}, [spanish, german])).toEqual([german, spanish]);
-    expect(await gatherIds({ viewerBaseLanguages: [] }, [spanish, german])).toEqual([german, spanish]);
+    expect(await gatherIds({ viewerBaseLanguages: [] }, [spanish, german])).toEqual([
+      german,
+      spanish,
+    ]);
   });
 
   it('keeps a post when ANY of its languages matches', async () => {
     const bilingual = await create(50, RECENT, { postClassification: { languages: ['de', 'es'] } });
     const german = await create(60, RECENT, DE);
 
-    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [bilingual, german])).toEqual([bilingual]);
+    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [bilingual, german])).toEqual([
+      bilingual,
+    ]);
   });
 
   /**
@@ -459,6 +471,8 @@ describe('popularSource — reader-language predicate', () => {
     const empty = await create(60, RECENT, { postClassification: { languages: [] } });
     const missing = await create(70, RECENT, {});
 
-    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, empty, missing])).toEqual([spanish]);
+    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, empty, missing])).toEqual([
+      spanish,
+    ]);
   });
 });

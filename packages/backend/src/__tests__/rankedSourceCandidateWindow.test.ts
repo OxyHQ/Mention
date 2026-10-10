@@ -253,7 +253,11 @@ describe.each([
     const seen = [ids[0], ids[4]];
 
     const cursor = ScoreCursor.build(7.5, anchor);
-    const pool = await gatherMine(source, { currentUserId: 'viewer', cursor, seenPostIds: seen }, ids);
+    const pool = await gatherMine(
+      source,
+      { currentUserId: 'viewer', cursor, seenPostIds: seen },
+      ids,
+    );
 
     // EXACTLY the seen rows are missing. Excluding a bounded id list is how the
     // seen set works and is not what is under test; anything else missing is.

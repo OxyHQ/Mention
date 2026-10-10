@@ -38,7 +38,10 @@ export interface FederationInfo {
  * its instagram.com page. Pure, so every branch is testable without the screen.
  */
 export function federationInfoOf(
-  profile: { isFederated?: boolean; actorUri?: string; instance?: string; username?: string } | null | undefined,
+  profile:
+    | { isFederated?: boolean; actorUri?: string; instance?: string; username?: string }
+    | null
+    | undefined,
 ): FederationInfo | null {
   if (!profile?.isFederated) return null;
   const actorUri = profile.actorUri;
@@ -50,7 +53,11 @@ export function federationInfoOf(
   const isInstagram =
     instance?.toLowerCase() === INSTAGRAM_NETWORK_DOMAIN ||
     (actorUri?.startsWith('instagram-graph:') ?? false);
-  const network: ExternalNetwork = isBluesky ? 'atproto' : isInstagram ? 'instagram-graph' : 'activitypub';
+  const network: ExternalNetwork = isBluesky
+    ? 'atproto'
+    : isInstagram
+      ? 'instagram-graph'
+      : 'activitypub';
   const handle = getNormalizedUserHandle({
     username: profile.username,
     instance,
@@ -63,14 +70,17 @@ export function federationInfoOf(
     // ActivityPub document, and the Graph actor URI is not a web address.
     const at = handle?.lastIndexOf('@') ?? -1;
     const username = handle && at > 0 ? handle.slice(0, at) : undefined;
-    originalProfileUrl = username && INSTAGRAM_USERNAME_RE.test(username)
-      ? `https://www.instagram.com/${username}/`
-      : null;
+    originalProfileUrl =
+      username && INSTAGRAM_USERNAME_RE.test(username)
+        ? `https://www.instagram.com/${username}/`
+        : null;
   } else if (actorUri?.startsWith('https://') || actorUri?.startsWith('http://')) {
     originalProfileUrl = actorUri;
   } else if (isBluesky && actorUri) {
     // bsky.app resolves both DIDs and handles at `/profile/<id>`.
-    const id = actorUri.startsWith('at://') ? actorUri.slice('at://'.length).split('/')[0] : actorUri;
+    const id = actorUri.startsWith('at://')
+      ? actorUri.slice('at://'.length).split('/')[0]
+      : actorUri;
     originalProfileUrl = id ? `https://bsky.app/profile/${id}` : null;
   }
 

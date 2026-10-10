@@ -25,7 +25,8 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   );
   return {
     ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) => fetchUpstreamFollowingRedirects(...args),
+    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
+      fetchUpstreamFollowingRedirects(...args),
   };
 });
 
@@ -56,7 +57,9 @@ import intentMediaRoutes from '../../routes/intentMedia';
 const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
-  (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: 'user-1' };
+  (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+    id: 'user-1',
+  };
   (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
   next();
 });
@@ -75,7 +78,10 @@ describe('POST /posts/intent-media', () => {
     assetUploadMock.mockReset();
     uploadServiceUserMediaMock.mockReset();
     assetUploadMock.mockResolvedValue({ file: { id: 'oxy-file-1' } });
-    uploadServiceUserMediaMock.mockResolvedValue({ fileId: 'mcp-file-1', contentType: 'image/png' });
+    uploadServiceUserMediaMock.mockResolvedValue({
+      fileId: 'mcp-file-1',
+      contentType: 'image/png',
+    });
   });
 
   it('uploads via service path when MCP context is present', async () => {
@@ -133,9 +139,7 @@ describe('POST /posts/intent-media', () => {
       finalUrl: 'https://example.com/page.html',
     });
 
-    const res = await request(app)
-      .post('/')
-      .send({ url: 'https://example.com/page.html' });
+    const res = await request(app).post('/').send({ url: 'https://example.com/page.html' });
 
     expect(res.status).toBe(415);
     expect(assetUploadMock).not.toHaveBeenCalled();
@@ -143,15 +147,12 @@ describe('POST /posts/intent-media', () => {
 
   it('rejects oversized base64 before decode', async () => {
     const huge = 'A'.repeat(60_000_000);
-    const res = await request(app)
-      .post('/')
-      .send({ base64: huge, mimeType: 'image/png' });
+    const res = await request(app).post('/').send({ base64: huge, mimeType: 'image/png' });
 
     expect(res.status).toBe(413);
     expect(assetUploadMock).not.toHaveBeenCalled();
     expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
   });
-
 
   it('rejects base64 SVG when mimeType has parameters', async () => {
     const svg = Buffer.from('<svg><script>alert(1)</script></svg>');
@@ -190,7 +191,11 @@ describe('POST /posts/intent-media', () => {
     const png = Buffer.from('PNG!');
     const res = await request(app)
       .post('/')
-      .send({ base64: png.toString('base64'), mimeType: 'image/png', filename: '../../etc/passwd' });
+      .send({
+        base64: png.toString('base64'),
+        mimeType: 'image/png',
+        filename: '../../etc/passwd',
+      });
 
     expect(res.status).toBe(200);
     expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();

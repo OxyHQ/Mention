@@ -162,7 +162,11 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
       description={subtitle}
       action={
         action
-          ? { label: action.label, onPress: action.onPress, icon: action.icon ? ICONS[action.icon] : undefined }
+          ? {
+              label: action.label,
+              onPress: action.onPress,
+              icon: action.icon ? ICONS[action.icon] : undefined,
+            }
           : undefined
       }
       style={containerStyle}

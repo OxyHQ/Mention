@@ -98,10 +98,7 @@ async function readStoredSummary(
     const [row] = await getDb()
       .select({ description: trendSummaries.description })
       .from(trendSummaries)
-      .where(and(
-        eq(trendSummaries.term, term),
-        eq(trendSummaries.runStartedAt, runStartedAt),
-      ))
+      .where(and(eq(trendSummaries.term, term), eq(trendSummaries.runStartedAt, runStartedAt)))
       .limit(1);
     return { ok: true, ...(row?.description ? { description: row.description } : {}) };
   } catch (error) {
@@ -183,7 +180,10 @@ async function generateSummary(
       { feature: 'trend-summary', temperature: 0.3 },
     );
 
-    const description = raw.trim().replace(/\s+/g, ' ').slice(0, MtnConfig.trending.summary.maxLength);
+    const description = raw
+      .trim()
+      .replace(/\s+/g, ' ')
+      .slice(0, MtnConfig.trending.summary.maxLength);
     if (!description) return undefined;
 
     await getDb()

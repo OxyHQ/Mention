@@ -41,7 +41,12 @@ const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
         <Text className="text-muted-foreground flex-shrink text-[13px]" numberOfLines={1}>
           {text ? `${label} · ${text}` : label}
         </Text>
-        <Pressable onPress={onToggle} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={hide}>
+        <Pressable
+          onPress={onToggle}
+          hitSlop={HIT_SLOP_MD}
+          accessibilityRole="button"
+          accessibilityLabel={hide}
+        >
           <Text className="text-primary text-[13px] font-semibold">{hide}</Text>
         </Pressable>
       </View>
@@ -59,7 +64,9 @@ const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
         <RiAlertLine width={18} height={18} fill={theme.colors.textSecondary} />
       </View>
       <View className="flex-1 shrink gap-0.5">
-        <Text className="text-muted-foreground text-[12px] font-semibold uppercase tracking-wide">{label}</Text>
+        <Text className="text-muted-foreground text-[12px] font-semibold uppercase tracking-wide">
+          {label}
+        </Text>
         {text ? (
           <Text className="text-foreground text-[15px] font-semibold" numberOfLines={3}>
             {text}

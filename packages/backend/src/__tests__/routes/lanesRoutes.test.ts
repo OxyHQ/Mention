@@ -98,7 +98,9 @@ async function seedLane(
 
 /** Create a lane through the ROUTE, so assertions cover a real write path. */
 async function createLane(body: Record<string, unknown> = {}): Promise<request.Response> {
-  const res = await request(app).post('/lanes').send({ name: uniqueName(), ...body });
+  const res = await request(app)
+    .post('/lanes')
+    .send({ name: uniqueName(), ...body });
   if (res.status === 201) createdLaneIds.push(res.body.data.id);
   return res;
 }
@@ -279,7 +281,9 @@ describe('POST /lanes', () => {
   });
 
   it('rejects a display mode outside the enum', async () => {
-    const res = await request(app).post('/lanes').send({ name: uniqueName(), displayMode: 'secret' });
+    const res = await request(app)
+      .post('/lanes')
+      .send({ name: uniqueName(), displayMode: 'secret' });
     expect(res.status).toBe(400);
   });
 

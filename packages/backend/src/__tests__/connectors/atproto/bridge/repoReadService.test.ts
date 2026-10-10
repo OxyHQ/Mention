@@ -61,7 +61,9 @@ async function seed(rows: LedgerSeed[]): Promise<void> {
   const already = new Set(createdPostIds);
   const postRows = [
     ...new Set(
-      rows.filter((r) => r.nsid === MENTION_POST_COLLECTION && !already.has(r.rkey)).map((r) => r.rkey)
+      rows
+        .filter((r) => r.nsid === MENTION_POST_COLLECTION && !already.has(r.rkey))
+        .map((r) => r.rkey),
     ),
   ];
   if (postRows.length > 0) await publicPosts(postRows);
@@ -102,7 +104,7 @@ function postRecord(text: string): Record<string, unknown> {
  * post id here is the ledger rkey, by construction of the chain.
  */
 async function seedPosts(
-  specs: { id: string; status?: string; visibility?: string }[]
+  specs: { id: string; status?: string; visibility?: string }[],
 ): Promise<void> {
   if (specs.length === 0) return;
   await db.insert(posts).values(
@@ -111,7 +113,7 @@ async function seedPosts(
       oxyUserId: OWNER,
       status: spec.status ?? 'published',
       visibility: spec.visibility ?? 'public',
-    })) as never
+    })) as never,
   );
   createdPostIds.push(...specs.map((spec) => spec.id));
 }
@@ -138,7 +140,8 @@ afterEach(async () => {
   }
   while (createdOwners.length > 0) {
     const owner = createdOwners.pop();
-    if (owner) await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, owner));
+    if (owner)
+      await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, owner));
   }
 });
 
@@ -149,8 +152,20 @@ afterAll(async () => {
 describe('listRecords', () => {
   it('translates posts newest-first into app.bsky.feed.post records', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('first'), createdAt: '2026-06-30T01:00:00.000Z', recordId: 'rid-p1' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p2', record: postRecord('second'), createdAt: '2026-06-30T02:00:00.000Z', recordId: 'rid-p2' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('first'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+        recordId: 'rid-p1',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p2',
+        record: postRecord('second'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+        recordId: 'rid-p2',
+      },
     ]);
 
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
@@ -165,8 +180,18 @@ describe('listRecords', () => {
 
   it('applies LAST-WRITER-WINS per rkey (newest version wins, older dropped)', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('original'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('edited'), createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('original'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('edited'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
     ]);
 
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
@@ -176,8 +201,18 @@ describe('listRecords', () => {
 
   it('removes a key targeted by a tombstone', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('deleted'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p2', record: postRecord('alive'), createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('deleted'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p2',
+        record: postRecord('alive'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
       {
         nsid: MENTION_TOMBSTONE_COLLECTION,
         rkey: 't1',
@@ -192,7 +227,12 @@ describe('listRecords', () => {
 
   it('serves likes from their own collection and ignores the post collection', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('a post'), createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('a post'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
       {
         nsid: MENTION_LIKE_COLLECTION,
         rkey: 'l1',
@@ -213,9 +253,24 @@ describe('listRecords', () => {
       { id: 'draft-public', status: 'draft' },
     ]);
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'published-private', record: postRecord('private secret'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'draft-public', record: postRecord('draft secret'), createdAt: '2026-06-30T02:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'published-public', record: postRecord('safe'), createdAt: '2026-06-30T03:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'published-private',
+        record: postRecord('private secret'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'draft-public',
+        record: postRecord('draft secret'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'published-public',
+        record: postRecord('safe'),
+        createdAt: '2026-06-30T03:00:00.000Z',
+      },
     ]);
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
 
@@ -243,9 +298,24 @@ describe('listRecords', () => {
 
   it('paginates by rkey cursor and reports the next cursor', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('1'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p2', record: postRecord('2'), createdAt: '2026-06-30T02:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p3', record: postRecord('3'), createdAt: '2026-06-30T03:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('1'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p2',
+        record: postRecord('2'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p3',
+        record: postRecord('3'),
+        createdAt: '2026-06-30T03:00:00.000Z',
+      },
     ]);
 
     const first = await listRecords(OWNER, 'app.bsky.feed.post', { limit: 2 });
@@ -259,8 +329,18 @@ describe('listRecords', () => {
 
   it('skips a record whose payload fails its lexicon schema (no throw)', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'ok', record: postRecord('valid'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'bad', record: { notText: 1 }, createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'ok',
+        record: postRecord('valid'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'bad',
+        record: { notText: 1 },
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
     ]);
 
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
@@ -272,9 +352,23 @@ describe('listRecords', () => {
     createdOwners.push(other);
     const mine = OWNER;
     OWNER = other;
-    await seed([{ nsid: MENTION_POST_COLLECTION, rkey: 'theirs', record: postRecord('not mine'), createdAt: '2026-06-30T05:00:00.000Z' }]);
+    await seed([
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'theirs',
+        record: postRecord('not mine'),
+        createdAt: '2026-06-30T05:00:00.000Z',
+      },
+    ]);
     OWNER = mine;
-    await seed([{ nsid: MENTION_POST_COLLECTION, rkey: 'mine', record: postRecord('mine'), createdAt: '2026-06-30T01:00:00.000Z' }]);
+    await seed([
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'mine',
+        record: postRecord('mine'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+    ]);
 
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
     expect(page.records.map((r) => r.rkey)).toEqual(['mine']);
@@ -284,7 +378,12 @@ describe('listRecords', () => {
 describe('getRecord', () => {
   it('resolves a single live record by rkey', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('hi'), createdAt: '2026-06-30T01:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('hi'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
     ]);
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
     expect(record?.value).toMatchObject({ text: 'hi' });
@@ -292,8 +391,18 @@ describe('getRecord', () => {
 
   it('reads only the requested key, so a sibling key never leaks into the answer', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('wanted'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p2', record: postRecord('other'), createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('wanted'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p2',
+        record: postRecord('other'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
     ]);
 
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
@@ -308,8 +417,18 @@ describe('getRecord', () => {
 
   it('applies LWW for the requested rkey (newest edit wins)', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('original'), createdAt: '2026-06-30T01:00:00.000Z' },
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('edited'), createdAt: '2026-06-30T02:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('original'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('edited'),
+        createdAt: '2026-06-30T02:00:00.000Z',
+      },
     ]);
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
     expect(record?.value).toMatchObject({ text: 'edited' });
@@ -321,7 +440,12 @@ describe('getRecord', () => {
     // the post row is the only difference, which is the point.
     await seedPosts([{ id: 'p1', status: 'draft' }]);
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('secret'), createdAt: '2026-06-30T01:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('secret'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
     ]);
 
     expect(await getRecord(OWNER, 'app.bsky.feed.post', 'p1')).toBeNull();
@@ -329,7 +453,12 @@ describe('getRecord', () => {
 
   it('returns null for a tombstoned record', async () => {
     await seed([
-      { nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('gone'), createdAt: '2026-06-30T01:00:00.000Z' },
+      {
+        nsid: MENTION_POST_COLLECTION,
+        rkey: 'p1',
+        record: postRecord('gone'),
+        createdAt: '2026-06-30T01:00:00.000Z',
+      },
       {
         nsid: MENTION_TOMBSTONE_COLLECTION,
         rkey: 't1',

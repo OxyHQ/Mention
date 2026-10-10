@@ -231,7 +231,9 @@ afterAll(async () => {
 describe('moderation outbox — delivery survives CrowdSource being unreachable', () => {
   beforeEach(async () => {
     // The events cascade from their reports, so one delete clears both.
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
     vi.clearAllMocks();
     mocks.reportsCreate.mockReset();
     mocks.snapshot.mockResolvedValue({
@@ -251,18 +253,18 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
   });
 
   afterEach(async () => {
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
   });
 
   it('keeps the report and delivers it on a later tick', async () => {
-    mocks.reportsCreate
-      .mockRejectedValueOnce(new RetryableTransportError())
-      .mockResolvedValueOnce({
-        reportId: 'rpt_01',
-        caseId: 'case_01',
-        status: 'received',
-        merged: false,
-      });
+    mocks.reportsCreate.mockRejectedValueOnce(new RetryableTransportError()).mockResolvedValueOnce({
+      reportId: 'rpt_01',
+      caseId: 'case_01',
+      status: 'received',
+      merged: false,
+    });
 
     // --- Tick 1: CrowdSource is unreachable.
     expect(await tick()).toEqual({ processed: 0, failed: 1, deadLettered: 0 });
@@ -309,14 +311,12 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
   });
 
   it('sends the same submittedAt on every attempt, so a retry is not a 409', async () => {
-    mocks.reportsCreate
-      .mockRejectedValueOnce(new RetryableTransportError())
-      .mockResolvedValueOnce({
-        reportId: 'rpt_01',
-        caseId: 'case_01',
-        status: 'received',
-        merged: false,
-      });
+    mocks.reportsCreate.mockRejectedValueOnce(new RetryableTransportError()).mockResolvedValueOnce({
+      reportId: 'rpt_01',
+      caseId: 'case_01',
+      status: 'received',
+      merged: false,
+    });
 
     await tick();
     await fastForwardPastBackoff();
@@ -428,7 +428,9 @@ describe('moderation outbox — delivery survives CrowdSource being unreachable'
  */
 describe('moderation outbox — the lease under contention', () => {
   beforeEach(async () => {
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
     vi.clearAllMocks();
     mocks.reportsCreate.mockReset();
     await seed();
@@ -443,9 +445,12 @@ describe('moderation outbox — the lease under contention', () => {
      * A shorter handler would pass either way and prove nothing.
      */
     const startedAt = Date.now();
-    const result = await dispatchOurs(async () => {
-      await sleep(1400);
-    }, { leaseMs: 1000 });
+    const result = await dispatchOurs(
+      async () => {
+        await sleep(1400);
+      },
+      { leaseMs: 1000 },
+    );
 
     expect(Date.now() - startedAt).toBeGreaterThan(1000);
     expect(result).toEqual({ processed: 1, failed: 0, deadLettered: 0 });
@@ -461,16 +466,19 @@ describe('moderation outbox — the lease under contention', () => {
      * row somebody else now owns.
      */
     let stolen = false;
-    const result = await dispatchOurs(async () => {
-      await getDb()
-        .update(moderationOutbox)
-        .set({ leaseOwner: 'a-second-ecs-task', leaseUntil: new Date(Date.now() + 60_000) })
-        .where(eq(moderationOutbox.id, eventId));
-      stolen = true;
-      // Outlast one renewal interval (333ms), so the heartbeat observes the theft
-      // rather than the test asserting on a race it never gave the code time to see.
-      await sleep(900);
-    }, { leaseMs: 1000 });
+    const result = await dispatchOurs(
+      async () => {
+        await getDb()
+          .update(moderationOutbox)
+          .set({ leaseOwner: 'a-second-ecs-task', leaseUntil: new Date(Date.now() + 60_000) })
+          .where(eq(moderationOutbox.id, eventId));
+        stolen = true;
+        // Outlast one renewal interval (333ms), so the heartbeat observes the theft
+        // rather than the test asserting on a race it never gave the code time to see.
+        await sleep(900);
+      },
+      { leaseMs: 1000 },
+    );
 
     expect(stolen).toBe(true);
     expect(result).toEqual({ processed: 0, failed: 1, deadLettered: 0 });

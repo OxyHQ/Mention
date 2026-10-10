@@ -10,7 +10,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({ registerScrollable: mockRegister }),
 }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import { useFocusedScrollable } from '../useFocusedScrollable';
 
 const scroller = { scrollToOffset: jest.fn() };
@@ -32,7 +32,9 @@ beforeEach(() => {
 
 it('owns the scroll while its screen is in front', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<List />); });
+  act(() => {
+    renderer = TestRenderer.create(<List />);
+  });
   expect(mockRegister).toHaveBeenCalledWith(scroller, 0);
   expect(mockRelease).not.toHaveBeenCalled();
   act(() => renderer.unmount());
@@ -41,16 +43,22 @@ it('owns the scroll while its screen is in front', () => {
 
 it('releases the scroll when its screen goes behind, and takes it back on return', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<List />); });
+  act(() => {
+    renderer = TestRenderer.create(<List />);
+  });
   mockRegister.mockClear();
 
   mockFocused = false;
-  act(() => { renderer.update(<List />); });
+  act(() => {
+    renderer.update(<List />);
+  });
   expect(mockRelease).toHaveBeenCalled();
   expect(mockRegister).not.toHaveBeenCalled();
 
   mockFocused = true;
-  act(() => { renderer.update(<List />); });
+  act(() => {
+    renderer.update(<List />);
+  });
   expect(mockRegister).toHaveBeenCalledWith(scroller, 0);
   act(() => renderer.unmount());
 });
@@ -58,14 +66,18 @@ it('releases the scroll when its screen goes behind, and takes it back on return
 it('never registers a background tab', () => {
   mockFocused = false;
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<List />); });
+  act(() => {
+    renderer = TestRenderer.create(<List />);
+  });
   expect(mockRegister).not.toHaveBeenCalled();
   act(() => renderer.unmount());
 });
 
 it('never registers a list that does not scroll itself', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<List enabled={false} />); });
+  act(() => {
+    renderer = TestRenderer.create(<List enabled={false} />);
+  });
   expect(mockRegister).not.toHaveBeenCalled();
   act(() => renderer.unmount());
 });

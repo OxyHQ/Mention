@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  isValidFeedDescriptor,
-  PRESET_FEEDS,
-  MtnConfig,
-} from '@mention/shared-types';
+import { isValidFeedDescriptor, PRESET_FEEDS, MtnConfig } from '@mention/shared-types';
 import type { PresetFeed } from '@mention/shared-types';
 
 /**
@@ -40,7 +36,12 @@ describe('PRESET_FEEDS catalog', () => {
     const descriptors = PRESET_FEEDS.map((p) => p.descriptor);
     expect(descriptors).toEqual(
       expect.arrayContaining([
-        'for_you', 'following', 'trending', 'explore', 'mutuals', 'friends_popular',
+        'for_you',
+        'following',
+        'trending',
+        'explore',
+        'mutuals',
+        'friends_popular',
       ]),
     );
   });

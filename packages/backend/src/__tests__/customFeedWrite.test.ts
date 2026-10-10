@@ -7,7 +7,10 @@ import { beforeAll, describe, it, expect } from 'vitest';
 
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { registerAllModules } from '../mtn/feed/engine';
-import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from '../routes/customFeedWrite';
+import {
+  buildCustomFeedCreatePayload,
+  buildCustomFeedUpdatePatch,
+} from '../routes/customFeedWrite';
 
 const registry = new FeedModuleRegistry();
 beforeAll(() => registerAllModules(registry));
@@ -42,16 +45,27 @@ describe('buildCustomFeedCreatePayload', () => {
       description: 'best comics',
       isPublic: true,
       icon: 'sparkles',
-      definition: { mode: 'chronological', sources: validDefinition.sources, signals: [], filters: [] },
+      definition: {
+        mode: 'chronological',
+        sources: validDefinition.sources,
+        signals: [],
+        filters: [],
+      },
     });
     expect(result.payload).not.toHaveProperty('ownerOxyUserId');
     expect(result.payload).not.toHaveProperty('subscriberCount');
   });
 
   it('maps visibility=private to isPublic=false and defaults to private', () => {
-    const priv = buildCustomFeedCreatePayload({ title: 'x', visibility: 'private', definition: validDefinition }, { registry });
+    const priv = buildCustomFeedCreatePayload(
+      { title: 'x', visibility: 'private', definition: validDefinition },
+      { registry },
+    );
     expect(priv.ok && priv.payload.isPublic).toBe(false);
-    const def = buildCustomFeedCreatePayload({ title: 'x', definition: validDefinition }, { registry });
+    const def = buildCustomFeedCreatePayload(
+      { title: 'x', definition: validDefinition },
+      { registry },
+    );
     expect(def.ok && def.payload.isPublic).toBe(false);
   });
 
@@ -63,7 +77,15 @@ describe('buildCustomFeedCreatePayload', () => {
   it('rejects a missing/invalid definition', () => {
     expect(buildCustomFeedCreatePayload({ title: 'x' }, { registry }).ok).toBe(false);
     const bad = buildCustomFeedCreatePayload(
-      { title: 'x', definition: { mode: 'chronological', sources: [{ module: 'following', enabled: true }], signals: [], filters: [] } },
+      {
+        title: 'x',
+        definition: {
+          mode: 'chronological',
+          sources: [{ module: 'following', enabled: true }],
+          signals: [],
+          filters: [],
+        },
+      },
       { registry },
     );
     expect(bad.ok).toBe(false);
@@ -72,7 +94,10 @@ describe('buildCustomFeedCreatePayload', () => {
 
 describe('buildCustomFeedUpdatePatch', () => {
   it('patches only provided fields', () => {
-    const result = buildCustomFeedUpdatePatch({ title: 'New', visibility: 'private' }, { registry });
+    const result = buildCustomFeedUpdatePatch(
+      { title: 'New', visibility: 'private' },
+      { registry },
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.payload).toEqual({ title: 'New', isPublic: false });

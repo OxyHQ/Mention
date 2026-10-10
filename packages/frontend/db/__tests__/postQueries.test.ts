@@ -21,13 +21,15 @@ function makePost(): FeedItem {
       username: 'alice',
       name: { displayName: 'Alice' },
     },
-    authors: [{
-      id: 'user-1',
-      username: 'alice',
-      name: { displayName: 'Alice' },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: 'user-1',
+        username: 'alice',
+        name: { displayName: 'Alice' },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     engagement: {
       likes: 0,
       downvotes: 0,
@@ -86,9 +88,7 @@ describe('native post updates', () => {
     }));
 
     expect(updated?.viewerState.isLiked).toBe(true);
-    const postWrite = runSync.mock.calls.find(([sql]) =>
-      String(sql).includes('INTO posts'),
-    );
+    const postWrite = runSync.mock.calls.find(([sql]) => String(sql).includes('INTO posts'));
     expect(postWrite?.[0]).toContain('ON CONFLICT(id) DO UPDATE SET');
     expect(postWrite?.[0]).not.toContain('INSERT OR REPLACE');
   });

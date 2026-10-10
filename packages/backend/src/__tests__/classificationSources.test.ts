@@ -221,7 +221,7 @@ describe('the links source', () => {
    * — with everything, because the subquery then matches unconditionally.
    * Remove either arm of the `OR` and it goes red by losing exactly one id.
    */
-  it('finds the domain in a cited source and in ANY rendition\'s body', async () => {
+  it("finds the domain in a cited source and in ANY rendition's body", async () => {
     const inCitation = await create({
       createdAt: at(0),
       content: {
@@ -232,7 +232,9 @@ describe('the links source', () => {
     const inPrimaryBody = await create({
       createdAt: at(-1_000),
       content: {
-        variants: [{ source: 'author', tag: 'en', text: 'read https://classsrc-news.example/2026/x here' }],
+        variants: [
+          { source: 'author', tag: 'en', text: 'read https://classsrc-news.example/2026/x here' },
+        ],
       },
     });
     const inTranslatedBody = await create({
@@ -257,13 +259,15 @@ describe('the links source', () => {
   });
 
   it('returns nothing without a domain', async () => {
-    await create({ content: { variants: [{ source: 'author', text: 'https://classsrc-news.example/x' }] } });
+    await create({
+      content: { variants: [{ source: 'author', text: 'https://classsrc-news.example/x' }] },
+    });
     expect(await linksSource.gather({}, {}, WIDE_CAP)).toEqual([]);
   });
 });
 
 describe('the newVoices source', () => {
-  it('returns each low-volume author\'s LATEST post, even when the id order disagrees', async () => {
+  it("returns each low-volume author's LATEST post, even when the id order disagrees", async () => {
     /**
      * Mongo picked the latest post with `max(_id)`, which was only ever correct
      * because an ObjectId encodes its creation time. Here the newer post is
@@ -329,7 +333,7 @@ describe('the newVoices source', () => {
    * one: `veteran` ARRIVED first (older `min`) but posted most recently (newer
    * `max`), so the two aggregates rank the pair in opposite orders.
    */
-  it('orders by each author\'s FIRST post, not their latest', async () => {
+  it("orders by each author's FIRST post, not their latest", async () => {
     const veteranFirst = await create({ oxyUserId: 'classsrc-veteran', createdAt: at(-30_000) });
     const veteranLatest = await create({ oxyUserId: 'classsrc-veteran', createdAt: at(0) });
     const newcomer = await create({ oxyUserId: 'classsrc-latecomer', createdAt: at(-15_000) });

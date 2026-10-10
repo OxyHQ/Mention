@@ -39,17 +39,14 @@ const DARK_STOP = '#1A1A1A';
  * preset. Falls back to the safe literal when the preset can't be resolved.
  */
 function buildDarkGradient(presetName: AppColorName): readonly [string, string] {
-    const darkBackground = getPresetVars(presetName, 'dark')['--background'];
-    if (!darkBackground) return FALLBACK_GRADIENT;
-    return [darkBackground, DARK_STOP];
+  const darkBackground = getPresetVars(presetName, 'dark')['--background'];
+  if (!darkBackground) return FALLBACK_GRADIENT;
+  return [darkBackground, DARK_STOP];
 }
 
 /** Validate an unknown value as a known preset name. */
 function isAppColorName(value: unknown): value is AppColorName {
-    return (
-        typeof value === 'string'
-        && APP_COLOR_NAMES.some((name) => name === value)
-    );
+  return typeof value === 'string' && APP_COLOR_NAMES.some((name) => name === value);
 }
 
 /**
@@ -58,14 +55,14 @@ function isAppColorName(value: unknown): value is AppColorName {
  * crash the splash.
  */
 function readPresetFromRaw(raw: string | null): AppColorName | null {
-    if (!raw) return null;
-    try {
-        const parsed = JSON.parse(raw) as PersistedThemeState;
-        return isAppColorName(parsed.colorPreset) ? parsed.colorPreset : null;
-    } catch {
-        // best-effort: a corrupt persisted value falls through to the default preset.
-        return null;
-    }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PersistedThemeState;
+    return isAppColorName(parsed.colorPreset) ? parsed.colorPreset : null;
+  } catch {
+    // best-effort: a corrupt persisted value falls through to the default preset.
+    return null;
+  }
 }
 
 /**
@@ -74,10 +71,10 @@ function readPresetFromRaw(raw: string | null): AppColorName | null {
  * is stored (callers fall back to the default preset).
  */
 function readWebPresetSync(): AppColorName | null {
-    if (Platform.OS !== 'web') return null;
-    const getItem = BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY);
-    // On web the adapter (`webLocalStorage`) is synchronous, so `getItem` is a string.
-    return typeof getItem === 'string' || getItem === null ? readPresetFromRaw(getItem) : null;
+  if (Platform.OS !== 'web') return null;
+  const getItem = BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY);
+  // On web the adapter (`webLocalStorage`) is synchronous, so `getItem` is a string.
+  return typeof getItem === 'string' || getItem === null ? readPresetFromRaw(getItem) : null;
 }
 
 /**
@@ -87,69 +84,64 @@ function readWebPresetSync(): AppColorName | null {
  * the route or its first requests.
  */
 const AppSplashScreen: React.FC = () => {
-    // Web resolves synchronously (no flash); native starts at the default preset and
-    // updates after a single mount-time async read below.
-    const [preset, setPreset] = useState<AppColorName>(
-        () => readWebPresetSync() ?? DEFAULT_PRESET,
-    );
+  // Web resolves synchronously (no flash); native starts at the default preset and
+  // updates after a single mount-time async read below.
+  const [preset, setPreset] = useState<AppColorName>(() => readWebPresetSync() ?? DEFAULT_PRESET);
 
-    // Native-only: one mount-time async read of the persisted preset. Web already
-    // resolved synchronously in the initial state, so this is gated to native.
-    useEffect(() => {
-        if (Platform.OS === 'web') return;
-        let cancelled = false;
-        Promise.resolve(BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY))
-            .then((raw) => {
-                if (cancelled) return;
-                const stored = readPresetFromRaw(raw);
-                if (stored) setPreset(stored);
-            })
-            .catch((error: unknown) => {
-                // best-effort: keep the default preset if persisted state can't be read.
-                logger.warn('Failed to read persisted theme', {
-                    error: error instanceof Error ? error.message : String(error),
-                });
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+  // Native-only: one mount-time async read of the persisted preset. Web already
+  // resolved synchronously in the initial state, so this is gated to native.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    Promise.resolve(BLOOM_THEME_STORAGE.getItem(BLOOM_THEME_PERSIST_KEY))
+      .then((raw) => {
+        if (cancelled) return;
+        const stored = readPresetFromRaw(raw);
+        if (stored) setPreset(stored);
+      })
+      .catch((error: unknown) => {
+        // best-effort: keep the default preset if persisted state can't be read.
+        logger.warn('Failed to read persisted theme', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
+  const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
 
-    return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={gradient}
-                style={styles.gradient}
-            >
-                <View style={styles.logoContainer}>
-                    <LogoIcon size={LOGO_SIZE} color="white" />
-                    <View style={styles.spinnerContainer}>
-                        <Loading iconSize={SPINNER_SIZE} color="white" showText={false} />
-                    </View>
-                </View>
-            </LinearGradient>
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={gradient} style={styles.gradient}>
+        <View style={styles.logoContainer}>
+          <LogoIcon size={LOGO_SIZE} color="white" />
+          <View style={styles.spinnerContainer}>
+            <Loading iconSize={SPINNER_SIZE} color="white" showText={false} />
+          </View>
         </View>
-    );
+      </LinearGradient>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    gradient: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    logoContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    spinnerContainer: {
-        marginTop: 32,
-    },
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinnerContainer: {
+    marginTop: 32,
+  },
 });
 
 export default React.memo(AppSplashScreen);

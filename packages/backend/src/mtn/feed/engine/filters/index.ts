@@ -14,7 +14,10 @@ import type { CachedUserSummary } from '../../../../services/userSummaryCache';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
-import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentClassification/spamQuality';
+import {
+  SPAM_QUALITY_CONFIG,
+  visibleText,
+} from '../../../../services/contentClassification/spamQuality';
 import { resolveVariant } from '../../../../services/postVariants';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
@@ -36,9 +39,13 @@ function field<T = unknown>(post: CandidatePost, key: string): T | undefined {
 function hasMedia(post: CandidatePost): boolean {
   const type = field<string>(post, 'type');
   if (type === PostType.IMAGE || type === PostType.VIDEO) return true;
-  const content = field<{ media?: unknown[]; attachments?: Array<{ type?: string }> }>(post, 'content');
+  const content = field<{ media?: unknown[]; attachments?: Array<{ type?: string }> }>(
+    post,
+    'content',
+  );
   if (Array.isArray(content?.media) && content.media.length > 0) return true;
-  if (Array.isArray(content?.attachments) && content.attachments.some((a) => a?.type === 'media')) return true;
+  if (Array.isArray(content?.attachments) && content.attachments.some((a) => a?.type === 'media'))
+    return true;
   return false;
 }
 
@@ -60,7 +67,11 @@ function hasMediaType(post: CandidatePost, mediaType: 'image' | 'gif'): boolean 
 /** Whether the candidate carries a poll. */
 function hasPoll(post: CandidatePost): boolean {
   if (field<string>(post, 'type') === PostType.POLL) return true;
-  const content = field<{ poll?: unknown; pollId?: unknown; attachments?: Array<{ type?: string }> }>(post, 'content');
+  const content = field<{
+    poll?: unknown;
+    pollId?: unknown;
+    attachments?: Array<{ type?: string }>;
+  }>(post, 'content');
   if (content?.poll || content?.pollId) return true;
   if (field(post, 'pollId')) return true;
   return Array.isArray(content?.attachments) && content.attachments.some((a) => a?.type === 'poll');
@@ -69,7 +80,10 @@ function hasPoll(post: CandidatePost): boolean {
 /** Whether the candidate carries any alt-text on a media item (accessibility). */
 function hasAltText(post: CandidatePost): boolean {
   const content = field<{ media?: Array<{ alt?: string }> }>(post, 'content');
-  return Array.isArray(content?.media) && content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0);
+  return (
+    Array.isArray(content?.media) &&
+    content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0)
+  );
 }
 
 /**
@@ -94,7 +108,8 @@ function contentUrls(post: CandidatePost): string[] {
   const content = field<PostContent>(post, 'content');
   const urls: string[] = [];
   if (Array.isArray(content?.sources)) {
-    for (const source of content.sources) if (typeof source?.url === 'string' && source.url) urls.push(source.url);
+    for (const source of content.sources)
+      if (typeof source?.url === 'string' && source.url) urls.push(source.url);
   }
   urls.push(...textUrls(contentText(post)));
   return urls;
@@ -180,7 +195,9 @@ function statCount(post: CandidatePost, key: string): number {
 /** The candidate's classified topics (lowercased), or `[]`. */
 function classificationTopics(post: CandidatePost): string[] {
   const classification = field<{ topics?: string[] }>(post, 'postClassification');
-  return Array.isArray(classification?.topics) ? classification.topics.map((t) => t.toLowerCase()) : [];
+  return Array.isArray(classification?.topics)
+    ? classification.topics.map((t) => t.toLowerCase())
+    : [];
 }
 
 /** Whether the candidate text or hashtags contain any of the given words (case-insensitive, word-boundary for text). */
@@ -258,7 +275,12 @@ function authorFollowerCount(post: CandidatePost, ctx: FeedEngineContext): numbe
   if (typeof resolved === 'number') return resolved;
   const user = field<{ _count?: { followers?: number }; followersCount?: number }>(post, 'user');
   const author = field<{ followerCount?: number; followersCount?: number }>(post, 'author');
-  return user?._count?.followers ?? user?.followersCount ?? author?.followerCount ?? author?.followersCount;
+  return (
+    user?._count?.followers ??
+    user?.followersCount ??
+    author?.followerCount ??
+    author?.followersCount
+  );
 }
 
 /** Account age in milliseconds, from the resolved account. Absent when unknown. */
@@ -494,10 +516,12 @@ export const originalOnlyFilter: FilterModule = {
     const boostOf = field(post, 'boostOf');
     const quoteOf = field(post, 'quoteOf');
     const type = field<string>(post, 'type');
-    return (boostOf === undefined || boostOf === null)
-      && (quoteOf === undefined || quoteOf === null)
-      && type !== PostType.BOOST
-      && type !== PostType.QUOTE;
+    return (
+      (boostOf === undefined || boostOf === null) &&
+      (quoteOf === undefined || quoteOf === null) &&
+      type !== PostType.BOOST &&
+      type !== PostType.QUOTE
+    );
   },
 };
 
@@ -562,9 +586,12 @@ export const minLengthFilter: FilterModule = {
   keep: (post, ctx, params) => {
     const tuning = gateTuning(ctx, params, 'minLength');
     if (tuning?.enabled === false) return true;
-    const min = typeof tuning?.minLength === 'number'
-      ? tuning.minLength
-      : (typeof params.minLength === 'number' ? params.minLength : undefined);
+    const min =
+      typeof tuning?.minLength === 'number'
+        ? tuning.minLength
+        : typeof params.minLength === 'number'
+          ? params.minLength
+          : undefined;
     return min === undefined ? true : textLength(post) >= min;
   },
 };
@@ -575,7 +602,9 @@ export const domainAllowlistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const domains = (Array.isArray(params.domains) ? (params.domains as string[]) : []).map((d) => d.toLowerCase());
+    const domains = (Array.isArray(params.domains) ? (params.domains as string[]) : []).map((d) =>
+      d.toLowerCase(),
+    );
     if (domains.length === 0) return true;
     const hosts = linkHosts(post);
     return hosts.length > 0 && hosts.some((h) => hostMatchesAny(h, domains));
@@ -588,7 +617,9 @@ export const domainDenylistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const domains = (Array.isArray(params.domains) ? (params.domains as string[]) : []).map((d) => d.toLowerCase());
+    const domains = (Array.isArray(params.domains) ? (params.domains as string[]) : []).map((d) =>
+      d.toLowerCase(),
+    );
     if (domains.length === 0) return true;
     return !linkHosts(post).some((h) => hostMatchesAny(h, domains));
   },
@@ -649,7 +680,9 @@ export const instanceAllowlistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const instances = (Array.isArray(params.instances) ? (params.instances as string[]) : []).map((i) => i.toLowerCase());
+    const instances = (Array.isArray(params.instances) ? (params.instances as string[]) : []).map(
+      (i) => i.toLowerCase(),
+    );
     if (instances.length === 0) return true;
     const host = federationHost(post);
     if (!host) return true; // local posts pass an instance allowlist
@@ -663,7 +696,9 @@ export const instanceDenylistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const instances = (Array.isArray(params.instances) ? (params.instances as string[]) : []).map((i) => i.toLowerCase());
+    const instances = (Array.isArray(params.instances) ? (params.instances as string[]) : []).map(
+      (i) => i.toLowerCase(),
+    );
     if (instances.length === 0) return true;
     const host = federationHost(post);
     return !host || !hostMatchesAny(host, instances);
@@ -676,7 +711,9 @@ export const topicAllowlistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const topics = (Array.isArray(params.topics) ? (params.topics as string[]) : []).map((t) => t.toLowerCase());
+    const topics = (Array.isArray(params.topics) ? (params.topics as string[]) : []).map((t) =>
+      t.toLowerCase(),
+    );
     if (topics.length === 0) return true;
     const postTopics = classificationTopics(post);
     return postTopics.some((t) => topics.includes(t));
@@ -689,7 +726,9 @@ export const topicDenylistFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const topics = (Array.isArray(params.topics) ? (params.topics as string[]) : []).map((t) => t.toLowerCase());
+    const topics = (Array.isArray(params.topics) ? (params.topics as string[]) : []).map((t) =>
+      t.toLowerCase(),
+    );
     if (topics.length === 0) return true;
     return !classificationTopics(post).some((t) => topics.includes(t));
   },
@@ -701,7 +740,9 @@ export const sentimentFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const wanted = (Array.isArray(params.sentiments) ? (params.sentiments as string[]) : []).map((s) => s.toLowerCase());
+    const wanted = (Array.isArray(params.sentiments) ? (params.sentiments as string[]) : []).map(
+      (s) => s.toLowerCase(),
+    );
     if (wanted.length === 0) return true;
     const classification = field<{ sentiment?: string }>(post, 'postClassification');
     const sentiment = classification?.sentiment;
@@ -903,9 +944,15 @@ function numParam(params: Record<string, unknown>, key: string, fallback: number
  */
 export function passesLowEffortGate(
   post: CandidatePost,
-  cfg: { minMeaningfulTextLength: number; spamRejectThreshold: number; qualityRejectThreshold: number },
+  cfg: {
+    minMeaningfulTextLength: number;
+    spamRejectThreshold: number;
+    qualityRejectThreshold: number;
+  },
 ): boolean {
-  const lowEffort = detectLowEffort(contentText(post), { minRealTextLength: cfg.minMeaningfulTextLength });
+  const lowEffort = detectLowEffort(contentText(post), {
+    minRealTextLength: cfg.minMeaningfulTextLength,
+  });
   const noRealText = lowEffort.isNoRealText || lowEffort.shortcodeOnly || lowEffort.emojiOnly;
   if (noRealText && !hasMediaOrPoll(post)) {
     return false;
@@ -1003,10 +1050,19 @@ export const lowEffortGateFilter: FilterModule = {
     const tuning = gateTuning(ctx, params, 'lowEffortGate');
     if (tuning?.enabled === false) return true;
     return passesLowEffortGate(post, {
-      minMeaningfulTextLength: tuning?.minMeaningfulTextLength
-        ?? numParam(params, 'minMeaningfulTextLength', DISCOVERY_GATE.minMeaningfulTextLength),
-      spamRejectThreshold: numParam(params, 'spamRejectThreshold', DISCOVERY_GATE.spamRejectThreshold),
-      qualityRejectThreshold: numParam(params, 'qualityRejectThreshold', DISCOVERY_GATE.qualityRejectThreshold),
+      minMeaningfulTextLength:
+        tuning?.minMeaningfulTextLength ??
+        numParam(params, 'minMeaningfulTextLength', DISCOVERY_GATE.minMeaningfulTextLength),
+      spamRejectThreshold: numParam(
+        params,
+        'spamRejectThreshold',
+        DISCOVERY_GATE.spamRejectThreshold,
+      ),
+      qualityRejectThreshold: numParam(
+        params,
+        'qualityRejectThreshold',
+        DISCOVERY_GATE.qualityRejectThreshold,
+      ),
     });
   },
 };
@@ -1025,8 +1081,9 @@ export const nativeEngagementFilter: FilterModule = {
     const tuning = gateTuning(ctx, params, 'nativeEngagement');
     if (tuning?.enabled === false) return true;
     return passesNativeEngagementOrMatch(post, ctx, {
-      minNativeEngagement: tuning?.minNativeEngagement
-        ?? numParam(params, 'minNativeEngagement', DISCOVERY_GATE.minNativeEngagement),
+      minNativeEngagement:
+        tuning?.minNativeEngagement ??
+        numParam(params, 'minNativeEngagement', DISCOVERY_GATE.minNativeEngagement),
       strongTopicWeight: numParam(params, 'strongTopicWeight', DISCOVERY_GATE.strongTopicWeight),
       freshnessGraceMs: numParam(params, 'freshnessGraceMs', DISCOVERY_GATE.freshnessGraceMs),
     });
@@ -1056,9 +1113,12 @@ export const minQualityFilter: FilterModule = {
   keep: (post, ctx, params) => {
     const tuning = gateTuning(ctx, params, 'minQuality');
     if (tuning?.enabled === false) return true;
-    const threshold = typeof tuning?.minQuality === 'number'
-      ? tuning.minQuality
-      : (typeof params.minQuality === 'number' ? params.minQuality : undefined);
+    const threshold =
+      typeof tuning?.minQuality === 'number'
+        ? tuning.minQuality
+        : typeof params.minQuality === 'number'
+          ? params.minQuality
+          : undefined;
     if (threshold === undefined) return true; // no floor set → neutral
     const scores = readTrustedScores(post);
     if (!scores) return true; // no trusted provenance → neutral
@@ -1080,16 +1140,24 @@ export const noLowEffortFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post, _ctx, params) => {
-    const minMeaningful = numParam(params, 'minMeaningfulTextLength', DISCOVERY_GATE.minMeaningfulTextLength);
+    const minMeaningful = numParam(
+      params,
+      'minMeaningfulTextLength',
+      DISCOVERY_GATE.minMeaningfulTextLength,
+    );
     const result = detectLowEffort(contentText(post), { minRealTextLength: minMeaningful });
 
     // No meaningful prose AND nothing visual to rescue it → objective junk.
-    if ((result.isNoRealText || result.shortcodeOnly || result.emojiOnly) && !hasMediaOrPoll(post)) {
+    if (
+      (result.isNoRealText || result.shortcodeOnly || result.emojiOnly) &&
+      !hasMediaOrPoll(post)
+    ) {
       return false;
     }
 
     // Optional emoji-heavy rejection (text-only; media/poll rescues it).
-    const maxEmojiRatio = typeof params.maxEmojiRatio === 'number' ? params.maxEmojiRatio : undefined;
+    const maxEmojiRatio =
+      typeof params.maxEmojiRatio === 'number' ? params.maxEmojiRatio : undefined;
     if (maxEmojiRatio !== undefined && !hasMediaOrPoll(post)) {
       const visibleGlyphs = result.emojiCount + result.realTextLength;
       if (visibleGlyphs > 0 && result.emojiCount / visibleGlyphs > maxEmojiRatio) {

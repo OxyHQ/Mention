@@ -90,7 +90,12 @@ export async function searchHashtagsWithCounts(
  * service actually issues rather than a hand-written copy of it — a copy is
  * how the prefilter drifted off the index without any test noticing.
  */
-export function hashtagSearchQuery(db: DatabaseOrTransaction, rawQuery: string, offset: number, limit: number) {
+export function hashtagSearchQuery(
+  db: DatabaseOrTransaction,
+  rawQuery: string,
+  offset: number,
+  limit: number,
+) {
   // Lower-cased and length-capped BEFORE escaping, because the cap counts the
   // caller's characters and the escape adds its own — capping after would let a
   // term of backslashes produce a pattern twice the intended length.
@@ -100,21 +105,23 @@ export function hashtagSearchQuery(db: DatabaseOrTransaction, rawQuery: string, 
     .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
     .from(posts)
     .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
-    .where(and(
-      taggedPublicPosts(),
-      // Redundant with the exact per-element check below on purpose: this one
-      // is what lets Postgres use `posts_hashtags_trgm_gin` (a trigram index
-      // over the CONCATENATED tags) to narrow candidate POSTS cheaply, instead
-      // of unnesting and pattern-matching every tagged post's every tag. It can
-      // only ever admit MORE rows than the real answer (a match spanning a
-      // boundary between two tags), never fewer, so the exact check right
-      // after it is what the result actually depends on — see the index's own
-      // comment in `db/schema/posts.ts`. The expression is the index's own
-      // (`hashtagsSearchTextSql`), never restated: spelled any other way the
-      // planner cannot match it and the filter reads every tagged post.
-      sql`${hashtagsSearchTextSql(posts.hashtags)} ilike ${pattern}`,
-      sql`lower(tag.value) like ${pattern}`,
-    ))
+    .where(
+      and(
+        taggedPublicPosts(),
+        // Redundant with the exact per-element check below on purpose: this one
+        // is what lets Postgres use `posts_hashtags_trgm_gin` (a trigram index
+        // over the CONCATENATED tags) to narrow candidate POSTS cheaply, instead
+        // of unnesting and pattern-matching every tagged post's every tag. It can
+        // only ever admit MORE rows than the real answer (a match spanning a
+        // boundary between two tags), never fewer, so the exact check right
+        // after it is what the result actually depends on — see the index's own
+        // comment in `db/schema/posts.ts`. The expression is the index's own
+        // (`hashtagsSearchTextSql`), never restated: spelled any other way the
+        // planner cannot match it and the filter reads every tagged post.
+        sql`${hashtagsSearchTextSql(posts.hashtags)} ilike ${pattern}`,
+        sql`lower(tag.value) like ${pattern}`,
+      ),
+    )
     .groupBy(UNNESTED_TAG)
     .orderBy(desc(sql`count(*)`), asc(UNNESTED_TAG))
     .offset(offset)
@@ -124,7 +131,7 @@ export function hashtagSearchQuery(db: DatabaseOrTransaction, rawQuery: string, 
 /** Per-tag post counts within one time window, keyed by lowercase tag. */
 export async function countTagsInWindow(from: Date, until?: Date): Promise<Map<string, number>> {
   const bounds = until
-    ? and(gte(posts.createdAt, from), lt(posts.createdAt, until)) as SQL
+    ? (and(gte(posts.createdAt, from), lt(posts.createdAt, until)) as SQL)
     : gte(posts.createdAt, from);
   const rows = await getDb()
     .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })

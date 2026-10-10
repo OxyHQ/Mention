@@ -42,7 +42,9 @@ export type CustomFeedSource = {
 
 /** Whether the definition excludes boosts (so boost hydration depth is unneeded). */
 function excludesBoosts(def: StoredFeedDefinition): boolean {
-  return (def.filters ?? []).some((f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'));
+  return (def.filters ?? []).some(
+    (f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'),
+  );
 }
 
 /**

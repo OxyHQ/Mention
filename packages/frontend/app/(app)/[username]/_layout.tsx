@@ -36,17 +36,17 @@ import ProfileChromeFrame from '@/components/Profile/ProfileChromeFrame';
  * settled on `about`. That file carries the trace.
  */
 const UsernameLayout = () => {
-    const { username } = useLocalSearchParams<{ username: string }>();
+  const { username } = useLocalSearchParams<{ username: string }>();
 
-    if (typeof username !== 'string' || !username.startsWith('@')) {
-        return <NotFoundScreen />;
-    }
+  if (typeof username !== 'string' || !username.startsWith('@')) {
+    return <NotFoundScreen />;
+  }
 
-    return (
-        <ProfileChromeFrame>
-            <Slot />
-        </ProfileChromeFrame>
-    );
+  return (
+    <ProfileChromeFrame>
+      <Slot />
+    </ProfileChromeFrame>
+  );
 };
 
 export default UsernameLayout;

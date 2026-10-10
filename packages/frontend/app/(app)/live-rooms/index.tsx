@@ -95,7 +95,7 @@ const LiveRoomsScreen = () => {
         onClose={() => bottomSheet.openBottomSheet(false)}
         mode="standalone"
         onRoomCreated={loadRooms}
-      />
+      />,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, loadRooms]);
@@ -191,7 +191,13 @@ const LiveRoomsScreen = () => {
             // gave no sign of it. The button is only offered to a reader who
             // can create; everyone else gets the sign-in prompt below.
             canUsePrivateApi ? (
-              <Button appearance="solid" tone="accent" size="sm" leadingIcon={RiAddLine} onPress={openCreateSheet}>
+              <Button
+                appearance="solid"
+                tone="accent"
+                size="sm"
+                leadingIcon={RiAddLine}
+                onPress={openCreateSheet}
+              >
                 Create
               </Button>
             ) : undefined
@@ -201,7 +207,8 @@ const LiveRoomsScreen = () => {
         <SignInRequired
           label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
           description={t('agora.signInRequiredDesc', {
-            defaultValue: 'Live audio conversations, and the rooms you host, appear here once you sign in.',
+            defaultValue:
+              'Live audio conversations, and the rooms you host, appear here once you sign in.',
           })}
         >
           {/* WEB hands scroll to the shared panel/document (no nested scroller that

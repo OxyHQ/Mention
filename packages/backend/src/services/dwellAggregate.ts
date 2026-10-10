@@ -44,7 +44,12 @@ function keyFor(postId: string): string {
  * duration) is a silent no-op. Clamps the sample to {@link MAX_DWELL_SAMPLE_MS}.
  */
 export async function recordDwell(postId: string, durationMs: number): Promise<void> {
-  if (!postId || typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
+  if (
+    !postId ||
+    typeof durationMs !== 'number' ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0
+  ) {
     return;
   }
   const sample = Math.min(durationMs, MAX_DWELL_SAMPLE_MS);

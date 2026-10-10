@@ -16,8 +16,14 @@ import { isBridgeFlattenedRetweet } from '../../../connectors/activitypub/flatte
 
 describe('isBridgeFlattenedRetweet', () => {
   it.each([
-    ['mastox, the post reported', 'RT: @Julio_Rodr_ ¡Tres años de Canal Red navegando a contracorriente!'],
-    ['bird.makeup, the other one', 'RT: @BoGardiner1 Remember this early press briefing from Trump on covid?'],
+    [
+      'mastox, the post reported',
+      'RT: @Julio_Rodr_ ¡Tres años de Canal Red navegando a contracorriente!',
+    ],
+    [
+      'bird.makeup, the other one',
+      'RT: @BoGardiner1 Remember this early press briefing from Trump on covid?',
+    ],
     ['no space after the colon', 'RT:@someone hello'],
   ])('matches %s', (_case, body) => {
     expect(isBridgeFlattenedRetweet(body)).toBe(true);

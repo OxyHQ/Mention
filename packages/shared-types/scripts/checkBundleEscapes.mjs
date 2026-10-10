@@ -74,9 +74,7 @@ for (const path of files) {
   total += hits.length;
 }
 
-console.log(
-  `\n${total} property-escape occurrence(s) across ${files.length} artefact(s).`,
-);
+console.log(`\n${total} property-escape occurrence(s) across ${files.length} artefact(s).`);
 console.log(
   'Judge each by OWNER and by SHAPE: an escape in a module-load regex literal ' +
     'from our own packages is a boot crash and must be fixed; one inside a ' +

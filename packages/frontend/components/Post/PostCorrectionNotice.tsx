@@ -70,7 +70,11 @@ const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
       accessibilityLabel={`${countLabel}. ${actionLabel}`}
     >
       <View className="mt-1.5 flex-row items-center gap-1">
-        <RiEditBoxLine width={NOTICE_ICON_SIZE} height={NOTICE_ICON_SIZE} fill={theme.colors.textSecondary} />
+        <RiEditBoxLine
+          width={NOTICE_ICON_SIZE}
+          height={NOTICE_ICON_SIZE}
+          fill={theme.colors.textSecondary}
+        />
         <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
           {countLabel}
         </Text>

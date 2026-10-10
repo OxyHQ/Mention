@@ -59,7 +59,9 @@ const reproduced = resolutions(await Bun.file(reproducedPath).text());
 
 // A traversal that finds nothing must not read as agreement.
 if (committed.size < 100 || reproduced.size < 100) {
-  console.error(`::error::refusing to judge: parsed ${committed.size} committed and ${reproduced.size} reproduced resolutions, which is too few to be a real lockfile`);
+  console.error(
+    `::error::refusing to judge: parsed ${committed.size} committed and ${reproduced.size} reproduced resolutions, which is too few to be a real lockfile`,
+  );
   process.exit(2);
 }
 
@@ -76,14 +78,25 @@ for (const [key, repro] of reproduced) {
     // stays resolvable. That is what moving a transitive dependency off an
     // advisory usually looks like. Losing the package entirely is a different
     // thing and still fails.
-    if (committedNames.has(repro.name)) { deduped.push(`${key} (${repro.name}@${repro.version})`); continue; }
-    problems.push(`${key}: present in a clean resolve, and ${repro.name} resolves nowhere in the committed lockfile`);
+    if (committedNames.has(repro.name)) {
+      deduped.push(`${key} (${repro.name}@${repro.version})`);
+      continue;
+    }
+    problems.push(
+      `${key}: present in a clean resolve, and ${repro.name} resolves nowhere in the committed lockfile`,
+    );
     continue;
   }
-  if (mine.name !== repro.name) { problems.push(`${key}: committed ${mine.name}, a clean resolve gives ${repro.name}`); continue; }
+  if (mine.name !== repro.name) {
+    problems.push(`${key}: committed ${mine.name}, a clean resolve gives ${repro.name}`);
+    continue;
+  }
   const order = compareVersions(mine.version, repro.version);
   if (order === 0) continue;
-  if (order === 1) { ahead.push(`${key}: ${repro.version} -> ${mine.version}`); continue; }
+  if (order === 1) {
+    ahead.push(`${key}: ${repro.version} -> ${mine.version}`);
+    continue;
+  }
   problems.push(
     order === -1
       ? `${key}: committed ${mine.version} is BEHIND the ${repro.version} a clean resolve gives`
@@ -92,7 +105,8 @@ for (const [key, repro] of reproduced) {
 }
 
 for (const key of committed.keys()) {
-  if (!reproduced.has(key)) problems.push(`${key}: in the committed lockfile, absent from a clean resolve`);
+  if (!reproduced.has(key))
+    problems.push(`${key}: in the committed lockfile, absent from a clean resolve`);
 }
 
 if (problems.length > 0) {

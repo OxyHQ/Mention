@@ -14,20 +14,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  */
 
 // --- Mock the heavy collaborators the engine calls. ---
-const rankPosts = vi.fn(async (
-  posts: Array<Record<string, unknown>>,
-  _userId?: unknown,
-  _ctx?: unknown,
-) => {
-  // Deterministic stand-in for FeedRankingService: likes ARE the score.
-  for (const p of posts) {
-    const stats = p.stats as { likesCount?: number } | undefined;
-    p.finalScore = stats?.likesCount ?? 0;
-  }
-  return posts;
-});
+const rankPosts = vi.fn(
+  async (posts: Array<Record<string, unknown>>, _userId?: unknown, _ctx?: unknown) => {
+    // Deterministic stand-in for FeedRankingService: likes ARE the score.
+    for (const p of posts) {
+      const stats = p.stats as { likesCount?: number } | undefined;
+      p.finalScore = stats?.likesCount ?? 0;
+    }
+    return posts;
+  },
+);
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+  feedRankingService: {
+    rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
+  },
 }));
 
 // sliceFeed → one single-item slice per post, preserving order.
@@ -65,7 +65,12 @@ import { MtnConfig } from '@mention/shared-types';
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
-import type { CandidatePost, FeedDefinition, SourceModule, FilterModule } from '../mtn/feed/engine/types';
+import type {
+  CandidatePost,
+  FeedDefinition,
+  SourceModule,
+  FilterModule,
+} from '../mtn/feed/engine/types';
 import { feedCandidate, postStats } from './fixtures/feedCandidate';
 
 /**
@@ -120,7 +125,10 @@ describe('FeedEngine — ranked mode', () => {
       id: 'test-ranked',
       title: 'Test',
       mode: 'ranked',
-      sources: [{ module: 'a', enabled: true }, { module: 'b', enabled: true }],
+      sources: [
+        { module: 'a', enabled: true },
+        { module: 'b', enabled: true },
+      ],
       signals: [],
       filters: [{ module: 'dropThree', enabled: true }],
     };
@@ -282,10 +290,9 @@ describe('FeedEngine — ranked mode', () => {
 
     expect(first.items.map((item) => item.id)).toEqual([id(10), id(9)]);
     expect(second.items.map((item) => item.id)).toEqual([id(8)]);
-    expect(new Set([
-      ...first.items.map((item) => item.id),
-      ...second.items.map((item) => item.id),
-    ])).toEqual(new Set([id(10), id(9), id(8)]));
+    expect(
+      new Set([...first.items.map((item) => item.id), ...second.items.map((item) => item.id)]),
+    ).toEqual(new Set([id(10), id(9), id(8)]));
   });
 });
 
@@ -403,7 +410,8 @@ describe('FeedEngine — ranked pagination coverage', () => {
 
   it('control: a pool with one post per author strands nothing (the cap never binds)', async () => {
     const pool = Array.from({ length: PROLIFIC_POSTS + SOLO_AUTHORS }, (_, i) =>
-      scored(i + 1, PROLIFIC_POSTS + SOLO_AUTHORS - i, { oxyUserId: `solo-${i}` }));
+      scored(i + 1, PROLIFIC_POSTS + SOLO_AUTHORS - i, { oxyUserId: `solo-${i}` }),
+    );
     registry.register(sourceReturning('one-each', pool));
 
     const { served } = await drainRanked(rankedDef('one-each'), PAGE_LIMIT, pool.length);
@@ -427,7 +435,10 @@ describe('FeedEngine — chronological mode', () => {
       id: 'test-chrono',
       title: 'Test',
       mode: 'chronological',
-      sources: [{ module: 'a', enabled: true }, { module: 'b', enabled: true }],
+      sources: [
+        { module: 'a', enabled: true },
+        { module: 'b', enabled: true },
+      ],
       signals: [],
       filters: [],
     };
@@ -442,8 +453,12 @@ describe('FeedEngine — chronological mode', () => {
 describe('FeedEngine — soft-fail', () => {
   it('one throwing source does not sink the feed', async () => {
     const bad: SourceModule = {
-      id: 'bad', kind: 'source', userComposable: true,
-      gather: async () => { throw new Error('boom'); },
+      id: 'bad',
+      kind: 'source',
+      userComposable: true,
+      gather: async () => {
+        throw new Error('boom');
+      },
     };
     registry.register(bad);
     registry.register(sourceReturning('good', [makePost(1)]));
@@ -451,7 +466,10 @@ describe('FeedEngine — soft-fail', () => {
       id: 'test-softfail',
       title: 'Test',
       mode: 'chronological',
-      sources: [{ module: 'bad', enabled: true }, { module: 'good', enabled: true }],
+      sources: [
+        { module: 'bad', enabled: true },
+        { module: 'good', enabled: true },
+      ],
       signals: [],
       filters: [],
     };
@@ -478,7 +496,12 @@ describe('FeedEngine — ranked fallbacks', () => {
     const laneGather = vi.fn(async () => [scored(1, 5)]);
     const popularGather = vi.fn(async () => [makePost(9)]);
     registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: laneGather });
-    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
+    registry.register({
+      id: 'popular',
+      kind: 'source',
+      userComposable: false,
+      gather: popularGather,
+    });
 
     const result = await engine.run(rankedDef(), {}, { limit: 30 });
     expect(popularGather).toHaveBeenCalledOnce();
@@ -487,9 +510,19 @@ describe('FeedEngine — ranked fallbacks', () => {
   });
 
   it('falls back to popular when the authenticated ranked pool is empty (never-blank)', async () => {
-    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [] });
+    registry.register({
+      id: 'lane',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => [],
+    });
     const popularGather = vi.fn(async () => [makePost(9)]);
-    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
+    registry.register({
+      id: 'popular',
+      kind: 'source',
+      userComposable: false,
+      gather: popularGather,
+    });
 
     const result = await engine.run(rankedDef(), { currentUserId: 'viewer' }, { limit: 30 });
     expect(popularGather).toHaveBeenCalledOnce();
@@ -497,10 +530,24 @@ describe('FeedEngine — ranked fallbacks', () => {
   });
 
   it('does not pass showSensitiveContent into rankPosts', async () => {
-    registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [scored(1, 5)] });
-    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: async () => [] });
+    registry.register({
+      id: 'lane',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => [scored(1, 5)],
+    });
+    registry.register({
+      id: 'popular',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => [],
+    });
 
-    await engine.run(rankedDef(), { currentUserId: 'viewer', showSensitiveContent: true }, { limit: 30 });
+    await engine.run(
+      rankedDef(),
+      { currentUserId: 'viewer', showSensitiveContent: true },
+      { limit: 30 },
+    );
     expect(rankPosts).toHaveBeenCalledOnce();
     const rankCtx = rankPosts.mock.calls[0]?.[2];
     expect(rankCtx).toBeDefined();

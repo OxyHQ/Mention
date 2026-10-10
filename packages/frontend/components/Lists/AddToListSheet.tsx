@@ -56,15 +56,17 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
     try {
       const res = await listsService.list({ mine: true });
       const items = Array.isArray(res?.items) ? res.items : [];
-      const next: ListRow[] = items.map((l: Record<string, unknown>) => {
-        const id = String(l._id ?? l.id ?? '');
-        return {
-          id,
-          title: typeof l.title === 'string' && l.title ? l.title : 'Untitled List',
-          hasUser: extractMemberIds(l).includes(String(targetUserId)),
-          pending: false,
-        };
-      }).filter((r) => r.id.length > 0);
+      const next: ListRow[] = items
+        .map((l: Record<string, unknown>) => {
+          const id = String(l._id ?? l.id ?? '');
+          return {
+            id,
+            title: typeof l.title === 'string' && l.title ? l.title : 'Untitled List',
+            hasUser: extractMemberIds(l).includes(String(targetUserId)),
+            pending: false,
+          };
+        })
+        .filter((r) => r.id.length > 0);
       setRows(next);
     } catch (e) {
       logger.warn('Failed to load lists', { error: e });
@@ -78,37 +80,52 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
     load();
   }, [load]);
 
-  const label = useMemo(() => targetLabel || t('lists.addTo.thisUser', { defaultValue: 'this user' }), [targetLabel, t]);
+  const label = useMemo(
+    () => targetLabel || t('lists.addTo.thisUser', { defaultValue: 'this user' }),
+    [targetLabel, t],
+  );
 
-  const toggle = useCallback(async (row: ListRow) => {
-    if (row.pending) return;
-    const willAdd = !row.hasUser;
+  const toggle = useCallback(
+    async (row: ListRow) => {
+      if (row.pending) return;
+      const willAdd = !row.hasUser;
 
-    // Optimistic update.
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, hasUser: willAdd, pending: true } : r)));
+      // Optimistic update.
+      setRows((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, hasUser: willAdd, pending: true } : r)),
+      );
 
-    try {
-      if (willAdd) {
-        await listsService.addMembers(row.id, [String(targetUserId)]);
-        toast(
-          t('lists.addTo.added', { list: row.title, defaultValue: `Added to ${row.title}` }),
-          { type: 'success' }
+      try {
+        if (willAdd) {
+          await listsService.addMembers(row.id, [String(targetUserId)]);
+          toast(
+            t('lists.addTo.added', { list: row.title, defaultValue: `Added to ${row.title}` }),
+            { type: 'success' },
+          );
+        } else {
+          await listsService.removeMembers(row.id, [String(targetUserId)]);
+          toast(
+            t('lists.addTo.removed', {
+              list: row.title,
+              defaultValue: `Removed from ${row.title}`,
+            }),
+            { type: 'success' },
+          );
+        }
+        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, pending: false } : r)));
+      } catch (e) {
+        logger.error('List membership toggle failed', e);
+        // Revert optimistic state.
+        setRows((prev) =>
+          prev.map((r) => (r.id === row.id ? { ...r, hasUser: !willAdd, pending: false } : r)),
         );
-      } else {
-        await listsService.removeMembers(row.id, [String(targetUserId)]);
-        toast(
-          t('lists.addTo.removed', { list: row.title, defaultValue: `Removed from ${row.title}` }),
-          { type: 'success' }
-        );
+        toast(t('lists.addTo.toggleFailed', { defaultValue: 'Something went wrong' }), {
+          type: 'error',
+        });
       }
-      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, pending: false } : r)));
-    } catch (e) {
-      logger.error('List membership toggle failed', e);
-      // Revert optimistic state.
-      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, hasUser: !willAdd, pending: false } : r)));
-      toast(t('lists.addTo.toggleFailed', { defaultValue: 'Something went wrong' }), { type: 'error' });
-    }
-  }, [targetUserId, t]);
+    },
+    [targetUserId, t],
+  );
 
   const goCreate = useCallback(() => {
     onClose();
@@ -121,7 +138,12 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
         <Text className="text-foreground text-lg font-bold">
           {t('lists.addTo.title', { user: label, defaultValue: `Add ${label} to list` })}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+        <TouchableOpacity
+          onPress={onClose}
+          hitSlop={HIT_SLOP_MD}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+        >
           <RiCloseLine width={22} height={22} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -134,7 +156,9 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
         <View className="items-center justify-center py-8 gap-3">
           <Text className="text-muted-foreground text-sm text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text className="text-primary text-sm font-semibold">{t('common.retry', { defaultValue: 'Try again' })}</Text>
+            <Text className="text-primary text-sm font-semibold">
+              {t('common.retry', { defaultValue: 'Try again' })}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : rows.length === 0 ? (

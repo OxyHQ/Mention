@@ -38,14 +38,23 @@ vi.mock('../../utils/redis', () => ({
     ping: vi.fn().mockResolvedValue('PONG'),
     get: async (key: string) => store.get(key) ?? null,
     mGet: async (keys: string[]) => keys.map((key) => store.get(key) ?? null),
-    setEx: async (key: string, _ttl: number, value: string) => { store.set(key, value); },
-    del: async (keys: string[]) => { for (const key of keys) store.delete(key); },
+    setEx: async (key: string, _ttl: number, value: string) => {
+      store.set(key, value);
+    },
+    del: async (keys: string[]) => {
+      for (const key of keys) store.delete(key);
+    },
     exists: async (key: string) => (store.has(key) ? 1 : 0),
     multi: () => {
       const queued: Array<[string, string]> = [];
       const chain = {
-        setEx: (key: string, _ttl: number, value: string) => { queued.push([key, value]); return chain; },
-        exec: async () => { for (const [key, value] of queued) store.set(key, value); },
+        setEx: (key: string, _ttl: number, value: string) => {
+          queued.push([key, value]);
+          return chain;
+        },
+        exec: async () => {
+          for (const [key, value] of queued) store.set(key, value);
+        },
       };
       return chain;
     },
@@ -60,8 +69,20 @@ vi.mock('../../services/PostHydrationService', async () => {
   );
   return {
     ...actual,
-    resolveUserSummaries: vi.fn(async (ids: string[]) =>
-      new Map(ids.map((id) => [id, { user: { id, username: `u_${id.slice(-4)}`, name: { displayName: `User ${id.slice(-4)}` } } }])),
+    resolveUserSummaries: vi.fn(
+      async (ids: string[]) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            {
+              user: {
+                id,
+                username: `u_${id.slice(-4)}`,
+                name: { displayName: `User ${id.slice(-4)}` },
+              },
+            },
+          ]),
+        ),
     ),
   };
 });
@@ -86,7 +107,11 @@ const VIEWER = 'search-overview-viewer';
 
 let app: Express;
 let anonymousApp: Express;
-const createdIds: { lists: string[]; feeds: string[]; packs: string[] } = { lists: [], feeds: [], packs: [] };
+const createdIds: { lists: string[]; feeds: string[]; packs: string[] } = {
+  lists: [],
+  feeds: [],
+  packs: [],
+};
 
 async function seedLane(): Promise<void> {
   const [list] = await getDb()
@@ -159,7 +184,13 @@ describe('GET /search/overview', () => {
     // The contract's core promise: a TOTAL map. A client can read every key
     // without checking whether it exists.
     expect(Object.keys(body.lanes).sort()).toEqual([
-      'feeds', 'hashtags', 'lists', 'posts', 'profiles', 'saved', 'starterPacks',
+      'feeds',
+      'hashtags',
+      'lists',
+      'posts',
+      'profiles',
+      'saved',
+      'starterPacks',
     ]);
     expect(body.query).toBe(TERM);
 
@@ -210,7 +241,7 @@ describe('GET /search/overview', () => {
     expect(second.lanes.feeds.items).toEqual(first.lanes.feeds.items);
   });
 
-  it('does not cache the lists lane, which mixes in the viewer\'s own rows', async () => {
+  it("does not cache the lists lane, which mixes in the viewer's own rows", async () => {
     // A private list owned by the viewer must never reach another viewer
     // through a shared entry — which is why `lists` is computed per request.
     const [privateList] = await getDb()
@@ -220,12 +251,16 @@ describe('GET /search/overview', () => {
     createdIds.lists.push(privateList.id);
 
     const mine = await overview(app, TERM);
-    expect(mine.lanes.lists.items.map((row) => (row as { id: string }).id)).toContain(privateList.id);
+    expect(mine.lanes.lists.items.map((row) => (row as { id: string }).id)).toContain(
+      privateList.id,
+    );
 
     // Same term, so the SHARED lanes come from cache — and the private list
     // must still not appear for someone else.
     const theirs = await overview(anonymousApp, TERM);
-    expect(theirs.lanes.lists.items.map((row) => (row as { id: string }).id)).not.toContain(privateList.id);
+    expect(theirs.lanes.lists.items.map((row) => (row as { id: string }).id)).not.toContain(
+      privateList.id,
+    );
   });
 
   it('is not degraded just because a lane was deliberately skipped', async () => {

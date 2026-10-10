@@ -49,12 +49,12 @@ export const MAX_AUTHOR_VARIANTS = 3;
  * accepting them would mean storing two tags that must compare equal but don't.
  */
 const BCP47_PATTERN = new RegExp(
-  '^'
-  + '([a-z]{2,3}|[a-z]{5,8})'        // language ('es', 'ast'); 4 letters is a script, not a language
-  + '(?:-([a-z]{4}))?'               // script  ('Hant')
-  + '(?:-([a-z]{2}|\\d{3}))?'        // region  ('ES', '419')
-  + '((?:-(?:[\\da-z]{5,8}|\\d[\\da-z]{3}))*)' // variants ('valencia', '1996')
-  + '$',
+  '^' +
+    '([a-z]{2,3}|[a-z]{5,8})' + // language ('es', 'ast'); 4 letters is a script, not a language
+    '(?:-([a-z]{4}))?' + // script  ('Hant')
+    '(?:-([a-z]{2}|\\d{3}))?' + // region  ('ES', '419')
+    '((?:-(?:[\\da-z]{5,8}|\\d[\\da-z]{3}))*)' + // variants ('valencia', '1996')
+    '$',
   'i',
 );
 

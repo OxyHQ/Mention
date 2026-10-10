@@ -87,7 +87,10 @@ function extractHost(origin: string): string {
   try {
     return new URL(withScheme).hostname.toLowerCase();
   } catch {
-    return origin.replace(/^https?:\/\//i, '').replace(/[:/].*$/, '').toLowerCase();
+    return origin
+      .replace(/^https?:\/\//i, '')
+      .replace(/[:/].*$/, '')
+      .toLowerCase();
   }
 }
 
@@ -128,8 +131,7 @@ export function isApexWebPlaneRequest(req: Request): boolean {
     return false;
   }
   const accept = req.header('accept')?.toLowerCase() ?? '';
-  return !accept.includes('application/activity+json') &&
-    !accept.includes('application/ld+json');
+  return !accept.includes('application/activity+json') && !accept.includes('application/ld+json');
 }
 
 /**
@@ -189,7 +191,9 @@ function requestUpstream(
     );
 
     const headersTimer = setTimeout(() => {
-      upstreamRequest.destroy(new Error(`Upstream did not answer within ${PROXY_FETCH_TIMEOUT_MS}ms`));
+      upstreamRequest.destroy(
+        new Error(`Upstream did not answer within ${PROXY_FETCH_TIMEOUT_MS}ms`),
+      );
     }, remaining);
     upstreamRequest.on('error', (error) => {
       clearTimeout(headersTimer);
@@ -206,7 +210,8 @@ function requestUpstream(
 function conditionalHeaders(req: Request): Record<string, string> {
   const headers: Record<string, string> = {};
   const ifNoneMatch = req.headers['if-none-match'];
-  if (typeof ifNoneMatch === 'string' && ifNoneMatch.length > 0) headers['If-None-Match'] = ifNoneMatch;
+  if (typeof ifNoneMatch === 'string' && ifNoneMatch.length > 0)
+    headers['If-None-Match'] = ifNoneMatch;
   const ifModifiedSince = req.headers['if-modified-since'];
   if (typeof ifModifiedSince === 'string' && ifModifiedSince.length > 0) {
     headers['If-Modified-Since'] = ifModifiedSince;
@@ -242,7 +247,9 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
           Accept: typeof req.headers.accept === 'string' ? req.headers.accept : '*/*',
           'Accept-Encoding': acceptEncoding,
           'User-Agent':
-            typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Mention-apex-proxy',
+            typeof req.headers['user-agent'] === 'string'
+              ? req.headers['user-agent']
+              : 'Mention-apex-proxy',
           // Never taken from the client: this is OUR credential for the shell
           // origin, not something a caller may influence.
           [SHELL_ACCESS_HEADER]: config.web.shellAccessKey ?? '',
@@ -353,7 +360,11 @@ export const __apexProxyForTests = { requestUpstream, PROXY_FETCH_TIMEOUT_MS };
  * any other method on the apex is answered `405`. `OPTIONS` never reaches here — the
  * CORS middleware short-circuits preflight upstream.
  */
-export async function apexFrontendProxy(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function apexFrontendProxy(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   if (!isApexHost(req)) {
     next();
     return;

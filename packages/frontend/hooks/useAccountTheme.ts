@@ -100,15 +100,20 @@ export function useAccountThemeSync(): void {
   const withheld = useRef<{ userId: string; preset: AppColorName; epoch: number } | null>(null);
   useEffect(() => {
     if (!isColorEntitled(colorPreset, viewer)) {
-      withheld.current = user?.id && isAppColorName(colorPreset)
-        ? { userId: user.id, preset: colorPreset, epoch: presetSelectionEpoch }
-        : null;
+      withheld.current =
+        user?.id && isAppColorName(colorPreset)
+          ? { userId: user.id, preset: colorPreset, epoch: presetSelectionEpoch }
+          : null;
       setColorPreset(APP_DEFAULT_COLOR_PRESET);
       return;
     }
     const held = withheld.current;
     if (!held) return;
-    if (held.userId !== user?.id || held.epoch !== presetSelectionEpoch || colorPreset !== APP_DEFAULT_COLOR_PRESET) {
+    if (
+      held.userId !== user?.id ||
+      held.epoch !== presetSelectionEpoch ||
+      colorPreset !== APP_DEFAULT_COLOR_PRESET
+    ) {
       withheld.current = null;
       return;
     }
@@ -169,7 +174,8 @@ export function useThemeControls(): ThemeControls {
 
   const changeColorPreset = useCallback(
     async (nextPreset: AppColorName) => {
-      if (!isColorEntitled(nextPreset, viewer)) throw new Error('Color is not available for this account');
+      if (!isColorEntitled(nextPreset, viewer))
+        throw new Error('Color is not available for this account');
       presetSelectionEpoch += 1;
       setColorPreset(nextPreset);
       if (source === 'account') {

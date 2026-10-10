@@ -25,7 +25,10 @@ router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFee
 // Recommendation-card telemetry. Kept OFF `/mtn/interactions` on purpose: that
 // route feeds post ranking and requires a `postUri`, which a card event has not
 // got — see `MtnFeedController.recordInterstitialEvent`.
-router.post('/mtn/interstitial-events', mtnFeedController.recordInterstitialEvent.bind(mtnFeedController));
+router.post(
+  '/mtn/interstitial-events',
+  mtnFeedController.recordInterstitialEvent.bind(mtnFeedController),
+);
 
 // ────────────────────────────────────────────────────────────
 // Custom-feed builder module catalog (read-only)
@@ -35,14 +38,30 @@ router.get('/modules', feedModulesController.list.bind(feedModulesController));
 // ────────────────────────────────────────────────────────────
 // Server-persisted feed preferences (saved / pinned / ordered feeds)
 // ────────────────────────────────────────────────────────────
-router.get('/preferences', requireAuth, feedPreferencesController.get.bind(feedPreferencesController));
-router.put('/preferences', requireAuth, feedPreferencesController.update.bind(feedPreferencesController));
+router.get(
+  '/preferences',
+  requireAuth,
+  feedPreferencesController.get.bind(feedPreferencesController),
+);
+router.put(
+  '/preferences',
+  requireAuth,
+  feedPreferencesController.update.bind(feedPreferencesController),
+);
 
 // ────────────────────────────────────────────────────────────
 // Per-user For You discovery-gate tuning (Phase 4B)
 // ────────────────────────────────────────────────────────────
-router.get('/tuning', requireAuth, feedPreferencesController.getTuning.bind(feedPreferencesController));
-router.put('/tuning', requireAuth, feedPreferencesController.updateTuning.bind(feedPreferencesController));
+router.get(
+  '/tuning',
+  requireAuth,
+  feedPreferencesController.getTuning.bind(feedPreferencesController),
+);
+router.put(
+  '/tuning',
+  requireAuth,
+  feedPreferencesController.updateTuning.bind(feedPreferencesController),
+);
 
 // ────────────────────────────────────────────────────────────
 // Replies
@@ -57,7 +76,10 @@ router.get('/quotes/:postId', feedController.getQuotesFeed.bind(feedController))
 // ────────────────────────────────────────────────────────────
 // Thread continuation spine (author's self-thread, root → c1 → c2 …)
 // ────────────────────────────────────────────────────────────
-router.get('/thread-continuations/:rootId', feedController.getThreadContinuations.bind(feedController));
+router.get(
+  '/thread-continuations/:rootId',
+  feedController.getThreadContinuations.bind(feedController),
+);
 
 // ────────────────────────────────────────────────────────────
 // User profile feed routes
@@ -75,4 +97,4 @@ router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/boost', feedController.createBoost.bind(feedController));
 router.delete('/:postId/boost', feedController.unboostItem.bind(feedController));
 
-export default router; 
+export default router;

@@ -30,83 +30,92 @@ import type { FeedType } from '@mention/shared-types/feed';
 const PASS_THROUGH_DESCRIPTOR_PREFIXES = ['feedgen|', 'trend|'] as const;
 
 export default function PresetFeedViewScreen() {
-    const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
-    const safeBack = useSafeBack();
-    const { t } = useTranslation();
-    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
+  const safeBack = useSafeBack();
+  const { t } = useTranslation();
+  const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-    /*
-     * A PARAMETRIZED descriptor carries its own content in the descriptor
-     * itself, so it needs no preset lookup and no auth gate: `feedgen|<uri>` is
-     * a public algorithm, `trend|<term>` is the posts behind one trend. Both go
-     * straight through the MTN engine, which resolves any descriptor it owns.
-     *
-     * One list rather than one branch per prefix — a trend that only opened
-     * from its own screen would be a feed everywhere except where feeds live.
-     */
-    const isPassThrough =
-        typeof descriptor === 'string' &&
-        PASS_THROUGH_DESCRIPTOR_PREFIXES.some((prefix) => descriptor.startsWith(prefix));
+  /*
+   * A PARAMETRIZED descriptor carries its own content in the descriptor
+   * itself, so it needs no preset lookup and no auth gate: `feedgen|<uri>` is
+   * a public algorithm, `trend|<term>` is the posts behind one trend. Both go
+   * straight through the MTN engine, which resolves any descriptor it owns.
+   *
+   * One list rather than one branch per prefix — a trend that only opened
+   * from its own screen would be a feed everywhere except where feeds live.
+   */
+  const isPassThrough =
+    typeof descriptor === 'string' &&
+    PASS_THROUGH_DESCRIPTOR_PREFIXES.some((prefix) => descriptor.startsWith(prefix));
 
-    // Resolve the preset from the shared catalog to get its label + auth flag.
-    // Every remaining preset descriptor (for_you / following / trending /
-    // explore / mutuals / friends_popular) is a plain, non-parametrized token
-    // that is also a valid `FeedType`, so it maps straight onto `<Feed type>`.
-    const preset = useMemo(
-        () => (isPassThrough ? undefined : PRESET_FEEDS.find((p) => p.descriptor === descriptor)),
-        [descriptor, isPassThrough],
-    );
+  // Resolve the preset from the shared catalog to get its label + auth flag.
+  // Every remaining preset descriptor (for_you / following / trending /
+  // explore / mutuals / friends_popular) is a plain, non-parametrized token
+  // that is also a valid `FeedType`, so it maps straight onto `<Feed type>`.
+  const preset = useMemo(
+    () => (isPassThrough ? undefined : PRESET_FEEDS.find((p) => p.descriptor === descriptor)),
+    [descriptor, isPassThrough],
+  );
 
-    const headerTitle = title || (preset ? t(preset.labelKey) : t('feeds.untitled', { defaultValue: 'Feed' }));
+  const headerTitle =
+    title || (preset ? t(preset.labelKey) : t('feeds.untitled', { defaultValue: 'Feed' }));
 
-    // requiresAuth presets are viewer-relative — only signed-in viewers can open
-    // them. The catalog already hides these rows from anonymous viewers, so this
-    // guard only fires on a direct deep link.
-    const gated = Boolean(preset?.requiresAuth) && !canUsePrivateApi;
+  // requiresAuth presets are viewer-relative — only signed-in viewers can open
+  // them. The catalog already hides these rows from anonymous viewers, so this
+  // guard only fires on a direct deep link.
+  const gated = Boolean(preset?.requiresAuth) && !canUsePrivateApi;
 
-    const renderBody = () => {
-        // Carries its content in the descriptor, so it renders straight through
-        // the engine (no preset lookup, no auth gate).
-        if (isPassThrough) {
-            return <Feed type={descriptor as FeedType} />;
-        }
-        if (!preset) {
-            return (
-                <EmptyState
-                    sticker="feedNotFound"
-                    title={t('feeds.view.notFound.title', { defaultValue: 'Feed not found' })}
-                    subtitle={t('feeds.view.notFound.subtitle', { defaultValue: 'This feed is no longer available.' })}
-                    containerStyle={{ paddingTop: 60 }}
-                />
-            );
-        }
-        if (gated) {
-            // During the cold-boot SSO restore window the session may still land,
-            // so wait it out before showing the anonymous prompt.
-            if (isPrivateApiPending) {
-                return <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 60 }} />;
-            }
-            return (
-                <EmptyState
-                    sticker="operatorOnly"
-                    title={t('feeds.view.signInRequired.title', { defaultValue: 'Sign in to view this feed' })}
-                    subtitle={t('feeds.view.signInRequired.subtitle', { defaultValue: 'This feed is personalized to your account.' })}
-                    containerStyle={{ paddingTop: 60 }}
-                />
-            );
-        }
-        return <Feed type={preset.descriptor as FeedType} />;
-    };
+  const renderBody = () => {
+    // Carries its content in the descriptor, so it renders straight through
+    // the engine (no preset lookup, no auth gate).
+    if (isPassThrough) {
+      return <Feed type={descriptor as FeedType} />;
+    }
+    if (!preset) {
+      return (
+        <EmptyState
+          sticker="feedNotFound"
+          title={t('feeds.view.notFound.title', { defaultValue: 'Feed not found' })}
+          subtitle={t('feeds.view.notFound.subtitle', {
+            defaultValue: 'This feed is no longer available.',
+          })}
+          containerStyle={{ paddingTop: 60 }}
+        />
+      );
+    }
+    if (gated) {
+      // During the cold-boot SSO restore window the session may still land,
+      // so wait it out before showing the anonymous prompt.
+      if (isPrivateApiPending) {
+        return (
+          <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 60 }} />
+        );
+      }
+      return (
+        <EmptyState
+          sticker="operatorOnly"
+          title={t('feeds.view.signInRequired.title', {
+            defaultValue: 'Sign in to view this feed',
+          })}
+          subtitle={t('feeds.view.signInRequired.subtitle', {
+            defaultValue: 'This feed is personalized to your account.',
+          })}
+          containerStyle={{ paddingTop: 60 }}
+        />
+      );
+    }
+    return <Feed type={preset.descriptor as FeedType} />;
+  };
 
-    return (
-        <SafeAreaView className="flex-1" edges={['bottom']}>
-            <SEO title={headerTitle} description={t('seo.feeds.description')} />
-            <PageHeader
-                title={headerTitle}
-                onBack={() => safeBack()}
-                backLabel={t('common.back', { defaultValue: 'Back' })}
-            />
-            {renderBody()}
-        </SafeAreaView>
-    );
+  return (
+    <SafeAreaView className="flex-1" edges={['bottom']}>
+      <SEO title={headerTitle} description={t('seo.feeds.description')} />
+      <PageHeader
+        title={headerTitle}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+      />
+      {renderBody()}
+    </SafeAreaView>
+  );
 }

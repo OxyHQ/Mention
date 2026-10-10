@@ -73,11 +73,17 @@ const writeNoteSchema = z.object({
 const rateNoteSchema = z.discriminatedUnion('rating', [
   z.object({
     rating: z.literal('helpful'),
-    reasons: z.array(z.enum(COMMUNITY_NOTE_HELPFUL_REASONS)).min(1).max(COMMUNITY_NOTE_HELPFUL_REASONS.length),
+    reasons: z
+      .array(z.enum(COMMUNITY_NOTE_HELPFUL_REASONS))
+      .min(1)
+      .max(COMMUNITY_NOTE_HELPFUL_REASONS.length),
   }),
   z.object({
     rating: z.literal('not_helpful'),
-    reasons: z.array(z.enum(COMMUNITY_NOTE_NOT_HELPFUL_REASONS)).min(1).max(COMMUNITY_NOTE_NOT_HELPFUL_REASONS.length),
+    reasons: z
+      .array(z.enum(COMMUNITY_NOTE_NOT_HELPFUL_REASONS))
+      .min(1)
+      .max(COMMUNITY_NOTE_NOT_HELPFUL_REASONS.length),
   }),
 ]);
 
@@ -104,7 +110,11 @@ function fail(res: Response, operation: string, error: unknown): Response {
     return res.status(503).json({ message: 'Community notes are unavailable' });
   }
   if (error instanceof CrowdSourceApiError) {
-    logger.warn('[CommunityNotes] refused by CrowdSource', { operation, code: error.code, status: error.status });
+    logger.warn('[CommunityNotes] refused by CrowdSource', {
+      operation,
+      code: error.code,
+      status: error.status,
+    });
     // A refusal the caller can do something about is passed through as itself;
     // anything else is ours, not theirs. `conflict` is the rating that already
     // exists and the note that was already written — both mean "you have
@@ -112,7 +122,9 @@ function fail(res: Response, operation: string, error: unknown): Response {
     if (error.status === 404) return res.status(404).json({ message: 'Not found' });
     if (error.status === 409) return res.status(409).json({ message: 'Already recorded' });
     if (error.status === 422 || error.status === 400) {
-      return res.status(400).json({ message: 'Community notes refused this request', code: error.code });
+      return res
+        .status(400)
+        .json({ message: 'Community notes refused this request', code: error.code });
     }
     if (error.status === 429) return res.status(429).json({ message: 'Too many notes for today' });
     return res.status(502).json({ message: 'Community notes are unavailable' });
@@ -157,7 +169,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
   const parsed = writeNoteSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    return res
+      .status(400)
+      .json({ message: parsed.error.issues.map((issue) => issue.message).join('; ') });
   }
   const { postId, text, sourceUrls, language } = parsed.data;
 
@@ -206,7 +220,9 @@ router.post('/:noteId/ratings', async (req: AuthRequest, res: Response) => {
 
   const parsed = rateNoteSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    return res
+      .status(400)
+      .json({ message: parsed.error.issues.map((issue) => issue.message).join('; ') });
   }
 
   try {
@@ -250,7 +266,11 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
   if (!viewerId) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
-    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), await communityNotesWrittenBy(viewerId));
+    const entries = await withSubjectPosts(
+      viewerId,
+      createScopedOxyClient(req),
+      await communityNotesWrittenBy(viewerId),
+    );
     return res.json({ entries });
   } catch (error: unknown) {
     return fail(res, 'written', error);
@@ -263,7 +283,11 @@ router.get('/ratings', async (req: AuthRequest, res: Response) => {
   if (!viewerId) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
-    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), await communityNotesRatedBy(viewerId));
+    const entries = await withSubjectPosts(
+      viewerId,
+      createScopedOxyClient(req),
+      await communityNotesRatedBy(viewerId),
+    );
     return res.json({ entries });
   } catch (error: unknown) {
     return fail(res, 'rated', error);

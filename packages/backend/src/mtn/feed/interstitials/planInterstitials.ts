@@ -13,7 +13,11 @@
  */
 
 import { MtnConfig, isValidFeedDescriptor, parseFeedDescriptor } from '@mention/shared-types';
-import type { FeedInterstitialKind, FeedInterstitialSlot, FeedPostSlice } from '@mention/shared-types';
+import type {
+  FeedInterstitialKind,
+  FeedInterstitialSlot,
+  FeedPostSlice,
+} from '@mention/shared-types';
 
 const INTERSTITIALS = MtnConfig.feed.interstitials;
 
@@ -96,7 +100,8 @@ function planProfileInterstitials(
   slices: FeedPostSlice[],
   isFirstPage: boolean,
 ): FeedInterstitialSlot[] {
-  const positions: readonly number[] = INTERSTITIALS.profile.positions[isFirstPage ? 'firstPage' : 'nextPage'];
+  const positions: readonly number[] =
+    INTERSTITIALS.profile.positions[isFirstPage ? 'firstPage' : 'nextPage'];
 
   const slots: FeedInterstitialSlot[] = [];
   for (const index of [...positions].sort((a, b) => a - b)) {
@@ -197,7 +202,8 @@ export function planInterstitials(params: PlanInterstitialsParams): FeedIntersti
   const page = pageOrdinal(isFirstPage, cursor);
   if (!passesCadenceGate(temperature, page)) return [];
 
-  const positions: readonly number[] = INTERSTITIALS.positions[temperature][isFirstPage ? 'firstPage' : 'nextPage'];
+  const positions: readonly number[] =
+    INTERSTITIALS.positions[temperature][isFirstPage ? 'firstPage' : 'nextPage'];
   const rotation: readonly FeedInterstitialKind[] = INTERSTITIALS.rotation[temperature];
   const offset = rotationOffset(rotation.length, page);
 

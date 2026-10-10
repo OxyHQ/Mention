@@ -1,4 +1,4 @@
-import express from "express";
+import express from 'express';
 import {
   getUserStatistics,
   getUserActivity,
@@ -6,9 +6,9 @@ import {
   trackPostView,
   getFollowerChanges,
   getEngagementRatios,
-  getWeeklySummary
-} from "../controllers/statistics.controller";
-import { postViewRateLimiter, statisticsRateLimiter } from "../middleware/security";
+  getWeeklySummary,
+} from '../controllers/statistics.controller';
+import { postViewRateLimiter, statisticsRateLimiter } from '../middleware/security';
 
 const router = express.Router();
 
@@ -24,15 +24,15 @@ router.use(statisticsRateLimiter);
 
 // All routes on THIS router require authentication (handled by the oxy.auth()
 // gate applied to the authenticated API group in appRoutes.ts).
-router.get("/user", getUserStatistics);
-router.get("/post/:postId", getPostInsights);
+router.get('/user', getUserStatistics);
+router.get('/post/:postId', getPostInsights);
 // The one WRITE here, and the only route that hits the database on every single
 // call, so it carries a second, tighter bound of its own on top of the router's. See
 // `postViewRateLimiter` for the ceiling and why it is not the feed's.
-router.post("/post/:postId/view", postViewRateLimiter, trackPostView);
-router.get("/followers", getFollowerChanges);
-router.get("/engagement", getEngagementRatios);
-router.get("/weekly-summary", getWeeklySummary);
+router.post('/post/:postId/view', postViewRateLimiter, trackPostView);
+router.get('/followers', getFollowerChanges);
+router.get('/engagement', getEngagementRatios);
+router.get('/weekly-summary', getWeeklySummary);
 
 // Public statistics — mounted separately on the public group in appRoutes.ts with
 // optionalAuth. Exposes another user's PUBLIC posting activity (a per-day
@@ -45,6 +45,6 @@ export const publicStatisticsRouter = express.Router();
 // visibility check it runs first is itself a `UserSettings` lookup — so even a
 // request that returns an empty activity set has already cost two queries.
 publicStatisticsRouter.use(statisticsRateLimiter);
-publicStatisticsRouter.get("/user/:userId/activity", getUserActivity);
+publicStatisticsRouter.get('/user/:userId/activity', getUserActivity);
 
 export default router;

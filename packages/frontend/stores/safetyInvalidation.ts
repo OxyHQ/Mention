@@ -69,9 +69,7 @@ export function isFeedCacheStaleForSafety(retainedAt: number): boolean {
  * Subscribe a mounted feed to safety-rule changes so it refetches without
  * waiting for a remount. Returns an unsubscribe function.
  */
-export function subscribeToSafetyFilterChanges(
-  listener: SafetyFilterListener,
-): () => void {
+export function subscribeToSafetyFilterChanges(listener: SafetyFilterListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -92,8 +90,8 @@ export function invalidateSafetyFilters(): void {
   // hydration; notifications withhold a gated preview and remove a muted row.
   void queryClient.invalidateQueries({
     predicate: (query) =>
-      viewerQueryKeys.isFamily(query.queryKey, 'search')
-      || viewerQueryKeys.isFamily(query.queryKey, 'notifications'),
+      viewerQueryKeys.isFamily(query.queryKey, 'search') ||
+      viewerQueryKeys.isFamily(query.queryKey, 'notifications'),
   });
 
   for (const listener of listeners) {

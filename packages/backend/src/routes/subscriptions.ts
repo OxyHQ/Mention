@@ -1,10 +1,7 @@
 import { Router, Response } from 'express';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import type {
-  PostSubscriptionItem,
-  PostSubscriptionListResponse,
-} from '@mention/shared-types';
+import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
 import { getDb } from '../db/postgres';
 import { postSubscriptions } from '../db/schema/engagement';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
@@ -79,15 +76,16 @@ router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
       .select({ id: postSubscriptions.id })
       .from(postSubscriptions)
       .where(
-        and(
-          eq(postSubscriptions.subscriberId, userId),
-          eq(postSubscriptions.authorId, authorId),
-        ),
+        and(eq(postSubscriptions.subscriberId, userId), eq(postSubscriptions.authorId, authorId)),
       )
       .limit(1);
     return res.json({ subscribed: !!existing });
   } catch (error) {
-    logger.error('[Subscriptions] Error checking subscription status:', { userId: req.user?.id, authorId: req.params.authorId, error });
+    logger.error('[Subscriptions] Error checking subscription status:', {
+      userId: req.user?.id,
+      authorId: req.params.authorId,
+      error,
+    });
     return res.status(500).json({ message: 'Error checking subscription status' });
   }
 });
@@ -102,7 +100,8 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
     const authorId = typeof req.params.authorId === 'string' ? req.params.authorId : undefined;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
     if (!authorId) return res.status(400).json({ message: 'authorId is required' });
-    if (authorId === userId) return res.status(400).json({ message: 'Cannot subscribe to yourself' });
+    if (authorId === userId)
+      return res.status(400).json({ message: 'Cannot subscribe to yourself' });
 
     // `post_subscriptions_subscriber_id_author_id_key` makes the repeat a no-op
     // inside the statement, which is what the Mongo `$setOnInsert` upsert plus
@@ -115,7 +114,11 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
       });
     return res.json({ subscribed: true });
   } catch (error: unknown) {
-    logger.error('[Subscriptions] Error subscribing to author:', { userId: req.user?.id, authorId: req.params.authorId, error });
+    logger.error('[Subscriptions] Error subscribing to author:', {
+      userId: req.user?.id,
+      authorId: req.params.authorId,
+      error,
+    });
     return res.status(500).json({ message: 'Error subscribing to author' });
   }
 });
@@ -134,14 +137,15 @@ router.delete('/:authorId', async (req: AuthRequest, res: Response) => {
     await getDb()
       .delete(postSubscriptions)
       .where(
-        and(
-          eq(postSubscriptions.subscriberId, userId),
-          eq(postSubscriptions.authorId, authorId),
-        ),
+        and(eq(postSubscriptions.subscriberId, userId), eq(postSubscriptions.authorId, authorId)),
       );
     return res.json({ subscribed: false });
   } catch (error) {
-    logger.error('[Subscriptions] Error unsubscribing from author:', { userId: req.user?.id, authorId: req.params.authorId, error });
+    logger.error('[Subscriptions] Error unsubscribing from author:', {
+      userId: req.user?.id,
+      authorId: req.params.authorId,
+      error,
+    });
     return res.status(500).json({ message: 'Error unsubscribing from author' });
   }
 });

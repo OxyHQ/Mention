@@ -6,7 +6,10 @@
 
 import { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { userPreferenceService, readInteractionSurface } from '../../services/UserPreferenceService';
+import {
+  userPreferenceService,
+  readInteractionSurface,
+} from '../../services/UserPreferenceService';
 import { affinityEventService } from '../../services/AffinityEventService';
 import { logger } from '../../utils/logger';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
@@ -82,13 +85,15 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     res.json({
       message: result.changed
         ? result.previousValue === null
-          ? value === 1 ? 'Post liked successfully' : 'Post downvoted successfully'
+          ? value === 1
+            ? 'Post liked successfully'
+            : 'Post downvoted successfully'
           : 'Vote switched successfully'
         : 'Vote unchanged',
       likesCount: result.post.statsLikesCount,
       downvotesCount: result.post.statsDownvotesCount,
       liked: value === 1,
-      downvoted: value === -1
+      downvoted: value === -1,
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {
@@ -128,7 +133,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       likesCount: result.post.statsLikesCount,
       downvotesCount: result.post.statsDownvotesCount,
       liked: false,
-      downvoted: false
+      downvoted: false,
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {

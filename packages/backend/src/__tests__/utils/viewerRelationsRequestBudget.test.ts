@@ -167,8 +167,15 @@ describe('resolveViewerPrivacyAndGraph', () => {
 
     vi.setSystemTime(Date.now() + 60 * 1000);
     const down = spyClient();
-    for (const spy of [down.privacy.blocked, down.privacy.restricted, down.follows.following, down.follows.followers]) {
-      spy.mockRejectedValue(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+    for (const spy of [
+      down.privacy.blocked,
+      down.privacy.restricted,
+      down.follows.following,
+      down.follows.followers,
+    ]) {
+      spy.mockRejectedValue(
+        Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
+      );
     }
 
     const served = await resolveViewerPrivacyAndGraph(VIEWER, down);

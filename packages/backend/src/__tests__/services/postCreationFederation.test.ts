@@ -52,7 +52,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: getUserById, getMany: vi.fn().mockResolvedValue([]) } }),
+  getServiceOxyClient: () => ({
+    users: { get: getUserById, getMany: vi.fn().mockResolvedValue([]) },
+  }),
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';

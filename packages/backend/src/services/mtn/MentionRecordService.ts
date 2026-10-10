@@ -42,7 +42,10 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { logger } from '../../utils/logger';
 import { buildUserDid } from './mentionDid';
 import { mentionRecordStore } from './MentionRecordStore';
-import { mentionCustodialVerificationResolver, mentionVerificationResolver } from './mentionVerificationResolver';
+import {
+  mentionCustodialVerificationResolver,
+  mentionVerificationResolver,
+} from './mentionVerificationResolver';
 import {
   getMentionCustodialIssuer,
   getMentionCustodialPrivateKey,
@@ -80,9 +83,7 @@ export interface SignAndAppendOptions {
 function resolveIssuedAt(value: Date | number | undefined): number | null {
   if (value === undefined) return Date.now();
   const issuedAt = value instanceof Date ? value.getTime() : value;
-  return Number.isFinite(issuedAt) && issuedAt >= 0
-    ? Math.trunc(issuedAt)
-    : null;
+  return Number.isFinite(issuedAt) && issuedAt >= 0 ? Math.trunc(issuedAt) : null;
 }
 
 type ExistingEventLookup =
@@ -144,10 +145,13 @@ export async function signAndAppend(
   // INERT-WITHOUT-ENV: both must be present (and `getMentionCustodialPublicKey`,
   // checked by the resolver) or the dual-write is a logged no-op.
   if (!isMentionRecordSigningEnabled() || !issuer || !privateKey) {
-    logger.debug('MentionRecordService: signing disabled (MENTION_DID/keys unset); skipping emission', {
-      collection,
-      rkey,
-    });
+    logger.debug(
+      'MentionRecordService: signing disabled (MENTION_DID/keys unset); skipping emission',
+      {
+        collection,
+        rkey,
+      },
+    );
     return { ok: false, reason: 'disabled' };
   }
 

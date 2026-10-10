@@ -4,10 +4,7 @@ import { isAuthenticationError, OxyAuthenticationError } from '@oxy.so/core';
 const AUTH_TIMEOUT_CODE = 'AUTH_TIMEOUT';
 
 /** Substrings present in serialized Oxy auth-error messages. */
-const AUTH_MESSAGE_FRAGMENTS = [
-  'requires user authentication',
-  'Authentication timeout',
-] as const;
+const AUTH_MESSAGE_FRAGMENTS = ['requires user authentication', 'Authentication timeout'] as const;
 
 /** Narrow shape we defensively read off serialized (non-instance) errors. */
 interface SerializedAuthError {
@@ -33,7 +30,10 @@ export function isAuthError(error: unknown): boolean {
   if (error && typeof error === 'object') {
     const { code, message } = error as SerializedAuthError;
     if (code === AUTH_TIMEOUT_CODE) return true;
-    if (typeof message === 'string' && AUTH_MESSAGE_FRAGMENTS.some((fragment) => message.includes(fragment))) {
+    if (
+      typeof message === 'string' &&
+      AUTH_MESSAGE_FRAGMENTS.some((fragment) => message.includes(fragment))
+    ) {
       return true;
     }
   }

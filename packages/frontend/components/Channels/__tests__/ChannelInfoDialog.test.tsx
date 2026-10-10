@@ -96,9 +96,7 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { ChannelInfoDialogProvider, showChannelInfo } from '../ChannelInfoDialog';
-// eslint-disable-next-line import/first
 import enStrings from '@/locales/en.json';
 
 const COPY = enStrings.channels.explainer;
@@ -353,7 +351,9 @@ describe('the copy carries no dashes, in any language', () => {
     // below by having nothing to check.
     expect(entries.length).toBeGreaterThanOrEqual(11 - excused.size);
 
-    expect(entries.filter(([, value]) => DASHES.test(value)).map(([keyPath]) => keyPath)).toEqual([]);
+    expect(entries.filter(([, value]) => DASHES.test(value)).map(([keyPath]) => keyPath)).toEqual(
+      [],
+    );
   });
 
   // An exemption list is the same hand-maintained map the derived scope
@@ -362,16 +362,19 @@ describe('the copy carries no dashes, in any language', () => {
   // doing anything and silently keeps that one key exempt forever. So every
   // exemption has to still be EXERCISED: the string it excuses must actually
   // carry a dash, or the entry is stale and has to go.
-  it.each(Object.entries(GRAMMATICAL_DASHES).flatMap(([language, keys]) => keys.map((key) => [language, key])))(
-    'the %s exemption for %s is still needed',
-    (language, key) => {
-      const value = strings(CATALOGS[language], '').find(([keyPath]) => keyPath === `${PREFIX}${key}`)?.[1];
+  it.each(
+    Object.entries(GRAMMATICAL_DASHES).flatMap(([language, keys]) =>
+      keys.map((key) => [language, key]),
+    ),
+  )('the %s exemption for %s is still needed', (language, key) => {
+    const value = strings(CATALOGS[language], '').find(
+      ([keyPath]) => keyPath === `${PREFIX}${key}`,
+    )?.[1];
 
-      // A missing key is a stale exemption too, and a louder one.
-      expect(value).toBeDefined();
-      expect(DASHES.test(value as string)).toBe(true);
-    },
-  );
+    // A missing key is a stale exemption too, and a louder one.
+    expect(value).toBeDefined();
+    expect(DASHES.test(value as string)).toBe(true);
+  });
 
   it('still accepts a hyphen inside a word, so the rule is about punctuation', () => {
     // Without this the check reads as "no hyphen character at all", which would

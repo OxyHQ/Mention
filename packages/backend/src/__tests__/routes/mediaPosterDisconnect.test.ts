@@ -36,7 +36,8 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   );
   return {
     ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) => fetchUpstreamFollowingRedirects(...args),
+    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
+      fetchUpstreamFollowingRedirects(...args),
   };
 });
 
@@ -114,7 +115,8 @@ describe('GET /media/poster — client disconnect cleanup', () => {
     server = app.listen(0);
     await new Promise<void>((resolve) => server?.once('listening', resolve));
     const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('test server did not bind to a port');
+    if (!address || typeof address === 'string')
+      throw new Error('test server did not bind to a port');
 
     const req = http.get(
       {

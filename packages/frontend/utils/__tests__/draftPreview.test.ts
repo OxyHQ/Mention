@@ -50,7 +50,10 @@ describe('draftToPreviewPost — what it shows faithfully', () => {
 
   it('resolves media through the caller-supplied chokepoint, never a hand-built URL', () => {
     const { post } = build({
-      mediaIds: [{ id: 'file-a', type: 'image' }, { id: 'file-b', type: 'video' }],
+      mediaIds: [
+        { id: 'file-a', type: 'image' },
+        { id: 'file-b', type: 'video' },
+      ],
     });
     expect(post.content.media).toEqual([
       { id: 'file-a', type: 'image', url: 'https://cdn.test/file-a' },
@@ -74,7 +77,9 @@ describe('draftToPreviewPost — what it shows faithfully', () => {
   });
 
   it('omits the poll entirely when the creator is closed', () => {
-    expect(build({ showPollCreator: false, pollOptions: ['a', 'b'] }).post.content.poll).toBeUndefined();
+    expect(
+      build({ showPollCreator: false, pollOptions: ['a', 'b'] }).post.content.poll,
+    ).toBeUndefined();
   });
 
   it('shows an article', () => {
@@ -97,8 +102,24 @@ describe('draftToPreviewPost — what it will not pretend', () => {
   it('reports the rest of a thread rather than showing one post as the whole draft', () => {
     const { remainingThreadItems } = build({
       threadItems: [
-        { id: 't1', text: 'second', mediaIds: [], pollOptions: [], showPollCreator: false, location: null, mentions: [] },
-        { id: 't2', text: 'third', mediaIds: [], pollOptions: [], showPollCreator: false, location: null, mentions: [] },
+        {
+          id: 't1',
+          text: 'second',
+          mediaIds: [],
+          pollOptions: [],
+          showPollCreator: false,
+          location: null,
+          mentions: [],
+        },
+        {
+          id: 't2',
+          text: 'third',
+          mediaIds: [],
+          pollOptions: [],
+          showPollCreator: false,
+          location: null,
+          mentions: [],
+        },
       ],
     });
     expect(remainingThreadItems).toBe(2);

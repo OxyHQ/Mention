@@ -198,7 +198,8 @@ export const validateIsoDate = (raw: string | undefined): string | undefined => 
   if (trimmed.length === 0) return undefined;
   // Cheap shape check first to avoid permissive `new Date("anything")` parsing.
   // Allow dates (YYYY-MM-DD) or full ISO-8601 (YYYY-MM-DDTHH:mm[:ss[.sss]][Z|±HH:mm]).
-  const isoLike = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+  const isoLike =
+    /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
   if (!isoLike.test(trimmed)) return undefined;
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return undefined;
@@ -252,7 +253,7 @@ const normalizeHandle = (raw: string): string | undefined => {
 };
 
 /** Deduplicate preserving order. */
-const dedupe = <T,>(items: T[]): T[] => Array.from(new Set(items));
+const dedupe = <T>(items: T[]): T[] => Array.from(new Set(items));
 
 /**
  * Extract ordered thread-item texts from `thread[0].text` … keys. Indexes are
@@ -417,9 +418,7 @@ export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent =
 
   const sourcesRaw = parseCommaList(firstString(raw.sources));
   if (sourcesRaw.length > 0) {
-    const validated = sourcesRaw
-      .map(validateHttpUrl)
-      .filter((src): src is string => Boolean(src));
+    const validated = sourcesRaw.map(validateHttpUrl).filter((src): src is string => Boolean(src));
     const deduped = dedupe(validated).slice(0, MAX_SOURCES);
     if (deduped.length > 0) {
       intent.sources = deduped;

@@ -96,7 +96,9 @@ export default function JobApplyScreen() {
         afterSelect: 'back',
         onSelect: async (file: { id: string; filename?: string }) => {
           setResumeFileId(file.id);
-          setResumeFileName(file.filename ?? t('jobs.apply.resumeAttached', { defaultValue: 'Resume attached' }));
+          setResumeFileName(
+            file.filename ?? t('jobs.apply.resumeAttached', { defaultValue: 'Resume attached' }),
+          );
         },
       },
     });
@@ -124,7 +126,13 @@ export default function JobApplyScreen() {
     },
     onError: (error) => {
       logger.error('[jobs/apply] Failed to submit application', error);
-      toast(getJobErrorMessage(error, t('jobs.apply.failed', { defaultValue: 'Could not submit your application' })), { type: 'error' });
+      toast(
+        getJobErrorMessage(
+          error,
+          t('jobs.apply.failed', { defaultValue: 'Could not submit your application' }),
+        ),
+        { type: 'error' },
+      );
     },
   });
 
@@ -153,7 +161,9 @@ export default function JobApplyScreen() {
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.apply.unavailable', { defaultValue: 'This job cannot be applied to on Mention' })}
+            {t('jobs.apply.unavailable', {
+              defaultValue: 'This job cannot be applied to on Mention',
+            })}
           </Text>
         </View>
       </View>
@@ -169,7 +179,9 @@ export default function JobApplyScreen() {
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
-            {t('jobs.apply.notAccepting', { defaultValue: 'This job is not currently accepting applications' })}
+            {t('jobs.apply.notAccepting', {
+              defaultValue: 'This job is not currently accepting applications',
+            })}
           </Text>
         </View>
       </View>
@@ -186,46 +198,79 @@ export default function JobApplyScreen() {
           </Text>
           <Text className="text-muted-foreground text-sm mb-4">
             {t('jobs.apply.reviewSubtitle', {
-              defaultValue: 'This is exactly what {{employer}} will see. Nothing else about your Mention account is shared.',
+              defaultValue:
+                'This is exactly what {{employer}} will see. Nothing else about your Mention account is shared.',
               employer: employerName,
             })}
           </Text>
 
           <Card appearance="outline" radius="radius-16" style={{ padding: 16, gap: 12 }}>
             <View>
-              <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.displayName', { defaultValue: 'Name' })}</Text>
-              <Text className="text-foreground text-[15px]">{displayName.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
+              <Text className="text-xs text-muted-foreground font-primary">
+                {t('jobs.apply.displayName', { defaultValue: 'Name' })}
+              </Text>
+              <Text className="text-foreground text-[15px]">
+                {displayName.trim() ||
+                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
+              </Text>
             </View>
             <View>
-              <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.contactMethod', { defaultValue: 'Contact method' })}</Text>
-              <Text className="text-foreground text-[15px]">{contactMethod.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
+              <Text className="text-xs text-muted-foreground font-primary">
+                {t('jobs.apply.contactMethod', { defaultValue: 'Contact method' })}
+              </Text>
+              <Text className="text-foreground text-[15px]">
+                {contactMethod.trim() ||
+                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
+              </Text>
             </View>
             <View>
-              <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.coverNote', { defaultValue: 'Cover note' })}</Text>
-              <Text className="text-foreground text-[15px]">{coverNote.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
+              <Text className="text-xs text-muted-foreground font-primary">
+                {t('jobs.apply.coverNote', { defaultValue: 'Cover note' })}
+              </Text>
+              <Text className="text-foreground text-[15px]">
+                {coverNote.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
+              </Text>
             </View>
             <View>
-              <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' })}</Text>
+              <Text className="text-xs text-muted-foreground font-primary">
+                {t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' })}
+              </Text>
               {portfolioLinks.length > 0 ? (
                 portfolioLinks.map((link) => (
-                  <Text key={link} className="text-foreground text-[15px]">{link}</Text>
+                  <Text key={link} className="text-foreground text-[15px]">
+                    {link}
+                  </Text>
                 ))
               ) : (
-                <Text className="text-foreground text-[15px]">{t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
+                <Text className="text-foreground text-[15px]">
+                  {t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
+                </Text>
               )}
             </View>
             <View>
-              <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.resume', { defaultValue: 'Resume' })}</Text>
-              <Text className="text-foreground text-[15px]">{resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
+              <Text className="text-xs text-muted-foreground font-primary">
+                {t('jobs.apply.resume', { defaultValue: 'Resume' })}
+              </Text>
+              <Text className="text-foreground text-[15px]">
+                {resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}
+              </Text>
             </View>
           </Card>
 
           <View className="flex-row gap-3 mt-6">
-            <Button appearance="subtle" tone="neutral" size="lg" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              size="lg"
+              style={{ flex: 1 }}
+              onPress={() => setStep('edit')}
+              disabled={submitMutation.isPending}
+            >
               {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
             </Button>
             <Button
-              appearance="solid" tone="accent"
+              appearance="solid"
+              tone="accent"
               size="lg"
               style={{ flex: 1 }}
               loading={submitMutation.isPending}
@@ -248,7 +293,8 @@ export default function JobApplyScreen() {
         <Text className="text-foreground text-lg font-bold mb-1">{job.title}</Text>
         <Text className="text-muted-foreground text-sm mb-4">
           {t('jobs.apply.privacyNote', {
-            defaultValue: 'Only the fields you fill in here are shared with the employer — never your posts, follows, likes or DMs.',
+            defaultValue:
+              'Only the fields you fill in here are shared with the employer — never your posts, follows, likes or DMs.',
           })}
         </Text>
 
@@ -266,7 +312,9 @@ export default function JobApplyScreen() {
         <View className="mt-3">
           <TextField>
             <TextFieldInput
-              label={t('jobs.apply.contactMethod', { defaultValue: 'Contact method (email, etc.)' })}
+              label={t('jobs.apply.contactMethod', {
+                defaultValue: 'Contact method (email, etc.)',
+              })}
               value={contactMethod}
               onChangeText={setContactMethod}
               maxLength={200}
@@ -276,7 +324,9 @@ export default function JobApplyScreen() {
 
         <View className="mt-3">
           <Textarea
-            accessibilityLabel={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
+            accessibilityLabel={t('jobs.apply.coverNote', {
+              defaultValue: 'Cover note (optional)',
+            })}
             placeholder={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
             value={coverNote}
             onChangeText={setCoverNote}
@@ -300,7 +350,13 @@ export default function JobApplyScreen() {
                 returnKeyType="done"
               />
               <InputGroupAddon divider noPadding>
-                <Button appearance="plain" tone="neutral" size="sm" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
+                <Button
+                  appearance="plain"
+                  tone="neutral"
+                  size="sm"
+                  onPress={addPortfolioLink}
+                  disabled={!portfolioLinkDraft.trim()}
+                >
                   {t('common.add', { defaultValue: 'Add' })}
                 </Button>
               </InputGroupAddon>
@@ -317,27 +373,50 @@ export default function JobApplyScreen() {
           ) : null}
         </View>
 
-        <Field label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })} style={{ marginTop: 16 }}>
+        <Field
+          label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })}
+          style={{ marginTop: 16 }}
+        >
           {resumeFileName ? (
             <Card
               appearance="outline"
               radius="radius-16"
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+              }}
             >
-              <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>{resumeFileName}</Text>
+              <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>
+                {resumeFileName}
+              </Text>
               <Button appearance="plain" tone="neutral" size="sm" onPress={removeResume}>
                 {t('common.remove', { defaultValue: 'Remove' })}
               </Button>
             </Card>
           ) : (
-            <Button appearance="subtle" tone="neutral" size="md" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              size="md"
+              onPress={openResumePicker}
+              style={{ alignSelf: 'flex-start' }}
+            >
               {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
             </Button>
           )}
         </Field>
 
         <View className="mt-6">
-          <Button appearance="solid" tone="accent" size="lg" disabled={!canContinue} onPress={() => setStep('review')}>
+          <Button
+            appearance="solid"
+            tone="accent"
+            size="lg"
+            disabled={!canContinue}
+            onPress={() => setStep('review')}
+          >
             {t('jobs.apply.review', { defaultValue: 'Review and submit' })}
           </Button>
         </View>

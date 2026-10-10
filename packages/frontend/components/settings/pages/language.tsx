@@ -1,15 +1,11 @@
-import { useMentionSettings } from "@/context/MentionSettingsContext";
-import { Button } from "@oxy.so/bloom/button";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { getNativeLanguageName } from "@oxy.so/core";
-import { useAuth, useOxy } from "@oxy.so/services/ui/client";
-import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { useMentionSettings } from '@/context/MentionSettingsContext';
+import { Button } from '@oxy.so/bloom/button';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { getNativeLanguageName } from '@oxy.so/core';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
+import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
 /**
  * The app's UI language is an Oxy-account concern, not a Mention one: Oxy
@@ -29,35 +25,31 @@ export default function LanguageSettingsScreen() {
   const { currentLanguage, currentLanguages } = useOxy();
 
   const openLanguageSelector = useCallback(() => {
-    afterClose(() => showBottomSheet?.("LanguageSelector"));
+    afterClose(() => showBottomSheet?.('LanguageSelector'));
   }, [showBottomSheet, afterClose]);
 
   // Account locales when there are any (signed in, or a guest override was
   // set), else the single resolved device/fallback locale — the same
   // fallback `LanguageSelectorScreen` itself uses.
-  const selectedLanguages =
-    currentLanguages.length > 0 ? currentLanguages : [currentLanguage];
+  const selectedLanguages = currentLanguages.length > 0 ? currentLanguages : [currentLanguage];
   const languageDescription = selectedLanguages
     .map((code) => getNativeLanguageName(code))
-    .join(", ");
+    .join(', ');
 
   return (
     <View className="gap-4">
       <View className="gap-4">
-        <SettingsSection label={t("settings.language.selectLanguage")}>
+        <SettingsSection label={t('settings.language.selectLanguage')}>
           <SettingsCard>
-            <SettingsRow
-              label={t("Language")}
-              description={languageDescription}
-            >
+            <SettingsRow label={t('Language')} description={languageDescription}>
               <Button
                 size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={openLanguageSelector}
-                accessibilityLabel={t("Language")}
+                accessibilityLabel={t('Language')}
               >
-                {t("common.open", { defaultValue: "Open" })}
+                {t('common.open', { defaultValue: 'Open' })}
               </Button>
             </SettingsRow>
           </SettingsCard>

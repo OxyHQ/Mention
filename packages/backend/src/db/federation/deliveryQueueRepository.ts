@@ -33,10 +33,10 @@ type DeliveryRow = typeof federationDeliveryQueue.$inferSelect;
  * tuned — so the copy that owns the rows lives here.
  */
 const BACKOFF_INTERVALS_MS = [
-  1 * 60 * 1000,       // 1 minute
-  5 * 60 * 1000,       // 5 minutes
-  30 * 60 * 1000,      // 30 minutes
-  2 * 60 * 60 * 1000,  // 2 hours
+  1 * 60 * 1000, // 1 minute
+  5 * 60 * 1000, // 5 minutes
+  30 * 60 * 1000, // 30 minutes
+  2 * 60 * 60 * 1000, // 2 hours
   12 * 60 * 60 * 1000, // 12 hours
   48 * 60 * 60 * 1000, // 48 hours
 ];

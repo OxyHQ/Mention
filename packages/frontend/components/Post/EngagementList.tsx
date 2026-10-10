@@ -32,31 +32,35 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadUsers = useCallback(async (cursor?: string) => {
-    try {
-      if (cursor) {
-        setLoadingMore(true);
-      }
+  const loadUsers = useCallback(
+    async (cursor?: string) => {
+      try {
+        if (cursor) {
+          setLoadingMore(true);
+        }
 
-      const result = type === 'likes'
-        ? await feedService.getPostLikes(postId, cursor)
-        : await feedService.getPostBoosts(postId, cursor);
+        const result =
+          type === 'likes'
+            ? await feedService.getPostLikes(postId, cursor)
+            : await feedService.getPostBoosts(postId, cursor);
 
-      if (cursor) {
-        setUsers(prev => [...prev, ...result.users]);
-      } else {
-        setUsers(result.users);
-      }
+        if (cursor) {
+          setUsers((prev) => [...prev, ...result.users]);
+        } else {
+          setUsers(result.users);
+        }
 
-      setHasMore(result.hasMore);
-      setNextCursor(result.nextCursor);
+        setHasMore(result.hasMore);
+        setNextCursor(result.nextCursor);
       } catch {
-      logger.error(`Error loading ${type}`);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [postId, type]);
+        logger.error(`Error loading ${type}`);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [postId, type],
+  );
 
   useEffect(() => {
     loadUsers();
@@ -68,31 +72,37 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
     }
   }, [hasMore, nextCursor, loadingMore, loadUsers]);
 
-  const handleUserPress = useCallback((user: PostUser) => {
-    onClose();
-    const href = profileHrefForUser(user);
-    if (href) {
-      router.push(href);
-    }
-  }, [onClose, router]);
+  const handleUserPress = useCallback(
+    (user: PostUser) => {
+      onClose();
+      const href = profileHrefForUser(user);
+      if (href) {
+        router.push(href);
+      }
+    },
+    [onClose, router],
+  );
 
-  const renderUser = useCallback(({ item }: { item: PostUser }) => (
-    <ProfileCard
-      profile={{
-        id: item.id,
-        username: item.username,
-        name: item.name,
-        avatar: item.avatar,
-        verified: item.verified,
-        isFederated: item.isFederated,
-        kind: item.kind,
-        instance: item.instance,
-        federation: item.federation,
-      }}
-      showFollowButton
-      onPress={() => handleUserPress(item)}
-    />
-  ), [handleUserPress]);
+  const renderUser = useCallback(
+    ({ item }: { item: PostUser }) => (
+      <ProfileCard
+        profile={{
+          id: item.id,
+          username: item.username,
+          name: item.name,
+          avatar: item.avatar,
+          verified: item.verified,
+          isFederated: item.isFederated,
+          kind: item.kind,
+          instance: item.instance,
+          federation: item.federation,
+        }}
+        showFollowButton
+        onPress={() => handleUserPress(item)}
+      />
+    ),
+    [handleUserPress],
+  );
 
   if (loading) {
     return (
@@ -102,7 +112,8 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           safeArea={false}
           actions={
             <Button
-              appearance="subtle" tone="neutral"
+              appearance="subtle"
+              tone="neutral"
               iconOnly
               leadingIcon={RiCloseLine}
               accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
@@ -123,7 +134,8 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         safeArea={false}
         actions={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

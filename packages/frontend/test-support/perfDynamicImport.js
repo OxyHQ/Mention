@@ -15,7 +15,10 @@ module.exports = function perfDynamicImport({ types: t }) {
         path.replaceWith(
           t.callExpression(
             t.memberExpression(
-              t.callExpression(t.memberExpression(t.identifier('Promise'), t.identifier('resolve')), []),
+              t.callExpression(
+                t.memberExpression(t.identifier('Promise'), t.identifier('resolve')),
+                [],
+              ),
               t.identifier('then'),
             ),
             [t.arrowFunctionExpression([], requireCall)],

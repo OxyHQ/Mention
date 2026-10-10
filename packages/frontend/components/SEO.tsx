@@ -101,11 +101,17 @@ let headWatch: { observer: MutationObserver; users: number } | undefined;
  */
 function useDefaultImageTags(enabled: boolean): void {
   useEffect(() => {
-    if (!enabled || typeof document === 'undefined' || typeof MutationObserver === 'undefined') return undefined;
+    if (!enabled || typeof document === 'undefined' || typeof MutationObserver === 'undefined')
+      return undefined;
     const head = document.head;
     if (!headWatch) {
       const observer = new MutationObserver(() => syncDefaultImageTags(head));
-      observer.observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+      observer.observe(head, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['content'],
+      });
       headWatch = { observer, users: 0 };
     }
     headWatch.users += 1;
@@ -136,33 +142,43 @@ export const SEO: React.FC<SEOProps> = ({
 }) => {
   const pathname = usePathname();
   const { t } = useTranslation();
-  
+
   // Generate full URL
-  const fullUrl = url || (Platform.OS === 'web' && typeof window !== 'undefined' 
-    ? `${window.location.origin}${pathname}`
-    : `https://mention.earth${pathname}`);
+  const fullUrl =
+    url ||
+    (Platform.OS === 'web' && typeof window !== 'undefined'
+      ? `${window.location.origin}${pathname}`
+      : `https://mention.earth${pathname}`);
 
   // Use provided siteName or translated default
   const finalSiteName = siteName || t('seo.siteName', { defaultValue: defaultSEO.siteName });
-  
+
   // Default title if not provided (translated)
-  const pageTitle = title || t('seo.defaultTitle', { defaultValue: `${finalSiteName}: a social network connected to the Fediverse` });
-  
+  const pageTitle =
+    title ||
+    t('seo.defaultTitle', {
+      defaultValue: `${finalSiteName}: a social network connected to the Fediverse`,
+    });
+
   // Default description if not provided (translated)
-  const pageDescription = description || t('seo.defaultDescription', { 
-    defaultValue: `${finalSiteName} is a social network for iOS, Android and the web.`,
-    siteName: finalSiteName
-  });
+  const pageDescription =
+    description ||
+    t('seo.defaultDescription', {
+      defaultValue: `${finalSiteName} is a social network for iOS, Android and the web.`,
+      siteName: finalSiteName,
+    });
 
   const pageImage = image || DEFAULT_IMAGE;
 
   useDefaultImageTags(Platform.OS === 'web');
 
-  useFocusEffect(useCallback(() => {
-    if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {
-      releaseServerSEO(document);
-    }
-  }, [ready]));
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {
+        releaseServerSEO(document);
+      }
+    }, [ready]),
+  );
 
   // Loading routes must not overwrite complete server metadata with placeholders.
   if (Platform.OS !== 'web' || !ready) {
@@ -176,8 +192,12 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="title" content={pageTitle} />
       <meta name="description" content={pageDescription} />
       <meta name="robots" content={robots} />
-      {jsonLd && <script type="application/ld+json">{JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>}
-      
+      {jsonLd && (
+        <script type="application/ld+json">
+          {JSON.stringify(jsonLd).replace(/</g, '\\u003c')}
+        </script>
+      )}
+
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={type} />
       <meta property="og:url" content={fullUrl} />
@@ -186,7 +206,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:image" content={pageImage} />
       {/* The default image's width/height/type/alt: `useDefaultImageTags`. */}
       <meta property="og:site_name" content={finalSiteName} />
-      
+
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:url" content={fullUrl} />
@@ -195,7 +215,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="twitter:image" content={pageImage} />
       {twitterHandle && <meta name="twitter:site" content={twitterHandle} />}
       {twitterHandle && <meta name="twitter:creator" content={twitterHandle} />}
-      
+
       {/* Article specific tags */}
       {type === 'article' && (
         <>
@@ -204,7 +224,7 @@ export const SEO: React.FC<SEOProps> = ({
           {modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
         </>
       )}
-      
+
       {/* Additional meta tags */}
       <link rel="canonical" href={fullUrl} />
     </ExpoHead>

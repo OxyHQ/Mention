@@ -175,9 +175,7 @@ describe('cacheActors / cacheActor', () => {
 
     cacheActors([{ id: 'channel-1', username: 'daily', avatar: 'avatar-before' }]);
 
-    expect(lastBatch()).toEqual([
-      { id: 'channel-1', username: 'daily', avatar: 'avatar-after' },
-    ]);
+    expect(lastBatch()).toEqual([{ id: 'channel-1', username: 'daily', avatar: 'avatar-after' }]);
   });
 
   it('corrects a single actor the same way', () => {
@@ -271,7 +269,13 @@ describe('cacheActors / cacheActor', () => {
 describe('the door is the only way in', () => {
   const FRONTEND_ROOT = path.resolve(__dirname, '../..');
   const SKIP_DIRS = new Set([
-    'node_modules', '.expo', 'dist', 'android', 'ios', 'coverage', '.git',
+    'node_modules',
+    '.expo',
+    'dist',
+    'android',
+    'ios',
+    'coverage',
+    '.git',
   ]);
 
   /** Every `.ts`/`.tsx` under the frontend package, tests excluded. */

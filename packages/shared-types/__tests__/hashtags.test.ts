@@ -131,10 +131,7 @@ describe('generated ranges', () => {
 
   it('HASHTAG_START_CLASS matches exactly \\p{L}', () => {
     expect(
-      sweep(
-        new RegExp(`^[${HASHTAG_START_CLASS}]$`, 'u'),
-        new RegExp('^[\\p{L}]$', 'u'),
-      ),
+      sweep(new RegExp(`^[${HASHTAG_START_CLASS}]$`, 'u'), new RegExp('^[\\p{L}]$', 'u')),
     ).toBe(0);
   });
 

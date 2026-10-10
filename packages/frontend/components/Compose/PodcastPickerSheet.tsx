@@ -95,9 +95,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
 
   return (
     <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-3">
-        {t('compose.podcast.title')}
-      </Text>
+      <Text className="text-foreground text-lg font-bold mb-3">{t('compose.podcast.title')}</Text>
 
       <Search
         label={t('compose.podcast.searchPlaceholder')}
@@ -125,9 +123,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
         ) : search.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
             <RiSearchLine size="2xl" fill={colors.textSecondary} />
-            <Text className="text-muted-foreground text-[15px]">
-              {t('compose.podcast.empty')}
-            </Text>
+            <Text className="text-muted-foreground text-[15px]">{t('compose.podcast.empty')}</Text>
           </View>
         ) : (
           <FlatList

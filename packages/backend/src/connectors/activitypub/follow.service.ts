@@ -19,14 +19,23 @@ import {
   actorUrl,
   hashtagUrl,
 } from './constants';
-import { PostVisibility, canonicalizeLanguageTag, type MediaItem, type PostContent } from '@mention/shared-types';
+import {
+  PostVisibility,
+  canonicalizeLanguageTag,
+  type MediaItem,
+  type PostContent,
+} from '@mention/shared-types';
 import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
 import { resolveMediaRef } from '../../utils/mediaResolver';
-import { linkifyApHtml, type ApMentionLink, type LinkifyApHtmlOptions } from '../../utils/federation/linkifyApHtml';
+import {
+  linkifyApHtml,
+  type ApMentionLink,
+  type LinkifyApHtmlOptions,
+} from '../../utils/federation/linkifyApHtml';
 import { normalizeHashtag, normalizeMentionIds } from '../../utils/textProcessing';
 import { getNormalizedUserHandle, type User as OxyUser } from '@oxy.so/core';
 import { isAbsoluteHttpUrl } from '../shared/url';
@@ -90,7 +99,9 @@ const ATTACHMENT_MIME_BY_TYPE: Record<MediaItem['type'], string> = {
  * proxied back out to the fediverse). Fail-soft: any resolution problem yields
  * `undefined` so a single bad item never breaks the Note.
  */
-function buildNoteAttachment(item: MediaItem | undefined | null): Record<string, unknown> | undefined {
+function buildNoteAttachment(
+  item: MediaItem | undefined | null,
+): Record<string, unknown> | undefined {
   const ref = item?.id;
   if (!ref) return undefined;
 
@@ -508,7 +519,8 @@ export class FollowService {
     const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
     // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
-    const published = post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt;
+    const published =
+      post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt;
 
     const tags: Array<Record<string, string>> = [];
     if (post.hashtags) {
@@ -576,9 +588,7 @@ export class FollowService {
     // `content` above). Now that `content` is HTML, Mastodon uses `source.content`
     // for edit-fetch fidelity. Omitted for an empty body (e.g. a boost — which
     // never reaches this Create path anyway).
-    const source = primary.text
-      ? { content: primary.text, mediaType: 'text/plain' }
-      : undefined;
+    const source = primary.text ? { content: primary.text, mediaType: 'text/plain' } : undefined;
 
     // The public collection stays in `to`; the mentioned parent author + every
     // REMOTE @mentioned actor join the followers collection in `cc` so a public
@@ -742,7 +752,14 @@ export class FollowService {
       const audienceInboxes = await this.resolveAudienceInboxes(
         options.extraAudienceOxyUserIds ?? [],
       );
-      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined, poll ?? undefined, quote ?? undefined);
+      const activity = this.buildCreateNoteActivity(
+        post,
+        senderUsername,
+        reply?.context,
+        mentions ?? undefined,
+        poll ?? undefined,
+        quote ?? undefined,
+      );
       await deliveryService.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
@@ -891,9 +908,9 @@ export class FollowService {
       if (!handle) continue;
       const isRemote = user.type === 'federated' || user.isFederated === true;
       const href = isRemote
-        ? (typeof user.federation?.actorUri === 'string' && user.federation.actorUri.length > 0
-            ? user.federation.actorUri
-            : undefined)
+        ? typeof user.federation?.actorUri === 'string' && user.federation.actorUri.length > 0
+          ? user.federation.actorUri
+          : undefined
         : actorUrl(handle);
       if (!href) continue; // federated user with no resolvable actor uri → drop.
       // For a RELABELLED actor reached by this fallback (no FederatedActor row),
@@ -924,7 +941,9 @@ export class FollowService {
    * that mentions nobody (or whose mentions all fail to resolve) is absent from the
    * returned map; the Note builder then simply linkifies without a mention context.
    */
-  async resolveMentionContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteMentionContext>> {
+  async resolveMentionContextByPost(
+    posts: NoteSourcePost[],
+  ): Promise<Map<string, NoteMentionContext>> {
     const result = new Map<string, NoteMentionContext>();
     const perPostIds = new Map<string, string[]>();
     const allIds: string[] = [];
@@ -1401,7 +1420,14 @@ export class FollowService {
       const poll = await this.resolvePollContext(post);
       // A quote post re-federates its quote reference; a non-quote post → null.
       const quote = await this.resolveQuoteContext(post);
-      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined, poll ?? undefined, quote ?? undefined);
+      const activity = this.buildUpdateNoteActivity(
+        post,
+        editorUsername,
+        reply?.context,
+        mentions ?? undefined,
+        poll ?? undefined,
+        quote ?? undefined,
+      );
       await deliveryService.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
@@ -1421,7 +1447,11 @@ export class FollowService {
    * {@link buildUndoLikeActivity} re-mints it without persisting anything. A Like
    * is addressed ONLY at the origin author's inbox (no `to`/`cc` broadcast).
    */
-  buildLikeActivity(likerUsername: string, likeId: string, objectUri: string): Record<string, unknown> {
+  buildLikeActivity(
+    likerUsername: string,
+    likeId: string,
+    objectUri: string,
+  ): Record<string, unknown> {
     const actor = actorUrl(likerUsername);
     return {
       '@context': AP_CONTEXT,
@@ -1433,7 +1463,11 @@ export class FollowService {
   }
 
   /** Build the matching `Undo(Like)` — re-mints the SAME Like id + object. */
-  buildUndoLikeActivity(likerUsername: string, likeId: string, objectUri: string): Record<string, unknown> {
+  buildUndoLikeActivity(
+    likerUsername: string,
+    likeId: string,
+    objectUri: string,
+  ): Record<string, unknown> {
     const actor = actorUrl(likerUsername);
     const likeActivityId = `${actor}/likes/${likeId}`;
     return {
@@ -1527,7 +1561,6 @@ export class FollowService {
     const activity = this.buildUndoLikeActivity(likerUsername, String(like._id), target.objectUri);
     await deliveryService.queueDelivery(activity, target.authorInbox, likerOxyUserId);
   }
-
 }
 
 export const followService = new FollowService();

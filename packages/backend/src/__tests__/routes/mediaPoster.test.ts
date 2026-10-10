@@ -59,9 +59,7 @@ describe('GET /media/poster — SSRF guard', () => {
 
   it('rejects a non-http(s) protocol (e.g. file://) with 403', async () => {
     extractPosterFrame.mockClear();
-    const res = await request(app)
-      .get('/media/poster')
-      .query({ url: 'file:///etc/passwd' });
+    const res = await request(app).get('/media/poster').query({ url: 'file:///etc/passwd' });
 
     expect(res.status).toBe(403);
     expect(extractPosterFrame).not.toHaveBeenCalled();

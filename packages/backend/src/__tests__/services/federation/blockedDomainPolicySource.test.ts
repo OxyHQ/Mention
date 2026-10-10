@@ -19,14 +19,16 @@ describe('loadBlockedDomainPolicy', () => {
   it('returns the reviewed committed policy', async () => {
     vi.resetModules();
     vi.doMock('../../../connectors/activitypub/federationBlockPolicy', () => ({
-      getBlockedDomainPolicy: () => [{
-        domain: REVIEWED,
-        severity: 'suspend',
-        category: 'spam',
-        reason: 'reviewed and committed',
-        since: '2026-01-01',
-        corroboratingSources: [],
-      }],
+      getBlockedDomainPolicy: () => [
+        {
+          domain: REVIEWED,
+          severity: 'suspend',
+          category: 'spam',
+          reason: 'reviewed and committed',
+          since: '2026-01-01',
+          corroboratingSources: [],
+        },
+      ],
     }));
 
     const { loadBlockedDomainPolicy } = await import(
@@ -39,14 +41,16 @@ describe('loadBlockedDomainPolicy', () => {
 
   it('reads the REVIEWED accessor, never the merged view that includes the env lever', async () => {
     vi.resetModules();
-    const reviewed = vi.fn(() => [{
-      domain: REVIEWED,
-      severity: 'suspend' as const,
-      category: 'spam' as const,
-      reason: 'reviewed and committed',
-      since: '2026-01-01',
-      corroboratingSources: [] as readonly string[],
-    }]);
+    const reviewed = vi.fn(() => [
+      {
+        domain: REVIEWED,
+        severity: 'suspend' as const,
+        category: 'spam' as const,
+        reason: 'reviewed and committed',
+        since: '2026-01-01',
+        corroboratingSources: [] as readonly string[],
+      },
+    ]);
     const merged = vi.fn(() => [{ domain: EMERGENCY, source: 'operational' }]);
     vi.doMock('../../../connectors/activitypub/federationBlockPolicy', () => ({
       getBlockedDomainPolicy: reviewed,

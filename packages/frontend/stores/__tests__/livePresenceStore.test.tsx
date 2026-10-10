@@ -48,7 +48,12 @@ describe('livePresenceStore', () => {
     renders.clear();
 
     // b goes live; a unchanged; c stays offline.
-    act(() => setLivePresence([{ userId: 'a', roomId: 'r1' }, { userId: 'b', roomId: 'r2' }]));
+    act(() =>
+      setLivePresence([
+        { userId: 'a', roomId: 'r1' },
+        { userId: 'b', roomId: 'r2' },
+      ]),
+    );
     expect(Object.fromEntries(renders)).toEqual({ b: 1 });
     expect(states.get('b')).toEqual({ isLive: true, roomId: 'r2' });
 
@@ -87,10 +92,25 @@ describe('livePresenceStore', () => {
     });
     expect(demand[demand.length - 1]).toBe(false);
 
-    act(() => renderer!.update(<><DemandProbe /><Probe userId="a" /><Probe userId="b" /></>));
+    act(() =>
+      renderer!.update(
+        <>
+          <DemandProbe />
+          <Probe userId="a" />
+          <Probe userId="b" />
+        </>,
+      ),
+    );
     expect(demand[demand.length - 1]).toBe(true);
 
-    act(() => renderer!.update(<><DemandProbe /><Probe userId="a" /></>));
+    act(() =>
+      renderer!.update(
+        <>
+          <DemandProbe />
+          <Probe userId="a" />
+        </>,
+      ),
+    );
     expect(demand[demand.length - 1]).toBe(true);
 
     act(() => renderer!.update(<DemandProbe />));

@@ -314,10 +314,7 @@ export function mentionTextsFromContent(content: unknown): string[] {
  * post already loaded, with its author variants — and neither can accept a
  * foreign replacement without the caller knowing which one it is holding.
  */
-export function mapMentionTexts(
-  content: unknown,
-  transform: (text: string) => string,
-): boolean {
+export function mapMentionTexts(content: unknown, transform: (text: string) => string): boolean {
   let changed = false;
   forEachMentionText(content, (text, assign) => {
     const next = transform(text);

@@ -22,7 +22,12 @@ vi.mock('../../../config', async (importOriginal) => {
     ...actual,
     config: {
       ...actual.config,
-      instagramGraph: { enabled: true, businessAccountId: '17841400000000000', apiVersion: 'v23.0', followBackfillLimit: 50 },
+      instagramGraph: {
+        enabled: true,
+        businessAccountId: '17841400000000000',
+        apiVersion: 'v23.0',
+        followBackfillLimit: 50,
+      },
     },
     getMetaGraphAccessToken: () => 'test-token',
   };
@@ -51,7 +56,15 @@ vi.mock('../../../connectors/instagram/sync', async (importOriginal) => ({
   requestInstagramSync: h.syncInBackground,
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ users: { get: vi.fn(async () => ({ id: 'oxy-zuck', type: 'federated', username: 'zuck@instagram.com' })) } }),
+  getServiceOxyClient: () => ({
+    users: {
+      get: vi.fn(async () => ({
+        id: 'oxy-zuck',
+        type: 'federated',
+        username: 'zuck@instagram.com',
+      })),
+    },
+  }),
 }));
 
 import { config } from '../../../config';
@@ -88,32 +101,41 @@ describe('an Instagram-identity profile view', () => {
     h.findActorByOxyUserId.mockResolvedValue(kilogramActor());
     expect(await federatedProfileSync.syncOnProfileView('oxy-zuck')).toBe(true);
     await flush();
-    expect(h.syncInBackground).toHaveBeenCalledWith(expect.objectContaining({ uri: 'https://kilogram.makeup/users/zuck' }), 'profile_view');
+    expect(h.syncInBackground).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: 'https://kilogram.makeup/users/zuck' }),
+      'profile_view',
+    );
   });
 
   it('does NOT flicker back to pending after the outbox cooldown once a Graph sync has finished', async () => {
-    h.findActorByOxyUserId.mockResolvedValue(kilogramActor({
-      lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE),
-      instagramGraphSyncedAt: new Date(Date.now() - 20 * MINUTE),
-    }));
+    h.findActorByOxyUserId.mockResolvedValue(
+      kilogramActor({
+        lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE),
+        instagramGraphSyncedAt: new Date(Date.now() - 20 * MINUTE),
+      }),
+    );
     expect(await federatedProfileSync.syncOnProfileView('oxy-zuck')).toBe(false);
   });
 
   it('with the Graph connector off, stops waiting once the (empty) bridge outbox has been read', async () => {
     config.instagramGraph.enabled = false;
-    h.findActorByOxyUserId.mockResolvedValue(kilogramActor({ lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE) }));
+    h.findActorByOxyUserId.mockResolvedValue(
+      kilogramActor({ lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE) }),
+    );
     expect(await federatedProfileSync.syncOnProfileView('oxy-zuck')).toBe(false);
     await flush();
     expect(h.syncInBackground).not.toHaveBeenCalled();
   });
 
   it('never runs the ActivityPub outbox dance for a Graph-only actor', async () => {
-    h.findActorByOxyUserId.mockResolvedValue(kilogramActor({
-      protocol: 'instagram-graph',
-      uri: 'instagram-graph:17841401746480004',
-      domain: 'instagram.com',
-      outboxUrl: undefined,
-    }));
+    h.findActorByOxyUserId.mockResolvedValue(
+      kilogramActor({
+        protocol: 'instagram-graph',
+        uri: 'instagram-graph:17841401746480004',
+        domain: 'instagram.com',
+        outboxUrl: undefined,
+      }),
+    );
     await federatedProfileSync.syncOnProfileView('oxy-zuck');
     await flush();
     expect(h.syncInBackground).toHaveBeenCalledTimes(1);
@@ -122,11 +144,13 @@ describe('an Instagram-identity profile view', () => {
   });
 
   it('leaves an ordinary fediverse actor on the outbox rule', async () => {
-    h.findActorByOxyUserId.mockResolvedValue(kilogramActor({
-      uri: 'https://mastodon.example/users/alice',
-      networkAcct: undefined,
-      lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE),
-    }));
+    h.findActorByOxyUserId.mockResolvedValue(
+      kilogramActor({
+        uri: 'https://mastodon.example/users/alice',
+        networkAcct: undefined,
+        lastOutboxSyncAt: new Date(Date.now() - 20 * MINUTE),
+      }),
+    );
     expect(await federatedProfileSync.syncOnProfileView('oxy-alice')).toBe(true);
     await flush();
     expect(h.syncInBackground).not.toHaveBeenCalled();

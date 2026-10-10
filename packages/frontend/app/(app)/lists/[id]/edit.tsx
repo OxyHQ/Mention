@@ -71,7 +71,9 @@ export default function EditListMembersScreen() {
     setError(null);
     try {
       const data = await listsService.get(listId);
-      const memberIds: string[] = Array.isArray(data?.memberOxyUserIds) ? data.memberOxyUserIds : [];
+      const memberIds: string[] = Array.isArray(data?.memberOxyUserIds)
+        ? data.memberOxyUserIds
+        : [];
       // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
       // downstream profile reads for these members hit the cache.
       const fetched = await oxyServices.users.getMany(memberIds);
@@ -103,80 +105,113 @@ export default function EditListMembersScreen() {
     load();
   }, [load]);
 
-  useEffect(() => () => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    },
+    [],
+  );
 
-  const runSearch = useCallback((q: string) => {
-    setSearch(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    const trimmed = q.trim();
-    if (!trimmed) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const res = await oxyServices.users.search(trimmed, { limit: 10 });
-        setResults(res.data.map((profile: User) => ({
-          id: profile.id,
-          username: profile.username,
-          name: { displayName: displayNameOrHandle(profile.name.displayName, profile.username) },
-          avatar: profile.avatar ?? undefined,
-        })));
-      } catch (e) {
-        logger.warn('searchProfiles failed', { error: e });
+  const runSearch = useCallback(
+    (q: string) => {
+      setSearch(q);
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      const trimmed = q.trim();
+      if (!trimmed) {
         setResults([]);
-      } finally {
         setSearching(false);
+        return;
       }
-    }, SEARCH_DEBOUNCE_MS);
-  }, [oxyServices]);
+      setSearching(true);
+      searchTimer.current = setTimeout(async () => {
+        try {
+          const res = await oxyServices.users.search(trimmed, { limit: 10 });
+          setResults(
+            res.data.map((profile: User) => ({
+              id: profile.id,
+              username: profile.username,
+              name: {
+                displayName: displayNameOrHandle(profile.name.displayName, profile.username),
+              },
+              avatar: profile.avatar ?? undefined,
+            })),
+          );
+        } catch (e) {
+          logger.warn('searchProfiles failed', { error: e });
+          setResults([]);
+        } finally {
+          setSearching(false);
+        }
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    [oxyServices],
+  );
 
   const setPending = useCallback((uid: string, on: boolean) => {
     setPendingIds((prev) => {
       const next = new Set(prev);
-      if (on) next.add(uid); else next.delete(uid);
+      if (on) next.add(uid);
+      else next.delete(uid);
       return next;
     });
   }, []);
 
-  const addMember = useCallback(async (profile: MemberProfile) => {
-    if (memberIdSet.has(profile.id) || pendingIds.has(profile.id)) return;
-    setPending(profile.id, true);
-    // Optimistic insert.
-    setMembers((prev) => [profile, ...prev]);
-    try {
-      await listsService.addMembers(listId, [profile.id]);
-      toast(t('lists.edit.added', { user: profile.username, defaultValue: `Added @${profile.username}` }), { type: 'success' });
-    } catch (e) {
-      logger.error('Add member failed', e);
-      setMembers((prev) => prev.filter((m) => m.id !== profile.id));
-      toast(t('lists.edit.addFailed', { defaultValue: 'Failed to add member' }), { type: 'error' });
-    } finally {
-      setPending(profile.id, false);
-    }
-  }, [listId, memberIdSet, pendingIds, setPending, t]);
+  const addMember = useCallback(
+    async (profile: MemberProfile) => {
+      if (memberIdSet.has(profile.id) || pendingIds.has(profile.id)) return;
+      setPending(profile.id, true);
+      // Optimistic insert.
+      setMembers((prev) => [profile, ...prev]);
+      try {
+        await listsService.addMembers(listId, [profile.id]);
+        toast(
+          t('lists.edit.added', {
+            user: profile.username,
+            defaultValue: `Added @${profile.username}`,
+          }),
+          { type: 'success' },
+        );
+      } catch (e) {
+        logger.error('Add member failed', e);
+        setMembers((prev) => prev.filter((m) => m.id !== profile.id));
+        toast(t('lists.edit.addFailed', { defaultValue: 'Failed to add member' }), {
+          type: 'error',
+        });
+      } finally {
+        setPending(profile.id, false);
+      }
+    },
+    [listId, memberIdSet, pendingIds, setPending, t],
+  );
 
-  const removeMember = useCallback(async (profile: MemberProfile) => {
-    if (pendingIds.has(profile.id)) return;
-    setPending(profile.id, true);
-    // Optimistic removal.
-    const previous = members;
-    setMembers((prev) => prev.filter((m) => m.id !== profile.id));
-    try {
-      await listsService.removeMembers(listId, [profile.id]);
-      toast(t('lists.edit.removed', { user: profile.username, defaultValue: `Removed @${profile.username}` }), { type: 'success' });
-    } catch (e) {
-      logger.error('Remove member failed', e);
-      setMembers(previous);
-      toast(t('lists.edit.removeFailed', { defaultValue: 'Failed to remove member' }), { type: 'error' });
-    } finally {
-      setPending(profile.id, false);
-    }
-  }, [listId, members, pendingIds, setPending, t]);
+  const removeMember = useCallback(
+    async (profile: MemberProfile) => {
+      if (pendingIds.has(profile.id)) return;
+      setPending(profile.id, true);
+      // Optimistic removal.
+      const previous = members;
+      setMembers((prev) => prev.filter((m) => m.id !== profile.id));
+      try {
+        await listsService.removeMembers(listId, [profile.id]);
+        toast(
+          t('lists.edit.removed', {
+            user: profile.username,
+            defaultValue: `Removed @${profile.username}`,
+          }),
+          { type: 'success' },
+        );
+      } catch (e) {
+        logger.error('Remove member failed', e);
+        setMembers(previous);
+        toast(t('lists.edit.removeFailed', { defaultValue: 'Failed to remove member' }), {
+          type: 'error',
+        });
+      } finally {
+        setPending(profile.id, false);
+      }
+    },
+    [listId, members, pendingIds, setPending, t],
+  );
 
   const header = (
     <PageHeader
@@ -205,7 +240,9 @@ export default function EditListMembersScreen() {
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text className="text-primary text-sm font-semibold">{t('common.retry', { defaultValue: 'Try again' })}</Text>
+            <Text className="text-primary text-sm font-semibold">
+              {t('common.retry', { defaultValue: 'Try again' })}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -215,8 +252,14 @@ export default function EditListMembersScreen() {
   return (
     <View className="flex-1">
       {header}
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
-        <Field label={t('lists.edit.addMembers', { defaultValue: 'Add members' })} style={{ marginBottom: 10 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Field
+          label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
+          style={{ marginBottom: 10 }}
+        >
           <Search
             label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
             value={search}
@@ -246,15 +289,21 @@ export default function EditListMembersScreen() {
                   >
                     <Avatar source={u.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
                     <View className="flex-1">
-                      <Text className="text-foreground font-medium" numberOfLines={1}>@{u.username}</Text>
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.name.displayName}</Text>
+                      <Text className="text-foreground font-medium" numberOfLines={1}>
+                        @{u.username}
+                      </Text>
+                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                        {u.name.displayName}
+                      </Text>
                     </View>
                     {busy ? (
                       <SpinnerIcon size={18} className="text-primary" />
                     ) : already ? (
                       <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
                     ) : (
-                      <Text className="text-primary font-semibold font-primary">{t('lists.create.add', { defaultValue: 'Add' })}</Text>
+                      <Text className="text-primary font-semibold font-primary">
+                        {t('lists.create.add', { defaultValue: 'Add' })}
+                      </Text>
                     )}
                   </TouchableOpacity>
                 </React.Fragment>
@@ -264,7 +313,8 @@ export default function EditListMembersScreen() {
         )}
 
         <Text className="text-sm text-muted-foreground mb-1.5 mt-1 font-primary">
-          {members.length} {members.length === 1
+          {members.length}{' '}
+          {members.length === 1
             ? t('lists.memberSingular', { defaultValue: 'member' })
             : t('lists.memberPlural', { defaultValue: 'members' })}
         </Text>
@@ -286,8 +336,12 @@ export default function EditListMembersScreen() {
                   <View className="flex-row items-center gap-3 px-3 py-2.5">
                     <Avatar source={m.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
                     <View className="flex-1">
-                      <Text className="text-foreground font-medium" numberOfLines={1}>@{m.username}</Text>
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.name.displayName}</Text>
+                      <Text className="text-foreground font-medium" numberOfLines={1}>
+                        @{m.username}
+                      </Text>
+                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                        {m.name.displayName}
+                      </Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => removeMember(m)}

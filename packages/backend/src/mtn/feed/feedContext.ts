@@ -116,9 +116,7 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
  * `{}`, so both fall back to their config defaults. Read-only hot path — the
  * values were validated on write and are returned as-is.
  */
-export async function loadFeedPreferences(
-  userId: string | undefined,
-): Promise<{
+export async function loadFeedPreferences(userId: string | undefined): Promise<{
   feedTuning?: FeedTuning;
   feedSettings?: FeedRankingSettings;
   showSensitiveContent: boolean;
@@ -166,7 +164,9 @@ export async function loadViewerFeedContext(
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
   let userBehavior: UserBehaviorRecord | undefined;
-  let feedPreferences: Awaited<ReturnType<typeof loadFeedPreferences>> = { showSensitiveContent: false };
+  let feedPreferences: Awaited<ReturnType<typeof loadFeedPreferences>> = {
+    showSensitiveContent: false,
+  };
   let viewerLanguages: string[] = [];
   let mutedLaneIds: string[] = [];
 

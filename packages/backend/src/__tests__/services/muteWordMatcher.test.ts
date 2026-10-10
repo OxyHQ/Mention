@@ -26,7 +26,8 @@ describe('compileMuteWords', () => {
   it('reports needsFollowState only when an exclude-following rule exists', () => {
     expect(compileMuteWords([rule({ value: 'spoilers' })])?.needsFollowState).toBe(false);
     expect(
-      compileMuteWords([rule({ value: 'spoilers', actorTarget: 'exclude-following' })])?.needsFollowState,
+      compileMuteWords([rule({ value: 'spoilers', actorTarget: 'exclude-following' })])
+        ?.needsFollowState,
     ).toBe(true);
   });
 });
@@ -53,17 +54,23 @@ describe('isMutedSubject content target', () => {
   });
 
   it('ignores the content target when the rule only targets tags', () => {
-    expect(muted([rule({ value: 'spoilers', targets: ['tag'] })], { text: 'spoilers ahead' })).toBe(false);
+    expect(muted([rule({ value: 'spoilers', targets: ['tag'] })], { text: 'spoilers ahead' })).toBe(
+      false,
+    );
   });
 });
 
 describe('isMutedSubject tag target', () => {
   it('matches a muted hashtag regardless of case', () => {
-    expect(muted([rule({ value: 'politics', targets: ['tag'] })], { hashtags: ['Politics'] })).toBe(true);
+    expect(muted([rule({ value: 'politics', targets: ['tag'] })], { hashtags: ['Politics'] })).toBe(
+      true,
+    );
   });
 
   it('ignores hashtags when the rule only targets content', () => {
-    expect(muted([rule({ value: 'politics', targets: ['content'] })], { hashtags: ['politics'] })).toBe(false);
+    expect(
+      muted([rule({ value: 'politics', targets: ['content'] })], { hashtags: ['politics'] }),
+    ).toBe(false);
   });
 
   it('does not match a hashtag as a substring of another tag', () => {
@@ -76,17 +83,23 @@ describe('isMutedSubject actorTarget scope', () => {
 
   it('mutes a non-followed author', () => {
     const compiled = compileMuteWords(excludeFollowing);
-    expect(isMutedSubject(compiled, { text: 'spoilers!', authorId: 'stranger' }, new Set(['friend']))).toBe(true);
+    expect(
+      isMutedSubject(compiled, { text: 'spoilers!', authorId: 'stranger' }, new Set(['friend'])),
+    ).toBe(true);
   });
 
   it('spares an author the viewer follows', () => {
     const compiled = compileMuteWords(excludeFollowing);
-    expect(isMutedSubject(compiled, { text: 'spoilers!', authorId: 'friend' }, new Set(['friend']))).toBe(false);
+    expect(
+      isMutedSubject(compiled, { text: 'spoilers!', authorId: 'friend' }, new Set(['friend'])),
+    ).toBe(false);
   });
 
   it('applies an `all` rule even to a followed author', () => {
     const compiled = compileMuteWords([rule({ value: 'spoilers', actorTarget: 'all' })]);
-    expect(isMutedSubject(compiled, { text: 'spoilers!', authorId: 'friend' }, new Set(['friend']))).toBe(true);
+    expect(
+      isMutedSubject(compiled, { text: 'spoilers!', authorId: 'friend' }, new Set(['friend'])),
+    ).toBe(true);
   });
 
   it('mutes an author it cannot identify, since it cannot be a follow', () => {
@@ -97,6 +110,8 @@ describe('isMutedSubject actorTarget scope', () => {
 
 describe('isMutedSubject with no rules', () => {
   it('never mutes when the viewer has no muted words', () => {
-    expect(isMutedSubject(null, { text: 'anything at all', hashtags: ['nsfw'] }, NO_FOLLOWED_AUTHORS)).toBe(false);
+    expect(
+      isMutedSubject(null, { text: 'anything at all', hashtags: ['nsfw'] }, NO_FOLLOWED_AUTHORS),
+    ).toBe(false);
   });
 });

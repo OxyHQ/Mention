@@ -150,7 +150,11 @@ jest.mock('@oxy.so/bloom/settings-list', () => {
     SettingsListItem: (props: { title: string; onPress?: () => void; disabled?: boolean }) =>
       ReactActual.createElement(
         Text,
-        { testID: `settings-item:${props.title}`, onPress: props.onPress, disabled: props.disabled },
+        {
+          testID: `settings-item:${props.title}`,
+          onPress: props.onPress,
+          disabled: props.disabled,
+        },
         props.title,
       ),
   };
@@ -167,7 +171,6 @@ jest.mock('@/services/channelAccountService', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import ChannelAccountSettingsScreen from '../settings';
 
 const CHANNEL_ID = 'channel-1';

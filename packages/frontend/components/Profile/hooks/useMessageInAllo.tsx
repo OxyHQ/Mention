@@ -18,10 +18,7 @@ import { openExternalLink } from '@/utils/openExternalLink';
  *
  * `oxyUserId` is the account's Oxy id, which is what Allo's `/c/:id` takes.
  */
-export function useMessageInAllo(
-  oxyUserId: string | undefined,
-  handle: string,
-): () => void {
+export function useMessageInAllo(oxyUserId: string | undefined, handle: string): () => void {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -35,7 +32,8 @@ export function useMessageInAllo(
         showActionMenu({
           label: t('profile.allo.notInstalled', {
             handle,
-            defaultValue: 'Allo is not installed. Get Allo to message @{{handle}}, or continue on the web.',
+            defaultValue:
+              'Allo is not installed. Get Allo to message @{{handle}}, or continue on the web.',
           }),
           groups: [
             [

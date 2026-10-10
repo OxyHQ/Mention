@@ -120,9 +120,7 @@ function serializeLabeler(
   };
 }
 
-function serializeDefinition(
-  row: typeof labelerLabelDefinitions.$inferSelect,
-): LabelDefinition {
+function serializeDefinition(row: typeof labelerLabelDefinitions.$inferSelect): LabelDefinition {
   const description = optional(row.description);
   return {
     slug: row.slug,
@@ -408,9 +406,7 @@ export class LabelService {
       .select({ label: contentLabels, labelerName: labelers.name })
       .from(contentLabels)
       .innerJoin(labelers, eq(labelers.id, contentLabels.labelerId))
-      .where(
-        and(eq(contentLabels.targetType, targetType), eq(contentLabels.targetId, targetId)),
-      );
+      .where(and(eq(contentLabels.targetType, targetType), eq(contentLabels.targetId, targetId)));
 
     return rows.map((row) => serializeContentLabel(row.label, row.labelerName));
   }
@@ -470,10 +466,7 @@ export class LabelService {
     const subscribedIds = settings.subscribedLabelers ?? [];
     if (subscribedIds.length === 0) return { labelers: [], labelActions };
 
-    const rows = await db
-      .select()
-      .from(labelers)
-      .where(inArray(labelers.id, subscribedIds));
+    const rows = await db.select().from(labelers).where(inArray(labelers.id, subscribedIds));
     const definitions = await loadDefinitions(
       db,
       rows.map((row) => row.id),
@@ -494,10 +487,7 @@ export class LabelService {
    * a scoped delete plus an insert inside one transaction, so concurrent saves
    * for DIFFERENT labelers can no longer clobber each other.
    */
-  static async setLabelActions(
-    userId: string,
-    incoming: LabelActionPreference[],
-  ): Promise<void> {
+  static async setLabelActions(userId: string, incoming: LabelActionPreference[]): Promise<void> {
     await getDb().transaction(async (tx) => {
       const [settings] = await tx
         .insert(userSettings)

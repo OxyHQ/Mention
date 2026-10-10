@@ -6,7 +6,9 @@ import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import { normalizeApiError } from '@/utils/apiError';
 
 interface UseMediaPickerProps {
-  showBottomSheet?: (screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> }) => void;
+  showBottomSheet?: (
+    screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> },
+  ) => void;
   t: (key: string) => string;
 }
 
@@ -41,7 +43,10 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
               return;
             }
             try {
-              const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
+              const resolvedType = toComposerMediaType(
+                isImage ? 'image' : 'video',
+                file?.contentType,
+              );
               onAdd([{ id: file.id, type: resolvedType }]);
               toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
             } catch (e: unknown) {
@@ -49,17 +54,22 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
             }
           },
           onConfirmSelection: async (files: FileMetadata[]) => {
-            const validFiles = (files || []).filter(f => {
+            const validFiles = (files || []).filter((f) => {
               const contentType = f?.contentType || '';
               return contentType.startsWith('image/') || contentType.startsWith('video/');
             });
             if (validFiles.length !== (files || []).length) {
               toast(t('Please select only image or video files'), { type: 'error' });
             }
-            onAdd(validFiles.map(f => ({
-              id: f.id,
-              type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType),
-            })));
+            onAdd(
+              validFiles.map((f) => ({
+                id: f.id,
+                type: toComposerMediaType(
+                  f.contentType?.startsWith('image/') ? 'image' : 'video',
+                  f.contentType,
+                ),
+              })),
+            );
           },
         },
       });

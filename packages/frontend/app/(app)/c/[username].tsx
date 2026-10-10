@@ -21,5 +21,5 @@ import ChannelScreen from '@/components/ChannelScreen';
  * is: a channel account's handle IS its Oxy username.
  */
 export default function ChannelAccountRoute() {
-    return <ChannelScreen />;
+  return <ChannelScreen />;
 }

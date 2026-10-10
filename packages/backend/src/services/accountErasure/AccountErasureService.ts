@@ -61,7 +61,9 @@ function scheduledSteps(phase: ErasurePhase): Array<{ key: string; step: Erasure
     if (step) scheduled.push({ key: erasureKey(entry), step, index });
   });
   return scheduled
-    .sort((left, right) => (left.step.order ?? 0) - (right.step.order ?? 0) || left.index - right.index)
+    .sort(
+      (left, right) => (left.step.order ?? 0) - (right.step.order ?? 0) || left.index - right.index,
+    )
     .map(({ key, step }) => ({ key, step }));
 }
 
@@ -131,7 +133,8 @@ export async function eraseOxyUser(
   counts['posts.boostsByOthers'] = walk.boostsByOthers;
   counts['federation.postDeletes'] = walk.deletesSent;
 
-  counts['federation.actorDelete'] = username && (await broadcastActorDelete(oxyUserId, username)) ? 1 : 0;
+  counts['federation.actorDelete'] =
+    username && (await broadcastActorDelete(oxyUserId, username)) ? 1 : 0;
 
   await runPhase('engagement', oxyUserId, counts);
   await runPhase('account', oxyUserId, counts);

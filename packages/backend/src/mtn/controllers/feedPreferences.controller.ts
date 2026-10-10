@@ -11,7 +11,12 @@
  */
 
 import { Response } from 'express';
-import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYouTuning } from '@mention/shared-types';
+import {
+  PRESET_FEEDS,
+  isValidFeedDescriptor,
+  parseFeedDescriptor,
+  validateForYouTuning,
+} from '@mention/shared-types';
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { loadFeedLayout, replaceFeedLayout } from '../../db/feeds/feedPreferenceRepository';
@@ -50,7 +55,10 @@ type CustomFeedAccess = 'ok' | 'invalid' | 'forbidden';
  * Whether the viewer may save a `custom|id` feed: it must exist and be either
  * owned by the viewer or public.
  */
-async function resolveCustomFeedAccess(feedId: string | undefined, userId: string): Promise<CustomFeedAccess> {
+async function resolveCustomFeedAccess(
+  feedId: string | undefined,
+  userId: string,
+): Promise<CustomFeedAccess> {
   // Emptiness only, for the same reason as the definition loader: an
   // `ObjectId.isValid` guard here answered 'invalid' for every feed created
   // since the cutover, so saving a feed you had just made was refused as
@@ -75,10 +83,17 @@ class FeedPreferencesController {
       // a layout and then removed every entry has stored one, and re-pinning the
       // presets for them on every load is what collapsing the two would do.
       const { savedFeeds: stored, hasStored } = await loadFeedLayout(userId);
-      return sendSuccessResponse(res, 200, { savedFeeds: mergeWithPresetDefaults(stored, hasStored) });
+      return sendSuccessResponse(res, 200, {
+        savedFeeds: mergeWithPresetDefaults(stored, hasStored),
+      });
     } catch (error) {
       logger.error('[FeedPreferences] Failed to load preferences', { userId, error });
-      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to load feed preferences');
+      return sendErrorResponse(
+        res,
+        500,
+        'Internal Server Error',
+        'Failed to load feed preferences',
+      );
     }
   }
 
@@ -94,7 +109,12 @@ class FeedPreferencesController {
         return sendErrorResponse(res, 400, 'Bad Request', 'savedFeeds must be an array');
       }
       if (raw.length > MAX_SAVED_FEEDS) {
-        return sendErrorResponse(res, 400, 'Bad Request', `You can save at most ${MAX_SAVED_FEEDS} feeds`);
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          `You can save at most ${MAX_SAVED_FEEDS} feeds`,
+        );
       }
 
       const savedFeeds: SavedFeed[] = [];
@@ -104,7 +124,12 @@ class FeedPreferencesController {
         const descriptor = typeof entry.descriptor === 'string' ? entry.descriptor : '';
 
         if (!key || !descriptor || !isValidFeedDescriptor(descriptor)) {
-          return sendErrorResponse(res, 400, 'Bad Request', `Invalid feed descriptor: ${descriptor || '(missing)'}`);
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            `Invalid feed descriptor: ${descriptor || '(missing)'}`,
+          );
         }
 
         const { source, params } = parseFeedDescriptor(descriptor as FeedDescriptor);
@@ -131,7 +156,12 @@ class FeedPreferencesController {
       return sendSuccessResponse(res, 200, { savedFeeds: updated }, 'Feed preferences updated');
     } catch (error) {
       logger.error('[FeedPreferences] Failed to update preferences', { userId, error });
-      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update feed preferences');
+      return sendErrorResponse(
+        res,
+        500,
+        'Internal Server Error',
+        'Failed to update feed preferences',
+      );
     }
   }
 

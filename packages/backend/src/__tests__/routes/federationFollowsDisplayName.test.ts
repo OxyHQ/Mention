@@ -120,7 +120,11 @@ function oxyUser(id: string, displayName: string) {
 async function seedFollowedActor(
   username: string,
   oxyUserId: string,
-  options: { direction?: 'inbound' | 'outbound'; status?: 'accepted' | 'pending'; avatarUrl?: string } = {},
+  options: {
+    direction?: 'inbound' | 'outbound';
+    status?: 'accepted' | 'pending';
+    avatarUrl?: string;
+  } = {},
 ): Promise<string> {
   const uri = `${scope.origin}/users/${username}`;
   await seedActor(scope, { username, uri, oxyUserId, avatarUrl: options.avatarUrl ?? null });
@@ -152,7 +156,10 @@ afterAll(async () => {
 describe('GET /federation/following — Oxy name.displayName', () => {
   it('returns the Oxy name.displayName for each followed remote actor', async () => {
     const aliceUri = await seedFollowedActor('alice', 'oxy-alice', { avatarUrl: 'a.png' });
-    const bobUri = await seedFollowedActor('bob', 'oxy-bob', { status: 'pending', avatarUrl: 'b.png' });
+    const bobUri = await seedFollowedActor('bob', 'oxy-bob', {
+      status: 'pending',
+      avatarUrl: 'b.png',
+    });
     getUsersByIds.mockResolvedValue([
       oxyUser('oxy-alice', 'Alice Clean'),
       oxyUser('oxy-bob', 'Bob Clean'),
@@ -161,9 +168,7 @@ describe('GET /federation/following — Oxy name.displayName', () => {
     const res = await request(app).get('/federation/following').expect(200);
 
     expect(getUsersByIds).toHaveBeenCalledWith(expect.arrayContaining(['oxy-alice', 'oxy-bob']));
-    const byUri = new Map(
-      (res.body.following as FollowResult[]).map((f) => [f.actorUri, f]),
-    );
+    const byUri = new Map((res.body.following as FollowResult[]).map((f) => [f.actorUri, f]));
     expect(byUri.get(aliceUri)?.displayName).toBe('Alice Clean');
     expect(byUri.get(bobUri)?.displayName).toBe('Bob Clean');
     expect(byUri.get(aliceUri)?.isFollowing).toBe(true);
@@ -196,15 +201,27 @@ describe('GET /federation/followers — Oxy name.displayName', () => {
   });
 });
 
-it.each(['outbound', 'inbound'] as const)('uses Oxy canonical aliases on %s follow cards', async (direction) => {
-  await seedFollowedActor('transport-name', 'old-source-id', { direction });
-  getUsersByIds.mockResolvedValue([{ ...oxyUser('canonical-person', 'Public Name'),
-    username: 'person@instagram.com', redirectedUserIds: ['old-source-id'], avatar: 'oxy-avatar-file',
-  }]);
-  const key = direction === 'outbound' ? 'following' : 'followers';
-  const response = await request(app).get(`/federation/${key}`).expect(200);
-  expect(response.body[key][0]).toMatchObject({ handle: 'person', instance: 'instagram.com',
-    fullHandle: '@person@instagram.com', oxyUserId: 'canonical-person', displayName: 'Public Name',
-  });
-  expect(response.body[key][0].avatarUrl).toContain('oxy-avatar-file');
-});
+it.each(['outbound', 'inbound'] as const)(
+  'uses Oxy canonical aliases on %s follow cards',
+  async (direction) => {
+    await seedFollowedActor('transport-name', 'old-source-id', { direction });
+    getUsersByIds.mockResolvedValue([
+      {
+        ...oxyUser('canonical-person', 'Public Name'),
+        username: 'person@instagram.com',
+        redirectedUserIds: ['old-source-id'],
+        avatar: 'oxy-avatar-file',
+      },
+    ]);
+    const key = direction === 'outbound' ? 'following' : 'followers';
+    const response = await request(app).get(`/federation/${key}`).expect(200);
+    expect(response.body[key][0]).toMatchObject({
+      handle: 'person',
+      instance: 'instagram.com',
+      fullHandle: '@person@instagram.com',
+      oxyUserId: 'canonical-person',
+      displayName: 'Public Name',
+    });
+    expect(response.body[key][0].avatarUrl).toContain('oxy-avatar-file');
+  },
+);

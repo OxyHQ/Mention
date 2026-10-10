@@ -1,10 +1,5 @@
 import { memo } from 'react';
-import {
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -53,7 +48,8 @@ const RoomCard = memo(function RoomCard({
       onPress={onPress}
       accessibilityLabel={`${room.title}, ${room.status}`}
       className={className}
-      style={[{ padding: compact ? 12 : 16 }, style]} appearance="outline"
+      style={[{ padding: compact ? 12 : 16 }, style]}
+      appearance="outline"
     >
       <View className="flex-row items-center gap-3">
         {/* A live room's disc is the fixed live signal; any other state sits on
@@ -70,16 +66,10 @@ const RoomCard = memo(function RoomCard({
           iconStyle={{ color: live ? LIVE_INDICATOR_FOREGROUND_COLOR : theme.colors.text }}
         />
         <View className="flex-1">
-          <Text
-            className="font-semibold text-foreground"
-            numberOfLines={1}
-          >
+          <Text className="font-semibold text-foreground" numberOfLines={1}>
             {room.title}
           </Text>
-          <Text
-            className="mt-0.5 text-xs text-muted-foreground"
-            numberOfLines={1}
-          >
+          <Text className="mt-0.5 text-xs text-muted-foreground" numberOfLines={1}>
             {live ? `${listeners} listening` : room.status}
             {room.topic ? ` · ${room.topic}` : ''}
           </Text>

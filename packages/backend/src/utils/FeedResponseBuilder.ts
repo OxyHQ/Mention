@@ -3,8 +3,18 @@
  * Centralized response building with consistent error handling and cursor management
  */
 
-import { FeedResponse, FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
-import { buildFeedCursor, validateCursorAdvanced, deduplicatePosts, validateResultSize } from './feedUtils';
+import {
+  FeedResponse,
+  FeedPostSlice,
+  HydratedPost,
+  SlicedFeedResponse,
+} from '@mention/shared-types';
+import {
+  buildFeedCursor,
+  validateCursorAdvanced,
+  deduplicatePosts,
+  validateResultSize,
+} from './feedUtils';
 import { logger } from './logger';
 
 /**
@@ -55,7 +65,7 @@ export class FeedResponseBuilder {
       previousCursor,
       transformPosts,
       currentUserId,
-      validateSize = true
+      validateSize = true,
     } = options;
 
     // Validate result size if requested
@@ -72,7 +82,8 @@ export class FeedResponseBuilder {
 
     // Use query-based hasMore to avoid cursor stall when dedup removes posts
     const hasMore = hasMoreFromQuery || deduplicatedPosts.length > limit;
-    const postsToReturn = deduplicatedPosts.length > limit ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
+    const postsToReturn =
+      deduplicatedPosts.length > limit ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
 
     // Transform posts if transformer provided
     let transformedPosts: HydratedPost[];
@@ -82,7 +93,7 @@ export class FeedResponseBuilder {
       } catch (error) {
         logger.error('[FeedResponseBuilder] Error transforming posts, returning raw posts', error);
         // Return raw posts instead of empty array to preserve data
-        transformedPosts = postsToReturn.map(post => ({
+        transformedPosts = postsToReturn.map((post) => ({
           ...post,
           id: (post._id != null ? String(post._id) : undefined) ?? post.id,
           _transformError: true, // Flag to indicate transformation failed
@@ -105,7 +116,7 @@ export class FeedResponseBuilder {
       if (previousCursor && finalCursor && !validateCursorAdvanced(finalCursor, previousCursor)) {
         logger.warn('⚠️ Cursor did not advance, stopping pagination', {
           previousCursor,
-          finalCursor
+          finalCursor,
         });
         finalCursor = undefined;
       }
@@ -117,7 +128,7 @@ export class FeedResponseBuilder {
       items: finalUniquePosts,
       hasMore: finalHasMore,
       nextCursor: finalCursor,
-      totalCount: finalUniquePosts.length
+      totalCount: finalUniquePosts.length,
     };
   }
 
@@ -191,20 +202,7 @@ export class FeedResponseBuilder {
       items: [],
       hasMore: false,
       nextCursor: undefined,
-      totalCount: 0
+      totalCount: 0,
     };
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

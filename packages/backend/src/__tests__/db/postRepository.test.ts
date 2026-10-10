@@ -106,7 +106,10 @@ describe('the root-vs-reply discriminator', () => {
    */
   it('keeps an orphaned reply classified as a reply after its parent is deleted', async () => {
     const parent = await create();
-    const reply = await create({ parentPostId: parent.id, content: { variants: [{ source: 'author', text: 're' }] } });
+    const reply = await create({
+      parentPostId: parent.id,
+      content: { variants: [{ source: 'author', text: 're' }] },
+    });
 
     expect(reply.isReply).toBe(true);
     expect(reply.parentPostId).toBe(parent.id);
@@ -162,7 +165,10 @@ describe('the root-vs-reply discriminator', () => {
     const rejection = await db
       .insert(posts)
       .values({ id: uuidv7(), oxyUserId: AUTHOR, parentPostId: parent.id, isReply: false })
-      .then(() => null, (error: unknown) => error);
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
     expect(rejection).not.toBeNull();
     expect(isCheckViolation(rejection, 'posts_reply_discriminator_check')).toBe(true);
   });
@@ -176,7 +182,10 @@ describe('the root-vs-reply discriminator', () => {
         federationInReplyTo: 'https://remote.example/notes/parent',
         isReply: false,
       })
-      .then(() => null, (error: unknown) => error);
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
     expect(rejection).not.toBeNull();
     expect(isCheckViolation(rejection, 'posts_federated_reply_discriminator_check')).toBe(true);
   });
@@ -249,7 +258,9 @@ describe('authorship', () => {
     const byOwner = await findPostRecords(authoredBy(AUTHOR), { orderBy: CHRONO_DESC });
     expect(byOwner.map((record) => record.id).sort()).toEqual([owned.id, collaborated.id].sort());
 
-    const byCollaborator = await findPostRecords(authoredBy(COLLABORATOR), { orderBy: CHRONO_DESC });
+    const byCollaborator = await findPostRecords(authoredBy(COLLABORATOR), {
+      orderBy: CHRONO_DESC,
+    });
     expect(byCollaborator.map((record) => record.id)).toEqual([collaborated.id]);
   });
 
@@ -311,17 +322,16 @@ describe('the content graph', () => {
       { id: 'media-a', type: 'image', width: 800, height: 600, orientation: 'landscape' },
       { id: 'media-b', type: 'video', durationSec: 12.5, mime: 'video/mp4' },
     ],
-    attachments: [
-      { type: 'media', id: 'media-a', mediaType: 'image' },
-      { type: 'sources' },
-    ],
-    sources: [
-      { url: 'https://example.com/one', title: 'One' },
-      { url: 'https://example.com/two' },
-    ],
+    attachments: [{ type: 'media', id: 'media-a', mediaType: 'image' }, { type: 'sources' }],
+    sources: [{ url: 'https://example.com/one', title: 'One' }, { url: 'https://example.com/two' }],
     article: { articleId: 'article-1', title: 'Title', excerpt: 'Excerpt' },
     pollId: 'poll-1',
-    event: { eventId: 'e1', name: 'Launch', date: '2026-03-01T10:00:00.000Z', location: 'Barcelona' },
+    event: {
+      eventId: 'e1',
+      name: 'Launch',
+      date: '2026-03-01T10:00:00.000Z',
+      location: 'Barcelona',
+    },
     room: { roomId: 'r1', title: 'Room', status: 'live', topic: 'Topic', host: 'host' },
     podcast: { syraPodcastId: 'p1', title: 'Show', author: 'Host', showUrl: 'https://syra.fm/p1' },
     location: { type: 'Point', coordinates: [2.1734, 41.3851], address: 'Barcelona' },
@@ -339,10 +349,16 @@ describe('the content graph', () => {
     // that order, so a lost `order by position` reorders what federates and what
     // gets signed onto the MTN chain.
     expect(content?.variants?.map((variant) => variant.tag)).toEqual(['en', 'es', 'de']);
-    expect(content?.variants?.[0]).toMatchObject({ tag: 'en', source: 'author', text: 'primary body' });
+    expect(content?.variants?.[0]).toMatchObject({
+      tag: 'en',
+      source: 'author',
+      text: 'primary body',
+    });
     expect(content?.variants?.[0].alt).toEqual({ 'media-a': 'a cat' });
     expect(content?.variants?.[1]).toMatchObject({ tag: 'es', source: 'author' });
-    expect(content?.variants?.[1].media).toEqual([{ id: 'media-es', type: 'image', alt: 'un gato' }]);
+    expect(content?.variants?.[1].media).toEqual([
+      { id: 'media-es', type: 'image', alt: 'un gato' },
+    ]);
     expect(content?.variants?.[1].article).toEqual({
       title: 'Titulo',
       body: 'Cuerpo largo',
@@ -581,7 +597,11 @@ describe('reads the rest of the port depends on', () => {
 
   it('cascades a boost away with its original and spares a quote', async () => {
     const original = await create();
-    const boost = await create({ boostOf: original.id, type: PostType.BOOST, content: { variants: [] } });
+    const boost = await create({
+      boostOf: original.id,
+      type: PostType.BOOST,
+      content: { variants: [] },
+    });
     const quote = await create({ quoteOf: original.id, type: PostType.QUOTE });
 
     await db.delete(posts).where(eq(posts.id, original.id));

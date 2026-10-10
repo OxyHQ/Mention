@@ -78,9 +78,7 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
           <AdmonitionIcon />
           <AdmonitionContent>
             <AdmonitionText>
-              This post was labeled{' '}
-              <Text style={BOLD}>{labelName}</Text>
-              {' '}by{' '}
+              This post was labeled <Text style={BOLD}>{labelName}</Text> by{' '}
               <Text style={SEMIBOLD}>{labelerName}</Text>
             </AdmonitionText>
             {onShowAnyway ? (
@@ -102,12 +100,7 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
   // action === 'show'
   const paint = SEVERITY_TONES[severity] ?? SEVERITY_TONES.low;
   return (
-    <Badge
-      content={labelName}
-      color={paint.tone}
-      variant={paint.variant}
-      size="label-small"
-    />
+    <Badge content={labelName} color={paint.tone} variant={paint.variant} size="label-small" />
   );
 };
 

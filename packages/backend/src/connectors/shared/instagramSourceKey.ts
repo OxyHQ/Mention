@@ -41,7 +41,11 @@ const SHORTCODE_RE = /^[A-Za-z0-9_-]{5,64}$/;
 /** The permalink path kinds that name ONE post by shortcode. */
 const PERMALINK_KINDS: ReadonlySet<string> = new Set(['p', 'reel', 'reels', 'tv']);
 
-const INSTAGRAM_WEB_HOSTS: ReadonlySet<string> = new Set(['instagram.com', 'www.instagram.com', 'm.instagram.com']);
+const INSTAGRAM_WEB_HOSTS: ReadonlySet<string> = new Set([
+  'instagram.com',
+  'www.instagram.com',
+  'm.instagram.com',
+]);
 
 /** `instagram:<shortcode>`, or undefined for anything that is not a shortcode. */
 export function instagramSourceKey(shortcode: string | undefined | null): string | undefined {
@@ -54,7 +58,9 @@ export function instagramSourceKey(shortcode: string | undefined | null): string
  * `/reels/<code>/`, `/tv/<code>/`, optionally under a `/<username>/` prefix).
  * Only instagram.com hosts are accepted.
  */
-export function instagramShortcodeFromPermalink(permalink: string | undefined | null): string | undefined {
+export function instagramShortcodeFromPermalink(
+  permalink: string | undefined | null,
+): string | undefined {
   if (!permalink) return undefined;
   let url: URL;
   try {
@@ -80,7 +86,9 @@ export function instagramShortcodeFromPermalink(permalink: string | undefined | 
  * `instagram:<shortcode>`. Undefined for every other object — including a
  * kilogram URL of any other shape.
  */
-export function instagramSourceKeyFromApObjectUri(objectUri: string | undefined | null): string | undefined {
+export function instagramSourceKeyFromApObjectUri(
+  objectUri: string | undefined | null,
+): string | undefined {
   if (!objectUri) return undefined;
   let url: URL;
   try {
@@ -92,7 +100,8 @@ export function instagramSourceKeyFromApObjectUri(objectUri: string | undefined 
   if (!INSTAGRAM_AP_BRIDGE_HOSTS.has(url.hostname.toLowerCase())) return undefined;
   if (url.search || url.hash) return undefined;
   const segments = url.pathname.split('/').filter((segment) => segment.length > 0);
-  if (segments.length !== 4 || segments[0] !== 'users' || segments[2] !== 'statuses') return undefined;
+  if (segments.length !== 4 || segments[0] !== 'users' || segments[2] !== 'statuses')
+    return undefined;
   return instagramSourceKey(segments[3]);
 }
 
@@ -108,9 +117,11 @@ export function kilogramNoteIdFor(actorUri: string, shortcode: string): string |
 
 /** True for the activity id a Graph-imported post is stored under. */
 export function isInstagramSourceActivityId(activityId: string | undefined | null): boolean {
-  return typeof activityId === 'string'
-    && activityId.startsWith(INSTAGRAM_SOURCE_KEY_PREFIX)
-    && SHORTCODE_RE.test(activityId.slice(INSTAGRAM_SOURCE_KEY_PREFIX.length));
+  return (
+    typeof activityId === 'string' &&
+    activityId.startsWith(INSTAGRAM_SOURCE_KEY_PREFIX) &&
+    SHORTCODE_RE.test(activityId.slice(INSTAGRAM_SOURCE_KEY_PREFIX.length))
+  );
 }
 
 /**

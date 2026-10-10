@@ -6,7 +6,9 @@ const mockSafeBack = jest.fn();
 const mockEmptyState = jest.fn();
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+  }),
 }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => mockSafeBack }));
 jest.mock('@/assets/illustrations/NoUpdates', () => ({ NoUpdatesIllustration: () => null }));
@@ -24,7 +26,8 @@ type Shown = {
   error?: { message: string; onRetry: () => Promise<void> };
 };
 
-const lastShown = (): Shown => mockEmptyState.mock.calls[mockEmptyState.mock.calls.length - 1][0] as Shown;
+const lastShown = (): Shown =>
+  mockEmptyState.mock.calls[mockEmptyState.mock.calls.length - 1][0] as Shown;
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -47,7 +50,9 @@ describe('ProfileUnavailable', () => {
 
   it('takes the screen’s own words for what a missing account means', () => {
     act(() => {
-      TestRenderer.create(<ProfileUnavailable notFound onRetry={jest.fn()} notFoundMessage="No followers to show." />);
+      TestRenderer.create(
+        <ProfileUnavailable notFound onRetry={jest.fn()} notFoundMessage="No followers to show." />,
+      );
     });
     expect(lastShown().subtitle).toBe('No followers to show.');
   });

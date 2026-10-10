@@ -523,13 +523,24 @@ export async function deletePostSubtree(
 
       const all = allDeletionTargets(collected);
       // Read before anything is deleted — see the docblock.
-      equivalenceClusterIds = await findClusterIdsForPosts(all.map((row) => row.id), tx);
+      equivalenceClusterIds = await findClusterIdsForPosts(
+        all.map((row) => row.id),
+        tx,
+      );
       // The whole subtree's re-hosted federated media, in this transaction.
-      await enqueueFederatedMediaDeletionsForPosts(all.map((row) => row.id), tx);
+      await enqueueFederatedMediaDeletionsForPosts(
+        all.map((row) => row.id),
+        tx,
+      );
       await cascadePostReferences(all, tx);
 
       if (collected.replies.length > 0) {
-        await tx.delete(posts).where(inArray(posts.id, collected.replies.map((reply) => reply.id)));
+        await tx.delete(posts).where(
+          inArray(
+            posts.id,
+            collected.replies.map((reply) => reply.id),
+          ),
+        );
       }
 
       const claimed = await deletePostRecord(postId, ownership, tx);

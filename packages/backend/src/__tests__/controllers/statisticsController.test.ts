@@ -474,12 +474,16 @@ describe('GET /statistics/post/:postId', () => {
     });
   });
 
-  it('404s an unknown post and 403s someone else\'s', async () => {
+  it("404s an unknown post and 403s someone else's", async () => {
     const userId = owner();
     const postId = await seedPost({ owner: userId });
 
-    expect((await call(getPostInsights, { user: { id: userId }, params: { postId: uuidv7() } })).status).toBe(404);
-    expect((await call(getPostInsights, { user: { id: owner() }, params: { postId } })).status).toBe(403);
+    expect(
+      (await call(getPostInsights, { user: { id: userId }, params: { postId: uuidv7() } })).status,
+    ).toBe(404);
+    expect(
+      (await call(getPostInsights, { user: { id: owner() }, params: { postId } })).status,
+    ).toBe(403);
   });
 });
 
@@ -491,7 +495,10 @@ describe('POST /statistics/post/:postId/view', () => {
     const found = await call(trackPostView, { user: { id: userId }, params: { postId } });
     expect(found.body).toEqual({ success: true, viewsCount: 42 });
 
-    const missing = await call(trackPostView, { user: { id: userId }, params: { postId: uuidv7() } });
+    const missing = await call(trackPostView, {
+      user: { id: userId },
+      params: { postId: uuidv7() },
+    });
     expect(missing.status).toBe(404);
   });
 });

@@ -114,7 +114,8 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         safeArea={false}
         leading={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -155,7 +156,8 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
           ) : null}
           {onRemove ? (
             <Button appearance="solid" tone="danger" size="lg" onPress={handleRemove}>
-              {removeLabel ?? t('compose.languages.remove', { defaultValue: 'Remove this language' })}
+              {removeLabel ??
+                t('compose.languages.remove', { defaultValue: 'Remove this language' })}
             </Button>
           ) : null}
         </View>

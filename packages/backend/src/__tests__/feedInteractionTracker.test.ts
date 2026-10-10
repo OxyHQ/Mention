@@ -207,16 +207,18 @@ describe('applyImpressionSignals', () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 })))
-        .resolves.toBe(42);
+      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 }))).resolves.toBe(
+        42,
+      );
     });
 
     it('returns null for a repeat impression inside the dedupe window', async () => {
       const post = await seedPost(scope, { oxyUserId: AUTHOR });
       recordDedupedView.mockResolvedValue(null);
 
-      await expect(applyImpressionSignals(impression(post.id, { durationMs: 4000 })))
-        .resolves.toBeNull();
+      await expect(
+        applyImpressionSignals(impression(post.id, { durationMs: 4000 })),
+      ).resolves.toBeNull();
     });
 
     it('returns null for the viewer own post, whatever the counter would have said', async () => {
@@ -224,27 +226,29 @@ describe('applyImpressionSignals', () => {
       // Would be reported if the self-view guard did not short-circuit first.
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(applyImpressionSignals(impression(own.id, { durationMs: 4000 })))
-        .resolves.toBeNull();
+      await expect(
+        applyImpressionSignals(impression(own.id, { durationMs: 4000 })),
+      ).resolves.toBeNull();
     });
 
     it('returns null for an ineligible post', async () => {
       const draft = await seedPost(scope, { oxyUserId: AUTHOR, status: 'draft' });
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(applyImpressionSignals(impression(draft.id, { durationMs: 4000 })))
-        .resolves.toBeNull();
+      await expect(
+        applyImpressionSignals(impression(draft.id, { durationMs: 4000 })),
+      ).resolves.toBeNull();
     });
 
     it('returns null for a non-local postUri', async () => {
       recordDedupedView.mockResolvedValue(42);
 
-      await expect(applyImpressionSignals(impression('https://remote.example/notlocal')))
-        .resolves.toBeNull();
+      await expect(
+        applyImpressionSignals(impression('https://remote.example/notlocal')),
+      ).resolves.toBeNull();
     });
   });
 });
-
 
 /**
  * The raw analytics row — the write that was still going to Mongo.
@@ -279,7 +283,7 @@ describe('trackFeedInteraction — the raw analytics row', () => {
   const rowsForViewer = () =>
     getDb().select().from(feedInteractions).where(eq(feedInteractions.userId, RAW_VIEWER));
 
-  it('writes the row to Postgres, carrying the CALLER\'s timestamp', async () => {
+  it("writes the row to Postgres, carrying the CALLER's timestamp", async () => {
     // The timestamp is the load-bearing field. `created_at` has a `now()`
     // default, so an insert that omitted it would look correct in every other
     // respect and silently re-date every interaction to insert time — which is

@@ -73,29 +73,44 @@ class JobsController {
         return res.status(400).json({
           error: 'Validation error',
           message: 'salaryCurrency must be an ISO 4217 currency code (e.g. "EUR")',
-          issues: [{ path: 'salaryCurrency', message: 'salaryCurrency must be an ISO 4217 currency code (e.g. "EUR")' }],
+          issues: [
+            {
+              path: 'salaryCurrency',
+              message: 'salaryCurrency must be an ISO 4217 currency code (e.g. "EUR")',
+            },
+          ],
         });
       }
-      const salaryCurrency = salaryCurrencyInput && isCurrencyCode(salaryCurrencyInput) ? salaryCurrencyInput : undefined;
+      const salaryCurrency =
+        salaryCurrencyInput && isCurrencyCode(salaryCurrencyInput)
+          ? salaryCurrencyInput
+          : undefined;
       // codeql[js/sensitive-get-query] Public job-search filter (employer name
       // on a listed position), not personal or account data.
       const employer = queryString(req.query.employer);
       const client = await getClarityClient();
       const result = await client.jobs.search({
         query: queryString(req.query.q),
-        locations: queryString(req.query.location) ? [queryString(req.query.location) as string] : undefined,
-        workplaceTypes: workplaceType && (MENTION_JOB_WORKPLACE_TYPES as readonly string[]).includes(workplaceType)
-          ? [workplaceType as (typeof MENTION_JOB_WORKPLACE_TYPES)[number]]
+        locations: queryString(req.query.location)
+          ? [queryString(req.query.location) as string]
           : undefined,
-        employmentTypes: employmentType && (MENTION_JOB_EMPLOYMENT_TYPES as readonly string[]).includes(employmentType)
-          ? [employmentType as (typeof MENTION_JOB_EMPLOYMENT_TYPES)[number]]
-          : undefined,
+        workplaceTypes:
+          workplaceType &&
+          (MENTION_JOB_WORKPLACE_TYPES as readonly string[]).includes(workplaceType)
+            ? [workplaceType as (typeof MENTION_JOB_WORKPLACE_TYPES)[number]]
+            : undefined,
+        employmentTypes:
+          employmentType &&
+          (MENTION_JOB_EMPLOYMENT_TYPES as readonly string[]).includes(employmentType)
+            ? [employmentType as (typeof MENTION_JOB_EMPLOYMENT_TYPES)[number]]
+            : undefined,
         // `!== undefined`, never truthiness: `salaryMin=0` is a legitimate "no
         // floor" filter, and `0 || salaryMax` would treat that falsy-but-present
         // 0 as absent and drop the whole salary filter, currency included.
-        salary: salaryMin !== undefined || salaryMax !== undefined
-          ? { min: salaryMin, max: salaryMax, currency: salaryCurrency }
-          : undefined,
+        salary:
+          salaryMin !== undefined || salaryMax !== undefined
+            ? { min: salaryMin, max: salaryMax, currency: salaryCurrency }
+            : undefined,
         publishedAfter: queryString(req.query.publishedAfter),
         employers: employer ? [employer] : undefined,
         cursor: queryString(req.query.cursor),
@@ -160,9 +175,14 @@ class JobsController {
       const status = isAuthorizedOperator
         ? (queryString(req.query.status) as MentionJobPosting['status'] | undefined)
         : 'published';
-      const rows = await listJobsByEmployer(employerOxyUserId, { status, limit: queryInt(req.query.limit) });
+      const rows = await listJobsByEmployer(employerOxyUserId, {
+        status,
+        limit: queryInt(req.query.limit),
+      });
       const expired = rows.map(expireIfDue);
-      const jobs = isAuthorizedOperator ? expired : expired.filter((row) => row.status === 'published');
+      const jobs = isAuthorizedOperator
+        ? expired
+        : expired.filter((row) => row.status === 'published');
       res.json({ jobs: jobs.map(toMentionJobPosting) });
     } catch (error) {
       logger.error('[Jobs] Error in getOrganizationJobs:', error);

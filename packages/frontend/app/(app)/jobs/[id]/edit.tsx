@@ -8,7 +8,11 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Field } from '@oxy.so/bloom/field';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import { TagField } from '@oxy.so/bloom/tag-field';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -145,7 +149,12 @@ export default function EditJobScreen() {
     },
     onError: (error) => {
       logger.error('[jobs/edit] Failed to update job', error);
-      toast.error(getJobErrorMessage(error, t('jobs.edit.failed', { defaultValue: 'Could not save these changes' })));
+      toast.error(
+        getJobErrorMessage(
+          error,
+          t('jobs.edit.failed', { defaultValue: 'Could not save these changes' }),
+        ),
+      );
     },
   });
 
@@ -250,25 +259,42 @@ export default function EditJobScreen() {
           <View className="flex-row flex-wrap gap-4 mb-4 p-3 bg-muted rounded-[12px]">
             <View>
               <Text className="text-foreground text-[18px] font-bold">{metrics.views}</Text>
-              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsViews', { defaultValue: 'Views' })}</Text>
+              <Text className="text-muted-foreground text-[11px]">
+                {t('jobs.edit.metricsViews', { defaultValue: 'Views' })}
+              </Text>
             </View>
             <View>
               <Text className="text-foreground text-[18px] font-bold">{metrics.applyStarts}</Text>
-              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsApplyStarts', { defaultValue: 'Apply starts' })}</Text>
+              <Text className="text-muted-foreground text-[11px]">
+                {t('jobs.edit.metricsApplyStarts', { defaultValue: 'Apply starts' })}
+              </Text>
             </View>
             <View>
-              <Text className="text-foreground text-[18px] font-bold">{metrics.externalApplyClicks}</Text>
-              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsExternalClicks', { defaultValue: 'External clicks' })}</Text>
+              <Text className="text-foreground text-[18px] font-bold">
+                {metrics.externalApplyClicks}
+              </Text>
+              <Text className="text-muted-foreground text-[11px]">
+                {t('jobs.edit.metricsExternalClicks', { defaultValue: 'External clicks' })}
+              </Text>
             </View>
             <View>
-              <Text className="text-foreground text-[18px] font-bold">{metrics.completedApplications}</Text>
-              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsCompleted', { defaultValue: 'Completed applications' })}</Text>
+              <Text className="text-foreground text-[18px] font-bold">
+                {metrics.completedApplications}
+              </Text>
+              <Text className="text-muted-foreground text-[11px]">
+                {t('jobs.edit.metricsCompleted', { defaultValue: 'Completed applications' })}
+              </Text>
             </View>
           </View>
         ) : null}
         <View className="mt-1">
           <TextField>
-            <TextFieldInput label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })} value={title} onChangeText={setTitle} maxLength={200} />
+            <TextFieldInput
+              label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={200}
+            />
           </TextField>
         </View>
 
@@ -286,7 +312,10 @@ export default function EditJobScreen() {
           <JobLocationField value={location} onChange={setLocation} />
         </View>
 
-        <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} style={{ marginTop: 16 }}>
+        <Field
+          label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
+          style={{ marginTop: 16 }}
+        >
           <SegmentedControl
             label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
             type="radio"
@@ -294,7 +323,9 @@ export default function EditJobScreen() {
             onChange={(value) => setWorkplaceType(value === 'unset' ? '' : value)}
           >
             <SegmentedControlItem value="unset">
-              <SegmentedControlItemText>{t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}</SegmentedControlItemText>
+              <SegmentedControlItemText>
+                {t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}
+              </SegmentedControlItemText>
             </SegmentedControlItem>
             {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
               <SegmentedControlItem key={value} value={value}>
@@ -330,12 +361,22 @@ export default function EditJobScreen() {
           <View className="flex-row gap-2">
             <View className="flex-1">
               <TextField>
-                <TextFieldInput label={t('jobs.create.salaryMin', { defaultValue: 'Min' })} value={salaryMin} onChangeText={setSalaryMin} keyboardType="numeric" />
+                <TextFieldInput
+                  label={t('jobs.create.salaryMin', { defaultValue: 'Min' })}
+                  value={salaryMin}
+                  onChangeText={setSalaryMin}
+                  keyboardType="numeric"
+                />
               </TextField>
             </View>
             <View className="flex-1">
               <TextField>
-                <TextFieldInput label={t('jobs.create.salaryMax', { defaultValue: 'Max' })} value={salaryMax} onChangeText={setSalaryMax} keyboardType="numeric" />
+                <TextFieldInput
+                  label={t('jobs.create.salaryMax', { defaultValue: 'Max' })}
+                  value={salaryMax}
+                  onChangeText={setSalaryMax}
+                  keyboardType="numeric"
+                />
               </TextField>
             </View>
           </View>
@@ -360,7 +401,10 @@ export default function EditJobScreen() {
         </Field>
 
         {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
-        <Field label={t('jobs.create.skills', { defaultValue: 'Skills' })} style={{ marginTop: 16 }}>
+        <Field
+          label={t('jobs.create.skills', { defaultValue: 'Skills' })}
+          style={{ marginTop: 16 }}
+        >
           <TagField
             value={skills}
             onChange={handleSkillsChange}
@@ -405,7 +449,8 @@ export default function EditJobScreen() {
 
         <View className="mt-6">
           <Button
-            appearance="solid" tone="accent"
+            appearance="solid"
+            tone="accent"
             size="lg"
             loading={updateMutation.isPending}
             disabled={!canSave || updateMutation.isPending}

@@ -99,10 +99,7 @@ import {
   type PurgeCeilingBreach,
   type PurgeMeasurement,
 } from './blockedDomainPurgeCeilings';
-import type {
-  PurgeOptions,
-  PurgeReport,
-} from '../../scripts/purgeBlockedDomainContent';
+import type { PurgeOptions, PurgeReport } from '../../scripts/purgeBlockedDomainContent';
 
 /**
  * How long a claim may sit before another run may take it back.
@@ -154,19 +151,21 @@ export interface ReconcileBlockedDomainPurgesResult {
 
 /** Build the breaker's input from a dry-run report. */
 export function toMeasurement(report: PurgeReport): PurgeMeasurement {
-  const perDomain = new Map<string, {
-    posts: number;
-    actors: number;
-    localFollows: number;
-    localContent: number;
-  }>();
+  const perDomain = new Map<
+    string,
+    {
+      posts: number;
+      actors: number;
+      localFollows: number;
+      localContent: number;
+    }
+  >();
   for (const [domain, counts] of report.byDomain) {
     perDomain.set(domain, {
       posts: counts.posts + counts.orphanPosts,
       actors: counts.actors,
       localFollows: counts.localFollowsRemoved,
-      localContent:
-        counts.repliesByOthersKept + counts.quotesByOthersKept + counts.threadRootsKept,
+      localContent: counts.repliesByOthersKept + counts.quotesByOthersKept + counts.threadRootsKept,
     });
   }
   return {

@@ -1,15 +1,15 @@
 import { createLogger } from '@oxy.so/core/logger';
-import { authenticatedClient } from "@/utils/api";
+import { authenticatedClient } from '@/utils/api';
 
 const logger = createLogger('MuteService');
 
 class MuteService {
   async muteUser(mutedId: string): Promise<boolean> {
     try {
-      await authenticatedClient.post("/mute", { mutedId });
+      await authenticatedClient.post('/mute', { mutedId });
       return true;
     } catch (error) {
-      logger.warn("Failed to mute user", { error });
+      logger.warn('Failed to mute user', { error });
       return false;
     }
   }
@@ -19,17 +19,19 @@ class MuteService {
       await authenticatedClient.delete(`/mute/${mutedId}`);
       return true;
     } catch (error) {
-      logger.warn("Failed to unmute user", { error });
+      logger.warn('Failed to unmute user', { error });
       return false;
     }
   }
 
   async getMutedUsers(): Promise<unknown[]> {
     try {
-      const res = await authenticatedClient.get<{ data?: unknown[]; mutedUsers?: unknown[] }>("/mute");
+      const res = await authenticatedClient.get<{ data?: unknown[]; mutedUsers?: unknown[] }>(
+        '/mute',
+      );
       return res.data.data || res.data.mutedUsers || [];
     } catch (error) {
-      logger.warn("Failed to get muted users", { error });
+      logger.warn('Failed to get muted users', { error });
       return [];
     }
   }

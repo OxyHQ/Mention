@@ -29,7 +29,9 @@ import {
  * subtag. An author variant always beats a machine one for the same language.
  */
 
-const variant = (partial: Partial<PostContentVariant> & Pick<PostContentVariant, 'tag'>): PostContentVariant => ({
+const variant = (
+  partial: Partial<PostContentVariant> & Pick<PostContentVariant, 'tag'>,
+): PostContentVariant => ({
   source: 'author',
   text: `body-${partial.tag}`,
   ...partial,
@@ -61,10 +63,7 @@ describe('resolveVariant — inheritance (THE RULE)', () => {
   it('localizes the inherited media alt text through the variant alt map', () => {
     const post = content({
       media,
-      variants: [
-        variant({ tag: 'es-ES' }),
-        variant({ tag: 'en-US', alt: { 'img-1': 'Un gato' } }),
-      ],
+      variants: [variant({ tag: 'es-ES' }), variant({ tag: 'en-US', alt: { 'img-1': 'Un gato' } })],
     });
 
     const resolved = resolveVariant(post, 'en-US');
@@ -137,7 +136,9 @@ describe('resolveViewerTag — the resolution ladder', () => {
 
   it('falls back to any variant sharing the base subtag — an es-MX reader sees the es-ES post in Spanish', () => {
     expect(resolveViewerTag(['es-MX'], bilingual)).toBe('es-ES');
-    expect(resolveVariant(bilingual, resolveViewerTag(['es-MX'], bilingual)).text).toBe('body-es-ES');
+    expect(resolveVariant(bilingual, resolveViewerTag(['es-MX'], bilingual)).text).toBe(
+      'body-es-ES',
+    );
   });
 
   it('never serves English when Spanish exists for the reader', () => {
@@ -166,7 +167,9 @@ describe('resolveViewerTag — the resolution ladder', () => {
   });
 
   it('takes the primary from the FIRST author rendition — the stored order is the truth', () => {
-    const englishFirst = content({ variants: [variant({ tag: 'en-US' }), variant({ tag: 'es-ES' })] });
+    const englishFirst = content({
+      variants: [variant({ tag: 'en-US' }), variant({ tag: 'es-ES' })],
+    });
     expect(resolveViewerTag([], englishFirst)).toBe('en-US');
     expect(getPrimaryVariant(englishFirst)?.tag).toBe('en-US');
   });
@@ -207,17 +210,25 @@ describe('the per-tag precedence: exact locale first, author before machine with
   });
 
   it('falls back to a same-base author rendition, then a same-base machine one', () => {
-    expect(pick([english, variant({ tag: 'es-ES', text: 'author es-ES' })], ['es-MX'])).toBe('author es-ES');
-    expect(pick(
-      [
-        english,
-        variant({ tag: 'es-AR', source: 'machine', text: 'machine es-AR' }),
-        variant({ tag: 'es-ES', text: 'author es-ES' }),
-      ],
-      ['es-MX'],
-    )).toBe('author es-ES');
-    expect(pick([english, variant({ tag: 'es-ES', source: 'machine', text: 'machine es-ES' })], ['es-MX']))
-      .toBe('machine es-ES');
+    expect(pick([english, variant({ tag: 'es-ES', text: 'author es-ES' })], ['es-MX'])).toBe(
+      'author es-ES',
+    );
+    expect(
+      pick(
+        [
+          english,
+          variant({ tag: 'es-AR', source: 'machine', text: 'machine es-AR' }),
+          variant({ tag: 'es-ES', text: 'author es-ES' }),
+        ],
+        ['es-MX'],
+      ),
+    ).toBe('author es-ES');
+    expect(
+      pick(
+        [english, variant({ tag: 'es-ES', source: 'machine', text: 'machine es-ES' })],
+        ['es-MX'],
+      ),
+    ).toBe('machine es-ES');
   });
 
   it('keeps es-MX and es-ES as separate renditions with their own text', () => {
@@ -231,21 +242,28 @@ describe('the per-tag precedence: exact locale first, author before machine with
   });
 
   it('falls back to the primary when nothing exact or same-base exists', () => {
-    expect(pick([english, variant({ tag: 'es-MX', source: 'machine' })], ['pt-BR'])).toBe('body-en-US');
+    expect(pick([english, variant({ tag: 'es-MX', source: 'machine' })], ['pt-BR'])).toBe(
+      'body-en-US',
+    );
   });
 
   it('does not invent a region for a base-only preference', () => {
-    const variants = [english, variant({ tag: 'es', source: 'machine', text: 'base es' }), variant({ tag: 'es-ES' })];
+    const variants = [
+      english,
+      variant({ tag: 'es', source: 'machine', text: 'base es' }),
+      variant({ tag: 'es-ES' }),
+    ];
     // `es` matches the `es` rendition exactly…
     expect(resolveViewerTag(['es'], content({ variants }))).toBe('es');
     expect(pick(variants, ['es'])).toBe('base es');
     // …and with none, any `es-*` is a fallback — it does not become `es-ES`.
-    expect(resolveViewerTag(['es'], content({ variants: [english, variant({ tag: 'es-MX' })] }))).toBe('es-MX');
+    expect(
+      resolveViewerTag(['es'], content({ variants: [english, variant({ tag: 'es-MX' })] })),
+    ).toBe('es-MX');
   });
 });
 
 describe('author variants beat machine variants', () => {
-
   it('serves a machine variant when the author wrote nothing in that language', () => {
     const post = content({
       variants: [
@@ -288,7 +306,11 @@ describe('readerVariants — what the DTO ships', () => {
   });
 
   it('ships every author rendition plus the machine one the reader is being served', () => {
-    expect(readerVariants(post, 'de-DE').map((entry) => entry.tag)).toEqual(['es-ES', 'en-US', 'de-DE']);
+    expect(readerVariants(post, 'de-DE').map((entry) => entry.tag)).toEqual([
+      'es-ES',
+      'en-US',
+      'de-DE',
+    ]);
   });
 
   it('does NOT advertise the rest of the machine cache — which languages are cached is the server’s business', () => {
@@ -340,7 +362,14 @@ describe('validateAuthorVariants', () => {
 
   it('rejects a variant that sets BOTH alt and media', () => {
     const result = validateAuthorVariants(
-      [{ tag: 'en-US', text: 'hi', alt: { 'img-1': 'A cat' }, media: [{ id: 'img-en', type: 'image' }] }],
+      [
+        {
+          tag: 'en-US',
+          text: 'hi',
+          alt: { 'img-1': 'A cat' },
+          media: [{ id: 'img-en', type: 'image' }],
+        },
+      ],
       mediaIds,
     );
 
@@ -349,15 +378,25 @@ describe('validateAuthorVariants', () => {
   });
 
   it('canonicalizes tags and forces source to author', () => {
-    const result = validateAuthorVariants([{ tag: 'es-es', text: 'hola', source: 'machine' }], mediaIds);
+    const result = validateAuthorVariants(
+      [{ tag: 'es-es', text: 'hola', source: 'machine' }],
+      mediaIds,
+    );
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.variants[0]).toMatchObject({ tag: 'es-ES', source: 'author', text: 'hola' });
+    expect(result.ok && result.variants[0]).toMatchObject({
+      tag: 'es-ES',
+      source: 'author',
+      text: 'hola',
+    });
   });
 
   it('preserves the submitted order — the first rendition is the primary', () => {
     const result = validateAuthorVariants(
-      [{ tag: 'en-US', text: 'Hello' }, { tag: 'es-ES', text: 'Hola' }],
+      [
+        { tag: 'en-US', text: 'Hello' },
+        { tag: 'es-ES', text: 'Hola' },
+      ],
       mediaIds,
     );
 
@@ -391,7 +430,10 @@ describe('validateAuthorVariants', () => {
 
   it('rejects duplicate languages', () => {
     const result = validateAuthorVariants(
-      [{ tag: 'es-ES', text: 'hola' }, { tag: 'es-es', text: 'hola de nuevo' }],
+      [
+        { tag: 'es-ES', text: 'hola' },
+        { tag: 'es-es', text: 'hola de nuevo' },
+      ],
       mediaIds,
     );
     expect(result.ok).toBe(false);

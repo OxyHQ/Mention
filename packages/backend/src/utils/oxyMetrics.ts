@@ -78,7 +78,8 @@ const routeTemplates = new Set<string>();
  * because a metric label carrying a user id is a cardinality bomb AND a
  * privacy leak.
  */
-const IDENTIFIER_SEGMENT = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24}|\d+|.{33,})$/i;
+const IDENTIFIER_SEGMENT =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24}|\d+|.{33,})$/i;
 
 export function templateOxyRoute(rawUrl: string): string {
   // Strip the query string BEFORE anything else. `HttpService` redacts query
@@ -208,15 +209,19 @@ export function instrumentOxyEgress(client: { http: unknown }): void {
   ): Promise<unknown> {
     const startedAt = process.hrtime.bigint();
     const method = typeof requestConfig?.method === 'string' ? requestConfig.method : 'OTHER';
-    const route = typeof requestConfig?.url === 'string'
-      ? templateOxyRoute(requestConfig.url)
-      : '/other';
+    const route =
+      typeof requestConfig?.url === 'string' ? templateOxyRoute(requestConfig.url) : '/other';
     try {
       const result = await original.call(this, requestConfig);
       record(method, route, '2xx', Number(process.hrtime.bigint() - startedAt) / 1_000_000);
       return result;
     } catch (error) {
-      record(method, route, statusClass(error), Number(process.hrtime.bigint() - startedAt) / 1_000_000);
+      record(
+        method,
+        route,
+        statusClass(error),
+        Number(process.hrtime.bigint() - startedAt) / 1_000_000,
+      );
       throw error;
     }
   };
@@ -242,7 +247,12 @@ export async function measureOxyFetch(
   const template = templateOxyRoute(route);
   try {
     const response = await run();
-    record(method, template, statusClass({ status: response.status }), Number(process.hrtime.bigint() - startedAt) / 1_000_000);
+    record(
+      method,
+      template,
+      statusClass({ status: response.status }),
+      Number(process.hrtime.bigint() - startedAt) / 1_000_000,
+    );
     return response;
   } catch (error) {
     record(method, template, '5xx', Number(process.hrtime.bigint() - startedAt) / 1_000_000);

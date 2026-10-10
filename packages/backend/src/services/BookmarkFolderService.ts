@@ -149,9 +149,7 @@ export async function updateBookmarkFolderForViewer(input: {
 
   const ownBookmark = and(
     eq(bookmarks.userId, input.viewerId),
-    input.target.kind === 'postId'
-      ? eq(bookmarks.postId, targetId)
-      : eq(bookmarks.id, targetId),
+    input.target.kind === 'postId' ? eq(bookmarks.postId, targetId) : eq(bookmarks.id, targetId),
   );
 
   // Filing into a folder by name creates it when it is new, in the same

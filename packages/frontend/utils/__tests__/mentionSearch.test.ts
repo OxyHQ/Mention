@@ -19,7 +19,13 @@ describe('toMentionUsers', () => {
   it('maps Oxy profiles and drops rows with no id or username', () => {
     expect(
       toMentionUsers([
-        { id: 'a', username: 'alice', name: { displayName: 'Alice' }, avatar: 'av', verified: true },
+        {
+          id: 'a',
+          username: 'alice',
+          name: { displayName: 'Alice' },
+          avatar: 'av',
+          verified: true,
+        },
         { _id: 'b', handle: 'bob', profilePicture: 'pic' },
         { id: 'c' },
         { username: 'nobody' },
@@ -87,7 +93,8 @@ describe('resolveTypedMentions', () => {
 
   it('never touches a handle inside a URL or an email, or a federated handle', () => {
     const lookup = jest.fn(directory({ alice, 'example.com': null }));
-    const text = 'see https://x.com/@alice now, mail bob@alice.com or @alice@example.com ok, @alice@';
+    const text =
+      'see https://x.com/@alice now, mail bob@alice.com or @alice@example.com ok, @alice@';
     const result = resolveTypedMentions({ text, mentions: [] }, lookup, { completedOnly: true });
     expect(result.value.text).toBe(text);
     expect(result.pending).toEqual([]);

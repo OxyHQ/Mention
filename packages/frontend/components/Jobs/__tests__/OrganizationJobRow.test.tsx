@@ -1,5 +1,9 @@
 import React from 'react';
-import TestRenderer, { type ReactTestInstance, type ReactTestRenderer, act } from 'react-test-renderer';
+import TestRenderer, {
+  type ReactTestInstance,
+  type ReactTestRenderer,
+  act,
+} from 'react-test-renderer';
 import type { MentionJobPosting } from '@mention/shared-types';
 
 const mockPush = jest.fn();
@@ -21,7 +25,6 @@ jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Text };
 });
-
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -124,28 +127,46 @@ describe('OrganizationJobRow', () => {
 
   it('formats a full salary range, a floor-only salary, and no salary at all', () => {
     expect(
-      textOf(render(<OrganizationJobRow job={job({ salary: { min: 60000, max: 80000, currency: 'EUR', interval: 'year' } })} />)),
+      textOf(
+        render(
+          <OrganizationJobRow
+            job={job({ salary: { min: 60000, max: 80000, currency: 'EUR', interval: 'year' } })}
+          />,
+        ),
+      ),
     ).toContain('EUR 60,000–80,000 / year');
     expect(
-      textOf(render(<OrganizationJobRow job={job({ salary: { min: 60000, currency: 'EUR', interval: 'year' } })} />)),
+      textOf(
+        render(
+          <OrganizationJobRow
+            job={job({ salary: { min: 60000, currency: 'EUR', interval: 'year' } })}
+          />,
+        ),
+      ),
     ).toContain('60,000+');
-    expect(textOf(render(<OrganizationJobRow job={job({ salary: undefined })} />))).not.toMatch(/\d,\d{3}/);
+    expect(textOf(render(<OrganizationJobRow job={job({ salary: undefined })} />))).not.toMatch(
+      /\d,\d{3}/,
+    );
   });
 
   it('shows "Published …" when publishedAt is set, and "Created …" otherwise', () => {
-    expect(textOf(render(<OrganizationJobRow job={job({ publishedAt: new Date().toISOString() })} />))).toContain(
-      'Published',
+    expect(
+      textOf(render(<OrganizationJobRow job={job({ publishedAt: new Date().toISOString() })} />)),
+    ).toContain('Published');
+    expect(textOf(render(<OrganizationJobRow job={job({ publishedAt: undefined })} />))).toContain(
+      'Created',
     );
-    expect(textOf(render(<OrganizationJobRow job={job({ publishedAt: undefined })} />))).toContain('Created');
   });
 
-  it('navigates to the canonical URL\'s path when tapped, falling back to the id route otherwise', () => {
+  it("navigates to the canonical URL's path when tapped, falling back to the id route otherwise", () => {
     const renderer = render(<OrganizationJobRow job={job()} />);
     press(renderer);
     expect(mockPush).toHaveBeenCalledWith('/jobs/widget-engineer-ab12');
 
     mockPush.mockReset();
-    const fallbackRenderer = render(<OrganizationJobRow job={job({ canonicalUrl: 'not-a-url' })} />);
+    const fallbackRenderer = render(
+      <OrganizationJobRow job={job({ canonicalUrl: 'not-a-url' })} />,
+    );
     press(fallbackRenderer);
     expect(mockPush).toHaveBeenCalledWith('/jobs/job-1');
   });

@@ -165,7 +165,12 @@ import { inboxProcessingService } from '../../../connectors/activitypub/inbox.se
  * `getOrFetchActor` from attempting a network fetch.
  */
 function seedRemoteActor(oxyUserId: string | null): Promise<unknown> {
-  return seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId, lastFetchedAt: new Date() });
+  return seedActor(scope, {
+    username: 'bob',
+    uri: ACTOR_URI,
+    oxyUserId,
+    lastFetchedAt: new Date(),
+  });
 }
 
 /**
@@ -329,14 +334,24 @@ describe('handleCreate — reply targeting an opted-out parent-post owner', () =
 
 describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owner sharing', () => {
   function likeActivity() {
-    return { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri };
+    return {
+      id: `${ACTOR_URI}/likes/1`,
+      type: 'Like' as const,
+      actor: ACTOR_URI,
+      object: targetUri,
+    };
   }
   function undoLikeActivity() {
     return {
       id: `${ACTOR_URI}/likes/1/undo`,
       type: 'Undo' as const,
       actor: ACTOR_URI,
-      object: { id: `${ACTOR_URI}/likes/1`, type: 'Like' as const, actor: ACTOR_URI, object: targetUri },
+      object: {
+        id: `${ACTOR_URI}/likes/1`,
+        type: 'Like' as const,
+        actor: ACTOR_URI,
+        object: targetUri,
+      },
     };
   }
 
@@ -419,7 +434,12 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
       id: `${ACTOR_URI}/announces/1/undo`,
       type: 'Undo' as const,
       actor: ACTOR_URI,
-      object: { id: `${ACTOR_URI}/announces/1`, type: 'Announce' as const, actor: ACTOR_URI, object: targetUri },
+      object: {
+        id: `${ACTOR_URI}/announces/1`,
+        type: 'Announce' as const,
+        actor: ACTOR_URI,
+        object: targetUri,
+      },
     };
   }
 

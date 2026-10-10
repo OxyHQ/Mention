@@ -27,19 +27,20 @@ function retiredLegacyToken(): string {
   return jwt.sign(
     { client_id: 'test-client', scope: 'mcp:read mcp:write' },
     'any-secret-at-least-32-bytes-long-xx',
-    { algorithm: 'HS256', subject: 'user-1', jwtid: crypto.randomUUID(), audience: config.mcp.resourceUrl, expiresIn: '5m' },
+    {
+      algorithm: 'HS256',
+      subject: 'user-1',
+      jwtid: crypto.randomUUID(),
+      audience: config.mcp.resourceUrl,
+      expiresIn: '5m',
+    },
   );
 }
 
-function centralToken(
-  scopes: string[],
-  connection?: Record<string, unknown>,
-): string {
-  const value = jwt.sign(
-    { aud: 'mention-api' },
-    'routing-only-test-secret',
-    { algorithm: 'HS256' },
-  );
+function centralToken(scopes: string[], connection?: Record<string, unknown>): string {
+  const value = jwt.sign({ aud: 'mention-api' }, 'routing-only-test-secret', {
+    algorithm: 'HS256',
+  });
   centralTokens.set(value, {
     iss: 'https://api.oxy.so',
     sub: 'owner-1',
@@ -74,15 +75,20 @@ function buildApp() {
   app.use(express.json());
   const fakeOxy = {
     middleware: {
-      auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
+      auth: () => (_req: express.Request, res: express.Response) =>
+        res.status(401).json({ error: 'oxy_required' }),
     },
   } as unknown as OxyServer;
   app.use(createRequireMcpOrOxyAuth(fakeOxy));
   app.get('/resource', (_req, res) => res.json({ ok: true }));
   app.post('/resource', (_req, res) => res.status(201).json({ ok: true }));
   app.get('/notifications', (req, res) => res.json({ userId: (req as OxyAuthRequest).userId }));
-  app.post('/posts', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
-  app.delete('/feed/:postId/boost', (req, res) => res.json({ userId: (req as OxyAuthRequest).userId }));
+  app.post('/posts', (req, res) =>
+    res.status(201).json({ userId: (req as OxyAuthRequest).userId }),
+  );
+  app.delete('/feed/:postId/boost', (req, res) =>
+    res.json({ userId: (req as OxyAuthRequest).userId }),
+  );
   app.post('/mute', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
   return app;
 }
@@ -92,12 +98,15 @@ function buildProductionOrderedApp() {
   app.use(express.json());
   const fakeOxy = {
     middleware: {
-      auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
+      auth: () => (_req: express.Request, res: express.Response) =>
+        res.status(401).json({ error: 'oxy_required' }),
     },
   } as unknown as OxyServer;
   app.use(createOptionalMcpAuth());
   app.use(createRequireMcpOrOxyAuth(fakeOxy));
-  app.post('/posts', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
+  app.post('/posts', (req, res) =>
+    res.status(201).json({ userId: (req as OxyAuthRequest).userId }),
+  );
   return app;
 }
 
@@ -109,7 +118,7 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
     vi.clearAllMocks();
     centralTokens.clear();
   });
-  it('refuses a token pre-resolved by optional auth when it lacks the route\'s capability', async () => {
+  it("refuses a token pre-resolved by optional auth when it lacks the route's capability", async () => {
     const res = await request(productionOrderedApp)
       .post('/posts')
       .set('Authorization', `Bearer ${centralToken(['social.notifications.read'])}`)
@@ -120,7 +129,7 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
     expect(res.body.required_scope).toEqual(['social.posts.publish']);
   });
 
-  it('serves a token pre-resolved by optional auth that carries the route\'s capability', async () => {
+  it("serves a token pre-resolved by optional auth that carries the route's capability", async () => {
     const res = await request(productionOrderedApp)
       .post('/posts')
       .set('Authorization', `Bearer ${centralToken(['social.posts.publish'])}`)
@@ -199,7 +208,9 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
   it('ignores a connection block that names an account it does not list', async () => {
     const invalid = {
       ...connectionState('account-2'),
-      accounts: [{ account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' }],
+      accounts: [
+        { account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+      ],
     };
     const res = await request(app)
       .get('/notifications')
@@ -224,7 +235,9 @@ describe('retired Mention-issued MCP tokens', () => {
   const app = buildApp();
 
   it('are refused with an instruction to reconnect, never tried as an Oxy session', async () => {
-    const res = await request(app).get('/notifications').set('Authorization', `Bearer ${retiredLegacyToken()}`);
+    const res = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${retiredLegacyToken()}`);
 
     expect(res.status).toBe(401);
     expect(res.body).toEqual({

@@ -1,4 +1,7 @@
-import { activeMuteIdentityIds, unmuteIdentityProjection } from '../services/ActorIdentityProjectionService';
+import {
+  activeMuteIdentityIds,
+  unmuteIdentityProjection,
+} from '../services/ActorIdentityProjectionService';
 import { Router, Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -82,7 +85,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const db = getDb();
     const [created] = await db
       .insert(mutes)
-      .values((await activeMuteIdentityIds(mutedId)).map(id => ({ userId, mutedId: id })))
+      .values((await activeMuteIdentityIds(mutedId)).map((id) => ({ userId, mutedId: id })))
       .onConflictDoNothing({ target: [mutes.userId, mutes.mutedId] })
       .returning();
 
@@ -94,7 +97,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         .limit(1);
       return res.status(200).json({
         message: 'User already muted',
-        mute: existing ? serializeMute(existing) : undefined
+        mute: existing ? serializeMute(existing) : undefined,
       });
     }
 
@@ -102,13 +105,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({
       message: 'User muted successfully',
-      mute: serializeMute(created)
+      mute: serializeMute(created),
     });
   } catch (error) {
     logger.error('Error muting user:', { userId: req.user?.id, mutedId: req.body.mutedId, error });
     res.status(500).json({
       message: 'Error muting user',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -142,13 +145,17 @@ router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
     logger.debug('User mute removed');
 
     res.json({
-      message: 'User unmuted successfully'
+      message: 'User unmuted successfully',
     });
   } catch (error) {
-    logger.error('Error unmuting user:', { userId: req.user?.id, mutedId: req.params.mutedId, error });
+    logger.error('Error unmuting user:', {
+      userId: req.user?.id,
+      mutedId: req.params.mutedId,
+      error,
+    });
     res.status(500).json({
       message: 'Error unmuting user',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -177,13 +184,13 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     res.json({
       mutes: rows.map(serializeMute),
-      count: rows.length
+      count: rows.length,
     });
   } catch (error) {
     logger.error('Error fetching muted users:', { userId: req.user?.id, error });
     res.status(500).json({
       message: 'Error fetching muted users',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -212,13 +219,17 @@ router.get('/check/:userId', async (req: AuthRequest, res: Response) => {
       .limit(1);
 
     res.json({
-      isMuted: !!mute
+      isMuted: !!mute,
     });
   } catch (error) {
-    logger.error('Error checking mute status:', { userId: req.user?.id, targetUserId: req.params.userId, error });
+    logger.error('Error checking mute status:', {
+      userId: req.user?.id,
+      targetUserId: req.params.userId,
+      error,
+    });
     res.status(500).json({
       message: 'Error checking mute status',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

@@ -68,11 +68,7 @@ export const ProfileStats = memo(function ProfileStats({
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity
-        className="gap-1"
-        style={styles.statItem}
-        onPress={onPostsPress}
-      >
+      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onPostsPress}>
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(postsCount ?? 0)}
         </Text>
@@ -81,11 +77,7 @@ export const ProfileStats = memo(function ProfileStats({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        className="gap-1"
-        style={styles.statItem}
-        onPress={onBoostsPress}
-      >
+      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onBoostsPress}>
         <Text className="text-foreground" style={styles.statNumber}>
           {formatCompactNumber(boostsCount ?? 0)}
         </Text>
@@ -95,11 +87,7 @@ export const ProfileStats = memo(function ProfileStats({
       </TouchableOpacity>
 
       {showReplies && (
-        <TouchableOpacity
-          className="gap-1"
-          style={styles.statItem}
-          onPress={onRepliesPress}
-        >
+        <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onRepliesPress}>
           <Text className="text-foreground" style={styles.statNumber}>
             {formatCompactNumber(repliesCount ?? 0)}
           </Text>

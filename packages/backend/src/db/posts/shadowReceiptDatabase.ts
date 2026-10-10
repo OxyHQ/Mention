@@ -24,22 +24,38 @@ export async function withShadowReceiptDatabase<T>(
   const databaseUrl = config.postgres.url;
   if (!databaseUrl) throw new Error('PostgreSQL is not configured');
   const remaining = Math.ceil(deadline - Date.now());
-  if (remaining <= 0 || !Number.isSafeInteger(remaining)) throw new Error('Receipt maintenance deadline expired');
+  if (remaining <= 0 || !Number.isSafeInteger(remaining))
+    throw new Error('Receipt maintenance deadline expired');
   const timer = new AbortController();
   const signal = externalSignal ? AbortSignal.any([externalSignal, timer.signal]) : timer.signal;
-  const { db, client } = createDatabase({ databaseUrl, schema,
-    client: { max: 1, idle_timeout: 0, max_lifetime: 0, connect_timeout: Math.max(1, Math.ceil(remaining / 1000)),
-      connection: { application_name: 'mention-shadow-receipt-maintenance',
-        statement_timeout: remaining, lock_timeout: remaining },
+  const { db, client } = createDatabase({
+    databaseUrl,
+    schema,
+    client: {
+      max: 1,
+      idle_timeout: 0,
+      max_lifetime: 0,
+      connect_timeout: Math.max(1, Math.ceil(remaining / 1000)),
+      connection: {
+        application_name: 'mention-shadow-receipt-maintenance',
+        statement_timeout: remaining,
+        lock_timeout: remaining,
+      },
       onnotice: () => undefined,
     },
   });
-  const timeout = setTimeout(() => timer.abort(new DOMException('Receipt maintenance deadline expired', 'TimeoutError')), remaining);
+  const timeout = setTimeout(
+    () => timer.abort(new DOMException('Receipt maintenance deadline expired', 'TimeoutError')),
+    remaining,
+  );
   let closing: Promise<void> | undefined;
-  const close = () => closing ??= client.end({ timeout: 0 });
+  const close = () => (closing ??= client.end({ timeout: 0 }));
   let onAbort!: () => void;
   const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => { void close().catch(() => undefined); reject(signal.reason); };
+    onAbort = () => {
+      void close().catch(() => undefined);
+      reject(signal.reason);
+    };
     signal.addEventListener('abort', onAbort, { once: true });
   });
   const check = () => {
@@ -47,7 +63,13 @@ export async function withShadowReceiptDatabase<T>(
     if (Date.now() >= deadline) throw new Error('Receipt maintenance deadline expired');
   };
   try {
-    const value = await Promise.race([Promise.resolve().then(() => { check(); return work({ db, signal, check }); }), aborted]);
+    const value = await Promise.race([
+      Promise.resolve().then(() => {
+        check();
+        return work({ db, signal, check });
+      }),
+      aborted,
+    ]);
     check();
     return value;
   } finally {

@@ -27,53 +27,80 @@ function featuresFor(rawText: string, hashtagCount = 0): BotShapeFeatures {
 
 describe('detectBotShape — RSS/bot mirror (actor + host)', () => {
   it('flags a federated Service actor', () => {
-    const result = detectBotShape(featuresFor('hello world'), {
-      actorType: 'Service',
-      isFederated: true,
-    }, CFG);
+    const result = detectBotShape(
+      featuresFor('hello world'),
+      {
+        actorType: 'Service',
+        isFederated: true,
+      },
+      CFG,
+    );
     expect(result.isRssMirror).toBe(true);
   });
 
   it('flags a federated Application actor', () => {
-    const result = detectBotShape(featuresFor('hello world'), {
-      actorType: 'Application',
-      isFederated: true,
-    }, CFG);
+    const result = detectBotShape(
+      featuresFor('hello world'),
+      {
+        actorType: 'Application',
+        isFederated: true,
+      },
+      CFG,
+    );
     expect(result.isRssMirror).toBe(true);
   });
 
   it('flags a mirror-shaped instance host by prefix', () => {
     expect(
-      detectBotShape(featuresFor('news'), { instanceDomain: 'rss-mstdn.example', isFederated: true }, CFG).isRssMirror,
+      detectBotShape(
+        featuresFor('news'),
+        { instanceDomain: 'rss-mstdn.example', isFederated: true },
+        CFG,
+      ).isRssMirror,
     ).toBe(true);
     expect(
-      detectBotShape(featuresFor('news'), { instanceDomain: 'bot.example.social', isFederated: true }, CFG).isRssMirror,
+      detectBotShape(
+        featuresFor('news'),
+        { instanceDomain: 'bot.example.social', isFederated: true },
+        CFG,
+      ).isRssMirror,
     ).toBe(true);
   });
 
   it('flags a bridge instance host by substring', () => {
     expect(
-      detectBotShape(featuresFor('news'), { instanceDomain: 'fed.brid.gy-bridge.net', isFederated: true }, CFG)
-        .isRssMirror,
+      detectBotShape(
+        featuresFor('news'),
+        { instanceDomain: 'fed.brid.gy-bridge.net', isFederated: true },
+        CFG,
+      ).isRssMirror,
     ).toBe(true);
   });
 
   it('does NOT flag a normal federated Person on a normal instance', () => {
-    const result = detectBotShape(featuresFor('a thoughtful post about my day'), {
-      actorType: 'Person',
-      instanceDomain: 'mastodon.social',
-      isFederated: true,
-    }, CFG);
+    const result = detectBotShape(
+      featuresFor('a thoughtful post about my day'),
+      {
+        actorType: 'Person',
+        instanceDomain: 'mastodon.social',
+        isFederated: true,
+      },
+      CFG,
+    );
     expect(result.isRssMirror).toBe(false);
   });
 
   it('NEVER flags a native post as a mirror (no federated origin)', () => {
     // Even if some actorType/host leaked in, a non-federated post is not a mirror.
-    const result = detectBotShape(featuresFor('news'), {
-      actorType: 'Service',
-      instanceDomain: 'rss-mstdn.example',
-      isFederated: false,
-    }, CFG);
+    const result = detectBotShape(
+      featuresFor('news'),
+      {
+        actorType: 'Service',
+        instanceDomain: 'rss-mstdn.example',
+        isFederated: false,
+      },
+      CFG,
+    );
     expect(result.isRssMirror).toBe(false);
   });
 });
@@ -110,11 +137,7 @@ describe('detectBotShape — link-only news bot (text shape)', () => {
   });
 
   it('does NOT flag a leading link when the hashtag tail is below threshold', () => {
-    const result = detectBotShape(
-      featuresFor('https://news.example/article #news', 1),
-      {},
-      CFG,
-    );
+    const result = detectBotShape(featuresFor('https://news.example/article #news', 1), {}, CFG);
     expect(result.isLinkOnlyNewsBot).toBe(false);
   });
 

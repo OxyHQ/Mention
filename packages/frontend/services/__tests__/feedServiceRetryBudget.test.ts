@@ -37,9 +37,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Jest must install the transport mocks before this singleton is loaded.
-// eslint-disable-next-line import/first
 import { feedService, setFeedViewerRequestScope } from '../feedService';
-// eslint-disable-next-line import/first
 import { FEED_MAX_ATTEMPTS } from '@/utils/feedRetry';
 
 /** The shape `@oxy.so/core`'s `handleHttpError` throws for a server failure. */
@@ -65,7 +63,7 @@ describe('feed read retry budget', () => {
     expect(FEED_MAX_ATTEMPTS).toBeLessThanOrEqual(3);
   });
 
-  it('turns the transport\'s own retry off, so the two policies cannot multiply', async () => {
+  it("turns the transport's own retry off, so the two policies cannot multiply", async () => {
     mockAuthenticatedGet.mockRejectedValue(serverError(503));
 
     await expect(feedService.getFeed({ type: 'for_you', limit: 20 })).rejects.toThrow();

@@ -58,7 +58,16 @@ vi.mock('../../utils/privacyHelpers', () => ({
 vi.mock('../../db/postgres', () => {
   const builder = () => {
     const q: Record<string, unknown> = {};
-    for (const m of ['from', 'where', 'innerJoin', 'leftJoin', 'orderBy', 'limit', 'offset', 'groupBy']) {
+    for (const m of [
+      'from',
+      'where',
+      'innerJoin',
+      'leftJoin',
+      'orderBy',
+      'limit',
+      'offset',
+      'groupBy',
+    ]) {
       q[m] = () => q;
     }
     q.then = (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve);
@@ -108,7 +117,14 @@ function postRow(summary: { correctionCount?: unknown; lastCorrectedAt?: unknown
     authorship: [{ oxyUserId: AUTHOR_ID, role: 'owner', status: 'accepted' }],
     type: 'post',
     content: { variants: [{ tag: 'en', source: 'author', text: 'a corrected note' }] },
-    stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, savesCount: 0, viewsCount: 0 },
+    stats: {
+      likesCount: 0,
+      boostsCount: 0,
+      commentsCount: 0,
+      downvotesCount: 0,
+      savesCount: 0,
+      viewsCount: 0,
+    },
     metadata: { createdAt: new Date('2026-02-01T00:00:00Z') },
     createdAt: new Date('2026-02-01T00:00:00Z'),
     visibility: 'public',

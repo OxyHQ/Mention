@@ -140,7 +140,10 @@ describe('getArticle', () => {
 
   it.each([
     ['a private post', { visibility: 'private' as const, status: 'published' as const }],
-    ['a followers-only post', { visibility: 'followers_only' as const, status: 'published' as const }],
+    [
+      'a followers-only post',
+      { visibility: 'followers_only' as const, status: 'published' as const },
+    ],
     ['a draft post', { visibility: 'public' as const, status: 'draft' as const }],
     ['a scheduled post', { visibility: 'public' as const, status: 'scheduled' as const }],
   ])('withholds the body of an article on %s, and still serves its author', async (_label, row) => {

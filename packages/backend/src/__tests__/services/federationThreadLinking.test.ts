@@ -90,7 +90,9 @@ vi.mock('../../services/serviceRegistry', () => ({
     return h.creator;
   },
   getPostFederator: () => ({ federateNewPost: h.federateNewPost }),
-  registerPostCreator: (instance: { create: (params: Record<string, unknown>) => Promise<unknown> }) => {
+  registerPostCreator: (instance: {
+    create: (params: Record<string, unknown>) => Promise<unknown>;
+  }) => {
     h.creator = instance;
   },
   registerPostFederator: vi.fn(),
@@ -265,7 +267,10 @@ beforeEach(async () => {
   // signedFetch is built on fetchUpstreamSingleHop; adapt it to the per-test
   // stubbed global fetch.
   h.fetchUpstreamSingleHop.mockImplementation(
-    async (url: string, options: { headers: Record<string, string>; method?: string; body?: BodyInit }) => {
+    async (
+      url: string,
+      options: { headers: Record<string, string>; method?: string; body?: BodyInit },
+    ) => {
       const res: Response = await (globalThis.fetch as typeof fetch)(url, {
         headers: options.headers,
         method: options.method,
@@ -351,7 +356,11 @@ describe('outbox backfill — self-thread linking (the path that used to DROP re
         return jsonResponse({ type: 'OrderedCollection', totalItems: 4, first: firstPageUrl });
       }
       if (url === firstPageUrl) {
-        return jsonResponse({ type: 'OrderedCollectionPage', id: firstPageUrl, orderedItems: items });
+        return jsonResponse({
+          type: 'OrderedCollectionPage',
+          id: firstPageUrl,
+          orderedItems: items,
+        });
       }
       throw new Error(`unexpected fetch ${url}`);
     });
@@ -405,7 +414,12 @@ describe('outbox backfill — self-thread linking (the path that used to DROP re
 
   it('counts a backfilled reply once, however many times the outbox is synced', async () => {
     stubSelfThreadOutbox();
-    const actor = { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: AUTHOR_OXY };
+    const actor = {
+      uri: ACTOR_URI,
+      acct: 'alice@mastodon.social',
+      outboxUrl,
+      oxyUserId: AUTHOR_OXY,
+    };
 
     await federationService.syncOutboxPostsDetailed(actor, { limit: 10, maxPages: 1 });
     await federationService.syncOutboxPostsDetailed(actor, { limit: 10, maxPages: 1 });
@@ -543,42 +557,46 @@ describe('outbox backfill — bounded ancestor backfill', () => {
     expect(reply?.threadId).toBe(parent?.id);
   });
 
-  it('respects the depth cap on an infinite ancestor chain (no runaway, reply still linked)', async () => {
-    const base = caseNamespace('infinite-chain');
-    // Every fetched status N is a reply to status N+1 — an unbounded ascending
-    // chain. The depth cap must terminate the backfill.
-    const fetchMock = vi.fn(async (url: string) => {
-      const n = ancestorNumber(base, url);
-      if (n === null) throw new Error(`unexpected fetch ${url}`);
-      return jsonResponse({
-        id: url,
-        type: 'Note',
-        attributedTo: ACTOR_URI,
-        content: `<p>ancestor ${n}</p>`,
-        inReplyTo: `${base}/${n + 1}`,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
+  it(
+    'respects the depth cap on an infinite ancestor chain (no runaway, reply still linked)',
+    async () => {
+      const base = caseNamespace('infinite-chain');
+      // Every fetched status N is a reply to status N+1 — an unbounded ascending
+      // chain. The depth cap must terminate the backfill.
+      const fetchMock = vi.fn(async (url: string) => {
+        const n = ancestorNumber(base, url);
+        if (n === null) throw new Error(`unexpected fetch ${url}`);
+        return jsonResponse({
+          id: url,
+          type: 'Note',
+          attributedTo: ACTOR_URI,
+          content: `<p>ancestor ${n}</p>`,
+          inReplyTo: `${base}/${n + 1}`,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+        });
       });
-    });
-    vi.stubGlobal('fetch', fetchMock);
+      vi.stubGlobal('fetch', fetchMock);
 
-    // Inbox reply whose parent starts the infinite chain.
-    await federationService.processInboxActivity(
-      replyCreateActivity('1000', `${base}/1001`, base),
-      ACTOR_URI,
-    );
+      // Inbox reply whose parent starts the infinite chain.
+      await federationService.processInboxActivity(
+        replyCreateActivity('1000', `${base}/1001`, base),
+        ACTOR_URI,
+      );
 
-    // Terminated (the test did not hang) and bounded: the on-demand parent
-    // fetches never exceed the depth cap (30) by more than a small constant.
-    expect(ancestorFetches(fetchMock, base)).toBeLessThanOrEqual(32);
+      // Terminated (the test did not hang) and bounded: the on-demand parent
+      // fetches never exceed the depth cap (30) by more than a small constant.
+      expect(ancestorFetches(fetchMock, base)).toBeLessThanOrEqual(32);
 
-    // The original reply is still stored (best-effort) and linked to its
-    // immediate parent, which was itself imported by the backfill.
-    const reply = await rowByActivityId(`${base}/1000`);
-    const immediateParent = await rowByActivityId(`${base}/1001`);
-    expect(reply).toBeDefined();
-    expect(immediateParent).toBeDefined();
-    expect(reply?.parentPostId).toBe(immediateParent?.id);
-  }, CHAIN_WALK_TIMEOUT_MS);
+      // The original reply is still stored (best-effort) and linked to its
+      // immediate parent, which was itself imported by the backfill.
+      const reply = await rowByActivityId(`${base}/1000`);
+      const immediateParent = await rowByActivityId(`${base}/1001`);
+      expect(reply).toBeDefined();
+      expect(immediateParent).toBeDefined();
+      expect(reply?.parentPostId).toBe(immediateParent?.id);
+    },
+    CHAIN_WALK_TIMEOUT_MS,
+  );
 
   /**
    * How much of a thread ONE ingest pass will pull.
@@ -638,53 +656,63 @@ describe('outbox backfill — bounded ancestor backfill', () => {
       const rows = await getDb()
         .select({ activityId: posts.federationActivityId })
         .from(posts)
-        .where(and(
-          like(posts.federationActivityId, `${base}/%`),
-          ne(posts.federationActivityId, replyActivityId),
-        ));
+        .where(
+          and(
+            like(posts.federationActivityId, `${base}/%`),
+            ne(posts.federationActivityId, replyActivityId),
+          ),
+        );
       return rows.length;
     };
 
-    it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
-      const base = caseNamespace('chain-of-30');
-      const fetchMock = finiteChain(base, 30);
+    it(
+      'pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind',
+      async () => {
+        const base = caseNamespace('chain-of-30');
+        const fetchMock = finiteChain(base, 30);
 
-      await federationService.processInboxActivity(
-        replyCreateActivity('31', `${base}/30`, base),
-        ACTOR_URI,
-      );
+        await federationService.processInboxActivity(
+          replyCreateActivity('31', `${base}/30`, base),
+          ACTOR_URI,
+        );
 
-      expect(await materialisedAncestors(base, `${base}/31`)).toBe(30);
-      expect(ancestorFetches(fetchMock, base)).toBe(30);
-      // Reached the real root, so the reply carries the true thread id.
-      const root = await rowByActivityId(`${base}/1`);
-      expect(root).toBeDefined();
-      const reply = await rowByActivityId(`${base}/31`);
-      expect(reply?.threadId).toBe(root?.id);
-    }, CHAIN_WALK_TIMEOUT_MS);
+        expect(await materialisedAncestors(base, `${base}/31`)).toBe(30);
+        expect(ancestorFetches(fetchMock, base)).toBe(30);
+        // Reached the real root, so the reply carries the true thread id.
+        const root = await rowByActivityId(`${base}/1`);
+        expect(root).toBeDefined();
+        const reply = await rowByActivityId(`${base}/31`);
+        expect(reply?.threadId).toBe(root?.id);
+      },
+      CHAIN_WALK_TIMEOUT_MS,
+    );
 
-    it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
-      const base = caseNamespace('chain-of-31');
-      const fetchMock = finiteChain(base, 31);
+    it(
+      'stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above',
+      async () => {
+        const base = caseNamespace('chain-of-31');
+        const fetchMock = finiteChain(base, 31);
 
-      await federationService.processInboxActivity(
-        replyCreateActivity('32', `${base}/31`, base),
-        ACTOR_URI,
-      );
+        await federationService.processInboxActivity(
+          replyCreateActivity('32', `${base}/31`, base),
+          ACTOR_URI,
+        );
 
-      // One over the chain length the cap allows: the 31st ancestor (the real
-      // root, <base>/1) is never fetched and never written.
-      expect(await materialisedAncestors(base, `${base}/32`)).toBe(30);
-      expect(ancestorFetches(fetchMock, base)).toBe(30);
-      expect(fetchMock).not.toHaveBeenCalledWith(`${base}/1`, expect.anything());
-      expect(await rowByActivityId(`${base}/1`)).toBeUndefined();
+        // One over the chain length the cap allows: the 31st ancestor (the real
+        // root, <base>/1) is never fetched and never written.
+        expect(await materialisedAncestors(base, `${base}/32`)).toBe(30);
+        expect(ancestorFetches(fetchMock, base)).toBe(30);
+        expect(fetchMock).not.toHaveBeenCalledWith(`${base}/1`, expect.anything());
+        expect(await rowByActivityId(`${base}/1`)).toBeUndefined();
 
-      // Best-effort, never a dropped post: the reply exists and is linked to its
-      // immediate parent, rooted at the deepest ancestor the pass did reach.
-      const reply = await rowByActivityId(`${base}/32`);
-      expect(reply?.parentPostId).toBe((await rowByActivityId(`${base}/31`))?.id);
-      expect(reply?.threadId).toBe((await rowByActivityId(`${base}/2`))?.id);
-    }, CHAIN_WALK_TIMEOUT_MS);
+        // Best-effort, never a dropped post: the reply exists and is linked to its
+        // immediate parent, rooted at the deepest ancestor the pass did reach.
+        const reply = await rowByActivityId(`${base}/32`);
+        expect(reply?.parentPostId).toBe((await rowByActivityId(`${base}/31`))?.id);
+        expect(reply?.threadId).toBe((await rowByActivityId(`${base}/2`))?.id);
+      },
+      CHAIN_WALK_TIMEOUT_MS,
+    );
   });
 });
 

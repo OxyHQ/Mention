@@ -31,9 +31,11 @@ describe('extractApQuoteUri — the surfaces a real quote arrives on', () => {
   });
 
   it('reads the FEP-e232 Link tag', () => {
-    expect(extractApQuoteUri({
-      tag: [{ type: 'Link', mediaType: 'application/activity+json', href: LEMONDE }],
-    })).toBe(LEMONDE);
+    expect(
+      extractApQuoteUri({
+        tag: [{ type: 'Link', mediaType: 'application/activity+json', href: LEMONDE }],
+      }),
+    ).toBe(LEMONDE);
   });
 
   it('answers undefined for an ordinary post, so nothing is fetched', () => {

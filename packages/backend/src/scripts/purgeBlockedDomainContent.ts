@@ -180,11 +180,7 @@ import { feedInteractions } from '../db/schema/feeds';
 import { engagementOutbox } from '../db/schema/outbox';
 import { contentLabels, reports } from '../db/schema/moderation';
 import { authoredBy } from '../db/posts/postRepository';
-import {
-  countActors,
-  deleteActorsByUris,
-  scanActors,
-} from '../db/federation/actorRepository';
+import { countActors, deleteActorsByUris, scanActors } from '../db/federation/actorRepository';
 import { countFollows, deleteFollowsFor } from '../db/federation/followRepository';
 import {
   countMediaCacheRowsByUrls,
@@ -204,9 +200,7 @@ import {
 import { canonicalFederationHost } from '@oxy.so/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
-import {
-  materializeEngagementTombstone,
-} from '../services/PostEngagementCommandService';
+import { materializeEngagementTombstone } from '../services/PostEngagementCommandService';
 import { deleteCachedMedia, isMediaCacheEnabled } from '../services/mediaCache/oxyMediaStore';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
@@ -218,10 +212,7 @@ import {
   type PostDeletionTarget,
   type PostReferenceProbeName,
 } from './lib/adminDeletionPreflight';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   clearAdminScriptCursor,
   readAdminScriptCursor,
@@ -385,8 +376,8 @@ export function buildBlockedContentDomains(
 
   if (targets.size === 0) {
     throw new EmptyBlocklistError(
-      'neither the committed policy nor FEDERATION_BLOCKED_DOMAINS names a domain '
-      + 'outside our own.',
+      'neither the committed policy nor FEDERATION_BLOCKED_DOMAINS names a domain ' +
+        'outside our own.',
     );
   }
 
@@ -1030,13 +1021,20 @@ async function purgePostBatch(
    * the one that ran.
    */
   record(
-    report, domain, 'likesOnRemovedPosts',
+    report,
+    domain,
+    'likesOnRemovedPosts',
     await countOrDelete(likes, likes.id, inArray(likes.postId, removedIdStrings), options.dryRun),
   );
   record(
-    report, domain, 'bookmarksOnRemovedPosts',
+    report,
+    domain,
+    'bookmarksOnRemovedPosts',
     await countOrDelete(
-      bookmarks, bookmarks.id, inArray(bookmarks.postId, removedIdStrings), options.dryRun,
+      bookmarks,
+      bookmarks.id,
+      inArray(bookmarks.postId, removedIdStrings),
+      options.dryRun,
     ),
   );
   /**
@@ -1048,7 +1046,9 @@ async function purgePostBatch(
    * ask the same question or the gate clears rows this never removes.
    */
   record(
-    report, domain, 'notificationsByEntity',
+    report,
+    domain,
+    'notificationsByEntity',
     await countOrDelete(
       notifications,
       notifications.id,
@@ -1067,7 +1067,9 @@ async function purgePostBatch(
    * the number would silently change meaning with the shape of the data.
    */
   record(
-    report, domain, 'recentReplierProjections',
+    report,
+    domain,
+    'recentReplierProjections',
     await countOrDeleteDistinctPosts(
       postRecentRepliers,
       postRecentRepliers.postId,
@@ -1088,13 +1090,20 @@ async function purgePostBatch(
    * direction is a different question, answered below.
    */
   record(
-    report, domain, 'polls',
+    report,
+    domain,
+    'polls',
     await countOrDelete(polls, polls.id, inArray(polls.postId, removedIdStrings), options.dryRun),
   );
   record(
-    report, domain, 'articles',
+    report,
+    domain,
+    'articles',
     await countOrDelete(
-      articles, articles.id, inArray(articles.postId, removedIdStrings), options.dryRun,
+      articles,
+      articles.id,
+      inArray(articles.postId, removedIdStrings),
+      options.dryRun,
     ),
   );
 
@@ -1105,7 +1114,9 @@ async function purgePostBatch(
   // Rows about the ACTOR are a different matter and are retained — see the
   // header docblock on why the Oxy identity survives this purge.
   record(
-    report, domain, 'postgates',
+    report,
+    domain,
+    'postgates',
     await countOrDelete(
       postgates,
       postgates.id,
@@ -1117,7 +1128,9 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'threadgates',
+    report,
+    domain,
+    'threadgates',
     await countOrDelete(
       threadgates,
       threadgates.id,
@@ -1129,11 +1142,15 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'feedInteractions',
+    report,
+    domain,
+    'feedInteractions',
     await purgeFeedInteractions(removedPostKeys, options.dryRun),
   );
   record(
-    report, domain, 'engagementOutbox',
+    report,
+    domain,
+    'engagementOutbox',
     await countOrDelete(
       engagementOutbox,
       engagementOutbox.id,
@@ -1142,19 +1159,20 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'reports',
+    report,
+    domain,
+    'reports',
     await countOrDelete(
       reports,
       reports.id,
-      and(
-        eq(reports.reportedType, 'post'),
-        inArray(reports.reportedId, removedIdStrings),
-      ) as SQL,
+      and(eq(reports.reportedType, 'post'), inArray(reports.reportedId, removedIdStrings)) as SQL,
       options.dryRun,
     ),
   );
   record(
-    report, domain, 'contentLabels',
+    report,
+    domain,
+    'contentLabels',
     await countOrDelete(
       contentLabels,
       contentLabels.id,
@@ -1166,7 +1184,9 @@ async function purgePostBatch(
     ),
   );
   record(
-    report, domain, 'federationDeliveries',
+    report,
+    domain,
+    'federationDeliveries',
     options.dryRun
       ? await countDeliveriesReferencingObjects(removedPostKeys)
       : await deleteDeliveriesReferencingObjects(removedPostKeys),
@@ -1176,7 +1196,11 @@ async function purgePostBatch(
   // `posts.id`, so after the delete there is nothing left to read them from and
   // the bytes in our S3 would be unnameable.
   await purgeMediaForUrls(
-    await remoteMediaUrlsFor(removedIdStrings), options, report, domain, issues,
+    await remoteMediaUrlsFor(removedIdStrings),
+    options,
+    report,
+    domain,
+    issues,
   );
 
   // Boosts before their originals: a boost outliving its target for even part of
@@ -1187,14 +1211,19 @@ async function purgePostBatch(
   const boostIds = boosts.map((post) => post.id);
   if (boostIds.length > 0) {
     record(
-      report, domain, 'boostsByOthers',
+      report,
+      domain,
+      'boostsByOthers',
       await countOrDelete(posts, posts.id, inArray(posts.id, boostIds), options.dryRun),
     );
   }
   const removedSeeds = await countOrDelete(
     posts,
     posts.id,
-    inArray(posts.id, seeds.map((post) => post.id)),
+    inArray(
+      posts.id,
+      seeds.map((post) => post.id),
+    ),
     options.dryRun,
   );
   record(report, domain, seedCountKey, removedSeeds);
@@ -1282,11 +1311,12 @@ async function purgeActorEngagement(
           .where(eq(likes.userId, oxyUserId));
         return row?.total ?? 0;
       },
-      page: () => db
-        .select({ postId: likes.postId })
-        .from(likes)
-        .where(eq(likes.userId, oxyUserId))
-        .limit(ENGAGEMENT_PAGE_SIZE),
+      page: () =>
+        db
+          .select({ postId: likes.postId })
+          .from(likes)
+          .where(eq(likes.userId, oxyUserId))
+          .limit(ENGAGEMENT_PAGE_SIZE),
     },
     {
       kind: 'bookmark' as const,
@@ -1298,11 +1328,12 @@ async function purgeActorEngagement(
           .where(eq(bookmarks.userId, oxyUserId));
         return row?.total ?? 0;
       },
-      page: () => db
-        .select({ postId: bookmarks.postId })
-        .from(bookmarks)
-        .where(eq(bookmarks.userId, oxyUserId))
-        .limit(ENGAGEMENT_PAGE_SIZE),
+      page: () =>
+        db
+          .select({ postId: bookmarks.postId })
+          .from(bookmarks)
+          .where(eq(bookmarks.userId, oxyUserId))
+          .limit(ENGAGEMENT_PAGE_SIZE),
     },
   ];
 
@@ -1425,7 +1456,9 @@ async function purgeActorContent(
      * equivalent and is not.
      */
     record(
-      report, domain, 'mentionsDelinked',
+      report,
+      domain,
+      'mentionsDelinked',
       await countOrDeleteDistinctPosts(
         postMentions,
         postMentions.postId,
@@ -1438,7 +1471,9 @@ async function purgeActorContent(
     // the next reply repopulates it is a cosmetic cost, and a transaction per
     // post across the whole corpus is not.
     record(
-      report, domain, 'recentReplierEntriesPulled',
+      report,
+      domain,
+      'recentReplierEntriesPulled',
       await countOrDeleteDistinctPosts(
         postRecentRepliers,
         postRecentRepliers.postId,
@@ -1448,9 +1483,14 @@ async function purgeActorContent(
     );
 
     record(
-      report, domain, 'entityFollows',
+      report,
+      domain,
+      'entityFollows',
       await countOrDelete(
-        entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId), options.dryRun,
+        entityFollows,
+        entityFollows.id,
+        eq(entityFollows.userId, oxyUserId),
+        options.dryRun,
       ),
     );
     /**
@@ -1471,7 +1511,9 @@ async function purgeActorContent(
      * posts is engagement from an instance we no longer accept.
      */
     record(
-      report, domain, 'postSubscriptions',
+      report,
+      domain,
+      'postSubscriptions',
       await countOrDelete(
         postSubscriptions,
         postSubscriptions.id,
@@ -1483,14 +1525,13 @@ async function purgeActorContent(
       ),
     );
     record(
-      report, domain, 'notificationsByActor',
+      report,
+      domain,
+      'notificationsByActor',
       await countOrDelete(
         notifications,
         notifications.id,
-        or(
-          eq(notifications.recipientId, oxyUserId),
-          eq(notifications.actorId, oxyUserId),
-        ) as SQL,
+        or(eq(notifications.recipientId, oxyUserId), eq(notifications.actorId, oxyUserId)) as SQL,
         options.dryRun,
       ),
     );
@@ -1499,7 +1540,9 @@ async function purgeActorContent(
   // Counted BEFORE the delete, because after it there is nothing left to count —
   // and this is the number the automatic path's circuit breaker refuses on.
   record(
-    report, domain, 'localFollowsRemoved',
+    report,
+    domain,
+    'localFollowsRemoved',
     await countFollows({
       remoteActorUri: actor.uri,
       direction: 'outbound',
@@ -1507,7 +1550,9 @@ async function purgeActorContent(
     }),
   );
   record(
-    report, domain, 'federatedFollows',
+    report,
+    domain,
+    'federatedFollows',
     options.dryRun
       ? await countFollows({ remoteActorUri: actor.uri })
       : await deleteFollowsFor({ remoteActorUri: actor.uri }),
@@ -1621,10 +1666,7 @@ async function forEachBlockedActor(
   for (;;) {
     if (options.limit !== undefined && processed >= options.limit) break;
 
-    const page = await scanActors(
-      {},
-      { afterId: lastId ?? undefined, limit: PAGE_SIZE },
-    );
+    const page = await scanActors({}, { afterId: lastId ?? undefined, limit: PAGE_SIZE });
     if (page.length === 0) {
       if (lastId) await saveProgress(scope, options, lastId, scanned, issues, true);
       break;
@@ -1633,7 +1675,10 @@ async function forEachBlockedActor(
     for (const actor of page) {
       scanned += 1;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (
+        !domains.has(canonicalFederationHost(actor.domain)) &&
+        (uriHost === null || !domains.has(uriHost))
+      ) {
         continue;
       }
       if (options.limit !== undefined && processed >= options.limit) break;
@@ -1663,7 +1708,10 @@ async function loadBlockedOwnerIds(domains: ReadonlySet<string>): Promise<Readon
       const owner = actor.oxyUserId?.trim();
       if (!owner) continue;
       const uriHost = hostOf(actor.uri);
-      if (!domains.has(canonicalFederationHost(actor.domain)) && (uriHost === null || !domains.has(uriHost))) {
+      if (
+        !domains.has(canonicalFederationHost(actor.domain)) &&
+        (uriHost === null || !domains.has(uriHost))
+      ) {
         continue;
       }
       owners.add(owner);
@@ -1683,7 +1731,8 @@ async function purgeBlockedActorContent(
   issues: RunIssues,
 ): Promise<void> {
   await forEachBlockedActor(cursorScope(SCOPE_ACTORS, domains), domains, options, issues, (actor) =>
-    purgeActorContent(actor, options, report, issues));
+    purgeActorContent(actor, options, report, issues),
+  );
 }
 
 /**
@@ -1703,35 +1752,41 @@ async function dropBlockedActorAnchors(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  await forEachBlockedActor(cursorScope(SCOPE_ANCHORS, domains), domains, options, issues, async (actor) => {
-    const domain = domainOf(actor);
+  await forEachBlockedActor(
+    cursorScope(SCOPE_ANCHORS, domains),
+    domains,
+    options,
+    issues,
+    async (actor) => {
+      const domain = domainOf(actor);
 
-    // A dry run never entered the world this preflight asks about: the posts that
-    // name this actor are all still there precisely BECAUSE nothing was deleted,
-    // so the probe would report a refusal a live run does not produce — and the
-    // report would then show zero actors and a run-failing issue count for a
-    // preview that is working correctly. Report the anchor as would-remove and
-    // leave the question to the run that can actually answer it.
-    if (options.dryRun) {
-      record(report, domain, 'actors', 1);
-      return;
-    }
+      // A dry run never entered the world this preflight asks about: the posts that
+      // name this actor are all still there precisely BECAUSE nothing was deleted,
+      // so the probe would report a refusal a live run does not produce — and the
+      // report would then show zero actors and a run-failing issue count for a
+      // preview that is working correctly. Report the anchor as would-remove and
+      // leave the question to the run that can actually answer it.
+      if (options.dryRun) {
+        record(report, domain, 'actors', 1);
+        return;
+      }
 
-    try {
-      await assertActorAnchorSafeToDelete(`${SCRIPT_NAME}:${domain}`, { actorUri: actor.uri });
-    } catch (error) {
-      if (!(error instanceof DeletionPreflightError)) throw error;
-      logger.warn(`[${SCRIPT_NAME}] anchor preflight refused an actor; its row was kept`, {
-        domain,
-        blockers: error.blockers,
-      });
-      issues.preflightBlocked += 1;
-      return;
-    }
-    // Reached only on a live run — the dry-run branch above returned already —
-    // so this is unconditionally a delete rather than a count-or-delete.
-    record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
-  });
+      try {
+        await assertActorAnchorSafeToDelete(`${SCRIPT_NAME}:${domain}`, { actorUri: actor.uri });
+      } catch (error) {
+        if (!(error instanceof DeletionPreflightError)) throw error;
+        logger.warn(`[${SCRIPT_NAME}] anchor preflight refused an actor; its row was kept`, {
+          domain,
+          blockers: error.blockers,
+        });
+        issues.preflightBlocked += 1;
+        return;
+      }
+      // Reached only on a live run — the dry-run branch above returned already —
+      // so this is unconditionally a delete rather than a count-or-delete.
+      record(report, domain, 'actors', await deleteActorsByUris([actor.uri]));
+    },
+  );
 }
 
 /**
@@ -1748,7 +1803,10 @@ async function purgeOrphanBlockedPosts(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_ORPHAN_POSTS, domains), options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(
+    cursorScope(SCOPE_ORPHAN_POSTS, domains),
+    options,
+  );
   let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
@@ -1761,7 +1819,15 @@ async function purgeOrphanBlockedPosts(
       .orderBy(asc(posts.id))
       .limit(PAGE_SIZE);
     if (page.length === 0) {
-      if (lastId) await saveProgress(cursorScope(SCOPE_ORPHAN_POSTS, domains), options, lastId, scanned, issues, true);
+      if (lastId)
+        await saveProgress(
+          cursorScope(SCOPE_ORPHAN_POSTS, domains),
+          options,
+          lastId,
+          scanned,
+          issues,
+          true,
+        );
       break;
     }
 
@@ -1786,10 +1852,7 @@ async function purgeOrphanBlockedPosts(
         .select({ postId: postAuthorships.postId, oxyUserId: postAuthorships.oxyUserId })
         .from(postAuthorships)
         .where(
-          and(
-            inArray(postAuthorships.postId, missingOwner),
-            eq(postAuthorships.role, 'owner'),
-          ),
+          and(inArray(postAuthorships.postId, missingOwner), eq(postAuthorships.role, 'owner')),
         );
       for (const owner of owners) ownerByPost.set(owner.postId, owner.oxyUserId);
     }
@@ -1829,14 +1892,25 @@ async function purgeBlockedMediaCache(
   report: PurgeReport,
   issues: RunIssues,
 ): Promise<void> {
-  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(cursorScope(SCOPE_MEDIA, domains), options);
+  const { lastId: resumeId, scanned: alreadyScanned } = await resumePoint(
+    cursorScope(SCOPE_MEDIA, domains),
+    options,
+  );
   let lastId: string | null = resumeId;
   let scanned = alreadyScanned;
 
   for (;;) {
     const page = await pageMediaCacheRows(lastId, PAGE_SIZE);
     if (page.length === 0) {
-      if (lastId) await saveProgress(cursorScope(SCOPE_MEDIA, domains), options, lastId, scanned, issues, true);
+      if (lastId)
+        await saveProgress(
+          cursorScope(SCOPE_MEDIA, domains),
+          options,
+          lastId,
+          scanned,
+          issues,
+          true,
+        );
       break;
     }
 
@@ -1926,10 +2000,7 @@ export async function purgeBlockedDomainContent(
  * called, and failing to write its receipt must not make a completed purge look
  * like a failed one. It is logged loudly instead.
  */
-async function recordManualRunInLedger(
-  report: PurgeReport,
-  options: PurgeOptions,
-): Promise<void> {
+async function recordManualRunInLedger(report: PurgeReport, options: PurgeOptions): Promise<void> {
   if (options.dryRun) return;
 
   const now = new Date();
@@ -1970,10 +2041,12 @@ export function renderDomainTable(report: PurgeReport): string[] {
   const rows = [...report.byDomain.entries()]
     .map(([domain, counts]) => ({ domain, counts }))
     .filter(({ counts }) => COUNT_KEYS.some((key) => counts[key] > 0))
-    .sort((a, b) =>
-      (b.counts.posts + b.counts.orphanPosts) - (a.counts.posts + a.counts.orphanPosts)
-      || b.counts.actors - a.counts.actors
-      || a.domain.localeCompare(b.domain));
+    .sort(
+      (a, b) =>
+        b.counts.posts + b.counts.orphanPosts - (a.counts.posts + a.counts.orphanPosts) ||
+        b.counts.actors - a.counts.actors ||
+        a.domain.localeCompare(b.domain),
+    );
 
   if (rows.length === 0) return ['no blocked domain held any content'];
 
@@ -2008,7 +2081,10 @@ export function renderDomainTable(report: PurgeReport): string[] {
     ]),
   );
   const renderRow = (row: Record<string, string>): string =>
-    columns.map((column) => row[column].padEnd(widths.get(column) ?? 0)).join('  ').trimEnd();
+    columns
+      .map((column) => row[column].padEnd(widths.get(column) ?? 0))
+      .join('  ')
+      .trimEnd();
 
   return [renderRow(header), ...cells.map(renderRow)];
 }

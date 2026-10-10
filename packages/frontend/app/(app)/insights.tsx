@@ -16,29 +16,26 @@ import { InsightsView } from '@/components/insights/InsightsView';
  * two: it names no subject, so every read is about the signed-in account.
  */
 const InsightsScreen: React.FC = () => {
-    const { t } = useTranslation();
-    const theme = useTheme();
-    const safeBack = useSafeBack();
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const safeBack = useSafeBack();
 
-    return (
-        <>
-            <SEO
-                title={t('seo.insights.title')}
-                description={t('seo.insights.description')}
-            />
-            <View className="flex-1">
-                <StatusBar style={theme.isDark ? "light" : "dark"} />
+  return (
+    <>
+      <SEO title={t('seo.insights.title')} description={t('seo.insights.description')} />
+      <View className="flex-1">
+        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
-                <PageHeader
-                    title={t('Insights')}
-                    onBack={() => safeBack()}
-                    backLabel={t('common.back', { defaultValue: 'Back' })}
-                />
+        <PageHeader
+          title={t('Insights')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
 
-                <InsightsView />
-            </View>
-        </>
-    );
+        <InsightsView />
+      </View>
+    </>
+  );
 };
 
 export default InsightsScreen;

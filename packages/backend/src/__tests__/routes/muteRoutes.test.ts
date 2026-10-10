@@ -157,7 +157,10 @@ describe('POST /mute-words normalization', () => {
     const app = makeApp(viewer);
 
     const created = await request(app).post('/mute-words').send({ value: 'spoilers' }).expect(201);
-    const padded = await request(app).post('/mute-words').send({ value: '   spoilers  ' }).expect(200);
+    const padded = await request(app)
+      .post('/mute-words')
+      .send({ value: '   spoilers  ' })
+      .expect(200);
 
     expect(padded.body.data.id).toBe(created.body.data.id);
     expect(created.body.data.value).toBe('spoilers');
@@ -243,7 +246,10 @@ describe('POST /mute-words normalization', () => {
     await request(makeApp(second)).post('/mute-words').send({ value: 'spoilers' }).expect(201);
 
     expect(
-      await db.select().from(muteWords).where(inArray(muteWords.userId, [first, second])),
+      await db
+        .select()
+        .from(muteWords)
+        .where(inArray(muteWords.userId, [first, second])),
     ).toHaveLength(2);
   });
 });
@@ -261,7 +267,9 @@ describe('the mute_words constraints themselves', () => {
   it('refuses a targets element outside the allowed set', async () => {
     const viewer = userId('muter');
     await expect(
-      db.insert(muteWords).values({ userId: viewer, value: 'x', targets: ['content', 'elsewhere'] }),
+      db
+        .insert(muteWords)
+        .values({ userId: viewer, value: 'x', targets: ['content', 'elsewhere'] }),
     ).rejects.toThrow();
   });
 
@@ -323,7 +331,10 @@ describe('GET/PATCH/DELETE /mute-words', () => {
       .returning();
 
     const app = makeApp(stranger);
-    await request(app).patch(`/mute-words/${row.id}`).send({ targets: ['tag'] }).expect(404);
+    await request(app)
+      .patch(`/mute-words/${row.id}`)
+      .send({ targets: ['tag'] })
+      .expect(404);
     await request(app).delete(`/mute-words/${row.id}`).expect(404);
 
     // Refused, and still intact — a rejection that had also written would pass
@@ -341,7 +352,10 @@ describe('GET/PATCH/DELETE /mute-words', () => {
       .returning();
 
     await request(app).patch(`/mute-words/${row.id}`).send({}).expect(400);
-    await request(app).patch(`/mute-words/${uuidv7()}`).send({ targets: ['tag'] }).expect(404);
+    await request(app)
+      .patch(`/mute-words/${uuidv7()}`)
+      .send({ targets: ['tag'] })
+      .expect(404);
     await request(app).delete(`/mute-words/${uuidv7()}`).expect(404);
   });
 

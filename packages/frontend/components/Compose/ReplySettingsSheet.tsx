@@ -26,37 +26,47 @@ interface ReplySettingsSheetProps {
   onQuotesDisabledChange: (disabled: boolean) => void;
 }
 
-export default function ReplySettingsSheet({ onClose, replyPermission, onReplyPermissionChange,
-  quotesDisabled, onQuotesDisabledChange,
+export default function ReplySettingsSheet({
+  onClose,
+  replyPermission,
+  onReplyPermissionChange,
+  quotesDisabled,
+  onQuotesDisabledChange,
 }: ReplySettingsSheetProps) {
   const { t } = useTranslation();
   const isAnyone = replyPermission.includes('anyone');
   const isNobody = replyPermission.includes('nobody');
   const isGranular = !isAnyone && !isNobody;
-  const handleRadioPress = useCallback((value: 'anyone' | 'nobody') => {
-    onReplyPermissionChange([value]);
-  }, [onReplyPermissionChange]);
+  const handleRadioPress = useCallback(
+    (value: 'anyone' | 'nobody') => {
+      onReplyPermissionChange([value]);
+    },
+    [onReplyPermissionChange],
+  );
 
-  const handleCheckboxToggle = useCallback((value: 'followers' | 'following' | 'mentioned') => {
-    const currentGranular = replyPermission.filter(
-      (p): p is 'followers' | 'following' | 'mentioned' =>
-        p === 'followers' || p === 'following' || p === 'mentioned'
-    );
+  const handleCheckboxToggle = useCallback(
+    (value: 'followers' | 'following' | 'mentioned') => {
+      const currentGranular = replyPermission.filter(
+        (p): p is 'followers' | 'following' | 'mentioned' =>
+          p === 'followers' || p === 'following' || p === 'mentioned',
+      );
 
-    let next: ReplyPermission[];
-    if (currentGranular.includes(value)) {
-      next = currentGranular.filter((p) => p !== value);
-    } else {
-      next = [...currentGranular, value];
-    }
+      let next: ReplyPermission[];
+      if (currentGranular.includes(value)) {
+        next = currentGranular.filter((p) => p !== value);
+      } else {
+        next = [...currentGranular, value];
+      }
 
-    // If no granular options selected, default back to 'anyone'
-    if (next.length === 0) {
-      next = ['anyone'];
-    }
+      // If no granular options selected, default back to 'anyone'
+      if (next.length === 0) {
+        next = ['anyone'];
+      }
 
-    onReplyPermissionChange(next);
-  }, [replyPermission, onReplyPermissionChange]);
+      onReplyPermissionChange(next);
+    },
+    [replyPermission, onReplyPermissionChange],
+  );
 
   return (
     <View className="px-4 pb-4 gap-3">
@@ -66,23 +76,36 @@ export default function ReplySettingsSheet({ onClose, replyPermission, onReplyPe
         value={isAnyone ? 'anyone' : isNobody ? 'nobody' : undefined}
         onValueChange={handleRadioPress}
         variant="card"
-        options={[{ value: 'anyone', label: t('Anyone') }, { value: 'nobody', label: t('Nobody') }]}
+        options={[
+          { value: 'anyone', label: t('Anyone') },
+          { value: 'nobody', label: t('Nobody') },
+        ]}
       />
       <View className="gap-1">
-        {GRANULAR_OPTIONS.map(option => <CheckboxCard
-          key={option.value}
-          title={t(option.labelKey)}
-          checked={isGranular && replyPermission.includes(option.value)}
-          onCheckedChange={() => handleCheckboxToggle(option.value)}
-        />)}
+        {GRANULAR_OPTIONS.map((option) => (
+          <CheckboxCard
+            key={option.value}
+            title={t(option.labelKey)}
+            checked={isGranular && replyPermission.includes(option.value)}
+            onCheckedChange={() => handleCheckboxToggle(option.value)}
+          />
+        ))}
       </View>
       <SettingsListGroup>
-        <SettingsListItem title={t('Allow quote posts')} rightElement={
-          <Switch checked={!quotesDisabled} onCheckedChange={allowed => onQuotesDisabledChange(!allowed)}
-            accessibilityLabel={t('Allow quote posts')} />
-        } />
+        <SettingsListItem
+          title={t('Allow quote posts')}
+          rightElement={
+            <Switch
+              checked={!quotesDisabled}
+              onCheckedChange={(allowed) => onQuotesDisabledChange(!allowed)}
+              accessibilityLabel={t('Allow quote posts')}
+            />
+          }
+        />
       </SettingsListGroup>
-      <Button size="lg" onPress={onClose}>{t('Save')}</Button>
+      <Button size="lg" onPress={onClose}>
+        {t('Save')}
+      </Button>
     </View>
   );
 }

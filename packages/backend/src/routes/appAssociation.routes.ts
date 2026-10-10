@@ -107,9 +107,7 @@ export function buildAppleAppSiteAssociation(teamId: string | null = APPLE_TEAM_
 /** Verifiers re-fetch on their own schedule; an hour keeps a key rotation quick. */
 const CACHE_CONTROL = 'public, max-age=3600';
 
-export function createAppAssociationRouter(
-  teamId: string | null = APPLE_TEAM_ID,
-): express.Router {
+export function createAppAssociationRouter(teamId: string | null = APPLE_TEAM_ID): express.Router {
   const router = express.Router();
   const assetLinks = buildAssetLinks();
   const aasa = buildAppleAppSiteAssociation(teamId);

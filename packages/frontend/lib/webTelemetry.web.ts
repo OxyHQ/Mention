@@ -2,13 +2,7 @@ import { API_URL } from '@/config';
 
 type VitalName = 'CLS' | 'INP' | 'LCP';
 type VitalRating = 'good' | 'needs-improvement' | 'poor';
-type NavigationType =
-  | 'navigate'
-  | 'reload'
-  | 'back-forward'
-  | 'prerender'
-  | 'restore'
-  | 'other';
+type NavigationType = 'navigate' | 'reload' | 'back-forward' | 'prerender' | 'restore' | 'other';
 type RuntimeKind =
   | 'load'
   | 'navigation'
@@ -108,12 +102,7 @@ function documentNavigation(): NavigationType {
 }
 
 function normalizeNavigation(value: string | undefined): NavigationType {
-  if (
-    value === 'navigate' ||
-    value === 'reload' ||
-    value === 'prerender' ||
-    value === 'restore'
-  ) {
+  if (value === 'navigate' || value === 'reload' || value === 'prerender' || value === 'restore') {
     return value;
   }
   if (value === 'back-forward' || value === 'back-forward-cache') {
@@ -149,10 +138,7 @@ function flush(useBeacon: boolean): void {
   if (
     useBeacon &&
     typeof navigator.sendBeacon === 'function' &&
-    navigator.sendBeacon(
-      ENDPOINT,
-      new Blob([payload], { type: 'text/plain;charset=UTF-8' }),
-    )
+    navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: 'text/plain;charset=UTF-8' }))
   ) {
     return;
   }
@@ -214,10 +200,7 @@ export function initializeWebTelemetry(): () => void {
   const probeController = new AbortController();
 
   const onError = (event: Event): void => {
-    recordRuntime(
-      event instanceof ErrorEvent ? 'runtime-error' : 'resource-error',
-      'error',
-    );
+    recordRuntime(event instanceof ErrorEvent ? 'runtime-error' : 'resource-error', 'error');
   };
   const onUnhandledRejection = (): void => {
     recordRuntime('unhandled-rejection', 'error');
@@ -278,7 +261,7 @@ export function initializeWebTelemetry(): () => void {
           signal: probeController.signal,
         });
         if (response.ok) {
-          const payload = await response.json() as {
+          const payload = (await response.json()) as {
             capabilities?: { webTelemetry?: unknown };
           };
           cachedCapability = payload.capabilities?.webTelemetry === true;

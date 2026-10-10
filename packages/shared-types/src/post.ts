@@ -4,8 +4,12 @@
 
 import type { CommunityNoteSummary } from './communityNotes';
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
-import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
-export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
+import type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
+  'resolution-mode': 'import',
+};
+export type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
+  'resolution-mode': 'import',
+};
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 import type { PostJobContent, PostJobInput } from './job';
@@ -16,13 +20,13 @@ export enum PostType {
   VIDEO = 'video',
   POLL = 'poll',
   BOOST = 'boost',
-  QUOTE = 'quote'
+  QUOTE = 'quote',
 }
 
 export enum PostVisibility {
   PUBLIC = 'public',
   FOLLOWERS_ONLY = 'followers_only',
-  PRIVATE = 'private'
+  PRIVATE = 'private',
 }
 
 /**
@@ -170,7 +174,16 @@ export interface MediaItem {
   hlsUrl?: string;
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast' | 'job';
+export type PostAttachmentType =
+  | 'media'
+  | 'poll'
+  | 'article'
+  | 'location'
+  | 'sources'
+  | 'event'
+  | 'room'
+  | 'podcast'
+  | 'job';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -948,7 +961,7 @@ export interface PostFilters {
   dateFrom?: string;
   dateTo?: string;
   isEdited?: boolean;
-} 
+}
 
 /**
  * Normalized API response structures for hydrated posts
@@ -1103,7 +1116,6 @@ export interface PostAttachmentBundle {
   podcast?: PostPodcastContent;
   job?: PostJobContent;
 }
-
 
 /**
  * Maximum number of link-preview cards attached to a single post. Shared by the

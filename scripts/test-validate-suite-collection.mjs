@@ -49,7 +49,10 @@ console.log('validate-suite-collection self-test:');
     disk,
   );
   check('a healthy suite passes', result.ok === true);
-  check('counts are reported', result.counts.filesOnDisk === 2 && result.counts.filesInReport === 2);
+  check(
+    'counts are reported',
+    result.counts.filesOnDisk === 2 && result.counts.filesInReport === 2,
+  );
 }
 
 // ------------------------------------------- INVARIANT 2: died at load ------
@@ -67,14 +70,14 @@ console.log('validate-suite-collection self-test:');
   // 1 of 2 files dead, and every case that DID run passed. A pass-ratio gate
   // reads 100%. This is the case the whole script exists for.
   const result = validateCollection(
-    { testResults: [file('/repo/alive.test.ts', 9), file('/repo/dead.test.ts', 0)], numTotalTests: 9 },
+    {
+      testResults: [file('/repo/alive.test.ts', 9), file('/repo/dead.test.ts', 0)],
+      numTotalTests: 9,
+    },
     ['/repo/alive.test.ts', '/repo/dead.test.ts'],
   );
   check('100% passing with a dead file still FAILS', result.ok === false);
-  check(
-    'and says why the ratio is misleading',
-    output(result).includes('pass ratio IMPROVES'),
-  );
+  check('and says why the ratio is misleading', output(result).includes('pass ratio IMPROVES'));
 }
 
 // --------------------------------- INVARIANT 1: never picked up at all ------
@@ -99,10 +102,9 @@ console.log('validate-suite-collection self-test:');
     name: '/repo/skipped.test.ts',
     assertionResults: [{ fullName: 'x', status: 'skipped' }],
   };
-  const result = validateCollection(
-    { testResults: [skipped], numTotalTests: 1 },
-    ['/repo/skipped.test.ts'],
-  );
+  const result = validateCollection({ testResults: [skipped], numTotalTests: 1 }, [
+    '/repo/skipped.test.ts',
+  ]);
   check('a fully-skipped file PASSES (it still collects)', result.ok === true);
 }
 
@@ -124,7 +126,10 @@ console.log('validate-suite-collection self-test:');
   const result = validateCollection(
     { testResults: [file('/repo/a.test.ts', 2)], numTotalTests: 2 },
     ['/repo/a.test.ts', '/repo/brand-new.test.ts'],
-    new Map([['/repo/a.test.ts', 500], ['/repo/brand-new.test.ts', 2_000]]),
+    new Map([
+      ['/repo/a.test.ts', 500],
+      ['/repo/brand-new.test.ts', 2_000],
+    ]),
     REPORT_AT,
   );
   check('a file NEWER than the report does not fail the gate', result.ok === true);
@@ -142,7 +147,10 @@ console.log('validate-suite-collection self-test:');
   const result = validateCollection(
     { testResults: [file('/repo/a.test.ts', 2)], numTotalTests: 2 },
     ['/repo/a.test.ts', '/repo/never-ran.test.ts'],
-    new Map([['/repo/a.test.ts', 500], ['/repo/never-ran.test.ts', 500]]),
+    new Map([
+      ['/repo/a.test.ts', 500],
+      ['/repo/never-ran.test.ts', 500],
+    ]),
     1_000,
   );
   check('a file OLDER than the report and absent still FAILS', result.ok === false);
@@ -159,7 +167,10 @@ console.log('validate-suite-collection self-test:');
   const result = validateCollection(
     { testResults: [file('/repo/a.test.ts', 2)], numTotalTests: 2, startTime: 1_000 },
     ['/repo/a.test.ts', '/repo/mid-run.test.ts'],
-    new Map([['/repo/a.test.ts', 500], ['/repo/mid-run.test.ts', 1_500]]),
+    new Map([
+      ['/repo/a.test.ts', 500],
+      ['/repo/mid-run.test.ts', 1_500],
+    ]),
   );
   check('a file created mid-run is staleness, not a miss', result.ok === true);
   check(

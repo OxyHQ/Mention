@@ -56,18 +56,20 @@ describe('Oxy inference boundary', () => {
   });
 
   it('submits only the exact routing profile ID and product labels, delegating the end user', async () => {
-    await expect(inferenceChat(
-      [
-        { role: 'system', content: 'Be concise.' },
-        { role: 'user', content: 'Hello' },
-      ],
-      {
-        feature: 'test-feature',
-        delegatedUserId: 'user-123',
-        temperature: 0.2,
-        maxTokens: 128,
-      },
-    )).resolves.toBe('answer');
+    await expect(
+      inferenceChat(
+        [
+          { role: 'system', content: 'Be concise.' },
+          { role: 'user', content: 'Hello' },
+        ],
+        {
+          feature: 'test-feature',
+          delegatedUserId: 'user-123',
+          temperature: 0.2,
+          maxTokens: 128,
+        },
+      ),
+    ).resolves.toBe('answer');
 
     expect(state.respond).toHaveBeenCalledOnce();
     const [request, options] = state.respond.mock.calls[0];
@@ -90,10 +92,9 @@ describe('Oxy inference boundary', () => {
   it('fails closed unless both the exact routing profile ID and service identity exist', async () => {
     state.config.inference.routingProfileId = undefined;
     expect(isInferenceEnabled()).toBe(false);
-    await expect(inferenceChat(
-      [{ role: 'user', content: 'Hello' }],
-      { feature: 'test-feature' },
-    )).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
+    await expect(
+      inferenceChat([{ role: 'user', content: 'Hello' }], { feature: 'test-feature' }),
+    ).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
 
     state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
     state.credentials.apiKey = undefined;
@@ -107,29 +108,28 @@ describe('Oxy inference boundary', () => {
 
   it('unwraps fenced JSON without weakening parse failures', async () => {
     state.respond.mockResolvedValueOnce({
-      output: [{ role: 'assistant', content: [{ type: 'text', text: '```json\n{"ok":true}\n```' }] }],
+      output: [
+        { role: 'assistant', content: [{ type: 'text', text: '```json\n{"ok":true}\n```' }] },
+      ],
     });
-    await expect(inferenceJSON<{ ok: boolean }>(
-      [{ role: 'user', content: 'Return JSON' }],
-      { feature: 'test-json' },
-    )).resolves.toEqual({ ok: true });
+    await expect(
+      inferenceJSON<{ ok: boolean }>([{ role: 'user', content: 'Return JSON' }], {
+        feature: 'test-json',
+      }),
+    ).resolves.toEqual({ ok: true });
 
     const sensitiveOutput = 'private-user-content-that-must-not-leak';
     state.respond.mockResolvedValueOnce({
       output: [{ role: 'assistant', content: [{ type: 'text', text: sensitiveOutput }] }],
     });
-    await expect(inferenceJSON(
-      [{ role: 'user', content: 'Return JSON' }],
-      { feature: 'test-json' },
-    )).rejects.toThrow('invalid JSON');
-    expect(state.logError).toHaveBeenCalledWith(
-      '[Inference] Failed to parse JSON response:',
-      {
-        status: 'rejected',
-        code: 'invalid_json',
-        responseBytes: Buffer.byteLength(sensitiveOutput, 'utf8'),
-      },
-    );
+    await expect(
+      inferenceJSON([{ role: 'user', content: 'Return JSON' }], { feature: 'test-json' }),
+    ).rejects.toThrow('invalid JSON');
+    expect(state.logError).toHaveBeenCalledWith('[Inference] Failed to parse JSON response:', {
+      status: 'rejected',
+      code: 'invalid_json',
+      responseBytes: Buffer.byteLength(sensitiveOutput, 'utf8'),
+    });
     expect(JSON.stringify(state.logError.mock.calls)).not.toContain(sensitiveOutput);
   });
 });

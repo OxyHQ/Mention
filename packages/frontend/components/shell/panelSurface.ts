@@ -17,19 +17,26 @@
  * the whole window height while the panel keeps its 8px gutter, so the caller
  * pairs this width with whatever height its destination really uses.
  */
-let panelSurface: { measureInWindow(cb: (x: number, y: number, w: number, h: number) => void): void } | null = null;
+let panelSurface: {
+  measureInWindow(cb: (x: number, y: number, w: number, h: number) => void): void;
+} | null = null;
 
 export function registerPanelSurface(node: typeof panelSurface): void {
-    panelSurface = node;
+  panelSurface = node;
 }
 
 /** The panel's window rect, or `null` when nothing has registered or it has no area. */
-export function measurePanelSurface(): Promise<{ x: number; y: number; width: number; height: number } | null> {
-    const node = panelSurface;
-    if (!node) return Promise.resolve(null);
-    return new Promise((resolve) => {
-        node.measureInWindow((x, y, width, height) => {
-            resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
-        });
+export function measurePanelSurface(): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | null> {
+  const node = panelSurface;
+  if (!node) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    node.measureInWindow((x, y, width, height) => {
+      resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
     });
+  });
 }

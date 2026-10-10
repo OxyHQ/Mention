@@ -36,7 +36,8 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {
-      if (id === EMPLOYER_ID) summaries.set(id, { user: { id, username: 'acme-hiring', kind: 'organization' } });
+      if (id === EMPLOYER_ID)
+        summaries.set(id, { user: { id, username: 'acme-hiring', kind: 'organization' } });
     }
     return summaries;
   }),
@@ -48,7 +49,13 @@ vi.mock('../../utils/oxyHelpers', () => ({
       members: {
         list: async (accountId: string) =>
           accountId === EMPLOYER_ID
-            ? [{ memberUserId: EMPLOYER_OPERATOR_ID, status: 'active', permissions: ['account:act_as'] }]
+            ? [
+                {
+                  memberUserId: EMPLOYER_OPERATOR_ID,
+                  status: 'active',
+                  permissions: ['account:act_as'],
+                },
+              ]
             : [],
       },
     },
@@ -153,7 +160,9 @@ describe('GET /jobs/:id/metrics', () => {
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     await db.insert(mentionJobDailyMetrics).values({
       jobId: job.id,
-      day: new Date(Date.UTC(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate())),
+      day: new Date(
+        Date.UTC(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate()),
+      ),
       views: 40,
     });
     await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
@@ -177,7 +186,9 @@ describe('GET /jobs/:id/metrics', () => {
   it('never returns a per-viewer breakdown — only the four aggregate counters', async () => {
     await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
 
-    const res = await request(app).get(`/jobs/${job.id}/metrics`).set('x-test-user', EMPLOYER_OPERATOR_ID);
+    const res = await request(app)
+      .get(`/jobs/${job.id}/metrics`)
+      .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(Object.keys(res.body.metrics).sort()).toEqual(
       ['applyStarts', 'completedApplications', 'externalApplyClicks', 'jobId', 'views'].sort(),
     );

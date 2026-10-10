@@ -8,7 +8,10 @@
 import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import { FeedDescriptor } from '@mention/shared-types';
 import type { FeedTuning } from '@mention/shared-types';
-import type { RankingUserBehavior, FeedRankingSettings } from '../../services/ranking/signalContext';
+import type {
+  RankingUserBehavior,
+  FeedRankingSettings,
+} from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
 
 export interface FeedAPIResponse {
@@ -155,4 +158,3 @@ export interface FeedAPI {
    */
   fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse>;
 }
-

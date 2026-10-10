@@ -128,10 +128,10 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // CastError 500. `chronoCursorSql` is both halves at once.
     const keyset = await chronoCursorSql(cursor);
     const scope = outboxScope(userId);
-    const overfetched = await findPostRecords(
-      keyset ? and(scope, keyset) : scope,
-      { orderBy: chronoOrderBy(), limit: PAGE_SIZE + 1 },
-    );
+    const overfetched = await findPostRecords(keyset ? and(scope, keyset) : scope, {
+      orderBy: chronoOrderBy(),
+      limit: PAGE_SIZE + 1,
+    });
 
     const hasNext = overfetched.length > PAGE_SIZE;
     const pagePosts = hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched;
@@ -311,10 +311,10 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // `inReplyTo` below.
     const post = await loadPostRecord(postId);
     if (
-      !post
-      || post.oxyUserId !== userId
-      || post.visibility !== 'public'
-      || post.status !== 'published'
+      !post ||
+      post.oxyUserId !== userId ||
+      post.visibility !== 'public' ||
+      post.status !== 'published'
     ) {
       return res.status(404).json({ error: 'Post not found' });
     }

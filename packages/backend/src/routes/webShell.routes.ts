@@ -131,10 +131,12 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
   const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
   try {
     const path = `/profiles/username/${encodeURIComponent(handle)}`;
-    const response = await measureOxyFetch('GET', path, () => fetch(`${OXY_API_URL}${path}`, {
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    }));
+    const response = await measureOxyFetch('GET', path, () =>
+      fetch(`${OXY_API_URL}${path}`, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      }),
+    );
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(`Oxy profile lookup failed (${response.status})`);
     const json = (await response.json()) as { data?: OxyProfileData };
@@ -149,15 +151,19 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
 
 /** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
 async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
-  const profile = await getShellCached(`profile:${handle}`, () => fetchProfile(handle), { rethrow: true });
+  const profile = await getShellCached(`profile:${handle}`, () => fetchProfile(handle), {
+    rethrow: true,
+  });
   // Revalidate cached payloads too: transport lookups may return an Oxy person,
   // but only their canonical username or proven public aliases grant a URL.
   if (!profile?.username) return null;
   const normalize = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
   if (normalize(handle) === normalize(profile.username)) return profile;
   const aliases = externalIdentityReferenceSchema.array().safeParse(profile.externalIdentities);
-  return aliases.success && aliases.data.some(alias => normalize(alias.canonicalAcct) === normalize(handle))
-    ? profile : null;
+  return aliases.success &&
+    aliases.data.some((alias) => normalize(alias.canonicalAcct) === normalize(handle))
+    ? profile
+    : null;
 }
 
 /**
@@ -283,14 +289,15 @@ const SEO_REPLY_LIMIT = 5;
  */
 async function postComments(postId: string): Promise<Record<string, unknown>[]> {
   try {
-    const rows = (await loadNewestEligibleReplies(postId, SEO_REPLY_LIMIT))
-      .filter((row) => !requiresContentWarning(row));
+    const rows = (await loadNewestEligibleReplies(postId, SEO_REPLY_LIMIT)).filter(
+      (row) => !requiresContentWarning(row),
+    );
     if (!rows.length) return [];
 
     const authorIds = [...new Set(rows.map((row) => String(row.oxyUserId)))];
-    const policies = new Map(await Promise.all(
-      authorIds.map(async (id) => [id, await authorSeoPolicy(id)] as const),
-    ));
+    const policies = new Map(
+      await Promise.all(authorIds.map(async (id) => [id, await authorSeoPolicy(id)] as const)),
+    );
     const shown = rows.filter((row) => policies.get(String(row.oxyUserId))?.indexable);
     if (!shown.length) return [];
 
@@ -300,7 +307,10 @@ async function postComments(postId: string): Promise<Record<string, unknown>[]> 
       return comment ? [comment] : [];
     });
   } catch (error) {
-    logger.warn('[webShell] Post replies for structured data failed', { postId, ...describeShellFailure(error) });
+    logger.warn('[webShell] Post replies for structured data failed', {
+      postId,
+      ...describeShellFailure(error),
+    });
     return [];
   }
 }
@@ -329,13 +339,20 @@ function describeShellFailure(error: unknown): Record<string, unknown> {
   // Read the same three fields whether or not this is an `Error`: an HTTP client
   // rejection is often an Error that ALSO carries `status`, and dropping it on
   // that branch would lose the one field that says "rate budget".
-  const fields = error as { message?: unknown; status?: unknown; statusCode?: unknown; code?: unknown };
-  const status = typeof fields.status === 'number'
-    ? fields.status
-    : (typeof fields.statusCode === 'number' ? fields.statusCode : undefined);
-  const message = typeof fields.message === 'string' && fields.message.length > 0
-    ? fields.message
-    : undefined;
+  const fields = error as {
+    message?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+  };
+  const status =
+    typeof fields.status === 'number'
+      ? fields.status
+      : typeof fields.statusCode === 'number'
+        ? fields.statusCode
+        : undefined;
+  const message =
+    typeof fields.message === 'string' && fields.message.length > 0 ? fields.message : undefined;
 
   return {
     reason: message ?? 'unknown failure',
@@ -390,10 +407,13 @@ const router = Router();
 // The single exported shell is also used by /explore and unknown paths. Keep
 // homepage canonical/indexing metadata here, never in that shared fallback.
 router.get('/', async (req, res, next) => {
-  if (!isApexHost(req)) { next(); return; }
+  if (!isApexHost(req)) {
+    next();
+    return;
+  }
   // Unlike an entity preview, home must not cache an empty app as a success.
   // getShell still returns a stale usable shell when a refresh fails.
-  if (!await getShell()) {
+  if (!(await getShell())) {
     res.status(502).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
     res.type('text/plain').send('Application temporarily unavailable');
     return;
@@ -434,7 +454,10 @@ Sitemap: ${config.web.origin}/sitemap.xml
 function sendXml(res: Response, xml: string, builtAt: string | undefined): void {
   res.status(200);
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400');
+  res.setHeader(
+    'Cache-Control',
+    'public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400',
+  );
   const lastModified = builtAt ? new Date(builtAt) : undefined;
   if (lastModified && !Number.isNaN(lastModified.getTime())) {
     res.setHeader('Last-Modified', lastModified.toUTCString());
@@ -474,7 +497,9 @@ router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, (_req, res) => {
   res.status(410);
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
-  res.send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  res.send(
+    '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+  );
 });
 
 router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req, res) => {
@@ -537,7 +562,11 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     res.setHeader('Retry-After', '60');
     await serveShell(
       res,
-      noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'),
+      noindexPage(
+        `${config.web.origin}${req.path}`,
+        'Mention is temporarily unavailable',
+        'Please try again shortly.',
+      ),
       503,
     );
     return;
@@ -557,7 +586,11 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     res.setHeader('Retry-After', '60');
     await serveShell(
       res,
-      noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'),
+      noindexPage(
+        `${config.web.origin}${req.path}`,
+        'Mention is temporarily unavailable',
+        'Please try again shortly.',
+      ),
       503,
     );
     return;
@@ -571,7 +604,11 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   if (!profile) {
     await serveShell(
       res,
-      noindexPage(`${config.web.origin}${req.path}`, 'Profile not found', 'This profile is unavailable on Mention.'),
+      noindexPage(
+        `${config.web.origin}${req.path}`,
+        'Profile not found',
+        'This profile is unavailable on Mention.',
+      ),
       isProfileRoot ? 404 : 200,
     );
     return;
@@ -605,7 +642,15 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
     const profile = await cachedProfile(handle);
     const policy = profile ? await mentionProfileSeoPolicy(profile.id) : undefined;
     if (!profile || !policy?.visible) {
-      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Channel not found', 'This channel is unavailable on Mention.'), 404);
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Channel not found',
+          'This channel is unavailable on Mention.',
+        ),
+        404,
+      );
       return;
     }
     if (profile.kind !== 'channel' && profile.username) {
@@ -620,38 +665,73 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
       ...describeShellFailure(error),
     });
     res.setHeader('Retry-After', '60');
-    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
+    await serveShell(
+      res,
+      noindexPage(
+        `${config.web.origin}${req.path}`,
+        'Mention is temporarily unavailable',
+        'Please try again shortly.',
+      ),
+      503,
+    );
   }
 });
 
 // Hashtag: `/hashtag/<tag>` on the apex. The tag is normalized the way posts
 // store it, so every spelling shares one canonical URL.
-router.get(/^\/hashtag\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response, next) => {
-  if (!isApexHost(req)) { next(); return; }
-  warmShell();
-  let raw = '';
-  try {
-    raw = decodeURIComponent(req.params[0]);
-  } catch {
-    // A malformed escape names no hashtag.
-  }
-  const tag = normalizeHashtag(raw);
-  if (!tag) {
-    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Hashtag not found', 'This hashtag is unavailable on Mention.'), 404);
-    return;
-  }
-  try {
-    const found = await getShellCached(`hashtag:v1:${tag}`, async () => ({ listable: await hashtagHasListablePosts(tag) }), { rethrow: true });
-    await serveShell(res, mapHashtagOg(tag, found?.listable ?? false));
-  } catch (error) {
-    logger.warn('[webShell] Hashtag page resolution failed', {
-      path: req.path,
-      ...describeShellFailure(error),
-    });
-    res.setHeader('Retry-After', '60');
-    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
-  }
-});
+router.get(
+  /^\/hashtag\/([^/]+)\/?$/,
+  webShellRateLimiter,
+  async (req: Request, res: Response, next) => {
+    if (!isApexHost(req)) {
+      next();
+      return;
+    }
+    warmShell();
+    let raw = '';
+    try {
+      raw = decodeURIComponent(req.params[0]);
+    } catch {
+      // A malformed escape names no hashtag.
+    }
+    const tag = normalizeHashtag(raw);
+    if (!tag) {
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Hashtag not found',
+          'This hashtag is unavailable on Mention.',
+        ),
+        404,
+      );
+      return;
+    }
+    try {
+      const found = await getShellCached(
+        `hashtag:v1:${tag}`,
+        async () => ({ listable: await hashtagHasListablePosts(tag) }),
+        { rethrow: true },
+      );
+      await serveShell(res, mapHashtagOg(tag, found?.listable ?? false));
+    } catch (error) {
+      logger.warn('[webShell] Hashtag page resolution failed', {
+        path: req.path,
+        ...describeShellFailure(error),
+      });
+      res.setHeader('Retry-After', '60');
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Mention is temporarily unavailable',
+          'Please try again shortly.',
+        ),
+        503,
+      );
+    }
+  },
+);
 
 // Post: `/p/<id>` (optional trailing slash). No AP case.
 router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response) => {
@@ -663,7 +743,15 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     // render an OG card for any post created since the cutover.
     const post = await loadPostRecord(id);
     if (!post) {
-      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Post not found',
+          'This post is unavailable on Mention.',
+        ),
+        404,
+      );
       return;
     }
 
@@ -681,7 +769,11 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     if (!isPublic || !author?.visible) {
       await serveShell(
         res,
-        noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'Sign in to Mention if you have access to this post.'),
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Post unavailable',
+          'Sign in to Mention if you have access to this post.',
+        ),
       );
       return;
     }
@@ -691,11 +783,19 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     let indexable = author.indexable;
     if (post.boostOf) {
       const originalAuthor = original?.oxyUserId ? String(original.oxyUserId) : '';
-      const originalPolicy = original && original.visibility === 'public' && original.status === 'published'
-        ? await authorSeoPolicy(originalAuthor)
-        : undefined;
+      const originalPolicy =
+        original && original.visibility === 'public' && original.status === 'published'
+          ? await authorSeoPolicy(originalAuthor)
+          : undefined;
       if (!originalPolicy?.visible) {
-        await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'This post is unavailable on Mention.'));
+        await serveShell(
+          res,
+          noindexPage(
+            `${config.web.origin}${req.path}`,
+            'Post unavailable',
+            'This post is unavailable on Mention.',
+          ),
+        );
         return;
       }
       // Its words are the original author's, so their choice governs too.
@@ -707,19 +807,40 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     // A gated post is re-rendered from the current row on every request.
     const og = safety.requiresWarning
       ? await fetchPostOg(post, safety)
-      : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), { rethrow: true });
+      : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), {
+          rethrow: true,
+        });
     if (!og) {
-      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
+      await serveShell(
+        res,
+        noindexPage(
+          `${config.web.origin}${req.path}`,
+          'Post not found',
+          'This post is unavailable on Mention.',
+        ),
+        404,
+      );
       return;
     }
-    await serveShell(res, indexable ? await withComments(og, String(post.id)) : withoutIndexing(og));
+    await serveShell(
+      res,
+      indexable ? await withComments(og, String(post.id)) : withoutIndexing(og),
+    );
   } catch (error) {
     logger.warn('[webShell] Post page resolution failed', {
       path: req.path,
       ...describeShellFailure(error),
     });
     res.setHeader('Retry-After', '60');
-    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
+    await serveShell(
+      res,
+      noindexPage(
+        `${config.web.origin}${req.path}`,
+        'Mention is temporarily unavailable',
+        'Please try again shortly.',
+      ),
+      503,
+    );
   }
 });
 
