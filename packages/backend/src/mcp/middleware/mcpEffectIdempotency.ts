@@ -10,6 +10,11 @@ import {
   reserveMcpEffect,
   type McpEffectReservation,
 } from '../services/mcpEffectReceiptService';
+import {
+  fingerprintEffectRequest,
+  isSafeMethod,
+  settleReceiptWhenResponseEnds,
+} from '../utils/effectReceiptRequest';
 
 const EFFECT_KEY_PATTERN = /^mcp:[a-f0-9]{64}$/;
 
@@ -68,7 +73,7 @@ export function createMcpEffectIdempotency(
         clientId: mcp.clientId,
         toolName,
         idempotencyKey,
-        requestFingerprint: fingerprintRequest(req, toolName),
+        requestFingerprint: fingerprintEffectRequest(req, toolName),
       });
     } catch (error) {
       logger.error('[McpEffect] Could not reserve effect', {
@@ -99,53 +104,18 @@ export function createMcpEffectIdempotency(
       return;
     }
 
-    let finalized = false;
-    const finish = (responseStatus: number, indeterminate: boolean): void => {
-      if (finalized) return;
-      finalized = true;
-      void dependencies.finalize(
-        reservation.receiptId,
-        responseStatus,
-        indeterminate,
-      ).catch((error) => {
+    settleReceiptWhenResponseEnds(
+      res,
+      (responseStatus, indeterminate) =>
+        dependencies.finalize(reservation.receiptId, responseStatus, indeterminate),
+      (error) => {
         logger.error('[McpEffect] Could not finalize effect receipt', {
           receiptId: reservation.receiptId,
           toolName,
           reason: error instanceof Error ? error.message : 'unknown',
         });
-      });
-    };
-
-    res.once('finish', () => finish(res.statusCode, false));
-    res.once('close', () => {
-      if (!res.writableEnded) finish(499, true);
-    });
+      },
+    );
     next();
   };
-}
-
-function isSafeMethod(method: string): boolean {
-  return ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
-}
-
-function fingerprintRequest(req: Request, toolName: string): string {
-  return JSON.stringify({
-    toolName,
-    method: req.method.toUpperCase(),
-    path: req.path,
-    query: canonicalize(req.query),
-    body: canonicalize(req.body),
-  });
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, entry]) => [key, canonicalize(entry)]),
-    );
-  }
-  return value;
 }
