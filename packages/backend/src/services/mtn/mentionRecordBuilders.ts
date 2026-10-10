@@ -40,6 +40,7 @@ import {
   type MtnGeoPoint,
 } from '@mention/shared-types';
 import { authorVariants, resolveVariant } from '../postVariants';
+import { isOxyFileId, postMediaFileIds } from '../postMediaVisibility';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { logger } from '../../utils/logger';
 
@@ -114,16 +115,6 @@ const MEDIA_TYPE_TO_BLOB_KIND: Record<'image' | 'video' | 'gif', MtnEmbedMediaIt
 };
 
 /**
- * A bare Oxy file id is a content-addressable upload. Skip client-side temp ids
- * and absolute URLs (federated/external media has no Oxy `sha256`) — mirrors the
- * `ensureProfileMediaPublic` guard. A local-authored post (the only kind that
- * emits a record) carries real Oxy file ids, but this stays defensive.
- */
-function isResolvableFileId(id: string | undefined): id is string {
-  return typeof id === 'string' && id.length > 0 && !id.startsWith('temp-') && !/^https?:\/\//i.test(id);
-}
-
-/**
  * Everything the (pure) record builder needs out of the ONE content-address
  * lookup a post requires.
  *
@@ -153,7 +144,7 @@ function buildEmbedFromMedia(
 ): MtnMediaEmbed | undefined {
   const items: MtnEmbedMediaItem[] = [];
   for (const m of media) {
-    if (!isResolvableFileId(m?.id)) continue;
+    if (!isOxyFileId(m?.id)) continue;
     const meta = metadataByFileId.get(m.id);
     // Skip an item whose sha256 did not resolve (a failed/trashed asset) rather
     // than emit a partial/dishonest blob.
@@ -189,30 +180,13 @@ export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRec
   const sharedMedia = Array.isArray(post.content?.media) ? post.content.media : [];
   const variants = authorVariants(post.content);
 
-  // The union of every file id the post references, deduped: the shared set, each
-  // variant's replacement set, and the media ids a variant's `alt` map localizes
-  // (those keys are file ids, and their sha256 is what the record's `alt` map is
-  // keyed by).
-  const fileIds = new Set<string>();
-  for (const m of sharedMedia) {
-    if (isResolvableFileId(m?.id)) fileIds.add(m.id);
-  }
-  for (const variant of variants) {
-    if (Array.isArray(variant.media)) {
-      for (const m of variant.media) {
-        if (isResolvableFileId(m?.id)) fileIds.add(m.id);
-      }
-    }
-    if (variant.alt) {
-      for (const mediaId of Object.keys(variant.alt)) {
-        if (isResolvableFileId(mediaId)) fileIds.add(mediaId);
-      }
-    }
-  }
-  if (fileIds.size === 0) return empty;
+  // Every file id the post references (a variant's `alt` keys included: their
+  // sha256 is what the record's `alt` map is keyed by).
+  const fileIds = postMediaFileIds(post.content);
+  if (fileIds.length === 0) return empty;
 
   try {
-    const metadata = await getServiceOxyClient().assets.metadataByIds([...fileIds]);
+    const metadata = await getServiceOxyClient().assets.metadataByIds(fileIds);
     const metadataByFileId = new Map(metadata.map((m) => [m.id, m]));
 
     const sha256ByFileId = new Map<string, string>();
@@ -243,7 +217,7 @@ export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRec
     // record. The federation credential may not yet have the `files:read` scope.
     logger.warn('mentionRecordBuilders: resolvePostRecordEmbeds failed; emitting record without media embed', {
       postId: post.id,
-      mediaCount: fileIds.size,
+      mediaCount: fileIds.length,
       error: error instanceof Error ? error.message : String(error),
     });
     return empty;

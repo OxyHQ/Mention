@@ -20,6 +20,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
+import { ensurePostMediaPublic } from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
@@ -537,6 +538,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // suppress PCS's notification/socket/federation stages to preserve the
       // EXACT pre-existing side-effect behavior (the response is byte-identical).
       const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
+      // Post media renders from the public CDN, and uploads arrive private.
+      await ensurePostMediaPublic(memberReader, postContent);
+
       const post = await postCreationService.create({
         oxyUserId: userId,
         content: postContent,
