@@ -16,13 +16,12 @@ import {
     type FeedPageParam,
     type FeedQueryData,
 } from '@/stores/feedQueryCache';
-import { isFeedReadStale } from '@/stores/feedStaleness';
-import { subscribeToSafetyFilterChanges } from '@/stores/safetyInvalidation';
-import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
+import { isFeedReadStale, type FeedReadIdentity } from '@/stores/feedStaleness';
 import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
-import { mergeFeedPageContent, type FeedFilters } from '@/utils/feedUtils';
+import { feedThreadParentId, mergeFeedPageContent, type FeedFilters } from '@/utils/feedUtils';
 import { useDeepCompareMemo } from './useDeepCompare';
 import type { UseFeedStateReturn } from './useFeedState';
+import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 
 const logger = createLogger('useFeedQuery');
 
@@ -37,13 +36,7 @@ const FEED_PAGE_SIZE = 20;
 export const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
 
 /** One feed, as the reader it is read for sees it. */
-interface FeedQueryTarget {
-    type: FeedType;
-    userId?: string;
-    filters?: FeedFilters;
-    /** The signed-in viewer, or `undefined` for an anonymous reader. */
-    viewerId?: string;
-}
+type FeedQueryTarget = FeedReadIdentity;
 
 /**
  * Read one page of a feed, exactly as the feed's earlier local-state reader did:
@@ -65,9 +58,9 @@ async function readFeedPage(
         : feedService.getFeed(request, { signal }));
 
     // When scoped to a thread, narrow the results to the posts that answer it.
-    const parentId = feed.filters?.postId || feed.filters?.parentPostId;
+    const parentId = feedThreadParentId(feed.filters);
     const items = parentId
-        ? (response.items ?? []).filter((item) => String(item.parentPostId) === String(parentId))
+        ? (response.items ?? []).filter((item) => String(item.parentPostId) === parentId)
         : response.items ?? [];
     const content = mergeFeedPageContent(undefined, {
         items,
@@ -196,12 +189,16 @@ export function useFeedQuery({
         data,
         error,
         isFetching,
-        isFetchNextPageError,
-        isRefetchError,
         hasNextPage,
         fetchNextPage,
         dataUpdatedAt,
-    } = useInfiniteQuery({ ...options, enabled: active });
+    } = useInfiniteQuery({
+        ...options,
+        enabled: active,
+        // An inactive observer (the SQLite half's feeds, a viewer still
+        // resolving) leaves an entry that never loads; it is not retention.
+        gcTime: active ? options.gcTime : 0,
+    });
 
     const pages = viewerReady ? data?.pages : undefined;
     const content = useMemo(() => foldFeedPages(pages ?? []), [pages]);
@@ -235,11 +232,7 @@ export function useFeedQuery({
         if (!active) return;
         const state = queryClient.getQueryState(queryKey);
         if (state?.data === undefined || state.fetchStatus !== 'idle') return;
-        const stale = feed.type === 'replies'
-            || isFeedReadStale(
-                { type: feed.type, userId: feed.userId, viewerId: feed.viewerId, laneId: feed.filters?.laneId },
-                state.dataUpdatedAt,
-            );
+        const stale = feed.type === 'replies' || isFeedReadStale(feed, state.dataUpdatedAt);
         if (stale) void reload();
     }, [active, queryClient, queryKey, feed, reload]);
 
@@ -252,35 +245,7 @@ export function useFeedQuery({
         if (active) void reload();
     }, [reloadKey, active, reload]);
 
-    // A muted word or the sensitive-content toggle changes what the server is
-    // willing to send, so a feed already on screen cannot re-derive its own
-    // contents — it has to ask again. The warm-start check above covers feeds
-    // that are cached but unmounted when the rule changes; this covers the
-    // common case, where the settings screen was pushed OVER a feed that stays
-    // mounted underneath and would otherwise never run that check.
-    useEffect(() => {
-        if (!active) return;
-        return subscribeToSafetyFilterChanges(() => {
-            void reload();
-        });
-    }, [active, reload]);
-
-    // A channel turning its byline on or off rewrites the author list of every
-    // post it has published, and the client cannot derive the new one: with the
-    // byline off the writer's id is never sent here at all. So, as above, the
-    // posts have to be asked for again. The settings screen is pushed over the
-    // CHANNEL'S OWN PAGE, so the surface most in need of converging is the one
-    // still mounted underneath.
-    //
-    // A separate subscription rather than a shared one: these are two different
-    // write classes with two different authorities, and one listener serving both
-    // would make either module's signal impossible to test without the other.
-    useEffect(() => {
-        if (!active) return;
-        return subscribeToBylineChanges(() => {
-            void reload();
-        });
-    }, [active, reload]);
+    useReloadOnFeedRuleChange(active, reload);
 
     // Federated profile still syncing: read page 1 again on the bounded backoff
     // until posts arrive or the budget runs out. Every pending answer is a new
@@ -315,9 +280,10 @@ export function useFeedQuery({
 
     // The query loads itself when it mounts and when its identity changes, so
     // only a forced call (the empty state's retry) has anything to ask for.
-    const fetchInitial = useCallback(async (forceRefresh: boolean = false) => {
-        if (active && forceRefresh) await reload();
-    }, [active, reload]);
+    const fetchInitial = useCallback(
+        (forceRefresh: boolean = false) => (forceRefresh ? refresh() : Promise.resolve()),
+        [refresh],
+    );
 
     const loadMore = useCallback(async () => {
         if (!active || !hasNextPage) return;
@@ -333,13 +299,6 @@ export function useFeedQuery({
     const clearError = useCallback(() => undefined, []);
 
     const failure = active && error && !isFetching ? classifyFeedFailure(error) : null;
-    // Stable markers, not the transport's message: nothing renders these
-    // strings — the empty state owns its own copy and only appears with no rows.
-    const errorMessage = !failure
-        ? null
-        : isFetchNextPageError
-            ? 'Failed to load more posts'
-            : isRefetchError ? 'Failed to refresh' : 'Failed to load';
 
     return {
         items: content.items,
@@ -347,9 +306,10 @@ export function useFeedQuery({
         interstitials: content.interstitials,
         hasMore: hasNextPage,
         isLoading: !viewerReady || isFetching,
-        error: errorMessage,
+        // A marker, not the transport's message: nothing renders it — the empty
+        // state owns its own copy, chosen by `errorKind`.
+        error: failure ? 'Failed to load' : null,
         errorKind: failure?.kind ?? null,
-        nextCursor: pages?.[pages.length - 1]?.nextCursor,
         pending,
         fetchInitial,
         refresh,

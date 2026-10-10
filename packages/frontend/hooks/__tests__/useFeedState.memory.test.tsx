@@ -174,6 +174,13 @@ async function loadMore(): Promise<void> {
 }
 
 /** Load explore across two pages, the way a reader scrolling it would. */
+/** The cursor the next page is read from: what the held read must still know. */
+async function nextPageCursor(): Promise<string | undefined> {
+    getFeedMock.mockResolvedValueOnce(page([], undefined));
+    await loadMore();
+    return getFeedMock.mock.lastCall?.[0].cursor;
+}
+
 async function loadTwoPages(): Promise<TestRenderer.ReactTestRenderer> {
     getFeedMock
         .mockResolvedValueOnce(page(['p1', 'p2'], 'cursor-2'))
@@ -224,8 +231,8 @@ describe('useFeedState memory mode: one feed query', () => {
             // Synchronous: Bloom's web scroll restoration lands on these rows.
             expect(ids(renders[0])).toEqual(['p1', 'p2', 'p3']);
             expect(renders[0].isLoading).toBe(false);
-            expect(latest?.nextCursor).toBe('cursor-3');
             expect(getFeedMock).toHaveBeenCalledTimes(2);
+            expect(await nextPageCursor()).toBe('cursor-3');
         });
 
         it('reads page 1 alone again when a write it cannot see postdates its read', async () => {
@@ -242,7 +249,7 @@ describe('useFeedState memory mode: one feed query', () => {
             expect(getFeedMock).toHaveBeenCalledTimes(3);
             expect(getFeedMock.mock.calls[2][0].cursor).toBeUndefined();
             expect(ids()).toEqual(['fresh']);
-            expect(latest?.nextCursor).toBe('fresh-2');
+            expect(await nextPageCursor()).toBe('fresh-2');
         });
 
         it('asks the lane authority too, with the feed\'s own lane', async () => {
@@ -486,7 +493,7 @@ describe('useFeedState memory mode: one feed query', () => {
             stalePage.resolve(page(['stale-page-2'], 'cursor-3'));
             await flush();
             expect(ids()).toEqual(['fresh']);
-            expect(latest?.nextCursor).toBe('fresh-2');
+            expect(await nextPageCursor()).toBe('fresh-2');
         });
     });
 
@@ -539,7 +546,7 @@ describe('useFeedState memory mode: one feed query', () => {
             getFeedMock.mockRejectedValueOnce({ status: 500 });
             await loadMore();
             expect(ids()).toEqual(['p1']);
-            expect(latest?.error).toBe('Failed to load more posts');
+            expect(latest?.error).toBe('Failed to load');
 
             getFeedMock.mockRejectedValueOnce({ status: 500 });
             await act(async () => {
@@ -547,7 +554,7 @@ describe('useFeedState memory mode: one feed query', () => {
             });
             await flush();
             expect(ids()).toEqual(['p1']);
-            expect(latest?.error).toBe('Failed to refresh');
+            expect(latest?.error).toBe('Failed to load');
         });
     });
 

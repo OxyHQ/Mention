@@ -17,9 +17,8 @@ import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 import { isFeedReadStale } from '@/stores/feedStaleness';
-import { subscribeToSafetyFilterChanges } from '@/stores/safetyInvalidation';
-import { subscribeToBylineChanges } from '@/stores/bylineInvalidation';
 import { FED_PENDING_POLL_DELAYS_MS, useFeedQuery } from './useFeedQuery';
+import { useReloadOnFeedRuleChange } from './useReloadOnFeedRuleChange';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -57,7 +56,6 @@ export interface UseFeedStateReturn {
      * is never pre-empting a retry that is still in flight.
      */
     errorKind: FeedFailureKind | null;
-    nextCursor?: string;
     /**
      * True while a federated profile feed is still populating in the background
      * (the hook is auto-refetching). Consumers can show a brief loading state.
@@ -282,10 +280,7 @@ function useStoredFeed({
                     hasDbData
                     && ui?.lastUpdated
                     && ui.lastUpdated > 0
-                    && !isFeedReadStale(
-                        { type, userId, viewerId: currentUserId, laneId: filters?.laneId },
-                        ui.lastUpdated,
-                    )
+                    && !isFeedReadStale({ type, userId, filters, viewerId: currentUserId }, ui.lastUpdated)
                 ) {
                     logger.debug('Skipping — feed has SQLite cache');
                     isFetchingRef.current = false;
@@ -354,39 +349,10 @@ function useStoredFeed({
     // Keep the ref pointing at the latest fetchInitial for the pending-poll scheduler.
     fetchInitialRef.current = fetchInitial;
 
-    // A muted word or the sensitive-content toggle changes what the server is
-    // willing to send, so a feed already on screen cannot re-derive its own
-    // contents — it has to ask again. The staleness check in `fetchInitial`
-    // covers feeds that are unmounted when the rule changes; this covers the
-    // common case, where the settings screen was pushed OVER a feed that stays
-    // mounted underneath and would otherwise never run that check.
-    //
     // The listener reads the current `fetchInitial` off the ref, so it never
     // needs re-subscribing while this half serves the feed.
-    useEffect(() => {
-        if (!enabled) return;
-        return subscribeToSafetyFilterChanges(() => {
-            void fetchInitialRef.current?.(true);
-        });
-    }, [enabled]);
-
-    // A channel turning its byline on or off rewrites the author list of every
-    // post it has published, and the client cannot derive the new one: with the
-    // byline off the writer's id is never sent here at all. So, as above, the
-    // posts have to be asked for again — and the same two halves apply, for a
-    // sharper version of the same reason. The settings screen is pushed over the
-    // CHANNEL'S OWN PAGE, so the surface most in need of converging is the one
-    // still mounted underneath, and Back lands the operator straight on it.
-    //
-    // A separate subscription rather than a shared one: these are two different
-    // write classes with two different authorities, and one listener serving both
-    // would make either module's signal impossible to test without the other.
-    useEffect(() => {
-        if (!enabled) return;
-        return subscribeToBylineChanges(() => {
-            void fetchInitialRef.current?.(true);
-        });
-    }, [enabled]);
+    const reloadStored = useCallback(() => fetchInitialRef.current?.(true), []);
+    useReloadOnFeedRuleChange(enabled, reloadStored);
 
     const refresh = useCallback(async () => {
         // Gate onEndReached synchronously before the store commits isLoading.
@@ -564,7 +530,6 @@ function useStoredFeed({
         // The SQLite path classifies at the point it catches — in `postsStore` —
         // so nothing here re-derives a kind from a message string.
         errorKind: error ? globalFeed?.errorKind ?? null : null,
-        nextCursor: globalFeed?.nextCursor,
         pending,
         fetchInitial,
         refresh,

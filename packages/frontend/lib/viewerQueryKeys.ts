@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { FeedType } from '@mention/shared-types';
-import type { FeedFilters } from '@/utils/feedUtils';
+import { normalizeFeedFilters, type FeedFilters } from '@/utils/feedUtils';
 
 export type ViewerId = string | null | undefined;
 
@@ -9,13 +9,6 @@ export interface FeedQueryIdentity {
   type: FeedType;
   userId?: string;
   filters?: FeedFilters;
-}
-
-function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
-  if (!filters) return null;
-  const keys = Object.keys(filters).sort();
-  if (keys.length === 0) return null;
-  return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
 }
 
 const ANONYMOUS_VIEWER = 'anon';
@@ -197,10 +190,8 @@ export const viewerQueryKeys = {
    * One `<Feed>`'s loaded pages (`hooks/useFeedQuery`): a feed type, the
    * profile it belongs to, and its filters.
    *
-   * The filters are normalised the way `buildFeedScrollKey` normalises them —
-   * keys sorted, an absent value read as `''`, and no filters at all the same
-   * as an empty bag — so the two identities of one feed can never disagree on
-   * whether two `<Feed>`s are the same feed.
+   * The filters go through the same `normalizeFeedFilters` as
+   * `buildFeedScrollKey`, so the two identities of one feed cannot disagree.
    */
   feed: (
     viewerId: ViewerId,

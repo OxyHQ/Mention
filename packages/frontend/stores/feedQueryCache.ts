@@ -5,6 +5,7 @@ import { viewerQueryKeys, type FeedQueryIdentity } from '@/lib/viewerQueryKeys';
 import { advanceLocalPostRevision } from '@/stores/feedScrollStore';
 import {
     feedReceivesOwnNewPost,
+    feedThreadParentId,
     getItemKey,
     mergeFeedPageContent,
     type MergedFeedPageContent,
@@ -178,7 +179,7 @@ export function publishNewLocalReply(reply: HydratedPost): void {
     if (!parentId) return;
     updateFeedQueries(
         (feed) => feed.type === 'replies'
-            && String(feed.filters?.postId || feed.filters?.parentPostId || '') === parentId,
+            && feedThreadParentId(feed.filters) === parentId,
         (data) => prependFeedPost(data, reply),
     );
 }

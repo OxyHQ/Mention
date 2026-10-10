@@ -1,15 +1,12 @@
-import type { FeedType } from '@mention/shared-types';
+import type { FeedQueryIdentity } from '@/lib/viewerQueryKeys';
 import { isFeedCacheStale } from '@/stores/engagementInvalidation';
 import { isLaneFeedCacheStale } from '@/stores/laneInvalidation';
 import { isFeedCacheStaleForSafety } from '@/stores/safetyInvalidation';
 import { isFeedCacheStaleForByline } from '@/stores/bylineInvalidation';
 
 /** The feed whose held read is being judged, and who is reading it. */
-export interface FeedReadIdentity {
-    type: FeedType;
-    userId?: string;
+export interface FeedReadIdentity extends FeedQueryIdentity {
     viewerId?: string;
-    laneId?: string;
 }
 
 /**
@@ -33,7 +30,7 @@ export interface FeedReadIdentity {
  */
 export function isFeedReadStale(feed: FeedReadIdentity, readAt: number): boolean {
     return isFeedCacheStale(feed.type, feed.userId, feed.viewerId, readAt)
-        || isLaneFeedCacheStale(feed.userId, feed.viewerId, feed.laneId, readAt)
+        || isLaneFeedCacheStale(feed.userId, feed.viewerId, feed.filters?.laneId, readAt)
         || isFeedCacheStaleForSafety(readAt)
         || isFeedCacheStaleForByline(readAt);
 }

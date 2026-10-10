@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 44.07,
-      "covered": 11842,
-      "total": 26868
+      "pct": 44.12,
+      "covered": 11852,
+      "total": 26863
     },
     "branches": {
-      "pct": 38.82,
-      "covered": 7531,
-      "total": 19397
+      "pct": 38.87,
+      "covered": 7534,
+      "total": 19380
     },
     "functions": {
-      "pct": 39.08,
-      "covered": 2692,
-      "total": 6888
+      "pct": 39.1,
+      "covered": 2693,
+      "total": 6886
     },
     "lines": {
-      "pct": 44.78,
-      "covered": 10742,
-      "total": 23985
+      "pct": 44.82,
+      "covered": 10751,
+      "total": 23982
     }
   },
   "pins": {
@@ -593,6 +593,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useReloadOnFeedRuleChange.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useRevealOwnNewPost.ts": {
       "statements": 100,
       "branches": 100,
@@ -1062,10 +1068,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 41,
-      "branches": 31,
-      "functions": 36,
-      "lines": 45
+      "statements": 47,
+      "branches": 37,
+      "functions": 41,
+      "lines": 50
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1243,7 +1249,7 @@
     },
     "stores/feedQueryCache.ts": {
       "statements": 100,
-      "branches": 95,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
@@ -1494,8 +1500,8 @@
       "lines": 96
     },
     "utils/feedUtils.ts": {
-      "statements": 90,
-      "branches": 81,
+      "statements": 91,
+      "branches": 82,
       "functions": 100,
       "lines": 94
     },

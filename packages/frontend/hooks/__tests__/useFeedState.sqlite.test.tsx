@@ -162,7 +162,6 @@ describe('useFeedState on the SQLite path', () => {
         expect(feedService.getFeed).not.toHaveBeenCalled();
         expect(latest?.items).toEqual([{ id: 'row-1' }]);
         expect(latest?.hasMore).toBe(true);
-        expect(latest?.nextCursor).toBe('cursor-2');
         expect(latest?.feedScrollKey).toBe('auth:viewer-a|for_you||');
     });
 

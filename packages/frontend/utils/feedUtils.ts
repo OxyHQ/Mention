@@ -208,12 +208,34 @@ export interface FeedIdentityParams {
  * output. Mirrors the dedupe-key strategy in `services/feedService.ts` but is
  * defined locally to avoid a service ↔ utils dependency.
  */
+/**
+ * A feed's filters in the one shape both of its identities use — the scroll key
+ * ({@link buildFeedScrollKey}) and the query key (`viewerQueryKeys.feed`): keys
+ * sorted, an absent value read as `''`, and no filters the same as an empty bag
+ * (`null`). Shared so the two identities of one feed cannot disagree on whether
+ * two `<Feed>`s are the same feed.
+ */
+export function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
+    if (!filters) return null;
+    const keys = Object.keys(filters).sort();
+    if (keys.length === 0) return null;
+    return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
+}
+
 function serializeFeedFilters(filters?: FeedFilters): string {
-    if (!filters) return '';
-    return Object.keys(filters)
-        .sort()
-        .map((key) => `${key}=${filters[key] ?? ''}`)
-        .join('&');
+    const normalized = normalizeFeedFilters(filters);
+    if (!normalized) return '';
+    return Object.entries(normalized).map(([key, value]) => `${key}=${value}`).join('&');
+}
+
+/**
+ * The post a replies feed is the thread of. `feedService` reads
+ * `/feed/replies/<this id>`, so every other place that narrows to, or matches,
+ * a thread asks this same question in this same order.
+ */
+export function feedThreadParentId(filters?: FeedFilters): string | undefined {
+    const parentId = filters?.parentPostId || filters?.postId;
+    return parentId ? String(parentId) : undefined;
 }
 
 /**
