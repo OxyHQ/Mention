@@ -1,4 +1,5 @@
-import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
+import type React from 'react';
+import { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxy.so/services/ui/client';

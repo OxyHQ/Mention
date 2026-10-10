@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { FeedInterstitialSlot } from '@mention/shared-types';
 import { SimilarAccountsInterstitial } from './SimilarAccountsInterstitial';
 import { SuggestedFeedsInterstitial } from './SuggestedFeedsInterstitial';

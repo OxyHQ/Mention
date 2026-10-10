@@ -8,7 +8,7 @@ import {
   Pressable,
   TouchableOpacity,
   Text,
-  GestureResponderEvent,
+  type GestureResponderEvent,
 } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
 import type {

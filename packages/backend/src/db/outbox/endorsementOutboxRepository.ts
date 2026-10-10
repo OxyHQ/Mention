@@ -25,8 +25,8 @@
 import { and, asc, eq, lte, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
-  ENDORSEMENT_OUTBOX_STATUSES,
-  ENDORSEMENT_SOURCES,
+  type ENDORSEMENT_OUTBOX_STATUSES,
+  type ENDORSEMENT_SOURCES,
   endorsementOutbox,
 } from '../schema/outbox';
 

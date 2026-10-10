@@ -19,7 +19,7 @@
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import { FEDERATED_MEDIA_CACHE_STATES, federatedMediaCache } from '../schema/federation';
+import { type FEDERATED_MEDIA_CACHE_STATES, federatedMediaCache } from '../schema/federation';
 
 /** Lifecycle state of one remote media URL. See `db/schema/federation.ts`. */
 export type FederatedMediaCacheState = (typeof FEDERATED_MEDIA_CACHE_STATES)[number];

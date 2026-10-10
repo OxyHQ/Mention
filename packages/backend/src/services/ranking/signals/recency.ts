@@ -43,7 +43,7 @@ export function recencyScore(
 
   // Exponential decay with half-life: value = 0.5 ^ (age / halfLife)
   // This provides smooth decay that accelerates as posts age
-  const decayFactor = Math.pow(0.5, ageHours / halfLife);
+  const decayFactor = 0.5 ** (ageHours / halfLife);
 
   // Ensure minimum value to prevent complete zero for recent posts
   return Math.max(0.05, decayFactor);

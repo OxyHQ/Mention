@@ -6,13 +6,13 @@
  * here in one place rather than by looping `createPost`.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { updatePostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createMentionNotifications } from '../../utils/notificationUtils';
-import { PostVisibility, PostContent, PostContentVariant } from '@mention/shared-types';
+import { PostVisibility, type PostContent, type PostContentVariant } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { postCreationService } from '../../services/PostCreationService';
 import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';

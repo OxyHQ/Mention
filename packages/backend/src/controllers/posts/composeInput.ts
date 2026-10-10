@@ -9,8 +9,8 @@
 
 import { z } from 'zod';
 import {
-  PostAttachmentDescriptor,
-  PostAttachmentType,
+  type PostAttachmentDescriptor,
+  type PostAttachmentType,
   PostVisibility,
 } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';

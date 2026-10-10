@@ -5,7 +5,7 @@
  * Each tuner function is a pure (slices, context) => slices transform.
  */
 
-import { FeedPostSlice } from '@mention/shared-types';
+import type { FeedPostSlice } from '@mention/shared-types';
 import type { MuteWordRule } from '../../services/safety/muteWordMatcher';
 // STATIC, not the `require()` these replaced.
 //

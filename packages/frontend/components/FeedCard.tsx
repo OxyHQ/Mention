@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
+import type React from 'react';
+import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { router } from 'expo-router';

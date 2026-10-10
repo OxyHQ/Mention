@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { trendingService } from '../services/TrendingService';
 import { TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';

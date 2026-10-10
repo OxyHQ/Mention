@@ -1,5 +1,5 @@
 import { resolveAvatarUrl } from '../utils/mediaResolver';
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { User as OxyUser } from '@oxy.so/core';
@@ -742,7 +742,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       ? lt(postsTable.createdAt, new Date(parsed.data.cursor))
       : undefined;
 
-    let posts = await findPostRecords(and(buildActorPostsScopeSql(actor), cursor), {
+    const posts = await findPostRecords(and(buildActorPostsScopeSql(actor), cursor), {
       orderBy: CHRONO_DESC,
       limit: limit + 1,
     });

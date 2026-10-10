@@ -121,15 +121,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTrendEventName(value: unknown): value is TrendEventName {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(TREND_EVENTS, value);
+  return typeof value === 'string' && Object.hasOwn(TREND_EVENTS, value);
 }
 
 function isTrendEventType(value: unknown): value is TrendEventType {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(TREND_TYPES, value);
+  return typeof value === 'string' && Object.hasOwn(TREND_TYPES, value);
 }
 
 function isTrendEventSurface(value: unknown): value is TrendEventSurface {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(TREND_SURFACES, value);
+  return typeof value === 'string' && Object.hasOwn(TREND_SURFACES, value);
 }
 
 export type ParsedTrendEvent = { ok: true; input: TrendEventInput } | { ok: false; error: string };

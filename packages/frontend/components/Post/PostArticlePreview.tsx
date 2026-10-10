@@ -1,5 +1,5 @@
-import React from 'react';
-import { Text, StyleProp, ViewStyle } from 'react-native';
+import type React from 'react';
+import { Text, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { cn } from '@/lib/utils';
 

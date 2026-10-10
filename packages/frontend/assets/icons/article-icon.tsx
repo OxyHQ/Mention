@@ -1,7 +1,7 @@
 import React from 'react';
 import { Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 export const ArticleIcon = ({
   color = 'currentColor',
   size = 26,

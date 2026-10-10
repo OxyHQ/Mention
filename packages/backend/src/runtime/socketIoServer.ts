@@ -2,7 +2,7 @@ import { canParticipateInDeployment } from '@mention/shared-types/deployment';
 import type { AuthenticatedPresenceSocket } from '../services/SocketPresenceLifecycle';
 import type http from 'http';
 import type { OxyMiddleware } from '@oxy.so/core/server';
-import { Namespace, Server as SocketIOServer } from 'socket.io';
+import { type Namespace, Server as SocketIOServer } from 'socket.io';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import { config } from '../config';
 import { isAllowedOrigin } from '../utils/allowedOrigins';

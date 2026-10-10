@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, ScrollView } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';

@@ -1,6 +1,6 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
 import { queryClient } from '@/lib/queryClient';

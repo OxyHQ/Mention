@@ -94,7 +94,7 @@ const notes = [];
  */
 function resolveKey(catalog, key) {
   if (!catalog) return undefined;
-  if (Object.prototype.hasOwnProperty.call(catalog, key)) return catalog[key];
+  if (Object.hasOwn(catalog, key)) return catalog[key];
 
   const tokens = key.split('.');
   let current = catalog;

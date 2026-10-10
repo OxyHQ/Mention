@@ -1,4 +1,5 @@
-import React, { memo, useEffect, useState } from 'react';
+import type React from 'react';
+import { memo, useEffect, useState } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { AppState } from 'react-native';
 import {

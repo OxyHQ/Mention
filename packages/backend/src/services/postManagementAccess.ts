@@ -139,7 +139,7 @@ export async function postManagementRefusal(params: {
   // The one free path, and the only one: the caller IS the account that authored
   // the post. Nothing about it can go stale — it is a comparison between the
   // row's own owner and the authenticated subject of this request.
-  if (Boolean(params.post.oxyUserId) && String(params.post.oxyUserId) === params.callerId) {
+  if (params.post.oxyUserId && String(params.post.oxyUserId) === params.callerId) {
     return null;
   }
 

@@ -44,7 +44,7 @@ function regionFromInstance(instanceDomain: string | undefined): string | undefi
     .replace(/^\.+|\.+$/g, '');
   if (host.length === 0) return undefined;
 
-  if (Object.prototype.hasOwnProperty.call(INSTANCE_REGION_MAP, host)) {
+  if (Object.hasOwn(INSTANCE_REGION_MAP, host)) {
     const mapped = INSTANCE_REGION_MAP[host];
     return mapped.length > 0 ? mapped : undefined;
   }

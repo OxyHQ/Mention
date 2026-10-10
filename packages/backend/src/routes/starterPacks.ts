@@ -1,4 +1,4 @@
-import express, { Response } from 'express';
+import express, { type Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, asc, desc, eq, inArray, ne, notExists, sql, type SQL } from 'drizzle-orm';

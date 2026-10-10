@@ -1,4 +1,5 @@
-import React, { useCallback, useContext } from 'react';
+import type React from 'react';
+import { useCallback, useContext } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';

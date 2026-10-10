@@ -11,7 +11,7 @@
  * Public path prefix: `/mute-words`
  */
 
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/postgres';

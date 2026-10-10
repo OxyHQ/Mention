@@ -69,15 +69,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInterstitialKind(value: unknown): value is FeedInterstitialKind {
-  return (
-    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_KINDS, value)
-  );
+  return typeof value === 'string' && Object.hasOwn(INTERSTITIAL_KINDS, value);
 }
 
 function isInterstitialEventName(value: unknown): value is FeedInterstitialEventName {
-  return (
-    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERSTITIAL_EVENTS, value)
-  );
+  return typeof value === 'string' && Object.hasOwn(INTERSTITIAL_EVENTS, value);
 }
 
 export type ParsedInterstitialEvent =

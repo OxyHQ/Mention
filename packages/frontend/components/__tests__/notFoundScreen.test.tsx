@@ -3,7 +3,7 @@
  * single way out that goes home (replacing the broken entry, so Back does not
  * return to it). `+not-found` and `[username]` both render this.
  */
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockReplace = jest.fn();

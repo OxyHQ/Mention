@@ -12,17 +12,17 @@ import {
   View,
   TextInput,
   StyleSheet,
-  TextInputProps,
+  type TextInputProps,
   Platform,
-  NativeSyntheticEvent,
-  TextInputContentSizeChangeEventData,
-  TextInputKeyPressEventData,
-  TextInputSelectionChangeEventData,
+  type NativeSyntheticEvent,
+  type TextInputContentSizeChangeEventData,
+  type TextInputKeyPressEventData,
+  type TextInputSelectionChangeEventData,
   type StyleProp,
   type TextStyle,
 } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import MentionPicker, { MentionUser } from './MentionPicker';
+import MentionPicker, { type MentionUser } from './MentionPicker';
 import { asTextStyle } from '@/types/webStyles';
 import {
   displayTextToStorageText,

@@ -1,7 +1,7 @@
 import http from 'http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
-import { Server as SocketIOServer } from 'socket.io';
+import type { Server as SocketIOServer } from 'socket.io';
 import {
   createSocketIoServer,
   createSocketNamespaces,

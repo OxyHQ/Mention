@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, type ViewStyle } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { usePresence } from '@/hooks/usePresence';
 

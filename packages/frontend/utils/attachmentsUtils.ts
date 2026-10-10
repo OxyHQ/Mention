@@ -1,5 +1,5 @@
 import type { PostAttachmentDescriptor } from '@mention/shared-types/post';
-import { ComposerMediaItem } from './composeUtils';
+import type { ComposerMediaItem } from './composeUtils';
 
 export const buildAttachmentsPayload = (
   order: string[],

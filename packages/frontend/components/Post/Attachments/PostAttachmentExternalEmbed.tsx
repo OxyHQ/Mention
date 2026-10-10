@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';

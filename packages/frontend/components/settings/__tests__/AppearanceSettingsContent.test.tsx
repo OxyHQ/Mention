@@ -1,5 +1,5 @@
 import type { SettingsPageSection } from '@oxy.so/bloom/settings-modal';
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import AppearanceSettingsContent from '../pages/appearance';
 

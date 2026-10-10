@@ -5,7 +5,7 @@
  * Flow: parse descriptor → resolve FeedAPI → fetch → apply tuner → respond.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import {
   isValidFeedDescriptor,
   MtnConfig,

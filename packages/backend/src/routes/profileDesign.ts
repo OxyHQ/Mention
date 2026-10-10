@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';

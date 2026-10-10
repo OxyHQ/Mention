@@ -5,7 +5,7 @@ import {
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
 } from '@oxy.so/mcp';
 import type { McpHttpConfig } from './config.js';
-import { type AuthenticatedMcpToken } from './http-security.js';
+import type { AuthenticatedMcpToken } from './http-security.js';
 
 type TokenAuthConfig = Pick<McpHttpConfig, 'oxyApiUrl' | 'publicUrl' | 'deploymentIdentity'>;
 

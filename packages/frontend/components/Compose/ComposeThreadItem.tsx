@@ -14,7 +14,7 @@ import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEve
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
-import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';

@@ -3,7 +3,7 @@
  * {@link FeedModuleRegistry} (the shared singleton by default).
  */
 
-import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from '../FeedModuleRegistry';
 import { forYouSourceModules } from './forYouSources';
 import { discoverySourceModules } from './discoverySources';
 import { userSourceModules } from './userSources';

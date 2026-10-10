@@ -33,7 +33,7 @@
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { getDb, type Transaction } from '../postgres';
 import {
-  BLOCKLIST_SOURCE_OUTCOMES,
+  type BLOCKLIST_SOURCE_OUTCOMES,
   blocklistProposalObservations,
   blocklistProposalRuns,
   blocklistProposalRunSources,

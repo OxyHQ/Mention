@@ -1,6 +1,6 @@
 import { API_URL_SOCKET } from '@/config';
 import { PUBLIC_REALTIME_EVENTS, PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types/realtime';
-import { io, Socket } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { createLogger } from '@oxy.so/core/logger';
 

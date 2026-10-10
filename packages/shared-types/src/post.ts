@@ -10,7 +10,7 @@ import type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
 export type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
   'resolution-mode': 'import',
 };
-import { GeoJSONPoint } from './common';
+import type { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 import type { PostJobContent, PostJobInput } from './job';
 

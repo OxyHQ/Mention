@@ -1,4 +1,5 @@
-import React, { createRef } from 'react';
+import type React from 'react';
+import { createRef } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { ZoomableMediaGalleryHandle } from '@oxy.so/bloom/zoomable-media-gallery';
 

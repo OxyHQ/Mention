@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Dimensions, FlatList, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useHeaderDockInset } from '@oxy.so/bloom/layout';

@@ -29,7 +29,7 @@
  * bodies are module-level functions instead.
  */
 
-import { Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { isUniqueViolation } from '@oxy.so/db';

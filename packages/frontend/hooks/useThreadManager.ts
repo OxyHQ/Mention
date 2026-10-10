@@ -5,12 +5,12 @@ import {
   type MentionData,
   type MentionTextValue,
 } from '@/utils/mentions';
-import { ComposerMediaItem } from '@/utils/composeUtils';
-import { Source } from '@/hooks/useSourcesManager';
-import { ArticleData } from '@/hooks/useArticleManager';
-import { EventData } from '@/hooks/useEventManager';
-import { PodcastAttachmentData } from '@/hooks/usePodcastManager';
-import { RoomAttachmentData } from '@/hooks/useRoomManager';
+import type { ComposerMediaItem } from '@/utils/composeUtils';
+import type { Source } from '@/hooks/useSourcesManager';
+import type { ArticleData } from '@/hooks/useArticleManager';
+import type { EventData } from '@/hooks/useEventManager';
+import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+import type { RoomAttachmentData } from '@/hooks/useRoomManager';
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import type { AccountNode } from '@oxy.so/core';
 

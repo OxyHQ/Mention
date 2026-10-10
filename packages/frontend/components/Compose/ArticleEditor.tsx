@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';

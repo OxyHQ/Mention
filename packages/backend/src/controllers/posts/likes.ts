@@ -4,7 +4,7 @@
  * fan-out that a like triggers are wired here.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   userPreferenceService,

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostContent } from '@mention/shared-types';
 

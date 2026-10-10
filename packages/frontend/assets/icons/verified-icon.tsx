@@ -1,7 +1,7 @@
-import React from 'react';
+import type React from 'react';
 import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { View, ViewStyle, StyleProp } from 'react-native';
+import { View, type ViewStyle, type StyleProp } from 'react-native';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 type Props = {
   /**

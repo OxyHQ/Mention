@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { Draft } from '@/hooks/useDrafts';

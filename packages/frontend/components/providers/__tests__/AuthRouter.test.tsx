@@ -16,7 +16,7 @@
  * Satisfying (1) by dropping the guard would break (2); satisfying (2) by
  * returning null breaks (1).
  */
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Slot } from 'expo-router';

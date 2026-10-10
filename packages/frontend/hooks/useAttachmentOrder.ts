@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { moveItem } from '@oxy.so/bloom/hooks';
 import {
-  ComposerMediaItem,
+  type ComposerMediaItem,
   getMediaIdFromAttachmentKey,
   isMediaAttachmentKey,
 } from '@/utils/composeUtils';

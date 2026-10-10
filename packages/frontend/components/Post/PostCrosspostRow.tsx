@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { GestureResponderEvent, Pressable, Text, View } from 'react-native';
+import { type GestureResponderEvent, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@/components/common/Ionicons';
 import type { CrosspostProvenance } from '@mention/shared-types';

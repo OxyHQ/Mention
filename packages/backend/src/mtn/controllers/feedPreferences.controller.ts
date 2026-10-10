@@ -10,7 +10,7 @@
  * always comes from the session (`getRequiredOxyUserId`) — never the body.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import {
   PRESET_FEEDS,
   isValidFeedDescriptor,

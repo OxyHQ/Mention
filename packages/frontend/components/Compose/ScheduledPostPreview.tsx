@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import type React from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';

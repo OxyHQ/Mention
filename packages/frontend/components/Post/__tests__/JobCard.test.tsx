@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import JobCard from '../JobCard';

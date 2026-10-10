@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ViewStyle, Platform } from 'react-native';
+import type React from 'react';
+import { View, Text, type ViewStyle, Platform } from 'react-native';
 import { cn } from '@/lib/utils';
 import PollCard from '../PollCard';
 import { IS_DEVELOPMENT } from '@/config';

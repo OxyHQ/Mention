@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -22,8 +23,8 @@ import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxy.so/bloom/theme';
 import {
   groupNotifications,
-  GroupedNotification,
-  NotificationListItem,
+  type GroupedNotification,
+  type NotificationListItem,
 } from '@/utils/groupNotifications';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import {

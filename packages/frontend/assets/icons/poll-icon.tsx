@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 interface PollIconProps {

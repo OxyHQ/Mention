@@ -9,7 +9,7 @@ import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@oxy.so/core/logger';
-import { type ProfileData } from '@/lib/recommendations';
+import type { ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 

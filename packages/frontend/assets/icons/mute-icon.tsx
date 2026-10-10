@@ -1,7 +1,7 @@
 import React from 'react';
 import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 
 /**
  * Mute a person — a struck-through voice mark, not a speaker: what goes quiet

@@ -1,19 +1,19 @@
 import {
-  FeedPostSlice,
-  FeedSliceItem,
-  HydratedPost,
-  HydratedPostSummary,
-  HydratedBoostContext,
-  HydratedAuthor,
-  PostUser,
-  PostAttachmentBundle,
-  PostEngagementSummary,
-  ClarityDocument,
-  PostPermissions,
-  PostReplyContext,
-  PostViewerState,
+  type FeedPostSlice,
+  type FeedSliceItem,
+  type HydratedPost,
+  type HydratedPostSummary,
+  type HydratedBoostContext,
+  type HydratedAuthor,
+  type PostUser,
+  type PostAttachmentBundle,
+  type PostEngagementSummary,
+  type ClarityDocument,
+  type PostPermissions,
+  type PostReplyContext,
+  type PostViewerState,
   PostVisibility,
-  PostAuthorshipEntry,
+  type PostAuthorshipEntry,
 } from '@mention/shared-types';
 import type { CrosspostProvenance, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import {
@@ -49,9 +49,9 @@ import {
   getRestrictedUserIds,
   getFollowingIds,
   getFollowerIds,
-  OxyClient,
-  ViewerGraphContext,
-  ViewerPrivacyContext,
+  type OxyClient,
+  type ViewerGraphContext,
+  type ViewerPrivacyContext,
 } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -65,7 +65,7 @@ import { assignThreadState } from './ThreadSlicingService';
 import {
   mget as mgetUserSummaries,
   mset as msetUserSummaries,
-  CachedUserSummary,
+  type CachedUserSummary,
 } from './userSummaryCache';
 import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';
 import {
@@ -92,7 +92,7 @@ import {
 } from '../db/posts/postLinkPreviewRepository';
 import { linkPreviewKey } from '../connectors/activitypub/apLinkPreview';
 
-import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
+import type { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
 /**
  * A federated post's own card for `url`, in the shape the app renders. Marked as

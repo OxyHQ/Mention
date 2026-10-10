@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { TextInput } from 'react-native';
+import type { TextInput } from 'react-native';
 
 export const usePollManager = () => {
   const [showPollCreator, setShowPollCreator] = useState(false);

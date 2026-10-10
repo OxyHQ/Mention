@@ -3,7 +3,7 @@
  * list, and moving a bookmark between folders.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, eq, exists, ilike, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { bookmarks as bookmarksTable } from '../../db/schema/engagement';

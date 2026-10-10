@@ -1,4 +1,5 @@
-import React, { cloneElement, isValidElement, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { cloneElement, isValidElement, useCallback, useMemo } from 'react';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';

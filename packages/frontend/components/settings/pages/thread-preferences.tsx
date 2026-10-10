@@ -1,4 +1,4 @@
-import { type BloomIcon } from '@/components/settings/RowIcon';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
 import { useThreadPreferencesStore, type VoteStyle } from '@/hooks/useThreadPreferences';
 import { Button } from '@oxy.so/bloom/button';

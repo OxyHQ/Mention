@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
-import React, { useCallback } from 'react';
+import type React from 'react';
+import { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { cn } from '@/lib/utils';
 import { router } from 'expo-router';

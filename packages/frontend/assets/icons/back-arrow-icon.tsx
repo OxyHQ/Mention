@@ -1,7 +1,7 @@
 import React from 'react';
 import { Path, G } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 export const BackArrowIcon = ({
   color = 'currentColor',
   size = 24,

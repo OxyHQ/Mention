@@ -4,15 +4,16 @@
  * Memoized to prevent unnecessary re-renders
  */
 
-import React, { memo, useCallback, useMemo } from 'react';
-import { QueryClient } from '@tanstack/react-query';
+import type React from 'react';
+import { memo, useCallback, useMemo } from 'react';
+import type { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxy.so/services/ui/client';
-import { OxyServices } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';

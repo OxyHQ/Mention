@@ -26,7 +26,7 @@ import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { logger } from '@oxy.so/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
-import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
+import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getErrorMessage } from '@/utils/apiError';
 import { getNormalizedUserHandle } from '@oxy.so/core';
