@@ -130,9 +130,7 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
   });
 
   it('never classifies one column both ways', () => {
-    const both = declared.filter(
-      (key) => cascadeKeys.has(key) && NOT_A_CHANNEL_REFERENCE.has(key),
-    );
+    const both = declared.filter((key) => cascadeKeys.has(key) && NOT_A_CHANNEL_REFERENCE.has(key));
 
     expect(
       both,
@@ -200,7 +198,7 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     expect(
       unexplained,
       `These cascade steps have no real justification:\n  ${unexplained.join('\n  ')}\n` +
-        'Deleting a row and scrubbing an entry are different decisions about somebody else\'s data. ' +
+        "Deleting a row and scrubbing an entry are different decisions about somebody else's data. " +
         'The reason is what lets the next person tell a deliberate choice from a copy-paste.',
     ).toEqual([]);
   });
@@ -236,7 +234,7 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     );
     expect(
       quoteStep?.action,
-      'A quote of a destroyed post keeps its author\'s words. `posts.quote_of` is ON DELETE SET NULL, so ' +
+      "A quote of a destroyed post keeps its author's words. `posts.quote_of` is ON DELETE SET NULL, so " +
         'the pointer is cleared by the database and the cascade must not add a leg for it.',
     ).toBe('database');
     expect(quoteStep?.why).toMatch(/SET NULL/);
@@ -265,10 +263,9 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     );
 
     expect(writerStep, 'writtenByOxyUserId must be classified, not ignored').toBeDefined();
-    expect(
-      writerStep?.action,
-      'The post is destroyed, never handed to its writer.',
-    ).toBe('delete-row');
+    expect(writerStep?.action, 'The post is destroyed, never handed to its writer.').toBe(
+      'delete-row',
+    );
   });
 
   it('states a mechanism for every step the database performs', () => {

@@ -60,7 +60,7 @@ export default function StarterPackDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const p = await starterPacksService.get(String(id)) as StarterPackDetail;
+      const p = (await starterPacksService.get(String(id))) as StarterPackDetail;
       setPack(p);
       // Members arrive already hydrated (identity + fully-resolved avatar URL)
       // from the backend, which owns the service credential for the bulk user
@@ -128,14 +128,23 @@ export default function StarterPackDetailScreen() {
       {/* Hero section with grouped member avatars */}
       <View className="items-center px-6 pt-6 pb-4 gap-4">
         {avatarItems.length > 0 ? (
-          <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} variant={MEDIA_VARIANT_AVATAR_LG} />
+          <AvatarGroup
+            items={avatarItems}
+            size={56}
+            max={8}
+            total={members.length}
+            variant={MEDIA_VARIANT_AVATAR_LG}
+          />
         ) : (
           <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
             <StarterPackIcon size={32} color={theme.colors.primary} />
           </View>
         )}
 
-        <Text className="text-[22px] leading-6 font-bold text-center text-foreground" numberOfLines={2}>
+        <Text
+          className="text-[22px] leading-6 font-bold text-center text-foreground"
+          numberOfLines={2}
+        >
           {pack.name}
         </Text>
 
@@ -210,7 +219,12 @@ export default function StarterPackDetailScreen() {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             isOwner ? (
-              <Button  onPress={handleEdit} accessibilityLabel="Edit starter pack" tone="accent" appearance="plain">
+              <Button
+                onPress={handleEdit}
+                accessibilityLabel="Edit starter pack"
+                tone="accent"
+                appearance="plain"
+              >
                 Edit
               </Button>
             ) : undefined

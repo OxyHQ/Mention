@@ -98,9 +98,9 @@ describe('[username] layout', () => {
   it.each(PROFILE_PATHNAMES)('renders the segment navigator at %s', (pathname) => {
     const renderer = renderLayout(pathname, pathname.split('/')[1]);
 
-    expect(
-      renderer.root.findAllByType('MockSlot' as unknown as React.ComponentType),
-    ).toHaveLength(1);
+    expect(renderer.root.findAllByType('MockSlot' as unknown as React.ComponentType)).toHaveLength(
+      1,
+    );
     // Nothing but the navigator: a screen rendered here instead of behind the
     // navigator is the shape that broke, whichever screen it is.
     expect(

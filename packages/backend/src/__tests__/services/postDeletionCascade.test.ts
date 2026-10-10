@@ -71,7 +71,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: mocks.listAccountMembers } } })),
+  createUserScopedOxyServices: vi.fn(() => ({
+    accounts: { members: { list: mocks.listAccountMembers } },
+  })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
@@ -102,8 +104,11 @@ vi.mock('../../connectors/outboundFederation', async (importOriginal) => ({
  * reads as if it covered them.
  */
 vi.mock('../../db/federation/deliveryQueueRepository', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../db/federation/deliveryQueueRepository')>();
-  mocks.deletePendingDeliveries.mockImplementation(actual.deletePendingDeliveriesReferencingObjects);
+  const actual =
+    await importOriginal<typeof import('../../db/federation/deliveryQueueRepository')>();
+  mocks.deletePendingDeliveries.mockImplementation(
+    actual.deletePendingDeliveriesReferencingObjects,
+  );
   return { ...actual, deletePendingDeliveriesReferencingObjects: mocks.deletePendingDeliveries };
 });
 
@@ -156,8 +161,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }
@@ -191,7 +202,10 @@ async function notifyAbout(
 }
 
 async function notificationExists(id: string): Promise<boolean> {
-  const rows = await db.select({ id: notifications.id }).from(notifications).where(eq(notifications.id, id));
+  const rows = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(eq(notifications.id, id));
   return rows.length > 0;
 }
 
@@ -204,7 +218,10 @@ async function seedInteraction(postUri: string): Promise<string> {
 }
 
 async function interactionExists(id: string): Promise<boolean> {
-  const rows = await db.select({ id: feedInteractions.id }).from(feedInteractions).where(eq(feedInteractions.id, id));
+  const rows = await db
+    .select({ id: feedInteractions.id })
+    .from(feedInteractions)
+    .where(eq(feedInteractions.id, id));
   return rows.length > 0;
 }
 
@@ -456,8 +473,16 @@ describe('the subtree the transaction owns', () => {
     // A boost of a boost cascades from the boost, so the same argument applies
     // one level down and the capture has to be transitive.
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
-    const boost = await seedPost(scope, { oxyUserId: BOOSTER, type: PostType.BOOST, boostOf: post.id });
-    const nested = await seedPost(scope, { oxyUserId: STRANGER, type: PostType.BOOST, boostOf: boost.id });
+    const boost = await seedPost(scope, {
+      oxyUserId: BOOSTER,
+      type: PostType.BOOST,
+      boostOf: post.id,
+    });
+    const nested = await seedPost(scope, {
+      oxyUserId: STRANGER,
+      type: PostType.BOOST,
+      boostOf: boost.id,
+    });
     const onNested = await notifyAbout(nested.id);
 
     await runDelete(post.id, AUTHOR);

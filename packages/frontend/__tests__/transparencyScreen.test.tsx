@@ -25,7 +25,13 @@ import TransparencyScreen from '@/app/(app)/transparency';
 
 // ── Module boundaries ───────────────────────────────────────────────────────
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 
 const messages: { [key: string]: MessageNode } = enMessages;
 
@@ -48,8 +54,7 @@ function lookup(key: string): string | undefined {
  */
 function mockTranslate(key: string, vars?: Record<string, string | number>): string {
   const count = typeof vars?.count === 'number' ? vars.count : undefined;
-  const candidates =
-    count === undefined ? [key] : [`${key}_${count === 1 ? 'one' : 'other'}`, key];
+  const candidates = count === undefined ? [key] : [`${key}_${count === 1 ? 'one' : 'other'}`, key];
   const template = candidates.map(lookup).find((value) => value !== undefined);
   if (template === undefined) return key;
   if (!vars) return template;

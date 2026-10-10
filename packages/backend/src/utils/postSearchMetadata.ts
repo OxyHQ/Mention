@@ -22,7 +22,6 @@ export function postTextHasHttpLink(
   variants: readonly TextVariantLike[] | null | undefined,
 ): boolean {
   return (variants ?? []).some(
-    (variant) =>
-      typeof variant?.text === 'string' && HTTP_LINK_PATTERN.test(variant.text),
+    (variant) => typeof variant?.text === 'string' && HTTP_LINK_PATTERN.test(variant.text),
   );
 }

@@ -42,19 +42,25 @@ export default function CreateStarterPackScreen() {
     };
   }, []);
 
-  const doSearch = useCallback((q: string) => {
-    setSearch(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!q.trim()) { setResults([]); return; }
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
-        setResults(data);
-      } catch (e) {
-        logger.warn('searchProfiles failed', { error: e });
+  const doSearch = useCallback(
+    (q: string) => {
+      setSearch(q);
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      if (!q.trim()) {
+        setResults([]);
+        return;
       }
-    }, 300);
-  }, [oxyServices]);
+      searchTimer.current = setTimeout(async () => {
+        try {
+          const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
+          setResults(data);
+        } catch (e) {
+          logger.warn('searchProfiles failed', { error: e });
+        }
+      }, 300);
+    },
+    [oxyServices],
+  );
 
   const addMember = (u: MinimalUser) => {
     if (members.find((m) => m.id === u.id)) return;
@@ -80,7 +86,9 @@ export default function CreateStarterPackScreen() {
       router.replace('/starter-packs');
     } catch (e) {
       logger.error('Create starter pack failed', e);
-      toast.error(t('starterPacks.createFailed', { defaultValue: 'Could not create the starter pack' }));
+      toast.error(
+        t('starterPacks.createFailed', { defaultValue: 'Could not create the starter pack' }),
+      );
     } finally {
       setSaving(false);
     }
@@ -134,8 +142,13 @@ export default function CreateStarterPackScreen() {
               {results.map((u, index) => (
                 <React.Fragment key={u.id}>
                   {index > 0 && <Divider />}
-                  <TouchableOpacity className="flex-row items-center justify-between px-3 py-2.5" onPress={() => addMember(u)}>
-                    <Text className="text-foreground font-primary">@{u.username} · {u.name.displayName}</Text>
+                  <TouchableOpacity
+                    className="flex-row items-center justify-between px-3 py-2.5"
+                    onPress={() => addMember(u)}
+                  >
+                    <Text className="text-foreground font-primary">
+                      @{u.username} · {u.name.displayName}
+                    </Text>
                     <Text className="text-primary font-semibold font-primary">Add</Text>
                   </TouchableOpacity>
                 </React.Fragment>
@@ -161,11 +174,13 @@ export default function CreateStarterPackScreen() {
             disabled={saving || !name.trim()}
             onPress={onCreate}
             className={cn(
-              "mt-5 py-3 rounded-[10px] items-center bg-primary",
-              !name.trim() && "opacity-60"
+              'mt-5 py-3 rounded-[10px] items-center bg-primary',
+              !name.trim() && 'opacity-60',
             )}
           >
-            <Text className="text-primary-foreground font-bold font-primary">{saving ? 'Creating...' : 'Create Starter Pack'}</Text>
+            <Text className="text-primary-foreground font-bold font-primary">
+              {saving ? 'Creating...' : 'Create Starter Pack'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </SignInRequired>

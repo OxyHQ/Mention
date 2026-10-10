@@ -22,7 +22,11 @@ interface DismissButtonProps {
  * a pressable card, and only RN's responder system lets the inner control win
  * the press. A real DOM button would bubble its click and navigate away.
  */
-export function DismissButton({ onPress, accessibilityLabel, overlay = false }: DismissButtonProps) {
+export function DismissButton({
+  onPress,
+  accessibilityLabel,
+  overlay = false,
+}: DismissButtonProps) {
   const { t } = useTranslation();
 
   return (
@@ -36,7 +40,8 @@ export function DismissButton({ onPress, accessibilityLabel, overlay = false }: 
       className={cn(
         'h-6 w-6 items-center justify-center rounded-full',
         overlay && 'absolute right-2 top-2 z-10 bg-background/80',
-      )}>
+      )}
+    >
       <CloseIcon size={14} className="text-muted-foreground" />
     </TouchableOpacity>
   );

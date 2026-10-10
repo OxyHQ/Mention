@@ -30,7 +30,10 @@ describe('useAppLanguage', () => {
     expect(seen.at(-1)).toBeUndefined();
 
     await act(async () => {
-      await i18n.init({ lng: 'es', resources: { es: { translation: {} }, de: { translation: {} } } });
+      await i18n.init({
+        lng: 'es',
+        resources: { es: { translation: {} }, de: { translation: {} } },
+      });
     });
     expect(seen.at(-1)).toBe('es');
 

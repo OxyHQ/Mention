@@ -21,18 +21,18 @@ export type MuteWordActorTarget = 'all' | 'exclude-following';
  * `#` stripped and the value lowercased.
  */
 export interface SerializedMuteWord {
-    id: string;
-    value: string;
-    targets: MuteWordTarget[];
-    actorTarget: MuteWordActorTarget;
-    createdAt: string;
+  id: string;
+  value: string;
+  targets: MuteWordTarget[];
+  actorTarget: MuteWordActorTarget;
+  createdAt: string;
 }
 
 /** Body accepted by `POST /mute-words`. */
 interface CreateMuteWordBody {
-    value: string;
-    targets?: MuteWordTarget[];
-    actorTarget?: MuteWordActorTarget;
+  value: string;
+  targets?: MuteWordTarget[];
+  actorTarget?: MuteWordActorTarget;
 }
 
 const MUTE_WORDS_PATH = '/mute-words';
@@ -43,47 +43,47 @@ const MUTE_WORDS_PATH = '/mute-words';
  * leading `#`; everything else is a word/phrase rendered as-is.
  */
 export function isHashtagMuteWord(word: Pick<SerializedMuteWord, 'targets'>): boolean {
-    return word.targets.length === 1 && word.targets[0] === 'tag';
+  return word.targets.length === 1 && word.targets[0] === 'tag';
 }
 
 /**
  * The display label for a muted word: `#value` for hashtags, `value` for words.
  */
 export function muteWordDisplayValue(word: SerializedMuteWord): string {
-    return isHashtagMuteWord(word) ? `#${word.value}` : word.value;
+  return isHashtagMuteWord(word) ? `#${word.value}` : word.value;
 }
 
 export const muteWordsService = {
-    /** Fetch all muted words for the current user, newest first. */
-    async list(): Promise<SerializedMuteWord[]> {
-        // The linked client unwraps the backend `{ data }` envelope, so
-        // `response.data` is the array directly.
-        const response = await authenticatedClient.get<SerializedMuteWord[]>(MUTE_WORDS_PATH);
-        return response.data ?? [];
-    },
+  /** Fetch all muted words for the current user, newest first. */
+  async list(): Promise<SerializedMuteWord[]> {
+    // The linked client unwraps the backend `{ data }` envelope, so
+    // `response.data` is the array directly.
+    const response = await authenticatedClient.get<SerializedMuteWord[]>(MUTE_WORDS_PATH);
+    return response.data ?? [];
+  },
 
-    /**
-     * Create a muted word. A raw input starting with `#` is sent as a tag-only
-     * entry (`targets: ['tag']`) so the backend stores a clean hashtag that
-     * round-trips for display; a plain word is sent without `targets` so the
-     * backend applies its default (`['content', 'tag']`). Idempotent server-side:
-     * an existing entry returns 200 with the existing record.
-     */
-    async create(rawInput: string): Promise<SerializedMuteWord> {
-        const value = rawInput.trim();
-        const isHashtag = value.startsWith('#');
-        const body: CreateMuteWordBody = isHashtag ? { value, targets: ['tag'] } : { value };
+  /**
+   * Create a muted word. A raw input starting with `#` is sent as a tag-only
+   * entry (`targets: ['tag']`) so the backend stores a clean hashtag that
+   * round-trips for display; a plain word is sent without `targets` so the
+   * backend applies its default (`['content', 'tag']`). Idempotent server-side:
+   * an existing entry returns 200 with the existing record.
+   */
+  async create(rawInput: string): Promise<SerializedMuteWord> {
+    const value = rawInput.trim();
+    const isHashtag = value.startsWith('#');
+    const body: CreateMuteWordBody = isHashtag ? { value, targets: ['tag'] } : { value };
 
-        logger.debug('Creating mute word', { isHashtag });
-        // The linked client unwraps the backend `{ data }` envelope, so
-        // `response.data` is the serialized record directly.
-        const response = await authenticatedClient.post<SerializedMuteWord>(MUTE_WORDS_PATH, body);
-        return response.data;
-    },
+    logger.debug('Creating mute word', { isHashtag });
+    // The linked client unwraps the backend `{ data }` envelope, so
+    // `response.data` is the serialized record directly.
+    const response = await authenticatedClient.post<SerializedMuteWord>(MUTE_WORDS_PATH, body);
+    return response.data;
+  },
 
-    /** Remove a muted word by id. */
-    async remove(id: string): Promise<void> {
-        logger.debug('Removing mute word', { id });
-        await authenticatedClient.delete<{ success: true }>(`${MUTE_WORDS_PATH}/${id}`);
-    },
+  /** Remove a muted word by id. */
+  async remove(id: string): Promise<void> {
+    logger.debug('Removing mute word', { id });
+    await authenticatedClient.delete<{ success: true }>(`${MUTE_WORDS_PATH}/${id}`);
+  },
 };

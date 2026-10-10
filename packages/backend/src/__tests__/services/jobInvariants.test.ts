@@ -103,33 +103,27 @@ afterAll(async () => {
 
 describe('a dead Clarity client never blocks an employer write', () => {
   it('POST /jobs (draft) succeeds although Clarity is unreachable', async () => {
-    const res = await request(app)
-      .post('/jobs')
-      .set('x-test-user', OPERATOR_ID)
-      .send({
-        employerOxyUserId: EMPLOYER_ID,
-        title: 'Widget Engineer',
-        description: 'Build widgets.',
-        applicationMode: 'external',
-        externalApplyUrl: 'https://example.com/apply',
-      });
+    const res = await request(app).post('/jobs').set('x-test-user', OPERATOR_ID).send({
+      employerOxyUserId: EMPLOYER_ID,
+      title: 'Widget Engineer',
+      description: 'Build widgets.',
+      applicationMode: 'external',
+      externalApplyUrl: 'https://example.com/apply',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.job.status).toBe('draft');
   });
 
   it('POST /jobs (publish: true) still succeeds and returns 201, not a 500 or 502, although the background Clarity sync will fail', async () => {
-    const res = await request(app)
-      .post('/jobs')
-      .set('x-test-user', OPERATOR_ID)
-      .send({
-        employerOxyUserId: EMPLOYER_ID,
-        title: 'Widget Engineer II',
-        description: 'Build more widgets.',
-        applicationMode: 'external',
-        externalApplyUrl: 'https://example.com/apply',
-        publish: true,
-      });
+    const res = await request(app).post('/jobs').set('x-test-user', OPERATOR_ID).send({
+      employerOxyUserId: EMPLOYER_ID,
+      title: 'Widget Engineer II',
+      description: 'Build more widgets.',
+      applicationMode: 'external',
+      externalApplyUrl: 'https://example.com/apply',
+      publish: true,
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.job.status).toBe('published');
@@ -143,16 +137,13 @@ describe('a dead Clarity client never blocks an employer write', () => {
   });
 
   it('POST /jobs/:id/publish succeeds although Clarity is unreachable', async () => {
-    const created = await request(app)
-      .post('/jobs')
-      .set('x-test-user', OPERATOR_ID)
-      .send({
-        employerOxyUserId: EMPLOYER_ID,
-        title: 'Widget Engineer III',
-        description: 'Build widgets, a third time.',
-        applicationMode: 'external',
-        externalApplyUrl: 'https://example.com/apply',
-      });
+    const created = await request(app).post('/jobs').set('x-test-user', OPERATOR_ID).send({
+      employerOxyUserId: EMPLOYER_ID,
+      title: 'Widget Engineer III',
+      description: 'Build widgets, a third time.',
+      applicationMode: 'external',
+      externalApplyUrl: 'https://example.com/apply',
+    });
 
     const publishRes = await request(app)
       .post(`/jobs/${created.body.job.id}/publish`)

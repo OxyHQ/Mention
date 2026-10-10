@@ -15,13 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  */
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  clearPostScope,
-  postScope,
-  readPostRow,
-  seedLane,
-  track,
-} from '../helpers/postFixtures';
+import { clearPostScope, postScope, readPostRow, seedLane, track } from '../helpers/postFixtures';
 
 vi.mock('../../services/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
@@ -135,7 +129,7 @@ describe('PostCreationService.create — laneId', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
-  it('scopes the ownership lookup to the author, so a CHANNEL account\'s lane is a 404', async () => {
+  it("scopes the ownership lookup to the author, so a CHANNEL account's lane is a 404", async () => {
     // A channel is an Oxy account and authors its own posts, so its lanes are
     // scoped by the same single `ownerId` comparison — and a post this person
     // authored is measured against THEIR lanes, never the channel's. Publishing

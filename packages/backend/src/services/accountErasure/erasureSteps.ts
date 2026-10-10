@@ -23,7 +23,12 @@ import { getDb } from '../../db/postgres';
 import { articles } from '../../db/schema/articles';
 import { blocklistProposals } from '../../db/schema/blocklist';
 import { laneMutes, lanes } from '../../db/schema/channels';
-import { authorFollowerSnapshots, notifications, pushTokens, trending } from '../../db/schema/discovery';
+import {
+  authorFollowerSnapshots,
+  notifications,
+  pushTokens,
+  trending,
+} from '../../db/schema/discovery';
 import {
   bookmarkFolders,
   bookmarks,
@@ -100,7 +105,6 @@ export interface ErasureStep {
   /** The live write. Returns rows affected. */
   readonly apply: (ctx: ErasureContext) => Promise<number>;
 }
-
 
 async function countRows(table: PgTable, where: SQL): Promise<number> {
   const [row] = await getDb().select({ n: count() }).from(table).where(where);
@@ -180,7 +184,8 @@ function replaceAccount(
   value: string | null,
   extra?: (ctx: ErasureContext) => SQL | undefined,
 ): ErasureStep {
-  const where = (ctx: ErasureContext): SQL => and(eq(column, ctx.oxyUserId), extra?.(ctx)) ?? eq(column, ctx.oxyUserId);
+  const where = (ctx: ErasureContext): SQL =>
+    and(eq(column, ctx.oxyUserId), extra?.(ctx)) ?? eq(column, ctx.oxyUserId);
   return {
     phase: 'account',
     count: (ctx) => countRows(table, where(ctx)),
@@ -282,7 +287,12 @@ async function eraseRecentRepliers(oxyUserId: string): Promise<number> {
     if (rows.length === 0) return total;
     const postIds = [...new Set(rows.map((row) => row.postId))];
     await db.transaction(async (tx) => {
-      await tx.delete(postRecentRepliers).where(inArray(postRecentRepliers.id, rows.map((row) => row.id)));
+      await tx.delete(postRecentRepliers).where(
+        inArray(
+          postRecentRepliers.id,
+          rows.map((row) => row.id),
+        ),
+      );
       for (const postId of postIds) await recomputeRecentRepliers(postId, tx);
     });
     total += rows.length;
@@ -296,7 +306,10 @@ async function eraseRecentRepliers(oxyUserId: string): Promise<number> {
  */
 async function eraseFiledReports(oxyUserId: string): Promise<number> {
   const db = getDb();
-  const undelivered = and(eq(reports.reporter, oxyUserId), sql`${reports.crowdSourceReportId} is null`);
+  const undelivered = and(
+    eq(reports.reporter, oxyUserId),
+    sql`${reports.crowdSourceReportId} is null`,
+  );
   const deleted = undelivered ? await deleteInBatches(reports, reports.id, undelivered) : 0;
   const anonymised = await db
     .update(reports)
@@ -321,7 +334,8 @@ async function eraseLabelers(oxyUserId: string): Promise<number> {
   const removed = await deleteInBatches(
     labelers,
     labelers.id,
-    and(eq(labelers.creatorId, oxyUserId), eq(labelers.isOfficial, false)) ?? eq(labelers.creatorId, oxyUserId),
+    and(eq(labelers.creatorId, oxyUserId), eq(labelers.isOfficial, false)) ??
+      eq(labelers.creatorId, oxyUserId),
   );
   return official.length + removed;
 }
@@ -381,7 +395,10 @@ function drainablePredicate(ctx: ErasureContext): SQL {
 
 /** Rows not owned by the account whose column names it. */
 function notOwnPost(ctx: ErasureContext): SQL {
-  return or(sql`${posts.oxyUserId} is null`, ne(posts.oxyUserId, ctx.oxyUserId)) ?? ne(posts.oxyUserId, ctx.oxyUserId);
+  return (
+    or(sql`${posts.oxyUserId} is null`, ne(posts.oxyUserId, ctx.oxyUserId)) ??
+    ne(posts.oxyUserId, ctx.oxyUserId)
+  );
 }
 
 /**
@@ -402,8 +419,19 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   ),
 
   // --- posts-adjacent, after the walk ------------------------------------------
-  'post_authorships.oxyUserId': deleteRows('account', postAuthorships, postAuthorships.id, accountIs(postAuthorships.oxyUserId)),
-  'posts.writtenByOxyUserId': replaceAccount(posts, posts.writtenByOxyUserId, posts.id, null, notOwnPost),
+  'post_authorships.oxyUserId': deleteRows(
+    'account',
+    postAuthorships,
+    postAuthorships.id,
+    accountIs(postAuthorships.oxyUserId),
+  ),
+  'posts.writtenByOxyUserId': replaceAccount(
+    posts,
+    posts.writtenByOxyUserId,
+    posts.id,
+    null,
+    notOwnPost,
+  ),
   'posts.contentRoomHost': replaceAccount(posts, posts.contentRoomHost, posts.id, null, notOwnPost),
   'post_corrections.correctedByOxyUserId': replaceAccount(
     postCorrections,
@@ -411,14 +439,44 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     postCorrections.id,
     ERASED_ACCOUNT_SENTINEL,
   ),
-  'post_imports.oxyUserId': deleteRows('account', postImports, postImports.postId, accountIs(postImports.oxyUserId)),
-  'post_mentions.oxyUserId': deleteRows('account', postMentions, postMentions.id, accountIs(postMentions.oxyUserId)),
-  'post_subscriptions.subscriberId': deleteRows('account', postSubscriptions, postSubscriptions.id, accountIs(postSubscriptions.subscriberId)),
-  'post_subscriptions.authorId': deleteRows('account', postSubscriptions, postSubscriptions.id, accountIs(postSubscriptions.authorId)),
+  'post_imports.oxyUserId': deleteRows(
+    'account',
+    postImports,
+    postImports.postId,
+    accountIs(postImports.oxyUserId),
+  ),
+  'post_mentions.oxyUserId': deleteRows(
+    'account',
+    postMentions,
+    postMentions.id,
+    accountIs(postMentions.oxyUserId),
+  ),
+  'post_subscriptions.subscriberId': deleteRows(
+    'account',
+    postSubscriptions,
+    postSubscriptions.id,
+    accountIs(postSubscriptions.subscriberId),
+  ),
+  'post_subscriptions.authorId': deleteRows(
+    'account',
+    postSubscriptions,
+    postSubscriptions.id,
+    accountIs(postSubscriptions.authorId),
+  ),
   'polls.createdBy': deleteRows('account', polls, polls.id, accountIs(polls.createdBy)),
   'articles.createdBy': deleteRows('account', articles, articles.id, accountIs(articles.createdBy)),
-  'postgates.createdBy': deleteRows('account', postgates, postgates.id, accountIs(postgates.createdBy)),
-  'threadgates.createdBy': deleteRows('account', threadgates, threadgates.id, accountIs(threadgates.createdBy)),
+  'postgates.createdBy': deleteRows(
+    'account',
+    postgates,
+    postgates.id,
+    accountIs(postgates.createdBy),
+  ),
+  'threadgates.createdBy': deleteRows(
+    'account',
+    threadgates,
+    threadgates.id,
+    accountIs(threadgates.createdBy),
+  ),
 
   // --- engagement -------------------------------------------------------------
   'likes.userId': {
@@ -431,8 +489,18 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     count: (ctx) => countRows(bookmarks, eq(bookmarks.userId, ctx.oxyUserId)),
     apply: (ctx) => untilShort(() => eraseBookmarksBatch(ctx.oxyUserId)),
   },
-  'poll_votes.userId': deleteRows('engagement', pollVotes, pollVotes.id, accountIs(pollVotes.userId)),
-  'feed_interactions.userId': deleteRows('engagement', feedInteractions, feedInteractions.id, accountIs(feedInteractions.userId)),
+  'poll_votes.userId': deleteRows(
+    'engagement',
+    pollVotes,
+    pollVotes.id,
+    accountIs(pollVotes.userId),
+  ),
+  'feed_interactions.userId': deleteRows(
+    'engagement',
+    feedInteractions,
+    feedInteractions.id,
+    accountIs(feedInteractions.userId),
+  ),
   'post_recent_repliers.oxyUserId': {
     phase: 'engagement',
     count: (ctx) => countRows(postRecentRepliers, eq(postRecentRepliers.oxyUserId, ctx.oxyUserId)),
@@ -440,45 +508,153 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   },
 
   // --- account ----------------------------------------------------------------
-  'user_settings.oxyUserId': deleteRows('account', userSettings, userSettings.id, accountIs(userSettings.oxyUserId)),
-  'user_settings.privacyRestrictedUsers': pullFromArray(userSettings, userSettings.privacyRestrictedUsers, userSettings.id),
-  'user_feed_preferences.oxyUserId': deleteRows('account', userFeedPreferences, userFeedPreferences.id, accountIs(userFeedPreferences.oxyUserId)),
-  'user_behaviors.oxyUserId': deleteRows('account', userBehaviors, userBehaviors.id, accountIs(userBehaviors.oxyUserId)),
-  'user_behavior_authors.authorId': deleteRows('account', userBehaviorAuthors, userBehaviorAuthors.id, accountIs(userBehaviorAuthors.authorId)),
-  'user_behaviors.hiddenAuthors': pullFromArray(userBehaviors, userBehaviors.hiddenAuthors, userBehaviors.id),
-  'user_behaviors.mutedAuthors': pullFromArray(userBehaviors, userBehaviors.mutedAuthors, userBehaviors.id),
-  'user_behaviors.blockedAuthors': pullFromArray(userBehaviors, userBehaviors.blockedAuthors, userBehaviors.id),
-  'author_follower_snapshots.oxyUserId': deleteRows('account', authorFollowerSnapshots, authorFollowerSnapshots.id, accountIs(authorFollowerSnapshots.oxyUserId)),
+  'user_settings.oxyUserId': deleteRows(
+    'account',
+    userSettings,
+    userSettings.id,
+    accountIs(userSettings.oxyUserId),
+  ),
+  'user_settings.privacyRestrictedUsers': pullFromArray(
+    userSettings,
+    userSettings.privacyRestrictedUsers,
+    userSettings.id,
+  ),
+  'user_feed_preferences.oxyUserId': deleteRows(
+    'account',
+    userFeedPreferences,
+    userFeedPreferences.id,
+    accountIs(userFeedPreferences.oxyUserId),
+  ),
+  'user_behaviors.oxyUserId': deleteRows(
+    'account',
+    userBehaviors,
+    userBehaviors.id,
+    accountIs(userBehaviors.oxyUserId),
+  ),
+  'user_behavior_authors.authorId': deleteRows(
+    'account',
+    userBehaviorAuthors,
+    userBehaviorAuthors.id,
+    accountIs(userBehaviorAuthors.authorId),
+  ),
+  'user_behaviors.hiddenAuthors': pullFromArray(
+    userBehaviors,
+    userBehaviors.hiddenAuthors,
+    userBehaviors.id,
+  ),
+  'user_behaviors.mutedAuthors': pullFromArray(
+    userBehaviors,
+    userBehaviors.mutedAuthors,
+    userBehaviors.id,
+  ),
+  'user_behaviors.blockedAuthors': pullFromArray(
+    userBehaviors,
+    userBehaviors.blockedAuthors,
+    userBehaviors.id,
+  ),
+  'author_follower_snapshots.oxyUserId': deleteRows(
+    'account',
+    authorFollowerSnapshots,
+    authorFollowerSnapshots.id,
+    accountIs(authorFollowerSnapshots.oxyUserId),
+  ),
   'mutes.userId': deleteRows('account', mutes, mutes.id, accountIs(mutes.userId)),
   'mutes.mutedId': deleteRows('account', mutes, mutes.id, accountIs(mutes.mutedId)),
   'mute_words.userId': deleteRows('account', muteWords, muteWords.id, accountIs(muteWords.userId)),
-  'bookmark_folders.userId': deleteRows('account', bookmarkFolders, bookmarkFolders.id, accountIs(bookmarkFolders.userId)),
+  'bookmark_folders.userId': deleteRows(
+    'account',
+    bookmarkFolders,
+    bookmarkFolders.id,
+    accountIs(bookmarkFolders.userId),
+  ),
   'pokes.pokerId': deleteRows('account', pokes, pokes.id, accountIs(pokes.pokerId)),
   'pokes.pokedId': deleteRows('account', pokes, pokes.id, accountIs(pokes.pokedId)),
-  'entity_follows.userId': deleteRows('account', entityFollows, entityFollows.id, accountIs(entityFollows.userId)),
-  'notifications.recipientId': deleteRows('account', notifications, notifications.id, accountIs(notifications.recipientId)),
-  'notifications.actorId': deleteRows('account', notifications, notifications.id, accountIs(notifications.actorId)),
+  'entity_follows.userId': deleteRows(
+    'account',
+    entityFollows,
+    entityFollows.id,
+    accountIs(entityFollows.userId),
+  ),
+  'notifications.recipientId': deleteRows(
+    'account',
+    notifications,
+    notifications.id,
+    accountIs(notifications.recipientId),
+  ),
+  'notifications.actorId': deleteRows(
+    'account',
+    notifications,
+    notifications.id,
+    accountIs(notifications.actorId),
+  ),
   'notifications.entityId': deleteRows(
     'account',
     notifications,
     notifications.id,
-    (ctx) => and(eq(notifications.entityType, 'profile'), eq(notifications.entityId, ctx.oxyUserId)) ?? eq(notifications.entityId, ctx.oxyUserId),
+    (ctx) =>
+      and(eq(notifications.entityType, 'profile'), eq(notifications.entityId, ctx.oxyUserId)) ??
+      eq(notifications.entityId, ctx.oxyUserId),
   ),
-  'push_tokens.userId': deleteRows('account', pushTokens, pushTokens.id, accountIs(pushTokens.userId)),
+  'push_tokens.userId': deleteRows(
+    'account',
+    pushTokens,
+    pushTokens.id,
+    accountIs(pushTokens.userId),
+  ),
   'account_lists.ownerOxyUserId': {
     phase: 'account',
     count: (ctx) => countRows(accountLists, eq(accountLists.ownerOxyUserId, ctx.oxyUserId)),
     apply: (ctx) => eraseOwnedLists(ctx.oxyUserId),
   },
-  'account_list_members.oxyUserId': deleteRows('account', accountListMembers, accountListMembers.id, accountIs(accountListMembers.oxyUserId)),
-  'starter_packs.ownerOxyUserId': deleteRows('account', starterPacks, starterPacks.id, accountIs(starterPacks.ownerOxyUserId)),
-  'starter_pack_members.oxyUserId': deleteRows('account', starterPackMembers, starterPackMembers.id, accountIs(starterPackMembers.oxyUserId)),
-  'starter_pack_uses.oxyUserId': deleteRows('account', starterPackUses, starterPackUses.id, accountIs(starterPackUses.oxyUserId)),
-  'custom_feeds.ownerOxyUserId': deleteRows('account', customFeeds, customFeeds.id, accountIs(customFeeds.ownerOxyUserId)),
-  'custom_feed_members.oxyUserId': deleteRows('account', customFeedMembers, customFeedMembers.id, accountIs(customFeedMembers.oxyUserId)),
+  'account_list_members.oxyUserId': deleteRows(
+    'account',
+    accountListMembers,
+    accountListMembers.id,
+    accountIs(accountListMembers.oxyUserId),
+  ),
+  'starter_packs.ownerOxyUserId': deleteRows(
+    'account',
+    starterPacks,
+    starterPacks.id,
+    accountIs(starterPacks.ownerOxyUserId),
+  ),
+  'starter_pack_members.oxyUserId': deleteRows(
+    'account',
+    starterPackMembers,
+    starterPackMembers.id,
+    accountIs(starterPackMembers.oxyUserId),
+  ),
+  'starter_pack_uses.oxyUserId': deleteRows(
+    'account',
+    starterPackUses,
+    starterPackUses.id,
+    accountIs(starterPackUses.oxyUserId),
+  ),
+  'custom_feeds.ownerOxyUserId': deleteRows(
+    'account',
+    customFeeds,
+    customFeeds.id,
+    accountIs(customFeeds.ownerOxyUserId),
+  ),
+  'custom_feed_members.oxyUserId': deleteRows(
+    'account',
+    customFeedMembers,
+    customFeedMembers.id,
+    accountIs(customFeedMembers.oxyUserId),
+  ),
   'feed_likes.userId': deleteRows('account', feedLikes, feedLikes.id, accountIs(feedLikes.userId)),
-  'feed_reviews.reviewerId': deleteRows('account', feedReviews, feedReviews.id, accountIs(feedReviews.reviewerId)),
-  'feed_generators.createdBy': deleteRows('account', feedGenerators, feedGenerators.id, accountIs(feedGenerators.createdBy)),
+  'feed_reviews.reviewerId': deleteRows(
+    'account',
+    feedReviews,
+    feedReviews.id,
+    accountIs(feedReviews.reviewerId),
+  ),
+  'feed_generators.createdBy': deleteRows(
+    'account',
+    feedGenerators,
+    feedGenerators.id,
+    accountIs(feedGenerators.createdBy),
+  ),
   // Labelers before the labels: deleting a labeler takes its labels with it, and
   // the anonymise step below must only see labels under OTHER labelers.
   'labelers.creatorId': {
@@ -487,29 +663,98 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     count: (ctx) => countRows(labelers, eq(labelers.creatorId, ctx.oxyUserId)),
     apply: (ctx) => eraseLabelers(ctx.oxyUserId),
   },
-  'content_labels.createdBy': replaceAccount(contentLabels, contentLabels.createdBy, contentLabels.id, ERASED_ACCOUNT_SENTINEL),
+  'content_labels.createdBy': replaceAccount(
+    contentLabels,
+    contentLabels.createdBy,
+    contentLabels.id,
+    ERASED_ACCOUNT_SENTINEL,
+  ),
   'content_labels.targetId': deleteRows(
     'account',
     contentLabels,
     contentLabels.id,
-    (ctx) => and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, ctx.oxyUserId)) ?? eq(contentLabels.targetId, ctx.oxyUserId),
+    (ctx) =>
+      and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, ctx.oxyUserId)) ??
+      eq(contentLabels.targetId, ctx.oxyUserId),
   ),
   // Mutes of the account's lanes go before the lanes, so none is left to the
   // `lane_id` cascade alone (the two account columns carry no constraint).
-  'lane_mutes.laneOwnerOxyUserId': deleteRows('account', laneMutes, laneMutes.id, accountIs(laneMutes.laneOwnerOxyUserId), -1),
-  'lane_mutes.viewerOxyUserId': deleteRows('account', laneMutes, laneMutes.id, accountIs(laneMutes.viewerOxyUserId), -1),
+  'lane_mutes.laneOwnerOxyUserId': deleteRows(
+    'account',
+    laneMutes,
+    laneMutes.id,
+    accountIs(laneMutes.laneOwnerOxyUserId),
+    -1,
+  ),
+  'lane_mutes.viewerOxyUserId': deleteRows(
+    'account',
+    laneMutes,
+    laneMutes.id,
+    accountIs(laneMutes.viewerOxyUserId),
+    -1,
+  ),
   'lanes.ownerId': deleteRows('account', lanes, lanes.id, accountIs(lanes.ownerId)),
   'trending.actorIds': pullFromArray(trending, trending.actorIds, trending.id),
-  'engagement_outbox.payloadActorOxyUserId': deleteRows('account', engagementOutbox, engagementOutbox.id, accountIs(engagementOutbox.payloadActorOxyUserId)),
-  'engagement_outbox.payloadPostOwnerOxyUserId': deleteRows('account', engagementOutbox, engagementOutbox.id, accountIs(engagementOutbox.payloadPostOwnerOxyUserId)),
-  'endorsement_outbox.pendingRemoveOwnerId': deleteRows('account', endorsementOutbox, endorsementOutbox.id, accountIs(endorsementOutbox.pendingRemoveOwnerId)),
-  'endorsement_outbox.pendingRemoveMemberIds': pullFromArray(endorsementOutbox, endorsementOutbox.pendingRemoveMemberIds, endorsementOutbox.id),
-  'mcp_connections.oxyUserId': deleteRows('account', mcpConnections, mcpConnections.id, accountIs(mcpConnections.oxyUserId)),
-  'mcp_connections.activeOxyUserId': replaceAccount(mcpConnections, mcpConnections.activeOxyUserId, mcpConnections.id, null),
-  'mcp_auth_codes.oxyUserId': deleteRows('account', mcpAuthCodes, mcpAuthCodes.id, accountIs(mcpAuthCodes.oxyUserId)),
-  'mcp_effect_receipts.oxyUserId': deleteRows('account', mcpEffectReceipts, mcpEffectReceipts.id, accountIs(mcpEffectReceipts.oxyUserId)),
-  'mention_jobs.employerOxyUserId': deleteRows('account', mentionJobs, mentionJobs.id, accountIs(mentionJobs.employerOxyUserId), -1),
-  'mention_jobs.authorOxyUserId': replaceAccount(mentionJobs, mentionJobs.authorOxyUserId, mentionJobs.id, ERASED_ACCOUNT_SENTINEL),
+  'engagement_outbox.payloadActorOxyUserId': deleteRows(
+    'account',
+    engagementOutbox,
+    engagementOutbox.id,
+    accountIs(engagementOutbox.payloadActorOxyUserId),
+  ),
+  'engagement_outbox.payloadPostOwnerOxyUserId': deleteRows(
+    'account',
+    engagementOutbox,
+    engagementOutbox.id,
+    accountIs(engagementOutbox.payloadPostOwnerOxyUserId),
+  ),
+  'endorsement_outbox.pendingRemoveOwnerId': deleteRows(
+    'account',
+    endorsementOutbox,
+    endorsementOutbox.id,
+    accountIs(endorsementOutbox.pendingRemoveOwnerId),
+  ),
+  'endorsement_outbox.pendingRemoveMemberIds': pullFromArray(
+    endorsementOutbox,
+    endorsementOutbox.pendingRemoveMemberIds,
+    endorsementOutbox.id,
+  ),
+  'mcp_connections.oxyUserId': deleteRows(
+    'account',
+    mcpConnections,
+    mcpConnections.id,
+    accountIs(mcpConnections.oxyUserId),
+  ),
+  'mcp_connections.activeOxyUserId': replaceAccount(
+    mcpConnections,
+    mcpConnections.activeOxyUserId,
+    mcpConnections.id,
+    null,
+  ),
+  'mcp_auth_codes.oxyUserId': deleteRows(
+    'account',
+    mcpAuthCodes,
+    mcpAuthCodes.id,
+    accountIs(mcpAuthCodes.oxyUserId),
+  ),
+  'mcp_effect_receipts.oxyUserId': deleteRows(
+    'account',
+    mcpEffectReceipts,
+    mcpEffectReceipts.id,
+    accountIs(mcpEffectReceipts.oxyUserId),
+  ),
+  'mention_jobs.employerOxyUserId': deleteRows(
+    'account',
+    mentionJobs,
+    mentionJobs.id,
+    accountIs(mentionJobs.employerOxyUserId),
+    -1,
+  ),
+  'mention_jobs.authorOxyUserId': replaceAccount(
+    mentionJobs,
+    mentionJobs.authorOxyUserId,
+    mentionJobs.id,
+    ERASED_ACCOUNT_SENTINEL,
+  ),
   'mention_job_applications.applicantOxyUserId': deleteRows(
     'account',
     mentionJobApplications,
@@ -540,8 +785,18 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     blocklistProposals.id,
     ERASED_ACCOUNT_SENTINEL,
   ),
-  'mention_signed_records.oxyUserId': deleteRows('account', mentionSignedRecords, mentionSignedRecords.id, accountIs(mentionSignedRecords.oxyUserId)),
-  'mention_repo_heads.oxyUserId': deleteRows('account', mentionRepoHeads, mentionRepoHeads.id, accountIs(mentionRepoHeads.oxyUserId)),
+  'mention_signed_records.oxyUserId': deleteRows(
+    'account',
+    mentionSignedRecords,
+    mentionSignedRecords.id,
+    accountIs(mentionSignedRecords.oxyUserId),
+  ),
+  'mention_repo_heads.oxyUserId': deleteRows(
+    'account',
+    mentionRepoHeads,
+    mentionRepoHeads.id,
+    accountIs(mentionRepoHeads.oxyUserId),
+  ),
   'mention_node_ingest_witnesses.oxyUserId': deleteRows(
     'account',
     mentionNodeIngestWitnesses,
@@ -562,13 +817,28 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   },
 
   // --- federation, after the actor Delete -------------------------------------
-  'federated_follows.localUserId': deleteRows('federation', federatedFollows, federatedFollows.id, accountIs(federatedFollows.localUserId)),
-  'federated_actors.oxyUserId': deleteRows('federation', federatedActors, federatedActors.id, accountIs(federatedActors.oxyUserId)),
+  'federated_follows.localUserId': deleteRows(
+    'federation',
+    federatedFollows,
+    federatedFollows.id,
+    accountIs(federatedFollows.localUserId),
+  ),
+  'federated_actors.oxyUserId': deleteRows(
+    'federation',
+    federatedActors,
+    federatedActors.id,
+    accountIs(federatedActors.oxyUserId),
+  ),
   'federated_banner_mirrors.oxyUserId': deleteRows(
     'federation',
     federatedBannerMirrors,
     federatedBannerMirrors.oxyUserId,
     accountIs(federatedBannerMirrors.oxyUserId),
   ),
-  'actor_key_pairs.oxyUserId': deleteRows('federation', actorKeyPairs, actorKeyPairs.id, accountIs(actorKeyPairs.oxyUserId)),
+  'actor_key_pairs.oxyUserId': deleteRows(
+    'federation',
+    actorKeyPairs,
+    actorKeyPairs.id,
+    accountIs(actorKeyPairs.oxyUserId),
+  ),
 };

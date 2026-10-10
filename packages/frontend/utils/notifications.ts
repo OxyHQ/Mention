@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform } from 'react-native';
 import { logger } from '@oxy.so/core/logger';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
@@ -16,7 +16,7 @@ export async function requestNotificationPermissions() {
   const Notifications = await getNotifications();
   if (!Notifications) return false;
   const { status } = await Notifications.requestPermissionsAsync();
-  return status === "granted";
+  return status === 'granted';
 }
 
 export async function hasNotificationPermission(): Promise<boolean> {
@@ -34,7 +34,7 @@ export async function hasNotificationPermission(): Promise<boolean> {
 export async function createNotification(
   title: string,
   body: string,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
 ) {
   const Notifications = await getNotifications();
   if (!Notifications) return;
@@ -90,12 +90,18 @@ export async function getDevicePushToken(): Promise<DevicePushToken> {
       await Notifications.getDevicePushTokenAsync();
     const defaultType = Platform.OS === 'ios' ? 'apns' : 'fcm';
     if (devicePushToken?.data) {
-      const type = devicePushToken.type === 'apns' || devicePushToken.type === 'fcm' ? devicePushToken.type : defaultType;
+      const type =
+        devicePushToken.type === 'apns' || devicePushToken.type === 'fcm'
+          ? devicePushToken.type
+          : defaultType;
       return { token: devicePushToken.data, type };
     }
     // Fallback shape on some SDK versions
     if (devicePushToken?.token) {
-      const type = devicePushToken.type === 'apns' || devicePushToken.type === 'fcm' ? devicePushToken.type : defaultType;
+      const type =
+        devicePushToken.type === 'apns' || devicePushToken.type === 'fcm'
+          ? devicePushToken.type
+          : defaultType;
       return { token: devicePushToken.token, type };
     }
   } catch (e) {

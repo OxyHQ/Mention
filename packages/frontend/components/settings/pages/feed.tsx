@@ -1,26 +1,18 @@
-import { Slider } from "@oxy.so/bloom/slider";
-import {
-  DEFAULT_FEED_SETTINGS,
-  useFeedSettings,
-  type FeedSettings,
-} from "@/hooks/useFeedSettings";
-import { confirmDialog } from "@/utils/alerts";
-import { Button } from "@oxy.so/bloom/button";
-import { Loading } from "@oxy.so/bloom/loading";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { Switch } from "@oxy.so/bloom/switch";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import { Slider } from '@oxy.so/bloom/slider';
+import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hooks/useFeedSettings';
+import { confirmDialog } from '@/utils/alerts';
+import { Button } from '@oxy.so/bloom/button';
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { Switch } from '@oxy.so/bloom/switch';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
 const PRESETS = {
   mostRecent: {
-    name: "Most Recent",
+    name: 'Most Recent',
     settings: {
       diversity: {
         enabled: false,
@@ -32,7 +24,7 @@ const PRESETS = {
     },
   },
   mostEngaged: {
-    name: "Most Engaged",
+    name: 'Most Engaged',
     settings: {
       diversity: {
         enabled: true,
@@ -44,11 +36,11 @@ const PRESETS = {
     },
   },
   balanced: {
-    name: "Balanced",
+    name: 'Balanced',
     settings: DEFAULT_FEED_SETTINGS,
   },
   diverse: {
-    name: "Diverse",
+    name: 'Diverse',
     settings: {
       diversity: {
         enabled: true,
@@ -126,10 +118,10 @@ export default function FeedSettingsScreen() {
 
   const resetToDefaults = useCallback(async () => {
     const confirmed = await confirmDialog({
-      title: t("settings.feed.resetToDefaults"),
-      message: t("settings.feed.resetToDefaultsMessage"),
-      okText: t("common.reset"),
-      cancelText: t("common.cancel"),
+      title: t('settings.feed.resetToDefaults'),
+      message: t('settings.feed.resetToDefaultsMessage'),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (confirmed) {
@@ -141,12 +133,11 @@ export default function FeedSettingsScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("settings.feed.signInRequired", {
-            defaultValue: "Sign in to customize your feed",
+          label={t('settings.feed.signInRequired', {
+            defaultValue: 'Sign in to customize your feed',
           })}
-          description={t("settings.feed.signInRequiredDesc", {
-            defaultValue:
-              "Tune the algorithm, diversity, and recency to your taste.",
+          description={t('settings.feed.signInRequiredDesc', {
+            defaultValue: 'Tune the algorithm, diversity, and recency to your taste.',
           })}
         />
       </View>
@@ -168,7 +159,7 @@ export default function FeedSettingsScreen() {
       {isSaving ? <Loading variant="inline" size="sm" /> : null}
       <View className="gap-4">
         {/* Presets */}
-        <SettingsSection label={t("settings.feed.presets.title")}>
+        <SettingsSection label={t('settings.feed.presets.title')}>
           <SettingsCard>
             {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
               <SettingsRow
@@ -183,7 +174,7 @@ export default function FeedSettingsScreen() {
                   onPress={() => applyPreset(key)}
                   accessibilityLabel={PRESETS[key].name}
                 >
-                  {t("common.open", { defaultValue: "Open" })}
+                  {t('common.open', { defaultValue: 'Open' })}
                 </Button>
               </SettingsRow>
             ))}
@@ -191,11 +182,11 @@ export default function FeedSettingsScreen() {
         </SettingsSection>
 
         {/* Diversity */}
-        <SettingsSection label={t("settings.feed.diversity.title")}>
+        <SettingsSection label={t('settings.feed.diversity.title')}>
           <SettingsCard>
             <SettingsRow
-              label={t("settings.feed.diversity.enabled")}
-              description={t("settings.feed.diversity.enabledDesc")}
+              label={t('settings.feed.diversity.enabled')}
+              description={t('settings.feed.diversity.enabledDesc')}
             >
               {
                 <Switch
@@ -205,7 +196,7 @@ export default function FeedSettingsScreen() {
                       diversity: { ...settings.diversity, enabled: value },
                     })
                   }
-                  accessibilityLabel={t("settings.feed.diversity.enabled")}
+                  accessibilityLabel={t('settings.feed.diversity.enabled')}
                 />
               }
             </SettingsRow>
@@ -236,11 +227,11 @@ export default function FeedSettingsScreen() {
                 min={0.5}
                 max={1.0}
                 step={0.01}
-                label={t("settings.feed.diversity.sameAuthorPenalty")}
+                label={t('settings.feed.diversity.sameAuthorPenalty')}
                 formatValue={(v) => v.toFixed(2)}
               />
               <Text className="text-xs mt-1 text-muted-foreground">
-                {t("settings.feed.diversity.sameAuthorPenaltyDesc")}
+                {t('settings.feed.diversity.sameAuthorPenaltyDesc')}
               </Text>
             </View>
             <View>
@@ -265,18 +256,18 @@ export default function FeedSettingsScreen() {
                 min={0.5}
                 max={1.0}
                 step={0.01}
-                label={t("settings.feed.diversity.sameTopicPenalty")}
+                label={t('settings.feed.diversity.sameTopicPenalty')}
                 formatValue={(v) => v.toFixed(2)}
               />
               <Text className="text-xs mt-1 text-muted-foreground">
-                {t("settings.feed.diversity.sameTopicPenaltyDesc")}
+                {t('settings.feed.diversity.sameTopicPenaltyDesc')}
               </Text>
             </View>
           </View>
         )}
 
         {/* Recency */}
-        <SettingsSection label={t("settings.feed.recency.title")}>
+        <SettingsSection label={t('settings.feed.recency.title')}>
           <SettingsCard>
             <View className="py-3 gap-4">
               <View>
@@ -301,13 +292,11 @@ export default function FeedSettingsScreen() {
                   min={6}
                   max={72}
                   step={1}
-                  label={t("settings.feed.recency.halfLifeHours")}
-                  formatValue={(v) =>
-                    `${Math.round(v)} ${t("settings.feed.recency.hours")}`
-                  }
+                  label={t('settings.feed.recency.halfLifeHours')}
+                  formatValue={(v) => `${Math.round(v)} ${t('settings.feed.recency.hours')}`}
                 />
                 <Text className="text-xs mt-1 text-muted-foreground">
-                  {t("settings.feed.recency.halfLifeHoursDesc")}
+                  {t('settings.feed.recency.halfLifeHoursDesc')}
                 </Text>
               </View>
               <View>
@@ -332,13 +321,11 @@ export default function FeedSettingsScreen() {
                   min={24}
                   max={336}
                   step={24}
-                  label={t("settings.feed.recency.maxAgeHours")}
-                  formatValue={(v) =>
-                    `${Math.round(v / 24)} ${t("settings.feed.recency.days")}`
-                  }
+                  label={t('settings.feed.recency.maxAgeHours')}
+                  formatValue={(v) => `${Math.round(v / 24)} ${t('settings.feed.recency.days')}`}
                 />
                 <Text className="text-xs mt-1 text-muted-foreground">
-                  {t("settings.feed.recency.maxAgeHoursDesc")}
+                  {t('settings.feed.recency.maxAgeHoursDesc')}
                 </Text>
               </View>
             </View>
@@ -346,11 +333,11 @@ export default function FeedSettingsScreen() {
         </SettingsSection>
 
         {/* Quality */}
-        <SettingsSection label={t("settings.feed.quality.title")}>
+        <SettingsSection label={t('settings.feed.quality.title')}>
           <SettingsCard>
             <SettingsRow
-              label={t("settings.feed.quality.boostHighQuality")}
-              description={t("settings.feed.quality.boostHighQualityDesc")}
+              label={t('settings.feed.quality.boostHighQuality')}
+              description={t('settings.feed.quality.boostHighQualityDesc')}
             >
               {
                 <Switch
@@ -360,9 +347,7 @@ export default function FeedSettingsScreen() {
                       quality: { ...settings.quality, boostHighQuality: value },
                     })
                   }
-                  accessibilityLabel={t(
-                    "settings.feed.quality.boostHighQuality",
-                  )}
+                  accessibilityLabel={t('settings.feed.quality.boostHighQuality')}
                 />
               }
             </SettingsRow>
@@ -372,15 +357,15 @@ export default function FeedSettingsScreen() {
         {/* Reset */}
         <SettingsSection>
           <SettingsCard>
-            <SettingsRow label={t("settings.feed.resetToDefaults")}>
+            <SettingsRow label={t('settings.feed.resetToDefaults')}>
               <Button
                 size="sm"
                 appearance="subtle"
                 tone="danger"
                 onPress={resetToDefaults}
-                accessibilityLabel={t("settings.feed.resetToDefaults")}
+                accessibilityLabel={t('settings.feed.resetToDefaults')}
               >
-                {t("common.open", { defaultValue: "Open" })}
+                {t('common.open', { defaultValue: 'Open' })}
               </Button>
             </SettingsRow>
           </SettingsCard>

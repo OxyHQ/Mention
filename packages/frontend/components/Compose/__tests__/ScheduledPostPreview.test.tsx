@@ -108,7 +108,9 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
-jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
+jest.mock('@/utils/alerts', () => ({
+  confirmDialog: (...args: unknown[]) => mockConfirm(...args),
+}));
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
@@ -140,9 +142,7 @@ function post(scheduledFor: Date | null = FUTURE_AT): HydratedPost {
   return scheduledPostFixture({ scheduledFor });
 }
 
-function renderPreview(
-  overrides: Partial<React.ComponentProps<typeof ScheduledPostPreview>> = {},
-) {
+function renderPreview(overrides: Partial<React.ComponentProps<typeof ScheduledPostPreview>> = {}) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
@@ -165,17 +165,16 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
   return tree.root
     .findAllByType(Text)
     .flatMap((node) => node.props.children)
-    .filter((child): child is string | number =>
-      typeof child === 'string' || typeof child === 'number')
+    .filter(
+      (child): child is string | number => typeof child === 'string' || typeof child === 'number',
+    )
     .map(String)
     .join(' | ');
 }
 
 function press(tree: TestRenderer.ReactTestRenderer, label: string) {
   const button = tree.root.find(
-    (node) =>
-      node.props.accessibilityRole === 'button' &&
-      node.props.accessibilityLabel === label,
+    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
   );
   act(() => {
     button.props.onPress();
@@ -184,8 +183,9 @@ function press(tree: TestRenderer.ReactTestRenderer, label: string) {
 
 describe('ScheduledPostPreview', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -213,9 +213,9 @@ describe('ScheduledPostPreview', () => {
       (node) => node.type === View && node.props.pointerEvents === 'none',
     );
     expect(inert).toHaveLength(1);
-    expect(
-      inert[0].findAllByType(Text).some((node) => node.props.children === 'POST ITEM'),
-    ).toBe(true);
+    expect(inert[0].findAllByType(Text).some((node) => node.props.children === 'POST ITEM')).toBe(
+      true,
+    );
 
     act(() => tree.unmount());
   });
@@ -224,8 +224,9 @@ describe('ScheduledPostPreview', () => {
     const tree = renderPreview();
 
     expect(textContent(tree)).toContain(
-      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        .format(FUTURE_AT),
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        FUTURE_AT,
+      ),
     );
 
     act(() => tree.unmount());
@@ -238,8 +239,9 @@ describe('ScheduledPostPreview', () => {
     expect(rendered).toContain('Publishing now…');
     expect(rendered).toContain('may already be live');
     expect(rendered).not.toContain(
-      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        .format(PAST_DUE_AT),
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        PAST_DUE_AT,
+      ),
     );
 
     act(() => tree.unmount());
@@ -288,14 +290,18 @@ describe('ScheduledPostPreview', () => {
     const tree = renderPreview({ onCancel, onCancelled });
 
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(onCancel).toHaveBeenCalledWith('post-soon');
     expect(onCancelled).toHaveBeenCalledTimes(1);
 
     mockConfirm.mockResolvedValue(false);
     press(tree, 'Cancel scheduled post');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     // Declining must not navigate away — the count is unchanged from the first,
     // confirmed cancel.
@@ -310,7 +316,9 @@ describe('ScheduledPostPreview', () => {
     const tree = renderPreview({ onPublishNow, onCancelled });
 
     press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     // Publishing early is one-way and PUBLIC — it federates and notifies — so it
     // asks first, like cancelling does.
@@ -329,7 +337,9 @@ describe('ScheduledPostPreview', () => {
     const tree = renderPreview({ onPublishNow, onCancelled });
 
     press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(onPublishNow).not.toHaveBeenCalled();
     expect(onCancelled).not.toHaveBeenCalled();
@@ -343,7 +353,9 @@ describe('ScheduledPostPreview', () => {
     const tree = renderPreview({ onPublishNow, onCancelled });
 
     press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(mockToast).toHaveBeenCalledWith('Could not publish the post', { type: 'error' });
     // Staying put matters: the row is still in the queue, so leaving would tell

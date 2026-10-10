@@ -87,17 +87,23 @@ function validateParams(params: unknown, moduleId: string): string | null {
 }
 
 /** Kind-specific existence + composability check for a single ref. */
-function resolveError(ref: ModuleRef, kind: 'source' | 'signal' | 'filter', registry: FeedModuleRegistry): string | null {
+function resolveError(
+  ref: ModuleRef,
+  kind: 'source' | 'signal' | 'filter',
+  registry: FeedModuleRegistry,
+): string | null {
   if (kind === 'source') {
     const module = registry.getSource(ref.module);
     if (!module) return `Unknown source module: "${ref.module}"`;
-    if (!module.userComposable) return `Source module "${ref.module}" is not available in custom feeds`;
+    if (!module.userComposable)
+      return `Source module "${ref.module}" is not available in custom feeds`;
     return null;
   }
   if (kind === 'filter') {
     const module = registry.getFilter(ref.module);
     if (!module) return `Unknown filter module: "${ref.module}"`;
-    if (module.userComposable !== true) return `Filter module "${ref.module}" is not available in custom feeds`;
+    if (module.userComposable !== true)
+      return `Filter module "${ref.module}" is not available in custom feeds`;
     return null;
   }
   const module = registry.getSignal(ref.module);
@@ -122,8 +128,10 @@ function validateList(
   for (const entry of raw) {
     if (!isPlainObject(entry)) return `Each ${kind} must be an object`;
     const moduleId = entry.module;
-    if (typeof moduleId !== 'string' || moduleId.length === 0) return `Each ${kind} needs a module id`;
-    if (typeof entry.enabled !== 'boolean') return `Module "${moduleId}" needs an "enabled" boolean`;
+    if (typeof moduleId !== 'string' || moduleId.length === 0)
+      return `Each ${kind} needs a module id`;
+    if (typeof entry.enabled !== 'boolean')
+      return `Module "${moduleId}" needs an "enabled" boolean`;
     if (entry.weight !== undefined && typeof entry.weight !== 'number') {
       return `Module "${moduleId}" weight must be a number`;
     }
@@ -145,7 +153,10 @@ function validateList(
 /**
  * Validate + normalize a user-supplied custom-feed definition.
  */
-export function validateDefinition(input: unknown, opts: ValidateDefinitionOptions = {}): ValidateDefinitionResult {
+export function validateDefinition(
+  input: unknown,
+  opts: ValidateDefinitionOptions = {},
+): ValidateDefinitionResult {
   const registry = opts.registry ?? feedModuleRegistry;
 
   if (!isPlainObject(input)) return { valid: false, error: 'Definition must be an object' };
@@ -171,5 +182,8 @@ export function validateDefinition(input: unknown, opts: ValidateDefinitionOptio
   const filterError = validateList(input.filters, 'filter', MAX_FILTERS, registry, filters);
   if (filterError) return { valid: false, error: filterError };
 
-  return { valid: true, definition: { mode: mode as FeedDefinitionMode, sources, signals, filters } };
+  return {
+    valid: true,
+    definition: { mode: mode as FeedDefinitionMode, sources, signals, filters },
+  };
 }

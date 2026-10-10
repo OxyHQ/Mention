@@ -72,7 +72,9 @@ async function seedInboundFollows(actorUris: readonly string[]): Promise<void> {
 }
 
 /** Seed the remote actor rows the bridge-unfollow resolves owners from. */
-async function seedRemoteActors(rows: ReadonlyArray<{ uri: string; oxyUserId?: string }>): Promise<void> {
+async function seedRemoteActors(
+  rows: ReadonlyArray<{ uri: string; oxyUserId?: string }>,
+): Promise<void> {
   for (const [index, row] of rows.entries()) {
     await seedActor(scope, {
       username: `remote${index}`,
@@ -222,7 +224,9 @@ describe('runSharingCleanup', () => {
 
     const callOrder: string[] = [];
     let rowsWhenBridged = -1;
-    mocks.deliverToFollowers.mockImplementation(async () => { callOrder.push('deliver'); });
+    mocks.deliverToFollowers.mockImplementation(async () => {
+      callOrder.push('deliver');
+    });
     mocks.serviceRequest.mockImplementation(async () => {
       callOrder.push('bridge-unfollow');
       rowsWhenBridged = (await readFollows(scope)).length;
@@ -236,7 +240,7 @@ describe('runSharingCleanup', () => {
     expect(await survivingActorUris()).toEqual([]);
   });
 
-  it('never deletes another local user\'s follow row for the same remote actor', async () => {
+  it("never deletes another local user's follow row for the same remote actor", async () => {
     // The scope the ID-scoped delete protects. Both users are followed by the
     // SAME remote actor, and only one of them is running a cleanup — a delete
     // keyed on the actor (or on anything other than the row ids this run

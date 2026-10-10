@@ -156,10 +156,7 @@ export async function loadUserBehavior(
   oxyUserId: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<UserBehaviorRecord | null> {
-  const [row] = await db
-    .select()
-    .from(userBehaviors)
-    .where(eq(userBehaviors.oxyUserId, oxyUserId));
+  const [row] = await db.select().from(userBehaviors).where(eq(userBehaviors.oxyUserId, oxyUserId));
   if (!row) return null;
   const preferences = await loadPreferences(row.id, db);
   return assembleRecord(

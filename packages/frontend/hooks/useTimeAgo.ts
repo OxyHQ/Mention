@@ -25,29 +25,30 @@ let interval: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: NativeEventSubscription | null = null;
 
 function tick(): void {
-    for (const listener of listeners) listener();
+  for (const listener of listeners) listener();
 }
 
 function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    if (listeners.size === 1) {
-        interval = setInterval(tick, TICK_MS);
-        // A label clock must never be what keeps a process alive (Node: static
-        // rendering, jest). `unref` exists only on Node's timer object.
-        (interval as { unref?: () => void }).unref?.();
-        appStateSubscription = AppState.addEventListener?.('change', (state) => {
-            if (state === 'active') tick();
-        }) ?? null;
+  listeners.add(listener);
+  if (listeners.size === 1) {
+    interval = setInterval(tick, TICK_MS);
+    // A label clock must never be what keeps a process alive (Node: static
+    // rendering, jest). `unref` exists only on Node's timer object.
+    (interval as { unref?: () => void }).unref?.();
+    appStateSubscription =
+      AppState.addEventListener?.('change', (state) => {
+        if (state === 'active') tick();
+      }) ?? null;
+  }
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      if (interval !== null) clearInterval(interval);
+      interval = null;
+      appStateSubscription?.remove();
+      appStateSubscription = null;
     }
-    return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0) {
-            if (interval !== null) clearInterval(interval);
-            interval = null;
-            appStateSubscription?.remove();
-            appStateSubscription = null;
-        }
-    };
+  };
 }
 
 /**
@@ -56,11 +57,11 @@ function subscribe(listener: () => void): () => void {
  * bails out when it is the same string.
  */
 export function useTimeAgo(date: number | string | Date | null | undefined): string {
-    const read = () => formatTimeAgo(date || '');
-    return useSyncExternalStore(subscribe, read, read);
+  const read = () => formatTimeAgo(date || '');
+  return useSyncExternalStore(subscribe, read, read);
 }
 
 /** How many labels the clock is serving. For tests. */
 export function timeAgoSubscriberCount(): number {
-    return listeners.size;
+  return listeners.size;
 }

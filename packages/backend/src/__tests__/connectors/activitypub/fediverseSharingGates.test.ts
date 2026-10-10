@@ -3,11 +3,7 @@ import express from 'express';
 import request from 'supertest';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signRequest, type HttpSignatureSigner } from '@oxy.so/federation';
 
@@ -173,7 +169,11 @@ async function signedInboxHeaders(path: string): Promise<Record<string, string>>
   return signRequest(sign, REMOTE_KEY_ID, 'POST', `https://${DOMAIN}${path}`);
 }
 
-const INBOX_ACTIVITY = { type: 'Follow', actor: REMOTE_ACTOR, object: 'https://mention.earth/ap/users/alice' };
+const INBOX_ACTIVITY = {
+  type: 'Follow',
+  actor: REMOTE_ACTOR,
+  object: 'https://mention.earth/ap/users/alice',
+};
 
 beforeAll(async () => {
   // The gate's ENABLED path runs the real handlers, which query Postgres (the
@@ -194,7 +194,10 @@ beforeEach(() => {
     keyId: 'https://mention.earth/ap/users/alice#main-key',
     publicKeyPem: 'PEM',
   });
-  mocks.fetchPublicKey.mockResolvedValue({ publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR });
+  mocks.fetchPublicKey.mockResolvedValue({
+    publicKeyPem: REMOTE_PUBLIC_PEM,
+    actorUri: REMOTE_ACTOR,
+  });
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
   mocks.resolveMediaRef.mockReturnValue({ url: undefined });
   // The follow collections read the Oxy follow graph through the service client.
@@ -300,14 +303,20 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
 
     it('404s with the unknown-user body when sharing is disabled, before verifying the signature', async () => {
       mocks.getFediverseSharingStateByUsername.mockResolvedValue('disabled');
-      const res = await request(apApp).post('/ap/users/alice/inbox').send(INBOX_ACTIVITY).expect(404);
+      const res = await request(apApp)
+        .post('/ap/users/alice/inbox')
+        .send(INBOX_ACTIVITY)
+        .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
       expect(mocks.fetchPublicKey).not.toHaveBeenCalled();
     });
 
     it('404s with the unknown-user body for a genuinely unknown username, before verifying the signature', async () => {
       mocks.getFediverseSharingStateByUsername.mockResolvedValue('unknown-user');
-      const res = await request(apApp).post('/ap/users/ghost/inbox').send(INBOX_ACTIVITY).expect(404);
+      const res = await request(apApp)
+        .post('/ap/users/ghost/inbox')
+        .send(INBOX_ACTIVITY)
+        .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
       expect(mocks.fetchPublicKey).not.toHaveBeenCalled();
     });
@@ -329,13 +338,19 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
   describe('GET /ap/users/:username/outbox', () => {
     it('200s when sharing is enabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
-      const res = await request(apApp).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(200);
+      const res = await request(apApp)
+        .get('/ap/users/alice/outbox')
+        .set('Accept', AP_ACCEPT)
+        .expect(200);
       expect(res.body.type).toBe('OrderedCollection');
     });
 
     it('404s with the unknown-user body when sharing is disabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
-      const res = await request(apApp).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(404);
+      const res = await request(apApp)
+        .get('/ap/users/alice/outbox')
+        .set('Accept', AP_ACCEPT)
+        .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
     });
   });
@@ -363,13 +378,19 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
   describe('GET /ap/users/:username/followers', () => {
     it('200s when sharing is enabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
-      const res = await request(apApp).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
+      const res = await request(apApp)
+        .get('/ap/users/alice/followers')
+        .set('Accept', AP_ACCEPT)
+        .expect(200);
       expect(res.body.type).toBe('OrderedCollection');
     });
 
     it('404s with the unknown-user body when sharing is disabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
-      const res = await request(apApp).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(404);
+      const res = await request(apApp)
+        .get('/ap/users/alice/followers')
+        .set('Accept', AP_ACCEPT)
+        .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
     });
   });
@@ -377,13 +398,19 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
   describe('GET /ap/users/:username/following', () => {
     it('200s when sharing is enabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
-      const res = await request(apApp).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(200);
+      const res = await request(apApp)
+        .get('/ap/users/alice/following')
+        .set('Accept', AP_ACCEPT)
+        .expect(200);
       expect(res.body.type).toBe('OrderedCollection');
     });
 
     it('404s with the unknown-user body when sharing is disabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
-      const res = await request(apApp).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(404);
+      const res = await request(apApp)
+        .get('/ap/users/alice/following')
+        .set('Accept', AP_ACCEPT)
+        .expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
     });
   });
@@ -406,7 +433,10 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
 
     it('200s when sharing is enabled', async () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
-      await request(apApp).get(`/ap/users/alice/posts/${postId}`).set('Accept', AP_ACCEPT).expect(200);
+      await request(apApp)
+        .get(`/ap/users/alice/posts/${postId}`)
+        .set('Accept', AP_ACCEPT)
+        .expect(200);
     });
 
     it('404s with the unknown-user body when sharing is disabled', async () => {

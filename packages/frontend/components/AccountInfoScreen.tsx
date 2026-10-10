@@ -35,7 +35,6 @@ import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 
-
 /**
  * An account's "about" surface — joined date, location, website, verification,
  * and where else on the network it can be reached.
@@ -81,7 +80,12 @@ interface AccountInfoContentProps {
   onRetry: () => Promise<void>;
 }
 
-function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: AccountInfoContentProps) {
+function AccountInfoContent({
+  profileData,
+  profileLoading,
+  notFound,
+  onRetry,
+}: AccountInfoContentProps) {
   const safeBack = useSafeBack();
   const { t } = useTranslation();
   const categoryLabel = useAccountCategoryLabel();
@@ -91,7 +95,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
     if (!profileData?.createdAt) return null;
     return new Date(profileData.createdAt).toLocaleDateString('en-US', {
       month: 'long',
-      year: 'numeric'
+      year: 'numeric',
     });
   }, [profileData?.createdAt]);
 
@@ -103,7 +107,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
     if (!dateToUse) return null;
     return new Date(dateToUse).toLocaleDateString('en-US', {
       month: 'long',
-      year: 'numeric'
+      year: 'numeric',
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
 
@@ -127,10 +131,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
   // URL to the account's ORIGINAL profile page. A Mastodon actor URL redirects a
   // browser GET to the human-readable profile; an atproto DID / handle resolves
   // on bsky.app's `/profile/<id>` route.
-  const federationInfo = useMemo(
-    () => federationInfoOf(profileData),
-    [profileData],
-  );
+  const federationInfo = useMemo(() => federationInfoOf(profileData), [profileData]);
 
   // Same back-nav header the sibling profile sub-screens (followers / following /
   // connections) render. Rendered once and reused across the loading / not-found /
@@ -172,7 +173,11 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
     typeof profileData.website === 'string' && profileData.website.trim().length > 0
       ? profileData.website.trim()
       : null;
-  const websiteUrl = website ? (/^https?:\/\//i.test(website) ? website : `https://${website}`) : null;
+  const websiteUrl = website
+    ? /^https?:\/\//i.test(website)
+      ? website
+      : `https://${website}`
+    : null;
   const hasAccountDetails =
     Boolean(joinDate) ||
     Boolean(profileData.primaryLocation) ||
@@ -199,7 +204,11 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
         <View className="px-4 pt-4 pb-5 items-center">
           <Avatar
             source={avatarUri}
-            name={profileData.design.displayName ?? profileData.name?.displayName ?? profileData.username}
+            name={
+              profileData.design.displayName ??
+              profileData.name?.displayName ??
+              profileData.username
+            }
             size={80}
             variant={MEDIA_VARIANT_AVATAR_LG}
           />
@@ -304,9 +313,11 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
             <SettingsListItem
               icon={<VerifiedIcon size={20} />}
               title={t('Verified', { defaultValue: 'Verified' })}
-              value={verifiedDate
-                ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
-                : t('Verified account', { defaultValue: 'Verified account' })}
+              value={
+                verifiedDate
+                  ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
+                  : t('Verified account', { defaultValue: 'Verified account' })
+              }
             />
           </SettingsListGroup>
         )}
@@ -321,28 +332,35 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
         {federationInfo && (
           <SettingsListGroup
             title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
-            footer={federationInfo.network === 'atproto'
-              ? t('fediverse.about.descriptionBluesky', {
-                  instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
-                  defaultValue: 'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
-                })
-              : federationInfo.network === 'instagram-graph'
-                ? t('fediverse.about.descriptionInstagram', {
-                    defaultValue: "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
+            footer={
+              federationInfo.network === 'atproto'
+                ? t('fediverse.about.descriptionBluesky', {
+                    instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
+                    defaultValue:
+                      'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
                   })
-              : t('fediverse.about.descriptionActivityPub', {
-                  instance: federationInfo.instance ?? '',
-                  defaultValue: 'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
-                })}
+                : federationInfo.network === 'instagram-graph'
+                  ? t('fediverse.about.descriptionInstagram', {
+                      defaultValue:
+                        "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
+                    })
+                  : t('fediverse.about.descriptionActivityPub', {
+                      instance: federationInfo.instance ?? '',
+                      defaultValue:
+                        'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                    })
+            }
           >
             <SettingsListItem
               icon={<FediverseIcon size={20} className="text-muted-foreground" />}
               title={t('fediverse.about.network', { defaultValue: 'Network' })}
-              value={federationInfo.network === 'atproto'
-                ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
-                : federationInfo.network === 'instagram-graph'
-                  ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
-                  : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })}
+              value={
+                federationInfo.network === 'atproto'
+                  ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
+                  : federationInfo.network === 'instagram-graph'
+                    ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
+                    : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })
+              }
             />
 
             {federationInfo.instance && (
@@ -366,7 +384,8 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
                 icon={<ExternalLinkIcon size={20} className="text-muted-foreground" />}
                 title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
                 onPress={() => {
-                  if (federationInfo.originalProfileUrl) openExternalLink(federationInfo.originalProfileUrl);
+                  if (federationInfo.originalProfileUrl)
+                    openExternalLink(federationInfo.originalProfileUrl);
                 }}
               />
             )}
@@ -374,7 +393,9 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
             {federationInfo.network === 'activitypub' && (
               <SettingsListItem
                 icon={<FediverseIcon size={20} className="text-muted-foreground" />}
-                title={t('fediverse.about.learnMore', { defaultValue: 'Learn more about the fediverse' })}
+                title={t('fediverse.about.learnMore', {
+                  defaultValue: 'Learn more about the fediverse',
+                })}
                 onPress={() => showFediverseInfo()}
               />
             )}

@@ -55,7 +55,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (created.length > 0) {
-    await getDb().delete(posts).where(inArray(posts.id, created.splice(0)));
+    await getDb()
+      .delete(posts)
+      .where(inArray(posts.id, created.splice(0)));
   }
 });
 
@@ -66,7 +68,9 @@ afterAll(async () => {
 describe('backfillVariantPostCreatedAt', () => {
   it('reports without writing on a dry run', async () => {
     const id = await create(new Date('2026-01-02T03:04:05.000Z'));
-    await getDb().execute(sql`update post_content_variants set post_created_at = null where post_id = ${id}`);
+    await getDb().execute(
+      sql`update post_content_variants set post_created_at = null where post_id = ${id}`,
+    );
 
     const result = await backfillVariantPostCreatedAt({ dryRun: true });
 
@@ -82,8 +86,12 @@ describe('backfillVariantPostCreatedAt', () => {
       create(new Date('2026-03-04T05:06:07.000Z')),
     ]);
     // The state every pre-migration row is in, and one that disagrees outright.
-    await getDb().execute(sql`update post_content_variants set post_created_at = null where post_id in (${ids[0]}, ${ids[1]})`);
-    await getDb().execute(sql`update post_content_variants set post_created_at = now() where post_id = ${ids[2]}`);
+    await getDb().execute(
+      sql`update post_content_variants set post_created_at = null where post_id in (${ids[0]}, ${ids[1]})`,
+    );
+    await getDb().execute(
+      sql`update post_content_variants set post_created_at = now() where post_id = ${ids[2]}`,
+    );
     expect(await disagreeing()).toBe(3);
 
     // A batch of one forces the keyset walk across several pages.
@@ -101,7 +109,9 @@ describe('backfillVariantPostCreatedAt', () => {
 
   it('is idempotent: a second run writes nothing', async () => {
     const id = await create(new Date('2026-01-02T03:04:05.000Z'));
-    await getDb().execute(sql`update post_content_variants set post_created_at = null where post_id = ${id}`);
+    await getDb().execute(
+      sql`update post_content_variants set post_created_at = null where post_id = ${id}`,
+    );
     await backfillVariantPostCreatedAt({ dryRun: false, pauseMs: 0 });
 
     const second = await backfillVariantPostCreatedAt({ dryRun: false, pauseMs: 0 });

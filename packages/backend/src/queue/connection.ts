@@ -1,8 +1,5 @@
 import IORedis, { type RedisOptions } from 'ioredis';
-import {
-  getRedisConnectionConfig,
-  isRedisRuntimeConfigured,
-} from '../config';
+import { getRedisConnectionConfig, isRedisRuntimeConfigured } from '../config';
 import { logger } from '../utils/logger';
 
 /**

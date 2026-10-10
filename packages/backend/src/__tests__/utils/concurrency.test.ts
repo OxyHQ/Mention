@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  mapWithConcurrency,
-  DEFAULT_CONCURRENCY,
-  MAX_CONCURRENCY,
-} from '../../utils/concurrency';
+import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../../utils/concurrency';
 
 /**
  * The shared bounded-concurrency pool that the one-shot repair sweeps

@@ -48,8 +48,9 @@ describe('bookmark folder route by post id', () => {
       .map((layer) => layer.route?.path);
 
     expect(paths).toContain('/bookmarks/by-post/:postId/folder');
-    expect(paths.indexOf('/bookmarks/by-post/:postId/folder'))
-      .toBeLessThan(paths.indexOf('/bookmarks/:id/folder'));
+    expect(paths.indexOf('/bookmarks/by-post/:postId/folder')).toBeLessThan(
+      paths.indexOf('/bookmarks/:id/folder'),
+    );
   });
 
   it('passes only the authenticated viewer and post relation to the service', async () => {
@@ -57,11 +58,14 @@ describe('bookmark folder route by post id', () => {
     mocks.updateBookmarkFolderForViewer.mockResolvedValue(bookmark);
     const response = responseDouble();
 
-    await moveBookmarkToFolderByPostId({
-      user: { id: 'viewer-a' },
-      params: { postId: POST_ID },
-      body: { folder: 'Reading' },
-    } as never, response as never);
+    await moveBookmarkToFolderByPostId(
+      {
+        user: { id: 'viewer-a' },
+        params: { postId: POST_ID },
+        body: { folder: 'Reading' },
+      } as never,
+      response as never,
+    );
 
     expect(mocks.updateBookmarkFolderForViewer).toHaveBeenCalledWith({
       viewerId: 'viewer-a',
@@ -75,10 +79,13 @@ describe('bookmark folder route by post id', () => {
   it('does not query without an authenticated viewer', async () => {
     const response = responseDouble();
 
-    await moveBookmarkToFolderByPostId({
-      params: { postId: POST_ID },
-      body: { folder: 'Reading' },
-    } as never, response as never);
+    await moveBookmarkToFolderByPostId(
+      {
+        params: { postId: POST_ID },
+        body: { folder: 'Reading' },
+      } as never,
+      response as never,
+    );
 
     expect(response.status).toHaveBeenCalledWith(401);
     expect(mocks.updateBookmarkFolderForViewer).not.toHaveBeenCalled();
@@ -88,11 +95,14 @@ describe('bookmark folder route by post id', () => {
     mocks.updateBookmarkFolderForViewer.mockResolvedValue(null);
     const response = responseDouble();
 
-    await moveBookmarkToFolderByPostId({
-      user: { id: 'viewer-b' },
-      params: { postId: POST_ID },
-      body: { folder: null },
-    } as never, response as never);
+    await moveBookmarkToFolderByPostId(
+      {
+        user: { id: 'viewer-b' },
+        params: { postId: POST_ID },
+        body: { folder: null },
+      } as never,
+      response as never,
+    );
 
     expect(response.status).toHaveBeenCalledWith(404);
     expect(response.json).toHaveBeenCalledWith({ message: 'Bookmark not found' });

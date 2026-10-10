@@ -30,7 +30,12 @@ const RECENT_SHARE = recentWindowMs / windowMs;
  * perennial hashtag, and it must never trend however large it is.
  */
 function steady(volume: number, term = 'steady'): TrendCandidate {
-  return { term, volume, recentVolume: Math.round(volume * RECENT_SHARE), authorCount: authorsFor(volume) };
+  return {
+    term,
+    volume,
+    recentVolume: Math.round(volume * RECENT_SHARE),
+    authorCount: authorsFor(volume),
+  };
 }
 
 /**
@@ -79,18 +84,30 @@ describe('scoreTrendCandidate — floors', () => {
 
   it('refuses a burst carried by too few distinct authors', () => {
     expect(
-      scoreTrendCandidate({ term: 'brigade', volume: 500, recentVolume: 500, authorCount: minAuthors - 1 }),
+      scoreTrendCandidate({
+        term: 'brigade',
+        volume: 500,
+        recentVolume: 500,
+        authorCount: minAuthors - 1,
+      }),
     ).toBeNull();
   });
 
   it('accepts the same burst once enough distinct authors carry it', () => {
     expect(
-      scoreTrendCandidate({ term: 'real', volume: 500, recentVolume: 500, authorCount: authorsFor(500) }),
+      scoreTrendCandidate({
+        term: 'real',
+        volume: 500,
+        recentVolume: 500,
+        authorCount: authorsFor(500),
+      }),
     ).not.toBeNull();
   });
 
   it('refuses a term with no volume at all', () => {
-    expect(scoreTrendCandidate({ term: 'none', volume: 0, recentVolume: 0, authorCount: 99 })).toBeNull();
+    expect(
+      scoreTrendCandidate({ term: 'none', volume: 0, recentVolume: 0, authorCount: 99 }),
+    ).toBeNull();
   });
 });
 
@@ -103,14 +120,22 @@ describe('scoreTrendCandidate — status and momentum', () => {
 
   it('leaves a mild burst without a status', () => {
     // Just above the reporting floor: real, but not a claim that it is hot.
-    const trend = scoreTrendCandidate({ term: 'mild', volume: 40, recentVolume: 16, authorCount: 10 });
+    const trend = scoreTrendCandidate({
+      term: 'mild',
+      volume: 40,
+      recentVolume: 16,
+      authorCount: 10,
+    });
     expect(trend).not.toBeNull();
     expect(trend?.burstScore).toBeLessThan(hotBurstScore);
     expect(trend?.status).toBeUndefined();
   });
 
   it('keeps momentum inside the 0..1 contract the client reads', () => {
-    for (const candidate of [bursting(500), { term: 'x', volume: 40, recentVolume: 16, authorCount: 10 }]) {
+    for (const candidate of [
+      bursting(500),
+      { term: 'x', volume: 40, recentVolume: 16, authorCount: 10 },
+    ]) {
       const trend = scoreTrendCandidate(candidate);
       expect(trend?.momentum).toBeGreaterThanOrEqual(0);
       expect(trend?.momentum).toBeLessThanOrEqual(1);
@@ -163,7 +188,9 @@ describe('resolveTrendStartedAt', () => {
   });
 
   it('returns now when the term has been absent longer than the tolerance', () => {
-    expect(resolveTrendStartedAt([minutesAgo(onsetGapToleranceMs / 60_000 + 30)], now)).toEqual(now);
+    expect(resolveTrendStartedAt([minutesAgo(onsetGapToleranceMs / 60_000 + 30)], now)).toEqual(
+      now,
+    );
   });
 
   it('does not care what order the history arrives in', () => {
@@ -182,17 +209,23 @@ describe('clearsFloors — repetition is discounted, not judged', () => {
    */
   it('refuses one account posting a term twenty times', () => {
     // #noticia — 20 posts, all from tierrasapiens@mastodon.social. Capped to 2.
-    expect(clearsFloors({ term: 'noticia', volume: 2, recentVolume: 2, authorCount: 1 })).toBe(false);
+    expect(clearsFloors({ term: 'noticia', volume: 2, recentVolume: 2, authorCount: 1 })).toBe(
+      false,
+    );
   });
 
   it('refuses two accounts alternating all day', () => {
     // #cartoon — 40 posts from simpsonsgifs + futuramagifs. Capped to 4, which
     // clears the volume floor; the AUTHOR floor is what refuses it.
-    expect(clearsFloors({ term: 'cartoon', volume: 4, recentVolume: 2, authorCount: 2 })).toBe(false);
+    expect(clearsFloors({ term: 'cartoon', volume: 4, recentVolume: 2, authorCount: 2 })).toBe(
+      false,
+    );
   });
 
   it('accepts the same volume when it comes from many people', () => {
-    expect(clearsFloors({ term: 'real', volume: 40, recentVolume: 12, authorCount: 20 })).toBe(true);
+    expect(clearsFloors({ term: 'real', volume: 40, recentVolume: 12, authorCount: 20 })).toBe(
+      true,
+    );
   });
 
   it('accepts a crowd that contains one loud member', () => {
@@ -204,8 +237,12 @@ describe('clearsFloors — repetition is discounted, not judged', () => {
   });
 
   it('still applies the author and volume floors', () => {
-    expect(clearsFloors({ term: 'thin', volume: minVolume - 1, recentVolume: 1, authorCount: 9 })).toBe(false);
-    expect(clearsFloors({ term: 'few', volume: 9, recentVolume: 9, authorCount: minAuthors - 1 })).toBe(false);
+    expect(
+      clearsFloors({ term: 'thin', volume: minVolume - 1, recentVolume: 1, authorCount: 9 }),
+    ).toBe(false);
+    expect(
+      clearsFloors({ term: 'few', volume: 9, recentVolume: 9, authorCount: minAuthors - 1 }),
+    ).toBe(false);
   });
 });
 
@@ -221,17 +258,27 @@ describe('clearsFloors — vocabulary is not a subject', () => {
    * place — a question that is still open.
    */
   it('refuses a term carried by a large share of everything posted', () => {
-    expect(clearsFloors({
-      term: 'mention', volume: 40, recentVolume: 20, authorCount: 13,
-      documentFrequency: maxDocumentFrequency + 0.01,
-    })).toBe(false);
+    expect(
+      clearsFloors({
+        term: 'mention',
+        volume: 40,
+        recentVolume: 20,
+        authorCount: 13,
+        documentFrequency: maxDocumentFrequency + 0.01,
+      }),
+    ).toBe(false);
   });
 
   it('accepts the same numbers when the term is rare in the corpus', () => {
-    expect(clearsFloors({
-      term: 'kremer', volume: 40, recentVolume: 20, authorCount: 13,
-      documentFrequency: maxDocumentFrequency / 10,
-    })).toBe(true);
+    expect(
+      clearsFloors({
+        term: 'kremer',
+        volume: 40,
+        recentVolume: 20,
+        authorCount: 13,
+        documentFrequency: maxDocumentFrequency / 10,
+      }),
+    ).toBe(true);
   });
 
   it('passes a candidate whose frequency was never measured', () => {
@@ -242,10 +289,15 @@ describe('clearsFloors — vocabulary is not a subject', () => {
   it('keeps the ceiling out of the way of a genuinely huge story', () => {
     // A real story is enormous in absolute terms and still a small share of a
     // day's posting; the ceiling must not be what stops it.
-    expect(clearsFloors({
-      term: 'fifa', volume: 1_897, recentVolume: 900, authorCount: 800,
-      documentFrequency: 0.02,
-    })).toBe(true);
+    expect(
+      clearsFloors({
+        term: 'fifa',
+        volume: 1_897,
+        recentVolume: 900,
+        authorCount: 800,
+        documentFrequency: 0.02,
+      }),
+    ).toBe(true);
   });
 });
 

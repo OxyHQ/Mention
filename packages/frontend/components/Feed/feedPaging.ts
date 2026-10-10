@@ -9,11 +9,15 @@
  * Returns the input unchanged (same identity) when unbounded or within bound.
  */
 export function boundFeedRows<T>(rows: T[], previewLimit: number | undefined): T[] {
-    if (previewLimit === undefined || rows.length <= previewLimit) return rows;
-    return rows.slice(0, Math.max(0, previewLimit));
+  if (previewLimit === undefined || rows.length <= previewLimit) return rows;
+  return rows.slice(0, Math.max(0, previewLimit));
 }
 
 /** Whether a feed may request its next page: never for a bounded preview. */
-export function canLoadMoreFeed(state: { previewLimit?: number; hasMore: boolean; isLoading: boolean }): boolean {
-    return state.previewLimit === undefined && state.hasMore && !state.isLoading;
+export function canLoadMoreFeed(state: {
+  previewLimit?: number;
+  hasMore: boolean;
+  isLoading: boolean;
+}): boolean {
+  return state.previewLimit === undefined && state.hasMore && !state.isLoading;
 }

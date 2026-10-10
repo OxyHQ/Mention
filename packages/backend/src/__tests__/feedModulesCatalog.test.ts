@@ -91,7 +91,11 @@ describe('buildModuleCatalog', () => {
     expect(keywords!.labelKey).toBe('feeds.modules.keywords.label');
     expect(keywords!.descriptionKey).toBe('feeds.modules.keywords.description');
     expect(keywords!.kind).toBe('source');
-    expect(keywords!.paramsSchema.properties.keywords).toEqual({ type: 'array', items: { type: 'string' }, maxItems: 50 });
+    expect(keywords!.paramsSchema.properties.keywords).toEqual({
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 50,
+    });
     expect(keywords!.paramsSchema.properties.hashtags?.maxItems).toBe(50);
 
     const accounts = catalog.sources.find((s) => s.id === 'accounts');
@@ -147,12 +151,19 @@ describe('GET /feed/modules (controller)', () => {
     let status = 0;
     let body: unknown;
     const res = {
-      status(c: number) { status = c; return this; },
-      json(b: unknown) { body = b; return this; },
+      status(c: number) {
+        status = c;
+        return this;
+      },
+      json(b: unknown) {
+        body = b;
+        return this;
+      },
     };
     await feedModulesController.list({} as never, res as never);
     expect(status).toBe(200);
-    const data = (body as { data: { sources: unknown[]; signals: unknown[]; filters: unknown[] } }).data;
+    const data = (body as { data: { sources: unknown[]; signals: unknown[]; filters: unknown[] } })
+      .data;
     expect(Array.isArray(data.sources)).toBe(true);
     expect(Array.isArray(data.signals)).toBe(true);
     expect(Array.isArray(data.filters)).toBe(true);

@@ -169,7 +169,9 @@ const params: GatherParams = {
   viewerRegion: 'ES',
   seenPostIds: [],
   contentAffinityService: {
-    getContentCandidates: async () => [{ userId: AFFINITY_AUTHOR, weight: 1, reasons: ['engagement'] }],
+    getContentCandidates: async () => [
+      { userId: AFFINITY_AUTHOR, weight: 1, reasons: ['engagement'] },
+    ],
   },
 };
 
@@ -325,21 +327,26 @@ describe('For You candidate pool — the fixture universe', () => {
     const rows = await getDb()
       .select({ id: posts.id, isReply: posts.isReply })
       .from(posts)
-      .where(and(
-        inArray(posts.id, seededIds),
-        eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
-      ));
+      .where(
+        and(
+          inArray(posts.id, seededIds),
+          eq(posts.visibility, PostVisibility.PUBLIC),
+          eq(posts.status, 'published'),
+        ),
+      );
 
-    const expectedReplies = SEEDS.filter((spec) => spec.link === 'localReply' || spec.link === 'federatedReply');
+    const expectedReplies = SEEDS.filter(
+      (spec) => spec.link === 'localReply' || spec.link === 'federatedReply',
+    );
     const replies = rows.filter((row) => row.isReply);
 
     expect(rows).toHaveLength(SEEDS.length);
     expect(replies).toHaveLength(expectedReplies.length);
     // Both encodings really were stored as replies, not just the local one.
     const replyLabelSet = new Set(replies.map((row) => LABEL_BY_ID.get(row.id)));
-    expect([...replyLabelSet].filter((label) => label?.endsWith(':federatedReply')).length)
-      .toBe(expectedReplies.filter((spec) => spec.link === 'federatedReply').length);
+    expect([...replyLabelSet].filter((label) => label?.endsWith(':federatedReply')).length).toBe(
+      expectedReplies.filter((spec) => spec.link === 'federatedReply').length,
+    );
     // Mirrors the production shape this fix targets (47.1% replies).
     expect(replies.length / rows.length).toBeGreaterThan(0.4);
   });
@@ -370,8 +377,9 @@ describe('For You candidate pool — the fixture universe', () => {
       }),
       // The constraint name is on the CAUSE, not on drizzle's wrapper message.
     ).rejects.toSatisfy((error: unknown) =>
-      JSON.stringify(error instanceof Error ? (error.cause ?? error) : error)
-        .includes('posts_federated_reply_discriminator_check'),
+      JSON.stringify(error instanceof Error ? (error.cause ?? error) : error).includes(
+        'posts_federated_reply_discriminator_check',
+      ),
     );
   });
 });
@@ -418,7 +426,7 @@ describe('For You candidate lanes — every lane excludes replies', () => {
 });
 
 describe('gatherForYouCandidates — the merged pool', () => {
-  it('drops every reply while keeping every lane\'s root', async () => {
+  it("drops every reply while keeping every lane's root", async () => {
     const pool = await gatherForYouCandidates(params);
     const labels = pool.map(labelOf);
 

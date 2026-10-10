@@ -26,12 +26,20 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@oxy.so/bloom/tabs/expo-router', () => ({
-  RouterTabs: (props: object) => { mockTabs(props); return null; },
+  RouterTabs: (props: object) => {
+    mockTabs(props);
+    return null;
+  },
 }));
 jest.mock('../ProfileShell', () => ({
   ProfileShell: (props: { children?: React.ReactNode; tabBar?: React.ReactNode }) => {
     mockShell(props);
-    return <>{props.tabBar}{props.children}</>;
+    return (
+      <>
+        {props.tabBar}
+        {props.children}
+      </>
+    );
   },
 }));
 jest.mock('../ProfileTabBarRow', () => ({
@@ -42,7 +50,10 @@ jest.mock('../ProfilePageHeader', () => ({
 }));
 jest.mock('../hooks/useRoutedProfileUsername', () => ({ useRoutedProfileUsername: () => 'nate' }));
 jest.mock('../hooks/usePersonProfileView', () => ({
-  usePersonProfileView: (args: object) => { mockViewArgs(args); return mockView; },
+  usePersonProfileView: (args: object) => {
+    mockViewArgs(args);
+    return mockView;
+  },
 }));
 
 import ProfileChromeFrame from '../ProfileChromeFrame.web';
@@ -72,7 +83,13 @@ function makeView(overrides: Record<string, unknown> = {}) {
 
 function render() {
   let tree!: TestRenderer.ReactTestRenderer;
-  act(() => { tree = TestRenderer.create(<ProfileChromeFrame><Text testID="navigator">Slot</Text></ProfileChromeFrame>); });
+  act(() => {
+    tree = TestRenderer.create(
+      <ProfileChromeFrame>
+        <Text testID="navigator">Slot</Text>
+      </ProfileChromeFrame>,
+    );
+  });
   return tree;
 }
 
@@ -85,9 +102,17 @@ beforeEach(() => {
 test('a tab route draws the shared shell, with the navigator as its content', () => {
   const tree = render();
   const shell = mockShell.mock.calls.at(-1)?.[0];
-  expect(shell).toMatchObject({ active: true, loading: false, banner: { uri: 'https://example.com/banner.jpg' } });
+  expect(shell).toMatchObject({
+    active: true,
+    loading: false,
+    banner: { uri: 'https://example.com/banner.jpg' },
+  });
   expect(tree.root.findByProps({ testID: 'navigator' })).toBeTruthy();
-  expect(mockViewArgs.mock.calls.at(-1)?.[0]).toMatchObject({ active: true, activeKey: 'posts', username: 'nate' });
+  expect(mockViewArgs.mock.calls.at(-1)?.[0]).toMatchObject({
+    active: true,
+    activeKey: 'posts',
+    username: 'nate',
+  });
   expect(mockTabs.mock.calls.at(-1)?.[0].items).toEqual([
     { value: 'posts', label: 'Posts', href: '/@nate' },
     { value: 'media', label: 'Media', href: '/@nate/media' },
@@ -112,14 +137,18 @@ test('a wrong-family URL holds the skeleton while the screen redirects', () => {
 
 test('re-selecting the active tab jumps to where the strip starts, overlap included', () => {
   const tree = render();
-  act(() => { mockTabs.mock.calls.at(-1)?.[0].onReselect(); });
+  act(() => {
+    mockTabs.mock.calls.at(-1)?.[0].onReselect();
+  });
   expect(mockScrollToContent).toHaveBeenCalledWith(125 + 255);
   act(() => tree.unmount());
 });
 
 test('the stats row jumps to another tab by pushing its route', () => {
   const tree = render();
-  const { onSelectTab } = mockViewArgs.mock.calls.at(-1)?.[0] as { onSelectTab: (d: object, href: string) => void };
+  const { onSelectTab } = mockViewArgs.mock.calls.at(-1)?.[0] as {
+    onSelectTab: (d: object, href: string) => void;
+  };
   act(() => onSelectTab({ key: 'media' }, '/@nate/media'));
   expect(mockPush).toHaveBeenCalledWith('/@nate/media');
   act(() => tree.unmount());

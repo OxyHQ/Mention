@@ -132,9 +132,7 @@ function NativeTabsLayout() {
    * half statically; this catches a trigger the router dropped at runtime.
    */
   if (__DEV__) {
-    const missing = PAGES.filter(
-      (page) => !state.routes.some((route) => route.name === page.name),
-    );
+    const missing = PAGES.filter((page) => !state.routes.some((route) => route.name === page.name));
     if (missing.length > 0) {
       console.warn(
         `[tabs] the navigator built no route for ${missing.map((page) => `"${page.name}"`).join(', ')}. ` +

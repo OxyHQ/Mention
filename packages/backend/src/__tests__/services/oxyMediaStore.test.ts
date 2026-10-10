@@ -56,7 +56,10 @@ let respond: (captured: CapturedRequest) => {
 
 /** A writable client request that records everything piped into it. */
 class FakeClientRequest extends PassThrough {
-  constructor(private readonly captured: CapturedRequest, private readonly onResponse: (res: Readable & { statusCode: number }) => void) {
+  constructor(
+    private readonly captured: CapturedRequest,
+    private readonly onResponse: (res: Readable & { statusCode: number }) => void,
+  ) {
     super();
     this.on('data', (chunk: Buffer) => this.captured.bodyChunks.push(chunk));
     this.on('finish', () => this.flushResponse());
@@ -66,7 +69,10 @@ class FakeClientRequest extends PassThrough {
   }
   private flushResponse(): void {
     const { statusCode, body, headers } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & { statusCode: number; headers: Record<string, string> };
+    const res = new PassThrough() as PassThrough & {
+      statusCode: number;
+      headers: Record<string, string>;
+    };
     res.statusCode = statusCode;
     // Response headers matter here: `Retry-After` is what sizes the store's
     // write-budget cooldown.
@@ -78,7 +84,10 @@ class FakeClientRequest extends PassThrough {
 
 /** DELETE has no streamed body — `request.end()` triggers the response. */
 class FakeBodylessRequest extends EventEmitter {
-  constructor(private readonly captured: CapturedRequest, private readonly onResponse: (res: Readable & { statusCode: number }) => void) {
+  constructor(
+    private readonly captured: CapturedRequest,
+    private readonly onResponse: (res: Readable & { statusCode: number }) => void,
+  ) {
     super();
   }
   setTimeout(): this {
@@ -89,7 +98,10 @@ class FakeBodylessRequest extends EventEmitter {
   }
   end(): void {
     const { statusCode, body, headers } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & { statusCode: number; headers: Record<string, string> };
+    const res = new PassThrough() as PassThrough & {
+      statusCode: number;
+      headers: Record<string, string>;
+    };
     res.statusCode = statusCode;
     res.headers = headers ?? {};
     this.onResponse(res);
@@ -109,12 +121,28 @@ function fakeRequest(
 }
 
 vi.mock('node:http', () => ({
-  default: { request: (options: CapturedRequest['options'], cb: (res: Readable & { statusCode: number }) => void) => fakeRequest(options, cb) },
-  request: (options: CapturedRequest['options'], cb: (res: Readable & { statusCode: number }) => void) => fakeRequest(options, cb),
+  default: {
+    request: (
+      options: CapturedRequest['options'],
+      cb: (res: Readable & { statusCode: number }) => void,
+    ) => fakeRequest(options, cb),
+  },
+  request: (
+    options: CapturedRequest['options'],
+    cb: (res: Readable & { statusCode: number }) => void,
+  ) => fakeRequest(options, cb),
 }));
 vi.mock('node:https', () => ({
-  default: { request: (options: CapturedRequest['options'], cb: (res: Readable & { statusCode: number }) => void) => fakeRequest(options, cb) },
-  request: (options: CapturedRequest['options'], cb: (res: Readable & { statusCode: number }) => void) => fakeRequest(options, cb),
+  default: {
+    request: (
+      options: CapturedRequest['options'],
+      cb: (res: Readable & { statusCode: number }) => void,
+    ) => fakeRequest(options, cb),
+  },
+  request: (
+    options: CapturedRequest['options'],
+    cb: (res: Readable & { statusCode: number }) => void,
+  ) => fakeRequest(options, cb),
 }));
 
 import {
@@ -135,7 +163,10 @@ beforeEach(async () => {
   requests.length = 0;
   serviceToken.mockClear();
   invalidateServiceToken.mockClear();
-  respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }) });
+  respond = () => ({
+    statusCode: 200,
+    body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }),
+  });
   resetWriteBudgetCooldowns();
   workDir = await mkdtemp(join(tmpdir(), 'oxy-media-store-test-'));
 });
@@ -150,7 +181,10 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     const payload = Buffer.from('hello-fediverse-media');
     await writeFile(filePath, payload);
 
-    respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_123' } } }) });
+    respond = () => ({
+      statusCode: 200,
+      body: JSON.stringify({ data: { file: { id: 'oxy_file_123' } } }),
+    });
 
     const result = await uploadCachedMedia({
       filePath,
@@ -159,7 +193,11 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
       sizeBytes: payload.byteLength,
     });
 
-    expect(result).toEqual({ oxyFileId: 'oxy_file_123', sizeBytes: payload.byteLength, contentType: 'image/png' });
+    expect(result).toEqual({
+      oxyFileId: 'oxy_file_123',
+      sizeBytes: payload.byteLength,
+      contentType: 'image/png',
+    });
     expect(serviceToken).toHaveBeenCalledTimes(1);
 
     expect(requests).toHaveLength(1);
@@ -215,7 +253,10 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     respond = () =>
       requests.length === 1
         ? { statusCode: 401, body: 'token rejected' }
-        : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_after_retry' } } }) };
+        : {
+            statusCode: 200,
+            body: JSON.stringify({ data: { file: { id: 'oxy_file_after_retry' } } }),
+          };
 
     const result = await uploadCachedMedia({
       filePath,
@@ -271,7 +312,10 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
     const payload = Buffer.from('durable-fediverse-media');
     await writeFile(filePath, payload);
 
-    respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_fed' } } }) });
+    respond = () => ({
+      statusCode: 200,
+      body: JSON.stringify({ data: { file: { id: 'oxy_file_fed' } } }),
+    });
 
     const result = await uploadFederatedMedia({
       filePath,
@@ -282,7 +326,11 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
       metadata: { remoteHost: 'example.social', activityId: 'https://example.social/posts/1' },
     });
 
-    expect(result).toEqual({ oxyFileId: 'oxy_file_fed', sizeBytes: payload.byteLength, contentType: 'image/jpeg' });
+    expect(result).toEqual({
+      oxyFileId: 'oxy_file_fed',
+      sizeBytes: payload.byteLength,
+      contentType: 'image/jpeg',
+    });
     expect(requests).toHaveLength(1);
 
     const sent = requests[0];
@@ -305,11 +353,23 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
     await writeFile(filePath, Buffer.from('same-bytes'));
     respond = () => ({
       statusCode: 200,
-      body: JSON.stringify({ data: { file: { id: 'oxy_existing', sha256: 'abc', size: 10, mime: 'image/jpeg', visibility: 'public' }, deduplicated: true } }),
+      body: JSON.stringify({
+        data: {
+          file: {
+            id: 'oxy_existing',
+            sha256: 'abc',
+            size: 10,
+            mime: 'image/jpeg',
+            visibility: 'public',
+          },
+          deduplicated: true,
+        },
+      }),
     });
 
-    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
-      .resolves.toMatchObject({ oxyFileId: 'oxy_existing', deduplicated: true });
+    await expect(
+      uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }),
+    ).resolves.toMatchObject({ oxyFileId: 'oxy_existing', deduplicated: true });
   });
 
   it('raises OxyMediaOwnedElsewhereError for 409 FEDERATED_MEDIA_OWNED_ELSEWHERE — and only for that code', async () => {
@@ -317,14 +377,19 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
     await writeFile(filePath, Buffer.from('someone-elses-bytes'));
     respond = () => ({
       statusCode: 409,
-      body: JSON.stringify({ error: 'FEDERATED_MEDIA_OWNED_ELSEWHERE', message: 'owned elsewhere' }),
+      body: JSON.stringify({
+        error: 'FEDERATED_MEDIA_OWNED_ELSEWHERE',
+        message: 'owned elsewhere',
+      }),
     });
-    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
-      .rejects.toBeInstanceOf(OxyMediaOwnedElsewhereError);
+    await expect(
+      uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }),
+    ).rejects.toBeInstanceOf(OxyMediaOwnedElsewhereError);
 
     respond = () => ({ statusCode: 409, body: JSON.stringify({ error: 'SOMETHING_ELSE' }) });
-    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+    await expect(
+      uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }),
+    ).rejects.toBeInstanceOf(OxyMediaStoreRequestError);
   });
 });
 
@@ -359,7 +424,9 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
 
   it('recovers from a 401 by invalidating the service token and retrying the DELETE once', async () => {
     respond = () =>
-      requests.length === 1 ? { statusCode: 401, body: 'token rejected' } : { statusCode: 204, body: '' };
+      requests.length === 1
+        ? { statusCode: 401, body: 'token rejected' }
+        : { statusCode: 204, body: '' };
 
     await deleteCachedMedia('oxy_file_to_delete');
 
@@ -411,12 +478,14 @@ describe('oxyMediaStore write-budget cooldown', () => {
     respond = () => ({ statusCode: 429, body: 'Too many media cache uploads. Please slow down.' });
     const filePath = await mediaFile();
 
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreThrottledError,
+    );
     expect(requests).toHaveLength(1);
 
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreThrottledError,
+    );
     // No second request: the refusal is local, so it costs no socket, no service
     // token and no file stream.
     expect(requests).toHaveLength(1);
@@ -429,20 +498,26 @@ describe('oxyMediaStore write-budget cooldown', () => {
       respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': '2' } });
       const filePath = await mediaFile();
 
-      const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' })
-        .catch((error: unknown) => error);
+      const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(
+        (error: unknown) => error,
+      );
       expect(isMediaStoreThrottled(throttled)).toBe(true);
       expect((throttled as OxyMediaStoreThrottledError).retryAfterMs).toBe(2000);
 
       vi.setSystemTime(Date.now() + 1_000);
-      await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
-        OxyMediaStoreThrottledError,
-      );
+      await expect(
+        uploadCachedMedia({ filePath, contentType: 'image/png' }),
+      ).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
       expect(requests).toHaveLength(1);
 
       vi.setSystemTime(Date.now() + 1_500);
-      respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_after_cooldown' } } }) });
-      await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).resolves.toMatchObject({
+      respond = () => ({
+        statusCode: 200,
+        body: JSON.stringify({ data: { file: { id: 'oxy_after_cooldown' } } }),
+      });
+      await expect(
+        uploadCachedMedia({ filePath, contentType: 'image/png' }),
+      ).resolves.toMatchObject({
         oxyFileId: 'oxy_after_cooldown',
       });
       expect(requests).toHaveLength(2);
@@ -455,24 +530,30 @@ describe('oxyMediaStore write-budget cooldown', () => {
     respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': 'soon' } });
     const filePath = await mediaFile();
 
-    const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' })
-      .catch((error: unknown) => error) as OxyMediaStoreThrottledError;
+    const throttled = (await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(
+      (error: unknown) => error,
+    )) as OxyMediaStoreThrottledError;
 
     expect(throttled.retryAfterMs).toBe(60_000);
   });
 
   it('pauses only the operation that was refused', async () => {
-    respond = (captured) => (captured.options.method === 'DELETE'
-      ? { statusCode: 429, body: 'slow down' }
-      : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_upload_ok' } } }) });
+    respond = (captured) =>
+      captured.options.method === 'DELETE'
+        ? { statusCode: 429, body: 'slow down' }
+        : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_upload_ok' } } }) };
     const filePath = await mediaFile();
 
-    await expect(deleteCachedMedia('oxy_file_1')).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(deleteCachedMedia('oxy_file_1')).rejects.toBeInstanceOf(
+      OxyMediaStoreThrottledError,
+    );
     // Uploads still go out: the two operations have separate budgets upstream.
     await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).resolves.toMatchObject({
       oxyFileId: 'oxy_upload_ok',
     });
-    await expect(deleteCachedMedia('oxy_file_2')).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(deleteCachedMedia('oxy_file_2')).rejects.toBeInstanceOf(
+      OxyMediaStoreThrottledError,
+    );
     expect(requests.filter((r) => r.options.method === 'DELETE')).toHaveLength(1);
   });
 
@@ -480,10 +561,12 @@ describe('oxyMediaStore write-budget cooldown', () => {
     respond = () => ({ statusCode: 500, body: 'boom' });
     const filePath = await mediaFile();
 
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreRequestError,
+    );
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreRequestError,
+    );
 
     // Both reached the network: a 500 says nothing about the budget.
     expect(requests).toHaveLength(2);
@@ -502,18 +585,24 @@ describe('oxyMediaStore write-budget cooldown', () => {
 
     expect(isMediaStoreThrottled(first)).toBe(true);
     expect(isMediaStoreThrottled(second)).toBe(true);
-    expect(warn.mock.calls.filter(([message]) =>
-      message === '[MediaCache] Oxy media-write budget spent; pausing this operation')).toHaveLength(1);
+    expect(
+      warn.mock.calls.filter(
+        ([message]) =>
+          message === '[MediaCache] Oxy media-write budget spent; pausing this operation',
+      ),
+    ).toHaveLength(1);
   });
 
   it('refuses a federated upload on the same budget as a cache upload', async () => {
     respond = () => ({ statusCode: 429, body: 'slow down' });
     const filePath = await mediaFile();
 
-    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
-    await expect(uploadFederatedMedia({ filePath, contentType: 'image/png', ownerUserId: 'owner-1' }))
-      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+      OxyMediaStoreThrottledError,
+    );
+    await expect(
+      uploadFederatedMedia({ filePath, contentType: 'image/png', ownerUserId: 'owner-1' }),
+    ).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
 
     expect(requests).toHaveLength(1);
   });

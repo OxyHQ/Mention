@@ -110,9 +110,7 @@ describe('Bloom theme colour tokens are never hex-alpha composited', () => {
   it('flags an accent token with a hex-alpha suffix, in both spellings', () => {
     // The detector's own mutation test. Break it and these fail, so a scan that
     // reports zero offenders below is reporting a real property of the tree.
-    expect(
-      findTokenAlphaOffenders('backgroundColor: `${theme.colors.primary}30`'),
-    ).toHaveLength(1);
+    expect(findTokenAlphaOffenders('backgroundColor: `${theme.colors.primary}30`')).toHaveLength(1);
     expect(findTokenAlphaOffenders("const bg = theme.colors.primary + '1A';")).toHaveLength(1);
     expect(findTokenAlphaOffenders('color: `${theme.colors.border}33`')).toHaveLength(1);
   });

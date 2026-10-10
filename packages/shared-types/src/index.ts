@@ -1,6 +1,6 @@
 /**
  * Shared Types for Mention
- * 
+ *
  * This package contains TypeScript interfaces and types that are shared
  * between the frontend and backend applications to ensure type consistency.
  */

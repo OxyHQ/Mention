@@ -69,7 +69,10 @@ function planForNode(node: GraphChildMedia | GraphMedia): InstagramMediaPlan | n
 
   if (type === 'VIDEO') {
     if (mediaUrl) {
-      return { primary: videoMedia(mediaUrl), ...(thumbnailUrl ? { fallback: imageMedia(thumbnailUrl) } : {}) };
+      return {
+        primary: videoMedia(mediaUrl),
+        ...(thumbnailUrl ? { fallback: imageMedia(thumbnailUrl) } : {}),
+      };
     }
     // No playable file (licensed audio): the still is all Instagram gives out.
     return thumbnailUrl ? { primary: imageMedia(thumbnailUrl) } : null;
@@ -90,7 +93,11 @@ export function planInstagramMedia(item: GraphMedia): InstagramMediaPlan[] {
       .filter((plan): plan is InstagramMediaPlan => plan !== null);
     if (plans.length > 0) return plans;
     // A carousel whose children were not returned still has its cover.
-    const cover = planForNode({ media_type: 'IMAGE', media_url: item.media_url, thumbnail_url: item.thumbnail_url });
+    const cover = planForNode({
+      media_type: 'IMAGE',
+      media_url: item.media_url,
+      thumbnail_url: item.thumbnail_url,
+    });
     return cover ? [cover] : [];
   }
   const plan = planForNode(item);
@@ -101,7 +108,10 @@ export function planInstagramMedia(item: GraphMedia): InstagramMediaPlan[] {
  * Map one Graph media item authored by `actorUri`. Returns null when the item
  * has no Instagram shortcode (nothing to dedupe on) or nothing to show.
  */
-export function mapGraphMediaToNormalizedPost(item: GraphMedia, actorUri: string): InstagramMappedPost | null {
+export function mapGraphMediaToNormalizedPost(
+  item: GraphMedia,
+  actorUri: string,
+): InstagramMappedPost | null {
   const shortcode = instagramShortcodeFromPermalink(item.permalink);
   const activityId = instagramSourceKey(shortcode);
   if (!shortcode || !activityId) return null;

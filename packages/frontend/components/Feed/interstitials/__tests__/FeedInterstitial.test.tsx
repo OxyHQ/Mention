@@ -46,7 +46,13 @@ import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
 
 // ── Module boundaries ───────────────────────────────────────────────────────
 
-type MessageNode = string | number | boolean | null | MessageNode[] | { [key: string]: MessageNode };
+type MessageNode =
+  | string
+  | number
+  | boolean
+  | null
+  | MessageNode[]
+  | { [key: string]: MessageNode };
 
 const messages: { [key: string]: MessageNode } = enMessages;
 
@@ -71,24 +77,58 @@ function mockTranslate(key: string, vars?: Record<string, string>): string {
 jest.mock('@oxy.so/bloom/chart-cards/sparkline', () => ({ Sparkline: () => null }));
 
 jest.mock('@oxy.so/bloom/media-header', () => {
-  const { TouchableOpacity: RNTouchable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TouchableOpacity: RNTouchable, Text: RNText } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    FollowButton: ({ following, onFollowChange, label, followingLabel, disabled, loading = false }: {
-      following: boolean; onFollowChange: (following: boolean) => void;
-      label: string; followingLabel: string; disabled?: boolean; loading?: boolean;
-    }) => <RNTouchable accessibilityRole="button" accessibilityState={{ selected: following, busy: loading }}
-      disabled={disabled} onPress={() => onFollowChange(!following)}>
-      <RNText>{following ? followingLabel : label}</RNText>
-    </RNTouchable>,
+    FollowButton: ({
+      following,
+      onFollowChange,
+      label,
+      followingLabel,
+      disabled,
+      loading = false,
+    }: {
+      following: boolean;
+      onFollowChange: (following: boolean) => void;
+      label: string;
+      followingLabel: string;
+      disabled?: boolean;
+      loading?: boolean;
+    }) => (
+      <RNTouchable
+        accessibilityRole="button"
+        accessibilityState={{ selected: following, busy: loading }}
+        disabled={disabled}
+        onPress={() => onFollowChange(!following)}
+      >
+        <RNText>{following ? followingLabel : label}</RNText>
+      </RNTouchable>
+    ),
   };
 });
 
 jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { View, TouchableOpacity } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
-      onPress ? ReactActual.createElement(TouchableOpacity, { onPress, accessibilityRole: "button" }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+    ContactRow: ({
+      avatarSlot,
+      identitySlot,
+      onPress,
+    }: {
+      avatarSlot: React.ReactNode;
+      identitySlot: React.ReactNode;
+      onPress?: () => void;
+    }) =>
+      onPress
+        ? ReactActual.createElement(
+            TouchableOpacity,
+            { onPress, accessibilityRole: 'button' },
+            avatarSlot,
+            identitySlot,
+          )
+        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
   };
 });
 jest.mock('react-i18next', () => ({
@@ -170,7 +210,8 @@ jest.mock('@oxy.so/services/ui/client', () => {
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={FOLLOW_LABEL}
-            onPress={() => onFollowChange?.(true)}>
+            onPress={() => onFollowChange?.(true)}
+          >
             <Text>{FOLLOW_LABEL}</Text>
           </TouchableOpacity>
         );
@@ -180,7 +221,8 @@ jest.mock('@oxy.so/services/ui/client', () => {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={followAllLabel}
-          onPress={onBulkFollow}>
+          onPress={onBulkFollow}
+        >
           <Text>{followAllLabel}</Text>
         </TouchableOpacity>
       );
@@ -309,8 +351,7 @@ jest.mock('@oxy.so/bloom/carousel', () => {
 });
 
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
-  const { TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
+  const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });
 
@@ -351,8 +392,7 @@ jest.mock('@oxy.so/bloom/typography', () => {
 });
 
 jest.mock('@oxy.so/bloom/button', () => {
-  const { TouchableOpacity } =
-    jest.requireActual<typeof import('react-native')>('react-native');
+  const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Button: TouchableOpacity };
 });
 
@@ -607,14 +647,9 @@ function pressables(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance
 }
 
 /** The dismiss control for one suggestion, found by its accessible name. */
-function dismissButton(
-  renderer: TestRenderer.ReactTestRenderer,
-  name: string,
-): ReactTestInstance {
+function dismissButton(renderer: TestRenderer.ReactTestRenderer, name: string): ReactTestInstance {
   const label = mockTranslate('feed.interstitial.users.dismiss', { name });
-  const matches = pressables(renderer).filter(
-    (node) => node.props.accessibilityLabel === label,
-  );
+  const matches = pressables(renderer).filter((node) => node.props.accessibilityLabel === label);
   if (matches.length !== 1) {
     throw new Error(`expected exactly one "${label}" control, found ${matches.length}`);
   }
@@ -727,13 +762,10 @@ function followButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInsta
  * accessible role is a link and which carries no accessible name of its own
  * (the header "See more" link is named).
  */
-function profileRowPressables(
-  renderer: TestRenderer.ReactTestRenderer,
-): ReactTestInstance[] {
+function profileRowPressables(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return pressables(renderer).filter(
     (node) =>
-      node.props.accessibilityRole === 'link' &&
-      node.props.accessibilityLabel === undefined,
+      node.props.accessibilityRole === 'link' && node.props.accessibilityLabel === undefined,
   );
 }
 
@@ -816,9 +848,13 @@ describe('SuggestedUsersInterstitial', () => {
     // on a phone, and 4 suffice on both.
     mockRecommendations = users(3);
     mockIsDesktop = false;
-    expect((await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON()).toBeNull();
+    expect(
+      (await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON(),
+    ).toBeNull();
     mockIsDesktop = true;
-    expect((await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON()).toBeNull();
+    expect(
+      (await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON(),
+    ).toBeNull();
 
     mockRecommendations = users(4);
     mockIsDesktop = false;
@@ -838,9 +874,9 @@ describe('SuggestedUsersInterstitial', () => {
     // The header stands on skeletons — the suggestions almost always arrive, and
     // popping the band in afterwards would shift the feed under the reader.
     expect(renderedText(renderer)).toContain(TITLES.suggestedUsers);
-    expect(renderer.root.findAll((node) => node.props.testID === 'skeleton').length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      renderer.root.findAll((node) => node.props.testID === 'skeleton').length,
+    ).toBeGreaterThan(0);
     expect(dismissButtonCount(renderer)).toBe(0);
   });
 
@@ -1119,7 +1155,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders nothing when there are no packs to suggest', async () => {
     mockListStarterPacks.mockResolvedValue({ items: [], total: 0 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -1127,7 +1165,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders nothing below the minimum', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(2), total: 2 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -1135,7 +1175,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders the header and every suggested pack once it has enough', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedStarterPacks);
@@ -1159,7 +1201,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('records the pack as used when the viewer follows all of its members', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
     const buttons = followAllButtons(renderer);
     expect(buttons).toHaveLength(4);
 
@@ -1177,7 +1221,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
       total: 4,
     });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
 
     // The packs still render — but with no dead call-to-action under them.
     expect(renderedText(renderer)).toContain('Pack 1');
@@ -1207,7 +1253,9 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('removes a dismissed pack, and closes the band once too few are left', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(7), total: 7 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
     // The band shows 6 of the 7 available packs.
     expect(dismissButtonCount(renderer)).toBe(6);
     expect(renderedText(renderer)).not.toContain('Pack 7');
@@ -1323,7 +1371,9 @@ describe('SimilarAccountsInterstitial', () => {
     mockGetSimilarProfiles.mockResolvedValue(similarAccounts(6));
 
     mockIsDesktop = true;
-    const desktop = await renderBand(<SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />);
+    const desktop = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
     expect(horizontalScrollers(desktop)).toHaveLength(1);
     expect(carouselArrows(desktop)).toHaveLength(2);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
@@ -1331,7 +1381,9 @@ describe('SimilarAccountsInterstitial', () => {
     expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(172));
 
     mockIsDesktop = false;
-    const mobile = await renderBand(<SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />);
+    const mobile = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(carouselArrows(mobile)).toHaveLength(0);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
@@ -1368,13 +1420,10 @@ describe('SimilarAccountsInterstitial', () => {
  * accessible name (the ⋯ button does) nor a role, so this is the same shape as
  * `profileRowPressables` — the row itself, not the controls beside it.
  */
-function trendRowPressables(
-  renderer: TestRenderer.ReactTestRenderer,
-): ReactTestInstance[] {
+function trendRowPressables(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return pressables(renderer).filter(
     (node) =>
-      node.props.accessibilityLabel === undefined &&
-      node.props.accessibilityRole === undefined,
+      node.props.accessibilityLabel === undefined && node.props.accessibilityRole === undefined,
   );
 }
 
@@ -1513,7 +1562,9 @@ describe('FeedInterstitial', () => {
   });
 
   it('dispatches suggestedUsers to the who-to-follow band', async () => {
-    const renderer = await renderBand(<FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />);
+    const renderer = await renderBand(
+      <FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />,
+    );
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedUsers);
@@ -1523,7 +1574,9 @@ describe('FeedInterstitial', () => {
   });
 
   it('dispatches suggestedFeeds to the feeds band', async () => {
-    const renderer = await renderBand(<FeedInterstitial slot={slot('suggestedFeeds')} ordinal={0} />);
+    const renderer = await renderBand(
+      <FeedInterstitial slot={slot('suggestedFeeds')} ordinal={0} />,
+    );
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedFeeds);
@@ -1605,7 +1658,9 @@ describe('FeedInterstitial', () => {
   });
 
   it('reports nothing for a card rendered outside a feed (no descriptor to attribute to)', async () => {
-    const renderer = await renderBand(<FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />);
+    const renderer = await renderBand(
+      <FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />,
+    );
 
     press(dismissButton(renderer, 'Person 1'));
 
@@ -1737,7 +1792,13 @@ describe('interstitial telemetry', () => {
 
     expect(reportedEvents()).toEqual([
       expect.objectContaining({ event: 'dismiss', position: 1 }),
-      { feedDescriptor: FEED_DESCRIPTOR, slotKey: SLOT_KEY, kind: 'suggestedUsers', event: 'seeMore', position: undefined },
+      {
+        feedDescriptor: FEED_DESCRIPTOR,
+        slotKey: SLOT_KEY,
+        kind: 'suggestedUsers',
+        event: 'seeMore',
+        position: undefined,
+      },
     ]);
   });
 
@@ -1767,7 +1828,9 @@ describe('interstitial telemetry', () => {
   it('reports a starter pack as USED when the reader follows all of its members', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    const renderer = await renderBand(
+      <SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />,
+    );
     press(followAllButtons(renderer)[2]);
     await flush();
 

@@ -35,13 +35,11 @@ const mockPagerCommands = { setPage: jest.fn(), setPageWithoutAnimation: jest.fn
 jest.mock('react-native-pager-view', () => {
   const React = require('react') as typeof import('react');
   const { View } = require('react-native') as typeof import('react-native');
-  const MockPagerView = React.forwardRef<unknown, { children?: React.ReactNode }>(
-    (props, ref) => {
-      React.useImperativeHandle(ref, () => mockPagerCommands);
-      pagerProps = props as Record<string, unknown>;
-      return React.createElement(View, null, props.children);
-    },
-  );
+  const MockPagerView = React.forwardRef<unknown, { children?: React.ReactNode }>((props, ref) => {
+    React.useImperativeHandle(ref, () => mockPagerCommands);
+    pagerProps = props as Record<string, unknown>;
+    return React.createElement(View, null, props.children);
+  });
   MockPagerView.displayName = 'MockPagerView';
   return { __esModule: true, default: MockPagerView };
 });
@@ -63,13 +61,7 @@ jest.mock('react-native-screens', () => {
   const React = require('react') as typeof import('react');
   const { View } = require('react-native') as typeof import('react-native');
   return {
-    Screen: ({
-      activityState,
-      children,
-    }: {
-      activityState: number;
-      children?: React.ReactNode;
-    }) =>
+    Screen: ({ activityState, children }: { activityState: number; children?: React.ReactNode }) =>
       React.createElement(
         View,
         { testID: `activity-${activityState}` },

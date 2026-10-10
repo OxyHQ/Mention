@@ -41,9 +41,9 @@ import type { DatabaseOrTransaction, Transaction } from '../postgres';
 export class MissingTransactionError extends Error {
   constructor(operation: string) {
     super(
-      `Refusing to run '${operation}' outside a transaction: it must commit together `
-      + 'with the domain write it belongs to, or a report is answered 201 and never '
-      + 'delivered. Pass the handle from `db.transaction(...)`, not `getDb()`.',
+      `Refusing to run '${operation}' outside a transaction: it must commit together ` +
+        'with the domain write it belongs to, or a report is answered 201 and never ' +
+        'delivered. Pass the handle from `db.transaction(...)`, not `getDb()`.',
     );
     this.name = 'MissingTransactionError';
   }
@@ -54,10 +54,7 @@ export class MissingTransactionError extends Error {
  *
  * @throws {MissingTransactionError} When handed the root connection.
  */
-export function requireTransaction(
-  db: DatabaseOrTransaction,
-  operation: string,
-): Transaction {
+export function requireTransaction(db: DatabaseOrTransaction, operation: string): Transaction {
   const rollback = (db as { rollback?: unknown }).rollback;
   if (typeof rollback !== 'function') {
     throw new MissingTransactionError(operation);

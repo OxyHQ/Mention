@@ -12,7 +12,11 @@ import { createScopedOxyClient, createForegroundOxyProfileClient } from '../util
 const router = express.Router();
 
 /** The user types a caller may exclude via `?excludeTypes=` (CSV). */
-const VALID_EXCLUDE_TYPES: readonly RecommendationExcludeType[] = ['federated', 'agent', 'automated'];
+const VALID_EXCLUDE_TYPES: readonly RecommendationExcludeType[] = [
+  'federated',
+  'agent',
+  'automated',
+];
 
 /** Parse a CSV `excludeTypes` query param into the validated subset. */
 function parseExcludeTypes(value: unknown): RecommendationExcludeType[] {

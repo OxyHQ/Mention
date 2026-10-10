@@ -107,7 +107,7 @@ export const mcpConnections = pgTable(
     index('mcp_connections_bundle_id_idx').on(t.bundleId, t.revokedAt),
     // Revocation resolves a token family by `jti`.
     index('mcp_connections_jti_idx').on(t.jti),
-  ]
+  ],
 );
 
 /**
@@ -145,7 +145,7 @@ export const mcpAuthCodes = pgTable(
     uniqueIndex('mcp_auth_codes_code_key').on(t.code),
     // Required by the expiry sweep: its predicate is a range scan on this column.
     index('mcp_auth_codes_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -167,7 +167,7 @@ export const mcpRegisteredClients = pgTable(
     label: text().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('mcp_registered_clients_client_id_key').on(t.clientId)]
+  (t) => [uniqueIndex('mcp_registered_clients_client_id_key').on(t.clientId)],
 );
 
 /**

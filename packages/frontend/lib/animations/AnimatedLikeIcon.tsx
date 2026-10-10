@@ -35,7 +35,11 @@ interface LikeIconProps {
  */
 export function AnimatedLikeIcon(props: LikeIconProps) {
   if (!props.hasBeenToggled) {
-    return props.isLiked ? <LikedHeart big={props.big} /> : <HeartIcon className="text-muted-foreground" size={props.big ? 22 : 18} />;
+    return props.isLiked ? (
+      <LikedHeart big={props.big} />
+    ) : (
+      <HeartIcon className="text-muted-foreground" size={props.big ? 22 : 18} />
+    );
   }
   return <AnimatedHeart {...props} />;
 }

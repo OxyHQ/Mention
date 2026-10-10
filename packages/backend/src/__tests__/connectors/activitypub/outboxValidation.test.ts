@@ -6,11 +6,7 @@ import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';
 import type { PostRecord } from '../../../db/posts/postRecord';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 
 const scope = federationScope('outbox-validation');
 
@@ -20,7 +16,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   // Production inserted these, so `seedPost`'s id tracking never saw them.
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}/%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}/%`));
   await clearFederationScope(scope);
 });
 
@@ -139,10 +137,9 @@ const OWNER_OXY_ID = 'oxy_alice';
  * parallel file execution.
  */
 function importedPosts(): Promise<PostRecord[]> {
-  return findPostRecords(
-    like(posts.federationActivityId, `${ACTOR_URI}/%`),
-    { orderBy: [asc(posts.createdAt)] },
-  );
+  return findPostRecords(like(posts.federationActivityId, `${ACTOR_URI}/%`), {
+    orderBy: [asc(posts.createdAt)],
+  });
 }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -186,7 +183,12 @@ const syncOptions = { limit: 10, maxPages: 1 } as const;
 
 function runSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: 'oxy_alice' },
+    {
+      uri: ACTOR_URI,
+      acct: 'alice@mastodon.social',
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: 'oxy_alice',
+    },
     syncOptions,
   );
 }
@@ -199,7 +201,10 @@ beforeEach(() => {
     publicKeyPem: 'public',
   });
   mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl'); // base64 stub signature
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update.$set,
+  }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
@@ -209,7 +214,9 @@ beforeEach(() => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -296,7 +303,6 @@ describe('OutboxSyncService — per-item zod validation', () => {
       `${ACTOR_URI}/statuses/3`,
     ]);
   });
-
 
   it('rejects Create items whose actor or attributedTo does not match the synced outbox owner', async () => {
     const victimUri = 'https://victim.example/users/bob';
@@ -468,7 +474,10 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     // carry OUR synced actor as its author, since `oxyUserId` comes from the
     // outbox owner, not from the id.
     const boosted = await seedPost(scope, {
-      federation: { activityId: `${scope.origin}/users/bob/statuses/888`, actorUri: `${scope.origin}/users/bob` },
+      federation: {
+        activityId: `${scope.origin}/users/bob/statuses/888`,
+        actorUri: `${scope.origin}/users/bob`,
+      },
     });
 
     stubOutbox(
@@ -526,12 +535,19 @@ describe('OutboxSyncService — outbox URL SSRF hardening', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       OUTBOX_URL,
-      expect.objectContaining({ headers: expect.objectContaining({ Accept: expect.stringContaining('application/activity+json') }) }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: expect.stringContaining('application/activity+json'),
+        }),
+      }),
     );
   });
 
   it('caps inspected non-candidate items and returns an item-offset cursor', async () => {
-    const orderedItems = Array.from({ length: 105 }, (_, index) => `http://169.254.169.254/latest/meta-data/${index}`);
+    const orderedItems = Array.from(
+      { length: 105 },
+      (_, index) => `http://169.254.169.254/latest/meta-data/${index}`,
+    );
     const fetchMock = stubOutbox({
       type: 'OrderedCollection',
       totalItems: orderedItems.length,
@@ -539,7 +555,12 @@ describe('OutboxSyncService — outbox URL SSRF hardening', () => {
     });
 
     const result = await outboxSyncService.syncOutboxPostsDetailed(
-      { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: 'oxy_alice' },
+      {
+        uri: ACTOR_URI,
+        acct: 'alice@mastodon.social',
+        outboxUrl: OUTBOX_URL,
+        oxyUserId: 'oxy_alice',
+      },
       { limit: 10, maxPages: 1 },
     );
 

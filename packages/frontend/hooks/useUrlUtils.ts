@@ -31,13 +31,16 @@ export const useUrlUtils = () => {
    * @param url - URL string to validate
    * @returns true if valid or empty, false otherwise
    */
-  const isValidSourceUrl = useCallback((url: string): boolean => {
-    if (!url || typeof url !== 'string') return true;
-    const trimmed = url.trim();
-    if (!trimmed) return true;
-    const normalized = normalizeUrl(trimmed);
-    return normalized !== null;
-  }, [normalizeUrl]);
+  const isValidSourceUrl = useCallback(
+    (url: string): boolean => {
+      if (!url || typeof url !== 'string') return true;
+      const trimmed = url.trim();
+      if (!trimmed) return true;
+      const normalized = normalizeUrl(trimmed);
+      return normalized !== null;
+    },
+    [normalizeUrl],
+  );
 
   /**
    * Sanitize sources list for submission
@@ -45,26 +48,29 @@ export const useUrlUtils = () => {
    * @param list - Raw sources list
    * @returns Sanitized sources array
    */
-  const sanitizeSourcesForSubmit = useCallback((
-    list: { id: string; title: string; url: string }[] | undefined
-  ): { url: string; title?: string }[] => {
-    if (!Array.isArray(list) || list.length === 0) return [];
+  const sanitizeSourcesForSubmit = useCallback(
+    (
+      list: { id: string; title: string; url: string }[] | undefined,
+    ): { url: string; title?: string }[] => {
+      if (!Array.isArray(list) || list.length === 0) return [];
 
-    const MAX_SOURCES = 5;
-    const normalized: { url: string; title?: string }[] = [];
+      const MAX_SOURCES = 5;
+      const normalized: { url: string; title?: string }[] = [];
 
-    list.forEach((item) => {
-      const normalizedUrl = normalizeUrl(item.url);
-      if (!normalizedUrl) return;
-      const title = item.title?.trim();
-      normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
-    });
+      list.forEach((item) => {
+        const normalizedUrl = normalizeUrl(item.url);
+        if (!normalizedUrl) return;
+        const title = item.title?.trim();
+        normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
+      });
 
-    const deduped = normalized.filter((source, index, self) => 
-      self.findIndex((s) => s.url === source.url) === index
-    );
-    return deduped.slice(0, MAX_SOURCES);
-  }, [normalizeUrl]);
+      const deduped = normalized.filter(
+        (source, index, self) => self.findIndex((s) => s.url === source.url) === index,
+      );
+      return deduped.slice(0, MAX_SOURCES);
+    },
+    [normalizeUrl],
+  );
 
   return {
     normalizeUrl,

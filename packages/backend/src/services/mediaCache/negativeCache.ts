@@ -84,6 +84,7 @@ export async function markNegativelyCached(
   // setEx applies the TTL atomically so a crash can't leave a permanent
   // negative entry behind.
   await cache.set(keyFor(remoteUrl), kind, {
-    ttlSeconds: kind === 'connection-error' ? CONNECTION_ERROR_TTL_SECONDS : CLIENT_ERROR_TTL_SECONDS,
+    ttlSeconds:
+      kind === 'connection-error' ? CONNECTION_ERROR_TTL_SECONDS : CLIENT_ERROR_TTL_SECONDS,
   });
 }

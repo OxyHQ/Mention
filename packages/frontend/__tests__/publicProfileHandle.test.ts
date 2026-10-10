@@ -41,20 +41,47 @@ describe('isPublicProfileHandle — the identities that must keep rendering', ()
   });
 });
 
-
 describe('Oxy-proven aliases', () => {
-  const profile = { externalIdentities: [{ canonicalAcct: 'freshperson@threads.net', network: 'threads.net', protocol: 'activitypub', actorUri: 'https://threads.net/ap/users/freshperson', transportAcct: 'freshperson@threads.net', sourceUserId: 'threads-source' },
-    { canonicalAcct: 'freshperson@instagram.com', network: 'instagram.com', protocol: 'activitypub', actorUri: 'https://bridge.example/users/freshperson', transportAcct: 'freshperson@bridge.example', sourceUserId: 'instagram-source' }] };
+  const profile = {
+    externalIdentities: [
+      {
+        canonicalAcct: 'freshperson@threads.net',
+        network: 'threads.net',
+        protocol: 'activitypub',
+        actorUri: 'https://threads.net/ap/users/freshperson',
+        transportAcct: 'freshperson@threads.net',
+        sourceUserId: 'threads-source',
+      },
+      {
+        canonicalAcct: 'freshperson@instagram.com',
+        network: 'instagram.com',
+        protocol: 'activitypub',
+        actorUri: 'https://bridge.example/users/freshperson',
+        transportAcct: 'freshperson@bridge.example',
+        sourceUserId: 'instagram-source',
+      },
+    ],
+  };
   it('accepts the other proven network alias of one canonical person', () => {
-    expect(isPublicProfileHandle('@FreshPerson@Threads.net', 'freshperson@instagram.com', profile)).toBe(true);
+    expect(
+      isPublicProfileHandle('@FreshPerson@Threads.net', 'freshperson@instagram.com', profile),
+    ).toBe(true);
   });
   it('does not promote the same proven source transport acct', () => {
-    expect(isPublicProfileHandle('freshperson@bridge.example', 'freshperson@instagram.com', profile)).toBe(false);
+    expect(
+      isPublicProfileHandle('freshperson@bridge.example', 'freshperson@instagram.com', profile),
+    ).toBe(false);
   });
   it('does not infer a link from a matching handle without Oxy proof', () => {
-    expect(isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {})).toBe(false);
+    expect(isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {})).toBe(
+      false,
+    );
   });
   it('rejects malformed alias metadata rather than adopting its handle', () => {
-    expect(isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', { externalIdentities: [{ canonicalAcct: 'freshperson@threads.net' }] })).toBe(false);
+    expect(
+      isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {
+        externalIdentities: [{ canonicalAcct: 'freshperson@threads.net' }],
+      }),
+    ).toBe(false);
   });
 });

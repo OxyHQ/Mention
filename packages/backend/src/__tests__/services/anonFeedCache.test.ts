@@ -44,7 +44,13 @@ describe('anonFeedCache.buildKey', () => {
   });
 
   it('changes when the descriptor, sort, limit, cursor, or filters change', () => {
-    const base = { type: 'mixed', sort: 'recent', limit: 20, cursor: 'c1', filters: { language: 'en' } };
+    const base = {
+      type: 'mixed',
+      sort: 'recent',
+      limit: 20,
+      cursor: 'c1',
+      filters: { language: 'en' },
+    };
     const key = anonFeedCache.buildKey(base);
 
     expect(key).not.toBe(anonFeedCache.buildKey({ ...base, type: 'posts' }));
@@ -104,6 +110,8 @@ describe('anonFeedCache.write', () => {
 
   it('does not throw (fail-soft) when Redis write fails', async () => {
     mocks.redisSetEx.mockRejectedValue(new Error('redis down'));
-    await expect(anonFeedCache.write('k', { items: [], hasMore: false, totalCount: 0 })).resolves.toBeUndefined();
+    await expect(
+      anonFeedCache.write('k', { items: [], hasMore: false, totalCount: 0 }),
+    ).resolves.toBeUndefined();
   });
 });

@@ -69,7 +69,10 @@ let reportIds: string[];
  */
 let reporterSeq = 0;
 
-function event(decision: unknown, payload: { caseId?: string } = { caseId: CASE_ID }): ModerationOutboxEvent {
+function event(
+  decision: unknown,
+  payload: { caseId?: string } = { caseId: CASE_ID },
+): ModerationOutboxEvent {
   return {
     _id: 'moderation:decision.apply:evt_1',
     kind: 'decision.apply',
@@ -113,7 +116,9 @@ afterAll(async () => {
 
 describe('decision worker', () => {
   beforeEach(async () => {
-    await getDb().delete(reportsTable).where(like(reportsTable.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reportsTable)
+      .where(like(reportsTable.reporter, `${PREFIX}%`));
     caseSeq += 1;
     CASE_ID = `case-test-decisionworker-${caseSeq}`;
     await seedReports(1);
@@ -123,7 +128,9 @@ describe('decision worker', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await getDb().delete(reportsTable).where(like(reportsTable.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reportsTable)
+      .where(like(reportsTable.reporter, `${PREFIX}%`));
   });
 
   it('writes the decision onto the report and records what Mention did', async () => {
@@ -231,7 +238,9 @@ describe('decision worker', () => {
   });
 
   it('defers when no local report is linked to the case yet', async () => {
-    await getDb().delete(reportsTable).where(like(reportsTable.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reportsTable)
+      .where(like(reportsTable.reporter, `${PREFIX}%`));
     const decision = decisionFixture({ caseId: CASE_ID });
 
     await expect(applyDecisionOutboxEvent(event(decision))).rejects.toBeInstanceOf(
@@ -254,7 +263,13 @@ describe('decision worker', () => {
     // one-person-one-vote. A document that fails it is not something to retry.
     const malformed = {
       ...decisionFixture({ caseId: CASE_ID }),
-      jury: { size: 3, decisiveVotes: 3, winningVotes: 3, agreement: 0.5, specialistPresent: false },
+      jury: {
+        size: 3,
+        decisiveVotes: 3,
+        winningVotes: 3,
+        agreement: 0.5,
+        specialistPresent: false,
+      },
     };
 
     await expect(applyDecisionOutboxEvent(event(malformed))).rejects.toBeInstanceOf(
@@ -267,9 +282,9 @@ describe('decision worker', () => {
   });
 
   it('dead-letters an event with no case id', async () => {
-    await expect(
-      applyDecisionOutboxEvent(event(decisionFixture(), {})),
-    ).rejects.toBeInstanceOf(ModerationDecisionRejectedError);
+    await expect(applyDecisionOutboxEvent(event(decisionFixture(), {}))).rejects.toBeInstanceOf(
+      ModerationDecisionRejectedError,
+    );
   });
 
   it('never turns an absent consensus into a dismissal', async () => {

@@ -1,11 +1,7 @@
-import { useState, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import {
-  generateSourceId,
-  isValidSourceUrl,
-  sanitizeSourcesForSubmit,
-} from "@/utils/composeUtils";
+import { generateSourceId, isValidSourceUrl, sanitizeSourcesForSubmit } from '@/utils/composeUtils';
 
 export interface Source {
   id: string;
@@ -20,23 +16,22 @@ export const useSourcesManager = () => {
   const addSource = useCallback(() => {
     setSources((prev) => {
       if (prev.length >= 5) {
-        toast(
-          t("compose.sources.limit", { defaultValue: "You can add up to 5 sources" }),
-          { type: 'error' },
-        );
+        toast(t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' }), {
+          type: 'error',
+        });
         return prev;
       }
-      return [...prev, { id: generateSourceId(), title: "", url: "" }];
+      return [...prev, { id: generateSourceId(), title: '', url: '' }];
     });
   }, [t]);
 
   const updateSourceField = useCallback(
-    (sourceId: string, field: "title" | "url", value: string) => {
+    (sourceId: string, field: 'title' | 'url', value: string) => {
       setSources((prev) =>
-        prev.map((source) => (source.id === sourceId ? { ...source, [field]: value } : source))
+        prev.map((source) => (source.id === sourceId ? { ...source, [field]: value } : source)),
       );
     },
-    []
+    [],
   );
 
   const removeSource = useCallback((sourceId: string) => {

@@ -69,7 +69,6 @@ const DETAIL_MEMBER_PROFILES = 50;
  */
 type UserProfile = PostUser;
 
-
 /**
  * A case-insensitive substring match against ANY element of a `text[]` column.
  *
@@ -107,7 +106,9 @@ function profileFromSummary(oxyUserId: string, cached: CachedUserSummary | undef
  */
 async function resolveUserProfiles(oxyUserIds: string[]): Promise<Map<string, UserProfile>> {
   const result = new Map<string, UserProfile>();
-  const uniqueIds = Array.from(new Set(oxyUserIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  const uniqueIds = Array.from(
+    new Set(oxyUserIds.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  );
   if (uniqueIds.length === 0) return result;
 
   let summaries = new Map<string, CachedUserSummary>();
@@ -368,7 +369,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       pagination: { offset, limit: pageLimit ?? normalizedItems.length, hasMore },
     });
   } catch (error) {
-    logger.error('[CustomFeeds] List custom feeds error:', { userId: req.user?.id, error, query: req.query });
+    logger.error('[CustomFeeds] List custom feeds error:', {
+      userId: req.user?.id,
+      error,
+      query: req.query,
+    });
     res.status(500).json({ error: 'Failed to list feeds' });
   }
 });
@@ -384,8 +389,9 @@ router.get('/marketplace/categories', async (_req: AuthRequest, res: Response) =
       // Mongo sorted on the count alone, which left equal counts in plan order.
       .orderBy(desc(count()), asc(customFeeds.category));
     const categories = results
-      .filter((row): row is { category: (typeof FEED_CATEGORIES)[number]; total: number } =>
-        row.category !== null,
+      .filter(
+        (row): row is { category: (typeof FEED_CATEGORIES)[number]; total: number } =>
+          row.category !== null,
       )
       .map((row) => ({ category: row.category, count: row.total }));
     res.json({ categories });
@@ -403,7 +409,10 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     const category = queryString(req.query.category);
 
     const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE), MAX_FEED_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE),
+      MAX_FEED_PAGE_SIZE,
+    );
     const skip = (page - 1) * limit;
 
     const conditions: Array<SQL | undefined> = [eq(customFeeds.isPublic, true)];
@@ -505,7 +514,13 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     // TWO queries, page and count. See `GET /` for why a window count is wrong
     // for a total that has to survive a page past the end of the result set.
     const [items, totals] = await Promise.all([
-      getDb().select().from(customFeeds).where(where).orderBy(...orderBy).limit(limit).offset(skip),
+      getDb()
+        .select()
+        .from(customFeeds)
+        .where(where)
+        .orderBy(...orderBy)
+        .limit(limit)
+        .offset(skip),
       getDb().select({ value: count() }).from(customFeeds).where(where),
     ]);
     const total = totals[0].value;
@@ -594,7 +609,11 @@ router.get('/generators', async (req: AuthRequest, res: Response) => {
 
     res.json({ items: normalizedItems, total: normalizedItems.length });
   } catch (error) {
-    logger.error('[CustomFeeds] List feed generators error:', { userId: req.user?.id, error, query: req.query });
+    logger.error('[CustomFeeds] List feed generators error:', {
+      userId: req.user?.id,
+      error,
+      query: req.query,
+    });
     res.status(500).json({ error: 'Failed to list feed generators' });
   }
 });
@@ -621,8 +640,13 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
 
     const owner = profilesById.get(loaded.row.ownerOxyUserId) ?? null;
     // Preserve member ORDER (the map is keyed by id; rebuild the ordered list).
-    const members = memberIds.map((id) => profilesById.get(id) ?? profileFromSummary(id, undefined));
-    const memberAvatars = members.slice(0, DETAIL_MEMBER_AVATARS).map((m) => m.avatar).filter(Boolean);
+    const members = memberIds.map(
+      (id) => profilesById.get(id) ?? profileFromSummary(id, undefined),
+    );
+    const memberAvatars = members
+      .slice(0, DETAIL_MEMBER_AVATARS)
+      .map((m) => m.avatar)
+      .filter(Boolean);
 
     res.json({
       ...serializeFeed(loaded.row, loaded.relations),
@@ -635,7 +659,11 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
       topicCount: topicCountOf(loaded.row),
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Get feed error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Get feed error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to get feed' });
   }
 });
@@ -691,7 +719,11 @@ router.put('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
 
     res.json(serializeFeed(updated.row, updated.relations));
   } catch (error) {
-    logger.error('[CustomFeeds] Update custom feed error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Update custom feed error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to update feed' });
   }
 });
@@ -712,125 +744,156 @@ router.delete('/:id', validateObjectId('id'), async (req: AuthRequest, res: Resp
     await getDb().delete(customFeeds).where(eq(customFeeds.id, feedId));
     res.json({ success: true });
   } catch (error) {
-    logger.error('[CustomFeeds] Delete custom feed error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Delete custom feed error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to delete feed' });
   }
 });
 
 // Add members (owner only)
-router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { userIds } = req.body || {};
-    const feedId = String(req.params.id);
-    const toAdd: string[] = Array.isArray(userIds) ? userIds : [];
+router.post(
+  '/:id/members',
+  validateObjectId('id'),
+  validateBody(schemas.manageFeedMembers),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { userIds } = req.body || {};
+      const feedId = String(req.params.id);
+      const toAdd: string[] = Array.isArray(userIds) ? userIds : [];
 
-    const result = await getDb().transaction(async (tx) => {
-      // The row lock is what replaces the atomicity of rewriting one array:
-      // `(feed_id, position)` is UNIQUE, so two concurrent adds computing the
-      // same next position would make one of them fail on the constraint.
-      const [feed] = await tx
-        .select({ id: customFeeds.id, ownerOxyUserId: customFeeds.ownerOxyUserId })
-        .from(customFeeds)
-        .where(eq(customFeeds.id, feedId))
-        .limit(1)
-        .for('update');
-      if (!feed) return { status: 404 as const, body: { error: 'Feed not found' } };
-      if (feed.ownerOxyUserId !== userId) {
-        return { status: 403 as const, body: { error: 'Not allowed' } };
-      }
+      const result = await getDb().transaction(async (tx) => {
+        // The row lock is what replaces the atomicity of rewriting one array:
+        // `(feed_id, position)` is UNIQUE, so two concurrent adds computing the
+        // same next position would make one of them fail on the constraint.
+        const [feed] = await tx
+          .select({ id: customFeeds.id, ownerOxyUserId: customFeeds.ownerOxyUserId })
+          .from(customFeeds)
+          .where(eq(customFeeds.id, feedId))
+          .limit(1)
+          .for('update');
+        if (!feed) return { status: 404 as const, body: { error: 'Feed not found' } };
+        if (feed.ownerOxyUserId !== userId) {
+          return { status: 403 as const, body: { error: 'Not allowed' } };
+        }
 
-      const current = await tx
-        .select({ oxyUserId: customFeedMembers.oxyUserId, position: customFeedMembers.position })
-        .from(customFeedMembers)
-        .where(eq(customFeedMembers.feedId, feedId))
-        .orderBy(asc(customFeedMembers.position));
+        const current = await tx
+          .select({ oxyUserId: customFeedMembers.oxyUserId, position: customFeedMembers.position })
+          .from(customFeedMembers)
+          .where(eq(customFeedMembers.feedId, feedId))
+          .orderBy(asc(customFeedMembers.position));
 
-      // `new Set([...existing, ...toAdd])` kept existing order and appended the
-      // genuinely new ids, deduped. Appending after the highest position is the
-      // same thing without rewriting rows that did not change.
-      const known = new Set(current.map((row) => row.oxyUserId));
-      let nextPosition = current.reduce((max, row) => Math.max(max, row.position + 1), 0);
-      const rows = [];
-      for (const oxyUserId of toAdd) {
-        if (known.has(oxyUserId)) continue;
-        known.add(oxyUserId);
-        rows.push({ feedId, oxyUserId, position: nextPosition });
-        nextPosition += 1;
-      }
-      if (rows.length > 0) {
-        await tx.insert(customFeedMembers).values(rows);
-        await tx.update(customFeeds).set({ updatedAt: new Date() }).where(eq(customFeeds.id, feedId));
-      }
+        // `new Set([...existing, ...toAdd])` kept existing order and appended the
+        // genuinely new ids, deduped. Appending after the highest position is the
+        // same thing without rewriting rows that did not change.
+        const known = new Set(current.map((row) => row.oxyUserId));
+        let nextPosition = current.reduce((max, row) => Math.max(max, row.position + 1), 0);
+        const rows = [];
+        for (const oxyUserId of toAdd) {
+          if (known.has(oxyUserId)) continue;
+          known.add(oxyUserId);
+          rows.push({ feedId, oxyUserId, position: nextPosition });
+          nextPosition += 1;
+        }
+        if (rows.length > 0) {
+          await tx.insert(customFeedMembers).values(rows);
+          await tx
+            .update(customFeeds)
+            .set({ updatedAt: new Date() })
+            .where(eq(customFeeds.id, feedId));
+        }
 
-      const reloaded = await loadFeed(tx, feedId);
-      if (!reloaded) throw new Error(`Feed ${feedId} vanished inside its own transaction`);
-      return { status: 200 as const, feed: reloaded };
-    });
+        const reloaded = await loadFeed(tx, feedId);
+        if (!reloaded) throw new Error(`Feed ${feedId} vanished inside its own transaction`);
+        return { status: 200 as const, feed: reloaded };
+      });
 
-    if (result.status !== 200) return res.status(result.status).json(result.body);
-    res.json(serializeFeed(result.feed.row, result.feed.relations));
-  } catch (error) {
-    logger.error('[CustomFeeds] Add feed members error:', { userId: req.user?.id, feedId: req.params.id, error });
-    res.status(500).json({ error: 'Failed to add members' });
-  }
-});
+      if (result.status !== 200) return res.status(result.status).json(result.body);
+      res.json(serializeFeed(result.feed.row, result.feed.relations));
+    } catch (error) {
+      logger.error('[CustomFeeds] Add feed members error:', {
+        userId: req.user?.id,
+        feedId: req.params.id,
+        error,
+      });
+      res.status(500).json({ error: 'Failed to add members' });
+    }
+  },
+);
 
 // Remove members (owner only)
-router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { userIds } = req.body || {};
-    const feedId = String(req.params.id);
-    const toRemove: string[] = Array.isArray(userIds) ? userIds : [];
+router.delete(
+  '/:id/members',
+  validateObjectId('id'),
+  validateBody(schemas.manageFeedMembers),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { userIds } = req.body || {};
+      const feedId = String(req.params.id);
+      const toRemove: string[] = Array.isArray(userIds) ? userIds : [];
 
-    const result = await getDb().transaction(async (tx) => {
-      const [feed] = await tx
-        .select({ id: customFeeds.id, ownerOxyUserId: customFeeds.ownerOxyUserId })
-        .from(customFeeds)
-        .where(eq(customFeeds.id, feedId))
-        .limit(1);
-      if (!feed) return { status: 404 as const, body: { error: 'Feed not found' } };
-      if (feed.ownerOxyUserId !== userId) {
-        return { status: 403 as const, body: { error: 'Not allowed' } };
-      }
-
-      if (toRemove.length > 0) {
-        // The surviving members keep their positions, so the remaining order is
-        // untouched and gaps are harmless — `position` orders, it does not index.
-        const removed = await tx
-          .delete(customFeedMembers)
-          .where(
-            and(
-              eq(customFeedMembers.feedId, feedId),
-              inArray(customFeedMembers.oxyUserId, toRemove),
-            ),
-          )
-          .returning({ id: customFeedMembers.id });
-        if (removed.length > 0) {
-          await tx.update(customFeeds).set({ updatedAt: new Date() }).where(eq(customFeeds.id, feedId));
+      const result = await getDb().transaction(async (tx) => {
+        const [feed] = await tx
+          .select({ id: customFeeds.id, ownerOxyUserId: customFeeds.ownerOxyUserId })
+          .from(customFeeds)
+          .where(eq(customFeeds.id, feedId))
+          .limit(1);
+        if (!feed) return { status: 404 as const, body: { error: 'Feed not found' } };
+        if (feed.ownerOxyUserId !== userId) {
+          return { status: 403 as const, body: { error: 'Not allowed' } };
         }
-      }
 
-      const reloaded = await loadFeed(tx, feedId);
-      if (!reloaded) throw new Error(`Feed ${feedId} vanished inside its own transaction`);
-      return { status: 200 as const, feed: reloaded };
-    });
+        if (toRemove.length > 0) {
+          // The surviving members keep their positions, so the remaining order is
+          // untouched and gaps are harmless — `position` orders, it does not index.
+          const removed = await tx
+            .delete(customFeedMembers)
+            .where(
+              and(
+                eq(customFeedMembers.feedId, feedId),
+                inArray(customFeedMembers.oxyUserId, toRemove),
+              ),
+            )
+            .returning({ id: customFeedMembers.id });
+          if (removed.length > 0) {
+            await tx
+              .update(customFeeds)
+              .set({ updatedAt: new Date() })
+              .where(eq(customFeeds.id, feedId));
+          }
+        }
 
-    if (result.status !== 200) return res.status(result.status).json(result.body);
-    res.json(serializeFeed(result.feed.row, result.feed.relations));
-  } catch (error) {
-    logger.error('[CustomFeeds] Remove feed members error:', { userId: req.user?.id, feedId: req.params.id, error });
-    res.status(500).json({ error: 'Failed to remove members' });
-  }
-});
+        const reloaded = await loadFeed(tx, feedId);
+        if (!reloaded) throw new Error(`Feed ${feedId} vanished inside its own transaction`);
+        return { status: 200 as const, feed: reloaded };
+      });
+
+      if (result.status !== 200) return res.status(result.status).json(result.body);
+      res.json(serializeFeed(result.feed.row, result.feed.relations));
+    } catch (error) {
+      logger.error('[CustomFeeds] Remove feed members error:', {
+        userId: req.user?.id,
+        feedId: req.params.id,
+        error,
+      });
+      res.status(500).json({ error: 'Failed to remove members' });
+    }
+  },
+);
 
 // Timeline for a custom feed — runs the stored composable definition through the
 // FeedEngine (the same engine that serves every descriptor feed).
 router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE, 1), MAX_FEED_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE, 1),
+      MAX_FEED_PAGE_SIZE,
+    );
     const cursor = queryString(req.query.cursor)?.trim();
 
     const loaded = await loadFeed(getDb(), String(req.params.id));
@@ -880,7 +943,11 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       totalCount: response.totalCount,
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Custom feed timeline error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Custom feed timeline error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to load timeline' });
   }
 });
@@ -934,7 +1001,11 @@ router.post('/:id/like', validateObjectId('id'), async (req: AuthRequest, res: R
       message: result.alreadyLiked ? 'Feed already liked' : 'Feed liked successfully',
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Like feed error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Like feed error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to like feed' });
   }
 });
@@ -989,7 +1060,11 @@ router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res:
       message: result.wasLiked ? 'Feed unliked successfully' : 'Feed not liked',
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Unlike feed error:', { userId: req.user?.id, feedId: req.params.id, error });
+    logger.error('[CustomFeeds] Unlike feed error:', {
+      userId: req.user?.id,
+      feedId: req.params.id,
+      error,
+    });
     res.status(500).json({ error: 'Failed to unlike feed' });
   }
 });
@@ -998,7 +1073,10 @@ router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res:
 router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const page = Math.max(1, queryInt(req.query.page) || 1);
-    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE), MAX_FEED_PAGE_SIZE);
+    const limit = Math.min(
+      Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE),
+      MAX_FEED_PAGE_SIZE,
+    );
     const skip = (page - 1) * limit;
 
     const feedId = String(req.params.id);
@@ -1033,7 +1111,8 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res:
       ...(review.reviewText === null ? {} : { reviewText: review.reviewText }),
       createdAt: review.createdAt,
       updatedAt: review.updatedAt,
-      reviewer: reviewersMap.get(review.reviewerId) || profileFromSummary(review.reviewerId, undefined),
+      reviewer:
+        reviewersMap.get(review.reviewerId) || profileFromSummary(review.reviewerId, undefined),
     }));
 
     res.json({
@@ -1049,102 +1128,111 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res:
 });
 
 // Create or update a review for a feed
-router.post('/:id/reviews', validateObjectId('id'), validateBody(schemas.createFeedReview), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+router.post(
+  '/:id/reviews',
+  validateObjectId('id'),
+  validateBody(schemas.createFeedReview),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const feedId = String(req.params.id);
-    const { rating, reviewText } = req.body;
-    /**
-     * Validated HERE, because the column is `integer` with a 1..5 CHECK and a
-     * client is under no obligation to respect either. `4.5` is refused by the
-     * driver before the constraint is even consulted (`invalid input syntax for
-     * type integer`), and `9` by the constraint — both as a 500 on a path where
-     * the request is simply malformed. Mongoose declared the same bounds and
-     * never enforced them, so this is a rule that was written down and is only
-     * now actually applied.
-     */
-    if (
-      typeof rating !== 'number'
-      || !Number.isInteger(rating)
-      || rating < RATING_MIN
-      || rating > RATING_MAX
-    ) {
-      return res.status(400).json({
-        error: `rating must be a whole number between ${RATING_MIN} and ${RATING_MAX}`,
-      });
-    }
-    // Mongoose stripped an `undefined` from the update document, so submitting a
-    // review with no text NEVER cleared the text a previous submission had left.
-    // An omitted `set` key does the same thing; writing `null` unconditionally
-    // would not.
-    const text: string | null =
-      typeof reviewText === 'string' && reviewText.length > 0 ? reviewText : null;
+      const feedId = String(req.params.id);
+      const { rating, reviewText } = req.body;
+      /**
+       * Validated HERE, because the column is `integer` with a 1..5 CHECK and a
+       * client is under no obligation to respect either. `4.5` is refused by the
+       * driver before the constraint is even consulted (`invalid input syntax for
+       * type integer`), and `9` by the constraint — both as a 500 on a path where
+       * the request is simply malformed. Mongoose declared the same bounds and
+       * never enforced them, so this is a rule that was written down and is only
+       * now actually applied.
+       */
+      if (
+        typeof rating !== 'number' ||
+        !Number.isInteger(rating) ||
+        rating < RATING_MIN ||
+        rating > RATING_MAX
+      ) {
+        return res.status(400).json({
+          error: `rating must be a whole number between ${RATING_MIN} and ${RATING_MAX}`,
+        });
+      }
+      // Mongoose stripped an `undefined` from the update document, so submitting a
+      // review with no text NEVER cleared the text a previous submission had left.
+      // An omitted `set` key does the same thing; writing `null` unconditionally
+      // would not.
+      const text: string | null =
+        typeof reviewText === 'string' && reviewText.length > 0 ? reviewText : null;
 
-    const result = await getDb().transaction(async (tx) => {
-      const [feed] = await tx
-        .select({ id: customFeeds.id })
-        .from(customFeeds)
-        .where(eq(customFeeds.id, feedId))
-        .limit(1);
-      if (!feed) return { status: 404 as const };
+      const result = await getDb().transaction(async (tx) => {
+        const [feed] = await tx
+          .select({ id: customFeeds.id })
+          .from(customFeeds)
+          .where(eq(customFeeds.id, feedId))
+          .limit(1);
+        if (!feed) return { status: 404 as const };
 
-      const [review] = await tx
-        .insert(feedReviews)
-        .values({ feedId, reviewerId: userId, rating, reviewText: text })
-        .onConflictDoUpdate({
-          target: [feedReviews.feedId, feedReviews.reviewerId],
-          set: {
-            rating,
+        const [review] = await tx
+          .insert(feedReviews)
+          .values({ feedId, reviewerId: userId, rating, reviewText: text })
+          .onConflictDoUpdate({
+            target: [feedReviews.feedId, feedReviews.reviewerId],
+            set: {
+              rating,
+              updatedAt: new Date(),
+              ...(text === null ? {} : { reviewText: text }),
+            },
+          })
+          .returning();
+
+        // Recomputed FROM THE ROWS on every review write, never nudged by
+        // arithmetic: an incremental average drifts, and
+        // `custom_feeds_average_rating_check` (0..5) is what a drifted one would
+        // eventually collide with. `avg(integer)` is `numeric`, which postgres.js
+        // hands back as a STRING — hence `mapWith(Number)`.
+        const [stats] = await tx
+          .select({
+            average: sql<number>`coalesce(avg(${feedReviews.rating}), 0)`.mapWith(Number),
+            total: count(),
+          })
+          .from(feedReviews)
+          .where(eq(feedReviews.feedId, feedId));
+
+        await tx
+          .update(customFeeds)
+          .set({
+            averageRating: Math.round(stats.average * 10) / 10,
+            ratingsCount: stats.total,
             updatedAt: new Date(),
-            ...(text === null ? {} : { reviewText: text }),
-          },
-        })
-        .returning();
+          })
+          .where(eq(customFeeds.id, feedId));
 
-      // Recomputed FROM THE ROWS on every review write, never nudged by
-      // arithmetic: an incremental average drifts, and
-      // `custom_feeds_average_rating_check` (0..5) is what a drifted one would
-      // eventually collide with. `avg(integer)` is `numeric`, which postgres.js
-      // hands back as a STRING — hence `mapWith(Number)`.
-      const [stats] = await tx
-        .select({
-          average: sql<number>`coalesce(avg(${feedReviews.rating}), 0)`.mapWith(Number),
-          total: count(),
-        })
-        .from(feedReviews)
-        .where(eq(feedReviews.feedId, feedId));
+        return { status: 200 as const, review };
+      });
 
-      await tx
-        .update(customFeeds)
-        .set({
-          averageRating: Math.round(stats.average * 10) / 10,
-          ratingsCount: stats.total,
-          updatedAt: new Date(),
-        })
-        .where(eq(customFeeds.id, feedId));
+      if (result.status === 404) return res.status(404).json({ error: 'Feed not found' });
 
-      return { status: 200 as const, review };
-    });
-
-    if (result.status === 404) return res.status(404).json({ error: 'Feed not found' });
-
-    const { review } = result;
-    res.json({
-      _id: review.id,
-      id: review.id,
-      feedId: review.feedId,
-      reviewerId: review.reviewerId,
-      rating: review.rating,
-      ...(review.reviewText === null ? {} : { reviewText: review.reviewText }),
-      createdAt: review.createdAt,
-      updatedAt: review.updatedAt,
-    });
-  } catch (error) {
-    logger.error('[CustomFeeds] Create/update review error:', { userId: req.user?.id, feedId: req.params.id, error });
-    res.status(500).json({ error: 'Failed to submit review' });
-  }
-});
+      const { review } = result;
+      res.json({
+        _id: review.id,
+        id: review.id,
+        feedId: review.feedId,
+        reviewerId: review.reviewerId,
+        rating: review.rating,
+        ...(review.reviewText === null ? {} : { reviewText: review.reviewText }),
+        createdAt: review.createdAt,
+        updatedAt: review.updatedAt,
+      });
+    } catch (error) {
+      logger.error('[CustomFeeds] Create/update review error:', {
+        userId: req.user?.id,
+        feedId: req.params.id,
+        error,
+      });
+      res.status(500).json({ error: 'Failed to submit review' });
+    }
+  },
+);
 
 export default router;

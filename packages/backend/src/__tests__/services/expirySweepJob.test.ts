@@ -38,14 +38,14 @@ afterEach(() => {
 describe('ExpirySweepJob.runSweep', () => {
   it('sweeps every scheduled target and the processed outbox', async () => {
     sweepExpiredRowsMock.mockImplementation(async (_db: unknown, target: ExpirySweepTarget) =>
-      done(getTableName(target.table), 3)
+      done(getTableName(target.table), 3),
     );
     sweepOutboxMock.mockResolvedValue(done('engagement_outbox', 2));
 
     const results = await new ExpirySweepJob().runSweep();
 
     const swept = sweepExpiredRowsMock.mock.calls.map(([, target]) =>
-      getTableName((target as ExpirySweepTarget).table)
+      getTableName((target as ExpirySweepTarget).table),
     );
     expect(swept).toEqual(SCHEDULED_EXPIRY_SWEEP_TARGETS.map((t) => getTableName(t.table)));
     expect(swept).not.toContain('engagement_outbox');
@@ -76,7 +76,7 @@ describe('ExpirySweepJob.runSweep', () => {
       () =>
         new Promise<ExpirySweepResult>((resolve) => {
           release = () => resolve(done('first'));
-        })
+        }),
     );
     sweepExpiredRowsMock.mockResolvedValue(done('rest'));
     sweepOutboxMock.mockResolvedValue(done('engagement_outbox'));

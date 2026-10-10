@@ -145,9 +145,7 @@ describe('POST /reports body validation', () => {
       });
 
     expect(response.status).toBe(201);
-    expect(createReport).toHaveBeenCalledWith(
-      expect.objectContaining({ details: undefined }),
-    );
+    expect(createReport).toHaveBeenCalledWith(expect.objectContaining({ details: undefined }));
   });
 
   it('still refuses an over-long `details` string', async () => {

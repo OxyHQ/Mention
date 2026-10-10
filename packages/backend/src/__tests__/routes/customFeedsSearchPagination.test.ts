@@ -47,13 +47,21 @@ const { feedEngineRun } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
-  resolveUserSummaries: vi.fn(async (ids: string[]) =>
-    new Map(
-      ids.map((id) => [
-        id,
-        { user: { id, username: `handle_${id}`, avatar: `avatar_${id}`, name: { displayName: id } } },
-      ]),
-    ),
+  resolveUserSummaries: vi.fn(
+    async (ids: string[]) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          {
+            user: {
+              id,
+              username: `handle_${id}`,
+              avatar: `avatar_${id}`,
+              name: { displayName: id },
+            },
+          },
+        ]),
+      ),
   ),
   degradedActorSummary: (oxyUserId: string) => ({
     id: oxyUserId,
@@ -127,7 +135,15 @@ interface SeedOptions {
   description?: string;
   keywords?: string[];
   tags?: string[];
-  category?: 'news' | 'tech' | 'culture' | 'finance' | 'health' | 'sports' | 'entertainment' | 'other';
+  category?:
+    | 'news'
+    | 'tech'
+    | 'culture'
+    | 'finance'
+    | 'health'
+    | 'sports'
+    | 'entertainment'
+    | 'other';
   subscriberCount?: number;
   averageRating?: number;
   ratingsCount?: number;
@@ -181,7 +197,9 @@ afterEach(async () => {
     await db.delete(customFeeds).where(inArray(customFeeds.id, createdFeedIds.splice(0)));
   }
   if (createdGeneratorIds.length > 0) {
-    await db.delete(feedGenerators).where(inArray(feedGenerators.id, createdGeneratorIds.splice(0)));
+    await db
+      .delete(feedGenerators)
+      .where(inArray(feedGenerators.id, createdGeneratorIds.splice(0)));
   }
   if (createdListIds.length > 0) {
     await db.delete(accountLists).where(inArray(accountLists.id, createdListIds.splice(0)));
@@ -200,7 +218,10 @@ describe('GET /feeds — search', () => {
     await seedFeed({ ownerOxyUserId: owner, title: 'Breaking news', updatedAt: new Date(2000) });
     await seedFeed({ ownerOxyUserId: owner, title: 'Cat photos', updatedAt: new Date(1000) });
 
-    const res = await request(app).get('/feeds').query({ userId: owner, search: 'news' }).expect(200);
+    const res = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: 'news' })
+      .expect(200);
     expect((res.body.items as Array<{ title: string }>).map((f) => f.title)).toEqual([
       'World news',
       'Breaking news',
@@ -213,7 +234,10 @@ describe('GET /feeds — search', () => {
     await seedFeed({ ownerOxyUserId: owner, title: 'Untitled', keywords: ['astronomy', 'space'] });
     await seedFeed({ ownerOxyUserId: owner, title: 'Untitled', keywords: ['baking'] });
 
-    const res = await request(app).get('/feeds').query({ userId: owner, search: 'astro' }).expect(200);
+    const res = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: 'astro' })
+      .expect(200);
     expect(res.body.items).toHaveLength(1);
     expect((res.body.items as Array<{ keywords: string[] }>)[0].keywords).toEqual([
       'astronomy',
@@ -229,10 +253,16 @@ describe('GET /feeds — search', () => {
     viewer = owner;
     await seedFeed({ ownerOxyUserId: owner, title: 'Percentages' });
 
-    const wildcard = await request(app).get('/feeds').query({ userId: owner, search: '%' }).expect(200);
+    const wildcard = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: '%' })
+      .expect(200);
     expect(wildcard.body.items).toEqual([]);
 
-    const literal = await request(app).get('/feeds').query({ userId: owner, search: 'Percent' }).expect(200);
+    const literal = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: 'Percent' })
+      .expect(200);
     expect(literal.body.items).toHaveLength(1);
   });
 });
@@ -315,7 +345,10 @@ describe('GET /feeds — offset pagination', () => {
     viewer = owner;
     await seedFive(owner);
 
-    const res = await request(app).get('/feeds').query({ userId: owner, search: 'daily' }).expect(200);
+    const res = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: 'daily' })
+      .expect(200);
     expect(res.body.items).toHaveLength(5);
     expect(res.body.pagination.hasMore).toBe(false);
     expect(res.body.total).toBe(5);
@@ -349,7 +382,10 @@ describe('GET /feeds — offset pagination', () => {
       await seedFeed({ ownerOxyUserId: owner, title: `Tied ${index}`, updatedAt: tied, id });
     }
 
-    const res = await request(app).get('/feeds').query({ userId: owner, search: 'tied' }).expect(200);
+    const res = await request(app)
+      .get('/feeds')
+      .query({ userId: owner, search: 'tied' })
+      .expect(200);
     expect((res.body.items as Array<{ id: string }>).map((f) => f.id)).toEqual([
       'dddddddddddddddddddddddd',
       'cccccccccccccccccccccccc',
@@ -376,16 +412,28 @@ describe('GET /feeds/marketplace', () => {
     // way as `createdAt` and dropping the key is masked by the next one down,
     // which is how a rank-key test comes to pass against the bug it exists for.
     await seedFeed({
-      ownerOxyUserId: owner, title: `high ${token}`, subscriberCount: 30,
-      createdAt: new Date(1000), averageRating: 4, ratingsCount: 7,
+      ownerOxyUserId: owner,
+      title: `high ${token}`,
+      subscriberCount: 30,
+      createdAt: new Date(1000),
+      averageRating: 4,
+      ratingsCount: 7,
     });
     await seedFeed({
-      ownerOxyUserId: owner, title: `mid ${token}`, subscriberCount: 20,
-      createdAt: new Date(2000), averageRating: 5, ratingsCount: 9,
+      ownerOxyUserId: owner,
+      title: `mid ${token}`,
+      subscriberCount: 20,
+      createdAt: new Date(2000),
+      averageRating: 5,
+      ratingsCount: 9,
     });
     await seedFeed({
-      ownerOxyUserId: owner, title: `low ${token}`, subscriberCount: 10,
-      createdAt: new Date(3000), averageRating: 4, ratingsCount: 1,
+      ownerOxyUserId: owner,
+      title: `low ${token}`,
+      subscriberCount: 10,
+      createdAt: new Date(3000),
+      averageRating: 4,
+      ratingsCount: 1,
     });
 
     const query: Record<string, string | number> = { search: token, limit: 10, page: 1 };
@@ -398,7 +446,7 @@ describe('GET /feeds/marketplace', () => {
     expect(res.body.total).toBe(3);
   });
 
-  it('excludeSubscribed drops liked feeds AND the viewer\'s own, and nothing else', async () => {
+  it("excludeSubscribed drops liked feeds AND the viewer's own, and nothing else", async () => {
     /**
      * The trap-1 assertion. If `${customFeeds.id}` inside the NOT EXISTS
      * rendered bare it would resolve against `feed_likes` and compare that
@@ -448,8 +496,11 @@ describe('GET /feeds/marketplace', () => {
     // Inserted e then f, so heap order and `id desc` disagree.
     for (const id of ['eeeeeeeeeeeeeeeeeeeeeeee', 'ffffffffffffffffffffffff']) {
       await seedFeed({
-        id, ownerOxyUserId: owner, title: `${id.slice(0, 1)} ${token}`,
-        subscriberCount: 5, createdAt: tied,
+        id,
+        ownerOxyUserId: owner,
+        title: `${id.slice(0, 1)} ${token}`,
+        subscriberCount: 5,
+        createdAt: tied,
       });
     }
 
@@ -570,7 +621,12 @@ describe('POST /feeds and the definition module lists', () => {
       .from(customFeedDefinitionModules)
       .where(eq(customFeedDefinitionModules.feedId, created.body.id));
     expect(stored).toHaveLength(4);
-    expect(stored.filter((m) => m.kind === 'source').map((m) => m.position).sort()).toEqual([0, 1]);
+    expect(
+      stored
+        .filter((m) => m.kind === 'source')
+        .map((m) => m.position)
+        .sort(),
+    ).toEqual([0, 1]);
   });
 
   it('REORDERS a definition without colliding on (feed, kind, position)', async () => {
@@ -783,7 +839,11 @@ describe('POST/DELETE /feeds/:id/like — the live subscription mechanism', () =
 
     viewer = liker;
     const first = await request(app).post(`/feeds/${feedId}/like`).expect(200);
-    expect(first.body).toMatchObject({ liked: true, likeCount: 1, message: 'Feed liked successfully' });
+    expect(first.body).toMatchObject({
+      liked: true,
+      likeCount: 1,
+      message: 'Feed liked successfully',
+    });
 
     const second = await request(app).post(`/feeds/${feedId}/like`).expect(200);
     expect(second.body).toMatchObject({ liked: true, likeCount: 1, message: 'Feed already liked' });
@@ -805,7 +865,11 @@ describe('POST/DELETE /feeds/:id/like — the live subscription mechanism', () =
     viewer = liker;
     await request(app).post(`/feeds/${feedId}/like`).expect(200);
     const first = await request(app).delete(`/feeds/${feedId}/like`).expect(200);
-    expect(first.body).toMatchObject({ liked: false, likeCount: 0, message: 'Feed unliked successfully' });
+    expect(first.body).toMatchObject({
+      liked: false,
+      likeCount: 0,
+      message: 'Feed unliked successfully',
+    });
     const second = await request(app).delete(`/feeds/${feedId}/like`).expect(200);
     expect(second.body).toMatchObject({ liked: false, likeCount: 0, message: 'Feed not liked' });
 
@@ -883,8 +947,13 @@ describe('feed members', () => {
     const owner = uniqueId('owner');
     const feedId = await seedFeed({ ownerOxyUserId: owner, title: 'Members' });
     viewer = uniqueId('stranger');
-    await request(app).post(`/feeds/${feedId}/members`).send({ userIds: ['a'] }).expect(403);
-    expect(await db.select().from(customFeedMembers).where(eq(customFeedMembers.feedId, feedId))).toEqual([]);
+    await request(app)
+      .post(`/feeds/${feedId}/members`)
+      .send({ userIds: ['a'] })
+      .expect(403);
+    expect(
+      await db.select().from(customFeedMembers).where(eq(customFeedMembers.feedId, feedId)),
+    ).toEqual([]);
   });
 });
 
@@ -896,7 +965,10 @@ describe('feed reviews', () => {
     const feedId = await seedFeed({ ownerOxyUserId: owner, title: 'Reviewed' });
 
     viewer = first;
-    await request(app).post(`/feeds/${feedId}/reviews`).send({ rating: 5, reviewText: 'great' }).expect(200);
+    await request(app)
+      .post(`/feeds/${feedId}/reviews`)
+      .send({ rating: 5, reviewText: 'great' })
+      .expect(200);
     let [feed] = await db.select().from(customFeeds).where(eq(customFeeds.id, feedId));
     expect(feed.ratingsCount).toBe(1);
     expect(feed.averageRating).toBe(5);
@@ -946,14 +1018,20 @@ describe('feed reviews', () => {
     }
 
     viewer = undefined;
-    const page = await request(app).get(`/feeds/${feedId}/reviews`).query({ page: 1, limit: 2 }).expect(200);
+    const page = await request(app)
+      .get(`/feeds/${feedId}/reviews`)
+      .query({ page: 1, limit: 2 })
+      .expect(200);
     expect(page.body.reviews).toHaveLength(2);
     expect(page.body.total).toBe(3);
     expect(page.body.reviews[0]._id).toBe(page.body.reviews[0].id);
     expect(page.body.reviews[0].reviewer.id).toBe(page.body.reviews[0].reviewerId);
     expect(page.body.reviews[0]).not.toHaveProperty('reviewText');
 
-    const beyond = await request(app).get(`/feeds/${feedId}/reviews`).query({ page: 99, limit: 2 }).expect(200);
+    const beyond = await request(app)
+      .get(`/feeds/${feedId}/reviews`)
+      .query({ page: 99, limit: 2 })
+      .expect(200);
     expect(beyond.body.reviews).toEqual([]);
     expect(beyond.body.total).toBe(3);
     expect(beyond.body.totalPages).toBe(2);
@@ -969,8 +1047,20 @@ describe('feed reviews', () => {
     const feedId = await seedFeed({ ownerOxyUserId: owner, title: 'Tied reviews' });
     const tied = new Date(80_000);
     await db.insert(feedReviews).values([
-      { id: '111111111111111111111111', feedId, reviewerId: uniqueId('r'), rating: 3, createdAt: tied },
-      { id: '999999999999999999999999', feedId, reviewerId: uniqueId('r'), rating: 4, createdAt: tied },
+      {
+        id: '111111111111111111111111',
+        feedId,
+        reviewerId: uniqueId('r'),
+        rating: 3,
+        createdAt: tied,
+      },
+      {
+        id: '999999999999999999999999',
+        feedId,
+        reviewerId: uniqueId('r'),
+        rating: 4,
+        createdAt: tied,
+      },
     ]);
 
     viewer = undefined;
@@ -1055,7 +1145,9 @@ describe('DELETE /feeds/:id', () => {
         .from(customFeedDefinitionModules)
         .where(eq(customFeedDefinitionModules.feedId, feedId)),
     ).toEqual([]);
-    expect(await db.select().from(customFeedMembers).where(eq(customFeedMembers.feedId, feedId))).toEqual([]);
+    expect(
+      await db.select().from(customFeedMembers).where(eq(customFeedMembers.feedId, feedId)),
+    ).toEqual([]);
     expect(await db.select().from(feedLikes).where(eq(feedLikes.feedId, feedId))).toEqual([]);
     expect(await db.select().from(feedReviews).where(eq(feedReviews.feedId, feedId))).toEqual([]);
   });

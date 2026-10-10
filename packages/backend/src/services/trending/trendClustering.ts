@@ -160,7 +160,9 @@ export function clusterTrendTerms(
   }
 
   const membersForRoot = (root: string): string[] =>
-    candidates.filter((candidate) => find(candidate.term) === root).map((candidate) => candidate.term);
+    candidates
+      .filter((candidate) => find(candidate.term) === root)
+      .map((candidate) => candidate.term);
 
   // A valid story has at least one anchor directly supported by every member.
   // This blocks A-B-C bridge chains where A and C never shared evidence.

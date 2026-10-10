@@ -104,7 +104,8 @@ export const FEED_QUALITY_LABELS: FeedQualityLabelEntry[] = [
   {
     label: 'junk',
     acct: 'honkhase@chaos.social',
-    reason: 'off-language (de): legitimate human but off the viewer language, zero native engagement',
+    reason:
+      'off-language (de): legitimate human but off the viewer language, zero native engagement',
   },
   {
     label: 'junk',
@@ -125,7 +126,7 @@ async function toLabeledPost<TPost>(
   deps: LabelResolverDeps<TPost>,
 ): Promise<LabeledPost<TPost>> {
   const actorUri = deps.actorUriOf(post);
-  const actor = actorUri ? (await deps.findActorByUri(actorUri)) ?? undefined : undefined;
+  const actor = actorUri ? ((await deps.findActorByUri(actorUri)) ?? undefined) : undefined;
   return { label: entry.label, reason: entry.reason, acct: entry.acct, actor, post };
 }
 

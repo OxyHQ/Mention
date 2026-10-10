@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const FRONTEND = join(__dirname, '..', '..', '..');
-const read = (relativePath: string) =>
-  readFileSync(join(FRONTEND, relativePath), 'utf8');
+const read = (relativePath: string) => readFileSync(join(FRONTEND, relativePath), 'utf8');
 
 describe('Edit Profile presentation', () => {
   it('keeps the navigable route below the native camera safe area', () => {

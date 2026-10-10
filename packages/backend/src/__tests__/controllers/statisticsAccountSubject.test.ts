@@ -47,7 +47,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ accounts: { members: { list: mocks.listAccountMembers } } }),
+  createUserScopedOxyServices: () => ({
+    accounts: { members: { list: mocks.listAccountMembers } },
+  }),
   createScopedOxyClient: () => ({}),
   getServiceOxyClient: () => ({}),
 }));
@@ -56,7 +58,10 @@ vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ users: { get: vi.fn(async () => ({})) } }),
 }));
 
-vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceChat: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },

@@ -63,7 +63,7 @@ describe('feed read retry budget', () => {
     expect(FEED_MAX_ATTEMPTS).toBeLessThanOrEqual(3);
   });
 
-  it('turns the transport\'s own retry off, so the two policies cannot multiply', async () => {
+  it("turns the transport's own retry off, so the two policies cannot multiply", async () => {
     mockAuthenticatedGet.mockRejectedValue(serverError(503));
 
     await expect(feedService.getFeed({ type: 'for_you', limit: 20 })).rejects.toThrow();

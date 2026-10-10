@@ -44,7 +44,9 @@ export interface LegacyCustomFeedShape {
  * exactly like the legacy criteria-less feed.
  */
 export function legacyCustomFeedToDefinition(feed: LegacyCustomFeedShape): StoredFeedDefinition {
-  const memberIds = Array.from(new Set((feed.memberOxyUserIds ?? []).filter((id) => typeof id === 'string' && id.length > 0)));
+  const memberIds = Array.from(
+    new Set((feed.memberOxyUserIds ?? []).filter((id) => typeof id === 'string' && id.length > 0)),
+  );
   const keywords = (feed.keywords ?? []).filter((k) => typeof k === 'string' && k.length > 0);
 
   const sources: ModuleRef[] = [];
@@ -57,7 +59,11 @@ export function legacyCustomFeedToDefinition(feed: LegacyCustomFeedShape): Store
 
   const filters: ModuleRef[] = [];
   if (feed.language) {
-    filters.push({ module: 'languagePreference', enabled: true, params: { languages: [feed.language] } });
+    filters.push({
+      module: 'languagePreference',
+      enabled: true,
+      params: { languages: [feed.language] },
+    });
   }
   if (feed.includeReplies === false) {
     filters.push({ module: 'noReplies', enabled: true });
@@ -69,7 +75,11 @@ export function legacyCustomFeedToDefinition(feed: LegacyCustomFeedShape): Store
     filters.push({ module: 'textOnly', enabled: true });
   }
   if (feed.ownerOxyUserId && !memberIds.includes(feed.ownerOxyUserId)) {
-    filters.push({ module: 'muteBlock', enabled: true, params: { excludedIds: [feed.ownerOxyUserId] } });
+    filters.push({
+      module: 'muteBlock',
+      enabled: true,
+      params: { excludedIds: [feed.ownerOxyUserId] },
+    });
   }
 
   return { mode: 'chronological', sources, signals: [], filters };

@@ -24,7 +24,13 @@ const REVERT_0055 = [
 ];
 
 /** Lock modes weaker than SHARE: none of them blocks a reader. */
-const READ_COMPATIBLE = new Set(['AccessShareLock', 'RowShareLock', 'RowExclusiveLock', 'ShareUpdateExclusiveLock', 'ShareRowExclusiveLock']);
+const READ_COMPATIBLE = new Set([
+  'AccessShareLock',
+  'RowShareLock',
+  'RowExclusiveLock',
+  'ShareUpdateExclusiveLock',
+  'ShareRowExclusiveLock',
+]);
 
 let url: string;
 let previousDatabaseUrl: string | undefined;
@@ -49,41 +55,53 @@ describe('0055 lock profile', () => {
       await sql.begin(async (tx) => {
         for (const statement of REVERT_0055) await tx.unsafe(statement);
       });
-      const measured = await sql.begin(async (tx) => {
-        for (const statement of MIGRATION.split('--> statement-breakpoint')) {
-          if (statement.trim()) await tx.unsafe(statement);
-        }
-        const locks = await tx<{ relname: string; mode: string; relkind: string }[]>`
+      const measured = await sql
+        .begin(async (tx) => {
+          for (const statement of MIGRATION.split('--> statement-breakpoint')) {
+            if (statement.trim()) await tx.unsafe(statement);
+          }
+          const locks = await tx<{ relname: string; mode: string; relkind: string }[]>`
           select c.relname, l.mode, c.relkind::text as relkind
           from pg_locks l join pg_class c on c.oid = l.relation
           where l.pid = pg_backend_pid() and l.granted and c.relkind in ('r', 'p')
             and c.relnamespace = 'public'::regnamespace
         `;
-        const indexes = await tx<{ indexname: string }[]>`
+          const indexes = await tx<{ indexname: string }[]>`
           select indexname from pg_indexes
           where indexname in ('post_variant_media_media_id_idx', 'user_settings_profile_header_image_idx')
         `;
-        const timeouts = await tx<{ lock: string; statement: string }[]>`
+          const timeouts = await tx<{ lock: string; statement: string }[]>`
           select current_setting('lock_timeout') as lock, current_setting('statement_timeout') as statement
         `;
-        throw Object.assign(new Error('rollback'), { measured: { locks: [...locks], indexes: [...indexes], timeouts: timeouts[0] } });
-      }).catch((err: { measured?: unknown }) => {
-        if (!err.measured) throw err;
-        return err.measured as {
-          locks: { relname: string; mode: string }[];
-          indexes: { indexname: string }[];
-          timeouts: { lock: string; statement: string };
-        };
-      });
+          throw Object.assign(new Error('rollback'), {
+            measured: { locks: [...locks], indexes: [...indexes], timeouts: timeouts[0] },
+          });
+        })
+        .catch((err: { measured?: unknown }) => {
+          if (!err.measured) throw err;
+          return err.measured as {
+            locks: { relname: string; mode: string }[];
+            indexes: { indexname: string }[];
+            timeouts: { lock: string; statement: string };
+          };
+        });
 
-      expect(measured.indexes.map((row) => row.indexname).sort())
-        .toEqual(['post_variant_media_media_id_idx', 'user_settings_profile_header_image_idx']);
+      expect(measured.indexes.map((row) => row.indexname).sort()).toEqual([
+        'post_variant_media_media_id_idx',
+        'user_settings_profile_header_image_idx',
+      ]);
       for (const table of ['post_variant_media', 'user_settings']) {
-        const modes = measured.locks.filter((lock) => lock.relname === table).map((lock) => lock.mode);
+        const modes = measured.locks
+          .filter((lock) => lock.relname === table)
+          .map((lock) => lock.mode);
         expect(modes).toContain('ShareLock');
-        expect(modes.filter((mode) => mode !== 'ShareLock' && !READ_COMPATIBLE.has(mode))).toEqual([]);
+        expect(modes.filter((mode) => mode !== 'ShareLock' && !READ_COMPATIBLE.has(mode))).toEqual(
+          [],
+        );
       }
-      const others = measured.locks.filter((lock) => !['post_variant_media', 'user_settings'].includes(lock.relname));
+      const others = measured.locks.filter(
+        (lock) => !['post_variant_media', 'user_settings'].includes(lock.relname),
+      );
       expect(others.filter((lock) => !READ_COMPATIBLE.has(lock.mode))).toEqual([]);
       // The bounded timeouts are restored for any later migration in the run.
       expect(measured.timeouts).not.toEqual({ lock: '5s', statement: '1min' });

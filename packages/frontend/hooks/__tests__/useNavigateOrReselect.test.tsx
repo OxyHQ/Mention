@@ -37,7 +37,9 @@ describe('useNavigateOrReselect', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    act(() => { TestRenderer.create(<Probe />); });
+    act(() => {
+      TestRenderer.create(<Probe />);
+    });
   });
 
   it('reselects the current page instead of navigating to it', () => {

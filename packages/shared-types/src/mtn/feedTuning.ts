@@ -84,14 +84,14 @@ interface ForYouTuningModuleSpecBase {
  */
 export type ForYouTuningModuleSpec =
   | (ForYouTuningModuleSpecBase & {
-    control: 'number-range';
-    /** Numeric threshold param key on this module's tuning entry. */
-    paramKey: string;
-    /** Inclusive bounds + granularity for the threshold control. */
-    min: number;
-    max: number;
-    step: number;
-  })
+      control: 'number-range';
+      /** Numeric threshold param key on this module's tuning entry. */
+      paramKey: string;
+      /** Inclusive bounds + granularity for the threshold control. */
+      min: number;
+      max: number;
+      step: number;
+    })
   | (ForYouTuningModuleSpecBase & { control: 'boolean' });
 
 /** The four tunable For You discovery-gate modules and their bounds. */

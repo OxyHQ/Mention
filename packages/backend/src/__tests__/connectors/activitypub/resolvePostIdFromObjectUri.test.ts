@@ -88,7 +88,9 @@ describe('resolvePostIdFromObjectUri', () => {
 
   it('resolves an IMPORTED federated post by its remote activity id', async () => {
     const activityId = 'https://remote.example/users/bob/statuses/9001';
-    const postId = await seed({ federation: { activityId, actorUri: 'https://remote.example/users/bob' } });
+    const postId = await seed({
+      federation: { activityId, actorUri: 'https://remote.example/users/bob' },
+    });
 
     await expect(resolvePostIdFromObjectUri(activityId)).resolves.toBe(postId);
   });
@@ -127,11 +129,11 @@ describe('resolvePostIdFromObjectUri', () => {
     // never minted, a 24-char ObjectId hex, and a value that is neither.
     const absentUuid = randomUUID();
     const absentLegacyId = randomUUID().replaceAll('-', '').slice(0, 24);
-    await expect(
-      resolvePostIdFromObjectUri(localNoteUri(absentUuid)),
-    ).resolves.toBeNull();
+    await expect(resolvePostIdFromObjectUri(localNoteUri(absentUuid))).resolves.toBeNull();
     await expect(resolvePostIdFromObjectUri(localNoteUri(absentLegacyId))).resolves.toBeNull();
     await expect(resolvePostIdFromObjectUri(localNoteUri('nonsense'))).resolves.toBeNull();
-    await expect(resolvePostIdFromObjectUri('https://remote.example/never/seen')).resolves.toBeNull();
+    await expect(
+      resolvePostIdFromObjectUri('https://remote.example/never/seen'),
+    ).resolves.toBeNull();
   });
 });

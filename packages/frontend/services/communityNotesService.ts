@@ -43,13 +43,18 @@ export interface WriteCommunityNoteInput {
 class CommunityNotesService {
   /** Whether this deployment can take notes at all. */
   async availability(): Promise<boolean> {
-    const res = await authenticatedClient.get<{ enabled: boolean }>('/community-notes/availability');
+    const res = await authenticatedClient.get<{ enabled: boolean }>(
+      '/community-notes/availability',
+    );
     return res.data.enabled === true;
   }
 
   /** Writes a note about a post. Resolves once CrowdSource has it. */
   async write(input: WriteCommunityNoteInput): Promise<CommunityNoteSummary> {
-    const res = await authenticatedClient.post<{ note: CommunityNoteSummary }>('/community-notes', input);
+    const res = await authenticatedClient.post<{ note: CommunityNoteSummary }>(
+      '/community-notes',
+      input,
+    );
     return res.data.note;
   }
 
@@ -62,8 +67,15 @@ class CommunityNotesService {
   }
 
   /** Rates a note. Final — a second rating of the same note is refused. */
-  async rate(noteId: string, rating: CommunityNoteRating, reasons: CommunityNoteReason[]): Promise<void> {
-    await authenticatedClient.post(`/community-notes/${encodeURIComponent(noteId)}/ratings`, { rating, reasons });
+  async rate(
+    noteId: string,
+    rating: CommunityNoteRating,
+    reasons: CommunityNoteReason[],
+  ): Promise<void> {
+    await authenticatedClient.post(`/community-notes/${encodeURIComponent(noteId)}/ratings`, {
+      rating,
+      reasons,
+    });
   }
 
   /**

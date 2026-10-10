@@ -19,10 +19,8 @@ describe('handleLanguageError', () => {
     const failure = new Error('missing catalog chunk');
 
     expect(() => handleLanguageError(failure, 'es-ES')).not.toThrow();
-    expect(mockError).toHaveBeenCalledWith(
-      'Failed to follow the Oxy-resolved language',
-      failure,
-      { locale: 'es-ES' },
-    );
+    expect(mockError).toHaveBeenCalledWith('Failed to follow the Oxy-resolved language', failure, {
+      locale: 'es-ES',
+    });
   });
 });

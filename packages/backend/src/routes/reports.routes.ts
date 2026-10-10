@@ -1,11 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import type { ModerationReportReceipt } from '@mention/shared-types';
-import {
-  REPORTED_TYPES,
-  REPORT_CATEGORIES,
-  REPORT_STATUSES,
-} from '../db/schema/moderation';
+import { REPORTED_TYPES, REPORT_CATEGORIES, REPORT_STATUSES } from '../db/schema/moderation';
 import {
   findReporterReports,
   type ReportRecord,
@@ -13,10 +9,7 @@ import {
   type ReportedType,
 } from '../db/moderation/reportRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import {
-  DuplicateReportError,
-  createReport,
-} from '../services/moderation/ReportIntakeService';
+import { DuplicateReportError, createReport } from '../services/moderation/ReportIntakeService';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
@@ -57,9 +50,14 @@ const createReportSchema = z.object({
     REPORTED_TYPES,
     `Invalid reportedType. Must be one of: ${REPORTED_TYPES.join(', ')}`,
   ),
-  reportedId: z.string('reportedId must be a non-empty string').min(1, 'reportedId must be a non-empty string'),
+  reportedId: z
+    .string('reportedId must be a non-empty string')
+    .min(1, 'reportedId must be a non-empty string'),
   categories: z
-    .array(z.enum(REPORT_CATEGORIES, `Must be one of: ${REPORT_CATEGORIES.join(', ')}`), 'categories must be a non-empty array')
+    .array(
+      z.enum(REPORT_CATEGORIES, `Must be one of: ${REPORT_CATEGORIES.join(', ')}`),
+      'categories must be a non-empty array',
+    )
     .min(1, 'categories must be a non-empty array')
     // Bounded by the VOCABULARY, which is the only bound that means anything
     // here: six values are valid, so a report naming more than six is naming one
@@ -103,15 +101,9 @@ function toReceipt(report: ReportRecord): ModerationReportReceipt {
     ...(report.details === undefined ? {} : { details: report.details }),
     status: report.status,
     localStatus: report.localStatus,
-    ...(report.decisionOutcome === undefined
-      ? {}
-      : { decisionOutcome: report.decisionOutcome }),
-    ...(report.enforcedAction === undefined
-      ? {}
-      : { enforcedAction: report.enforcedAction }),
-    ...(report.enforcedAt === undefined
-      ? {}
-      : { enforcedAt: report.enforcedAt.toISOString() }),
+    ...(report.decisionOutcome === undefined ? {} : { decisionOutcome: report.decisionOutcome }),
+    ...(report.enforcedAction === undefined ? {} : { enforcedAction: report.enforcedAction }),
+    ...(report.enforcedAt === undefined ? {} : { enforcedAt: report.enforcedAt.toISOString() }),
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
   };
@@ -225,10 +217,15 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         report: toReceipt(error.existing),
       });
     }
-    logger.error('Error creating report:', { userId: req.user?.id, reportedType: req.body.reportedType, reportedId: req.body.reportedId, error });
+    logger.error('Error creating report:', {
+      userId: req.user?.id,
+      reportedType: req.body.reportedType,
+      reportedId: req.body.reportedId,
+      error,
+    });
     res.status(500).json({
       message: 'Error creating report',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -260,12 +257,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         ? (status as ReportStatus)
         : undefined;
     const typeFilter =
-      typeof reportedType === 'string'
-        && (REPORTED_TYPES as readonly string[]).includes(reportedType)
+      typeof reportedType === 'string' &&
+      (REPORTED_TYPES as readonly string[]).includes(reportedType)
         ? (reportedType as ReportedType)
         : undefined;
 
-    const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_REPORTS_PAGE_SIZE, 1), MAX_REPORTS_PAGE_SIZE);
+    const limitNum = Math.min(
+      Math.max(queryInt(req.query.limit) || DEFAULT_REPORTS_PAGE_SIZE, 1),
+      MAX_REPORTS_PAGE_SIZE,
+    );
 
     /**
      * The cursor is opaque and the keyset names the SAME pair the sort does.
@@ -290,13 +290,13 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     res.json({
       reports: page.reports.map(toReceipt),
       hasMore,
-      nextCursor
+      nextCursor,
     });
   } catch (error) {
     logger.error('Error fetching reports:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({
       message: 'Error fetching reports',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

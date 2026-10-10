@@ -235,10 +235,13 @@ async function resolveRecordFileIds(record: MentionPostRecord): Promise<Map<stri
     return fileIdBySha256;
   } catch (error) {
     // Best-effort: a failed reverse lookup must never abort projection.
-    logger.warn('PostMaterializer: content-address lookup failed; projecting without record media', {
-      sha256Count: sha256s.size,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.warn(
+      'PostMaterializer: content-address lookup failed; projecting without record media',
+      {
+        sha256Count: sha256s.size,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return new Map();
   }
 }
@@ -430,7 +433,10 @@ function buildBaselineClassification(record: MentionPostRecord): BaselineClassif
     return result;
   } catch (error) {
     // Never fail projection on classification — leave the column defaults.
-    logger.warn('PostMaterializer: baseline classification failed; projecting without Stage-A signals', error);
+    logger.warn(
+      'PostMaterializer: baseline classification failed; projecting without Stage-A signals',
+      error,
+    );
     return null;
   }
 }
@@ -447,7 +453,9 @@ async function existingPostIds(
   ids: readonly (string | null)[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Set<string>> {
-  const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const unique = [
+    ...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (unique.length === 0) return new Set();
   const rows = await db.select({ id: posts.id }).from(posts).where(inArray(posts.id, unique));
   return new Set(rows.map((row) => row.id));
@@ -578,10 +586,13 @@ async function projectPost(
   const parentPostId = declaredParentId && linkable.has(declaredParentId) ? declaredParentId : null;
   const threadId = declaredThreadId && linkable.has(declaredThreadId) ? declaredThreadId : null;
   if (declaredParentId && !parentPostId) {
-    logger.info('PostMaterializer: reply parent is not materialized here; leaving the reply unlinked', {
-      rkey,
-      parentPostId: declaredParentId,
-    });
+    logger.info(
+      'PostMaterializer: reply parent is not materialized here; leaving the reply unlinked',
+      {
+        rkey,
+        parentPostId: declaredParentId,
+      },
+    );
   }
 
   const existing = await loadPostRecord(rkey);
@@ -597,7 +608,12 @@ async function projectPost(
   });
 
   if (existing) {
-    await refreshProjectedPost(existing, content, { hashtags, language, threadId }, baseline?.classification);
+    await refreshProjectedPost(
+      existing,
+      content,
+      { hashtags, language, threadId },
+      baseline?.classification,
+    );
   } else {
     try {
       await insertPostRecord({
@@ -629,7 +645,12 @@ async function projectPost(
       if (!raced || raced.oxyUserId !== oxyUserId) {
         return { ok: false, reason: 'record_owner_mismatch' };
       }
-      await refreshProjectedPost(raced, content, { hashtags, language, threadId }, baseline?.classification);
+      await refreshProjectedPost(
+        raced,
+        content,
+        { hashtags, language, threadId },
+        baseline?.classification,
+      );
     }
   }
 
@@ -867,7 +888,12 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_POST_COLLECTION: {
         const parsed = mentionPostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectPost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
+        return await projectPost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          recordCreatedAt(parsed.data.createdAt),
+        );
       }
       case MENTION_LIKE_COLLECTION: {
         const parsed = mentionLikeRecordSchema.safeParse(record);
@@ -877,7 +903,12 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_REPOST_COLLECTION: {
         const parsed = mentionRepostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectRepost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
+        return await projectRepost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          recordCreatedAt(parsed.data.createdAt),
+        );
       }
       case MENTION_TOMBSTONE_COLLECTION: {
         const parsed = mentionTombstoneRecordSchema.safeParse(record);

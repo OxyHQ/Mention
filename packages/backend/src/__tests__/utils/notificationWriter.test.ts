@@ -31,7 +31,9 @@ vi.mock('../../runtime/socketServer', () => ({
 
 // Push delivery has its own suite; here it is only counted.
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   formatPushForNotification: mocks.formatPushForNotification,
   sendPushToTokens: mocks.sendPushToTokens,
 }));
@@ -135,7 +137,10 @@ describe('createNotification idempotency', () => {
     const [first] = await rowsFor(recipient);
     // Backdate the row so the refresh is unambiguous rather than a same-tick tie.
     const backdated = new Date(first.createdAt.getTime() - 60_000);
-    await db.update(notifications).set({ createdAt: backdated }).where(eq(notifications.id, first.id));
+    await db
+      .update(notifications)
+      .set({ createdAt: backdated })
+      .where(eq(notifications.id, first.id));
 
     await createNotification(data);
 
@@ -374,10 +379,7 @@ describe('createBatchNotifications', () => {
 
   it('never notifies the actor, and writes a duplicated recipient once', async () => {
     const recipient = recipientId();
-    const rows = [
-      ...batch([recipient, recipient]),
-      { ...batch(['oxy-actor'])[0] },
-    ];
+    const rows = [...batch([recipient, recipient]), { ...batch(['oxy-actor'])[0] }];
     // Same entity for the duplicate pair.
     rows[1].entityId = rows[0].entityId;
 

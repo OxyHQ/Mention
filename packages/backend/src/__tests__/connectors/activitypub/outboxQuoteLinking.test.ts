@@ -94,11 +94,7 @@ import { PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { postContentVariants } from '../../../db/schema/postContent';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
 
 const scope = federationScope('outbox-quote-linking');
@@ -170,7 +166,11 @@ function stubRemote(orderedItems: unknown[], objects: Record<string, unknown> = 
     'fetch',
     vi.fn(async (url: string) => {
       if (url === OUTBOX_URL || url === THREADS_OUTBOX) {
-        return jsonResponse({ type: 'OrderedCollection', totalItems: orderedItems.length, orderedItems });
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: orderedItems.length,
+          orderedItems,
+        });
       }
       const object = objects[url];
       if (object) return jsonResponse(object);
@@ -209,14 +209,24 @@ function threadsNote(id: string, target: string) {
 /** Sync the THREADS actor's own outbox — the host gate reads the outbox owner. */
 function runThreadsOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: THREADS_ACTOR, acct: 'someone@threads.net', outboxUrl: THREADS_OUTBOX, oxyUserId: THREADS_OXY_ID },
+    {
+      uri: THREADS_ACTOR,
+      acct: 'someone@threads.net',
+      outboxUrl: THREADS_OUTBOX,
+      oxyUserId: THREADS_OXY_ID,
+    },
     { limit: 10, maxPages: 1 },
   );
 }
 
 function runOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: `alice@${scope.domain}`, outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
+    {
+      uri: ACTOR_URI,
+      acct: `alice@${scope.domain}`,
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: ALICE_OXY_ID,
+    },
     { limit: 10, maxPages: 1 },
   );
 }
@@ -246,7 +256,9 @@ async function storedNote(
 }
 
 /** The stored row for a note of Bob's we imported by fetching it. */
-async function storedRemote(uri: string): Promise<{ id: string; quoteOf: string | null } | undefined> {
+async function storedRemote(
+  uri: string,
+): Promise<{ id: string; quoteOf: string | null } | undefined> {
   const [row] = await getDb()
     .select({ id: posts.id, quoteOf: posts.quoteOf })
     .from(posts)
@@ -263,9 +275,15 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${BOB_URI}%`));
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${THREADS_ACTOR}%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${BOB_URI}%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${THREADS_ACTOR}%`));
   await clearFederationScope(scope);
 });
 
@@ -293,7 +311,9 @@ beforeEach(() => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -309,7 +329,12 @@ beforeEach(() => {
   mocks.getOrFetchActor.mockImplementation(async (uri: string) => {
     if (uri === BOB_URI) return { uri: BOB_URI, oxyUserId: BOB_OXY_ID, type: 'Person' };
     if (uri === THREADS_ACTOR) {
-      return { uri: THREADS_ACTOR, oxyUserId: THREADS_OXY_ID, type: 'Person', domain: 'threads.net' };
+      return {
+        uri: THREADS_ACTOR,
+        oxyUserId: THREADS_OXY_ID,
+        type: 'Person',
+        domain: 'threads.net',
+      };
     }
     return { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' };
   });
@@ -364,10 +389,9 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
     // catalogue quotes people you have never held a post from. Nothing in this
     // path used to fetch, so every one of those quotes stayed null forever —
     // there is no later pass that revisits an imported post.
-    stubRemote(
-      [createNote('quoting-unheld', { quote: UNHELD_URI })],
-      { [UNHELD_URI]: bobNote(UNHELD_URI) },
-    );
+    stubRemote([createNote('quoting-unheld', { quote: UNHELD_URI })], {
+      [UNHELD_URI]: bobNote(UNHELD_URI),
+    });
 
     await runOutboxSync();
 
@@ -389,10 +413,9 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
       oxyUserId: BOB_OXY_ID,
       federation: { activityId: HELD_URI, actorUri: BOB_URI },
     });
-    stubRemote(
-      [createNote('quoting-chain', { quote: UNHELD_URI })],
-      { [UNHELD_URI]: bobNote(UNHELD_URI, { quote: HELD_URI }) },
-    );
+    stubRemote([createNote('quoting-chain', { quote: UNHELD_URI })], {
+      [UNHELD_URI]: bobNote(UNHELD_URI, { quote: HELD_URI }),
+    });
 
     await runOutboxSync();
 
@@ -429,7 +452,7 @@ describe('a quote we cannot produce withholds the post instead of showing `RE:`'
   });
 });
 
-describe("Threads, whose quote exists ONLY as `span.quote-inline`", () => {
+describe('Threads, whose quote exists ONLY as `span.quote-inline`', () => {
   /** The stored row for a Threads note, which lives under a different actor. */
   async function storedThreadsNote(id: string) {
     const [row] = await getDb()
@@ -477,9 +500,11 @@ describe("Threads, whose quote exists ONLY as `span.quote-inline`", () => {
     // The host gate is the whole reason reading this body is defensible: the
     // class is markup Threads emits, and only there is it known to mean a quote.
     // A Mastodon note carrying the same span is left completely alone.
-    stubRemote([createNote('lookalike', {
-      content: threadsQuoteBody('https://www.threads.com/@someone/post/DctgllSGf_L'),
-    })]);
+    stubRemote([
+      createNote('lookalike', {
+        content: threadsQuoteBody('https://www.threads.com/@someone/post/DctgllSGf_L'),
+      }),
+    ]);
 
     await runOutboxSync();
 
@@ -513,10 +538,12 @@ describe("the remote's `RE:` fallback goes once we can render the quote ourselve
     // The marker must name the SAME url the note declares, or this case would
     // pass because the two simply did not match — which is what a mutation run
     // caught: forcing the strip unconditionally left it green.
-    stubRemote([createNote('unlinked-marker', {
-      quote: UNHELD_URI,
-      content: `<p>RE: ${UNHELD_URI}</p>`,
-    })]);
+    stubRemote([
+      createNote('unlinked-marker', {
+        quote: UNHELD_URI,
+        content: `<p>RE: ${UNHELD_URI}</p>`,
+      }),
+    ]);
 
     await runOutboxSync();
 
@@ -557,17 +584,29 @@ describe('a bridge-flattened retweet is dropped on THIS path too, not only the i
   }
 
   function stubBridgeOutbox(items: unknown[]): void {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url === BRIDGE_OUTBOX) {
-        return jsonResponse({ type: 'OrderedCollection', totalItems: items.length, orderedItems: items });
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === BRIDGE_OUTBOX) {
+          return jsonResponse({
+            type: 'OrderedCollection',
+            totalItems: items.length,
+            orderedItems: items,
+          });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }),
+    );
   }
 
   async function runBridgeSync() {
     return outboxSyncService.syncOutboxPostsDetailed(
-      { uri: BRIDGE_ACTOR, acct: 'someone@bird.makeup', outboxUrl: BRIDGE_OUTBOX, oxyUserId: BRIDGE_OXY_ID },
+      {
+        uri: BRIDGE_ACTOR,
+        acct: 'someone@bird.makeup',
+        outboxUrl: BRIDGE_OUTBOX,
+        oxyUserId: BRIDGE_OXY_ID,
+      },
       { limit: 10, maxPages: 1 },
     );
   }
@@ -589,7 +628,9 @@ describe('a bridge-flattened retweet is dropped on THIS path too, not only the i
   });
 
   afterEach(async () => {
-    await getDb().delete(posts).where(like(posts.federationActivityId, `${BRIDGE_ACTOR}%`));
+    await getDb()
+      .delete(posts)
+      .where(like(posts.federationActivityId, `${BRIDGE_ACTOR}%`));
   });
 
   it('drops it', async () => {

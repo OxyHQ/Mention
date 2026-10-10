@@ -5,33 +5,33 @@
 
 import type { DependencyList } from 'react';
 import type {
-    FeedInterstitialSlot,
-    FeedPostSlice,
-    FeedType,
-    FeedFilters as SharedFeedFilters,
-    HydratedPost,
+  FeedInterstitialSlot,
+  FeedPostSlice,
+  FeedType,
+  FeedFilters as SharedFeedFilters,
+  HydratedPost,
 } from '@mention/shared-types';
 
 // Extended FeedFilters with additional properties used by the app.
 // The index signature is what `serializeFeedFilters` and `shallowFiltersEqual`
 // walk, so it states the real contract: filters are a flat bag of scalars.
 export interface FeedFilters extends SharedFeedFilters {
-    searchQuery?: string;
-    postId?: string;
-    parentPostId?: string;
-    customFeedId?: string;
-    hashtag?: string;
-    topic?: string;
-    /**
-     * One lane's tab. The lane already knows its own publisher, so this is the
-     * whole scope — a lane feed is NOT an author feed and must never be fetched
-     * as one. Three files have to agree on that: this field, the explicit branch
-     * in `feedService`, and the matching branch in `feedTelemetry`.
-     */
-    laneId?: string;
-    /** Reply ordering, as the replies feed sends it to the API. */
-    sort?: string;
-    [key: string]: string | boolean | undefined;
+  searchQuery?: string;
+  postId?: string;
+  parentPostId?: string;
+  customFeedId?: string;
+  hashtag?: string;
+  topic?: string;
+  /**
+   * One lane's tab. The lane already knows its own publisher, so this is the
+   * whole scope — a lane feed is NOT an author feed and must never be fetched
+   * as one. Three files have to agree on that: this field, the explicit branch
+   * in `feedService`, and the matching branch in `feedTelemetry`.
+   */
+  laneId?: string;
+  /** Reply ordering, as the replies feed sends it to the API. */
+  sort?: string;
+  [key: string]: string | boolean | undefined;
 }
 
 /**
@@ -48,18 +48,18 @@ type FeedEntityId = string | number | { toString(): string };
  * flow through here carrying different subsets of these fields.
  */
 interface KeyableFeedEntity {
-    id?: FeedEntityId;
-    _id?: FeedEntityId;
-    _id_str?: FeedEntityId;
-    postId?: FeedEntityId;
-    post?: { id?: FeedEntityId; _id?: FeedEntityId };
-    username?: string;
+  id?: FeedEntityId;
+  _id?: FeedEntityId;
+  _id_str?: FeedEntityId;
+  postId?: FeedEntityId;
+  post?: { id?: FeedEntityId; _id?: FeedEntityId };
+  username?: string;
 }
 
 /** Renders one candidate id field, or `''` when it is absent/empty. */
 function readEntityId(value: FeedEntityId | undefined): string {
-    if (value === undefined || value === null || value === '') return '';
-    return String(value);
+  if (value === undefined || value === null || value === '') return '';
+  return String(value);
 }
 
 /**
@@ -67,48 +67,47 @@ function readEntityId(value: FeedEntityId | undefined): string {
  * Handles various ID formats: id, _id, _id_str, postId, post.id, post._id
  */
 export function normalizeItemId(item: unknown): string {
-    if (item === null || typeof item !== 'object') return '';
-    const entity = item as KeyableFeedEntity;
+  if (item === null || typeof item !== 'object') return '';
+  const entity = item as KeyableFeedEntity;
 
-    const direct =
-        readEntityId(entity.id) ||
-        readEntityId(entity._id) ||
-        readEntityId(entity._id_str) ||
-        readEntityId(entity.postId);
-    if (direct) return direct;
+  const direct =
+    readEntityId(entity.id) ||
+    readEntityId(entity._id) ||
+    readEntityId(entity._id_str) ||
+    readEntityId(entity.postId);
+  if (direct) return direct;
 
-    const post = entity.post;
-    if (post) return readEntityId(post.id) || readEntityId(post._id);
-    return '';
+  const post = entity.post;
+  if (post) return readEntityId(post.id) || readEntityId(post._id);
+  return '';
 }
 
 /**
  * Extract item key using normalization
  */
 export function getItemKey(item: unknown): string {
-    const normalizedId = normalizeItemId(item);
+  const normalizedId = normalizeItemId(item);
 
-    if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null') {
-        return normalizedId;
-    }
+  if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null') {
+    return normalizedId;
+  }
 
-    // Fallback to username or JSON stringification as last resort
-    const username = item !== null && typeof item === 'object'
-        ? (item as KeyableFeedEntity).username
-        : undefined;
-    return username || String(JSON.stringify(item));
+  // Fallback to username or JSON stringification as last resort
+  const username =
+    item !== null && typeof item === 'object' ? (item as KeyableFeedEntity).username : undefined;
+  return username || String(JSON.stringify(item));
 }
 
 export interface FeedPageContent {
-    items?: readonly HydratedPost[];
-    slices?: readonly FeedPostSlice[];
-    interstitials?: readonly FeedInterstitialSlot[];
+  items?: readonly HydratedPost[];
+  slices?: readonly FeedPostSlice[];
+  interstitials?: readonly FeedInterstitialSlot[];
 }
 
 export interface MergedFeedPageContent {
-    items: HydratedPost[];
-    slices?: FeedPostSlice[];
-    interstitials?: FeedInterstitialSlot[];
+  items: HydratedPost[];
+  slices?: FeedPostSlice[];
+  interstitials?: FeedInterstitialSlot[];
 }
 
 /**
@@ -124,63 +123,59 @@ export interface MergedFeedPageContent {
  * relationship as ranking/social context.
  */
 export function mergeFeedPageContent(
-    accumulated: FeedPageContent | undefined,
-    incoming: FeedPageContent,
+  accumulated: FeedPageContent | undefined,
+  incoming: FeedPageContent,
 ): MergedFeedPageContent {
-    const items: HydratedPost[] = [];
-    const seenItemKeys = new Set<string>();
+  const items: HydratedPost[] = [];
+  const seenItemKeys = new Set<string>();
 
-    for (const item of [...(accumulated?.items ?? []), ...(incoming.items ?? [])]) {
-        const key = getItemKey(item);
-        if (!key || seenItemKeys.has(key)) continue;
-        seenItemKeys.add(key);
-        items.push(item);
-    }
+  for (const item of [...(accumulated?.items ?? []), ...(incoming.items ?? [])]) {
+    const key = getItemKey(item);
+    if (!key || seenItemKeys.has(key)) continue;
+    seenItemKeys.add(key);
+    items.push(item);
+  }
 
-    const slices: FeedPostSlice[] = [];
-    const seenSliceKeys = new Set<string>();
-    const seenSlicePostKeys = new Set<string>();
+  const slices: FeedPostSlice[] = [];
+  const seenSliceKeys = new Set<string>();
+  const seenSlicePostKeys = new Set<string>();
 
-    for (const slice of [...(accumulated?.slices ?? []), ...(incoming.slices ?? [])]) {
-        if (!slice?._sliceKey || seenSliceKeys.has(slice._sliceKey)) continue;
+  for (const slice of [...(accumulated?.slices ?? []), ...(incoming.slices ?? [])]) {
+    if (!slice?._sliceKey || seenSliceKeys.has(slice._sliceKey)) continue;
 
-        const uniqueItems = slice.items.filter((sliceItem) => {
-            const key = getItemKey(sliceItem?.post);
-            if (!key || seenSlicePostKeys.has(key)) return false;
-            seenSlicePostKeys.add(key);
-            return true;
-        });
-        if (uniqueItems.length === 0) continue;
+    const uniqueItems = slice.items.filter((sliceItem) => {
+      const key = getItemKey(sliceItem?.post);
+      if (!key || seenSlicePostKeys.has(key)) return false;
+      seenSlicePostKeys.add(key);
+      return true;
+    });
+    if (uniqueItems.length === 0) continue;
 
-        seenSliceKeys.add(slice._sliceKey);
-        slices.push(
-            uniqueItems.length === slice.items.length
-                ? slice
-                : { ...slice, items: uniqueItems },
-        );
-    }
+    seenSliceKeys.add(slice._sliceKey);
+    slices.push(
+      uniqueItems.length === slice.items.length ? slice : { ...slice, items: uniqueItems },
+    );
+  }
 
-    const interstitials: FeedInterstitialSlot[] = [];
-    const seenSlotKeys = new Set<string>();
-    const validAnchors = slices.length > 0
-        ? new Set(slices.map((slice) => slice._sliceKey))
-        : new Set(items.map(getItemKey));
+  const interstitials: FeedInterstitialSlot[] = [];
+  const seenSlotKeys = new Set<string>();
+  const validAnchors =
+    slices.length > 0
+      ? new Set(slices.map((slice) => slice._sliceKey))
+      : new Set(items.map(getItemKey));
 
-    for (const slot of [
-        ...(accumulated?.interstitials ?? []),
-        ...(incoming.interstitials ?? []),
-    ]) {
-        if (!slot?.key || seenSlotKeys.has(slot.key)) continue;
-        if (!validAnchors.has(slot.afterSliceKey)) continue;
-        seenSlotKeys.add(slot.key);
-        interstitials.push(slot);
-    }
+  for (const slot of [...(accumulated?.interstitials ?? []), ...(incoming.interstitials ?? [])]) {
+    if (!slot?.key || seenSlotKeys.has(slot.key)) continue;
+    if (!validAnchors.has(slot.afterSliceKey)) continue;
+    seenSlotKeys.add(slot.key);
+    interstitials.push(slot);
+  }
 
-    return {
-        items,
-        slices: slices.length > 0 ? slices : undefined,
-        interstitials: interstitials.length > 0 ? interstitials : undefined,
-    };
+  return {
+    items,
+    slices: slices.length > 0 ? slices : undefined,
+    interstitials: interstitials.length > 0 ? interstitials : undefined,
+  };
 }
 
 /**
@@ -190,16 +185,16 @@ export function mergeFeedPageContent(
  * single identity.
  */
 export interface FeedIdentityParams {
-    type: FeedType;
-    userId?: string;
-    filters?: FeedFilters;
-    /**
-     * Authenticated viewer that the feed response is authorized for. Feed
-     * contents are viewer-dependent, so retained in-memory slices must never
-     * be shared across logout/login or account-switch boundaries.
-     */
-    currentViewerId?: string;
-    isAuthenticated?: boolean;
+  type: FeedType;
+  userId?: string;
+  filters?: FeedFilters;
+  /**
+   * Authenticated viewer that the feed response is authorized for. Feed
+   * contents are viewer-dependent, so retained in-memory slices must never
+   * be shared across logout/login or account-switch boundaries.
+   */
+  currentViewerId?: string;
+  isAuthenticated?: boolean;
 }
 
 /**
@@ -216,16 +211,18 @@ export interface FeedIdentityParams {
  * two `<Feed>`s are the same feed.
  */
 export function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
-    if (!filters) return null;
-    const keys = Object.keys(filters).sort();
-    if (keys.length === 0) return null;
-    return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
+  if (!filters) return null;
+  const keys = Object.keys(filters).sort();
+  if (keys.length === 0) return null;
+  return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
 }
 
 function serializeFeedFilters(filters?: FeedFilters): string {
-    const normalized = normalizeFeedFilters(filters);
-    if (!normalized) return '';
-    return Object.entries(normalized).map(([key, value]) => `${key}=${value}`).join('&');
+  const normalized = normalizeFeedFilters(filters);
+  if (!normalized) return '';
+  return Object.entries(normalized)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
 }
 
 /**
@@ -234,8 +231,8 @@ function serializeFeedFilters(filters?: FeedFilters): string {
  * a thread asks this same question in this same order.
  */
 export function feedThreadParentId(filters?: FeedFilters): string | undefined {
-    const parentId = filters?.parentPostId || filters?.postId;
-    return parentId ? String(parentId) : undefined;
+  const parentId = filters?.parentPostId || filters?.postId;
+  return parentId ? String(parentId) : undefined;
 }
 
 /**
@@ -247,15 +244,18 @@ export function feedThreadParentId(filters?: FeedFilters): string | undefined {
  * state.
  */
 export function buildFeedScrollKey(params: FeedIdentityParams): string {
-    const viewerKey = params.isAuthenticated
-        ? `auth:${params.currentViewerId || 'pending'}`
-        : 'anon';
-    const userId = params.userId ?? '';
-    const filterKey = serializeFeedFilters(params.filters);
-    return `${viewerKey}|${params.type}|${userId}|${filterKey}`;
+  const viewerKey = params.isAuthenticated ? `auth:${params.currentViewerId || 'pending'}` : 'anon';
+  const userId = params.userId ?? '';
+  const filterKey = serializeFeedFilters(params.filters);
+  return `${viewerKey}|${params.type}|${userId}|${filterKey}`;
 }
 
-const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']);
+const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>([
+  'mixed',
+  'for_you',
+  'following',
+  'posts',
+]);
 
 /**
  * Whether a viewer's new post goes at the top of this feed — the same selection
@@ -265,15 +265,15 @@ const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_
  * the same rule to the feed queries, with the post's author as the viewer.
  */
 export function feedReceivesOwnNewPost(params: {
-    type: FeedType;
-    userId?: string;
-    filters?: FeedFilters;
-    currentUserId?: string;
+  type: FeedType;
+  userId?: string;
+  filters?: FeedFilters;
+  currentUserId?: string;
 }): boolean {
-    const { type, userId, filters, currentUserId } = params;
-    if (filters && Object.keys(filters).length > 0) return false;
-    if (!userId) return HOME_FEED_TYPES.has(type);
-    return type === 'posts' && Boolean(currentUserId) && String(userId) === String(currentUserId);
+  const { type, userId, filters, currentUserId } = params;
+  if (filters && Object.keys(filters).length > 0) return false;
+  if (!userId) return HOME_FEED_TYPES.has(type);
+  return type === 'posts' && Boolean(currentUserId) && String(userId) === String(currentUserId);
 }
 
 /**
@@ -287,17 +287,17 @@ export function feedReceivesOwnNewPost(params: {
  * hooks treat those as equal without serializing on every render.
  */
 export function shallowFiltersEqual(a?: FeedFilters, b?: FeedFilters): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
+  if (a === b) return true;
+  if (!a || !b) return false;
 
-    const aKeys = Object.keys(a);
-    const bKeys = Object.keys(b);
-    if (aKeys.length !== bKeys.length) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
 
-    for (const key of aKeys) {
-        if (a[key] !== b[key]) return false;
-    }
-    return true;
+  for (const key of aKeys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
 }
 
 /**
@@ -318,19 +318,19 @@ export function shallowFiltersEqual(a?: FeedFilters, b?: FeedFilters): boolean {
  * to detect same-length interior replacements / reorders without stale row sets.
  */
 export function feedArrayEqual<T>(
-    a: readonly T[] | undefined,
-    b: readonly T[] | undefined,
-    keyOf: (item: T) => string,
+  a: readonly T[] | undefined,
+  b: readonly T[] | undefined,
+  keyOf: (item: T) => string,
 ): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
 
-    for (let i = 0; i < a.length; i++) {
-        if (keyOf(a[i]) !== keyOf(b[i])) return false;
-    }
+  for (let i = 0; i < a.length; i++) {
+    if (keyOf(a[i]) !== keyOf(b[i])) return false;
+  }
 
-    return true;
+  return true;
 }
 
 /**
@@ -342,17 +342,17 @@ export function feedArrayEqual<T>(
  * falls back to the post key.
  */
 function feedElementKey(element: unknown): string {
-    if (element && typeof element === 'object') {
-        if ('_sliceKey' in element) {
-            const sliceKey = (element as { _sliceKey?: unknown })._sliceKey;
-            if (typeof sliceKey === 'string' && sliceKey) return sliceKey;
-        }
-        if ('afterSliceKey' in element) {
-            const slotKey = (element as { key?: unknown }).key;
-            if (typeof slotKey === 'string' && slotKey) return slotKey;
-        }
+  if (element && typeof element === 'object') {
+    if ('_sliceKey' in element) {
+      const sliceKey = (element as { _sliceKey?: unknown })._sliceKey;
+      if (typeof sliceKey === 'string' && sliceKey) return sliceKey;
     }
-    return getItemKey(element);
+    if ('afterSliceKey' in element) {
+      const slotKey = (element as { key?: unknown }).key;
+      if (typeof slotKey === 'string' && slotKey) return slotKey;
+    }
+  }
+  return getItemKey(element);
 }
 
 /**
@@ -373,48 +373,48 @@ function feedElementKey(element: unknown): string {
  *  - Primitives: `===`.
  */
 export function depsShallowEqual(a: DependencyList, b: DependencyList): boolean {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
 
-    for (let i = 0; i < a.length; i++) {
-        const prev = a[i];
-        const next = b[i];
-        if (prev === next) continue;
+  for (let i = 0; i < a.length; i++) {
+    const prev = a[i];
+    const next = b[i];
+    if (prev === next) continue;
 
-        if (Array.isArray(prev) && Array.isArray(next)) {
-            if (!feedArrayEqual(prev, next, feedElementKey)) return false;
-            continue;
-        }
-
-        if (
-            prev !== null &&
-            next !== null &&
-            typeof prev === 'object' &&
-            typeof next === 'object' &&
-            !Array.isArray(prev) &&
-            !Array.isArray(next) &&
-            !(prev instanceof Set) &&
-            !(next instanceof Set) &&
-            !(prev instanceof Map) &&
-            !(next instanceof Map)
-        ) {
-            // Both are plain objects (filters-like bags): one shallow pass.
-            const prevObj = prev as Record<string, unknown>;
-            const nextObj = next as Record<string, unknown>;
-            const prevKeys = Object.keys(prevObj);
-            const nextKeys = Object.keys(nextObj);
-            if (prevKeys.length !== nextKeys.length) return false;
-            for (const key of prevKeys) {
-                if (prevObj[key] !== nextObj[key]) return false;
-            }
-            continue;
-        }
-
-        // Sets / Maps / mismatched types that already failed `===`: a new
-        // reference means a real change → not equal.
-        return false;
+    if (Array.isArray(prev) && Array.isArray(next)) {
+      if (!feedArrayEqual(prev, next, feedElementKey)) return false;
+      continue;
     }
-    return true;
+
+    if (
+      prev !== null &&
+      next !== null &&
+      typeof prev === 'object' &&
+      typeof next === 'object' &&
+      !Array.isArray(prev) &&
+      !Array.isArray(next) &&
+      !(prev instanceof Set) &&
+      !(next instanceof Set) &&
+      !(prev instanceof Map) &&
+      !(next instanceof Map)
+    ) {
+      // Both are plain objects (filters-like bags): one shallow pass.
+      const prevObj = prev as Record<string, unknown>;
+      const nextObj = next as Record<string, unknown>;
+      const prevKeys = Object.keys(prevObj);
+      const nextKeys = Object.keys(nextObj);
+      if (prevKeys.length !== nextKeys.length) return false;
+      for (const key of prevKeys) {
+        if (prevObj[key] !== nextObj[key]) return false;
+      }
+      continue;
+    }
+
+    // Sets / Maps / mismatched types that already failed `===`: a new
+    // reference means a real change → not equal.
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -423,8 +423,8 @@ export function depsShallowEqual(a: DependencyList, b: DependencyList): boolean 
  * renders — so the tree carries them unchanged.
  */
 export interface ReplyNode {
-    reply: HydratedPost;
-    children: ReplyNode[];
+  reply: HydratedPost;
+  children: ReplyNode[];
 }
 
 /**
@@ -436,46 +436,43 @@ export interface ReplyNode {
  * the tree and the rows built from it can never disagree about a post's identity.
  */
 export function buildReplyTree(replies: readonly HydratedPost[], postId: string): ReplyNode[] {
-    const replyMap = new Map<string, ReplyNode>();
-    for (const reply of replies) {
-        replyMap.set(getItemKey(reply), { reply, children: [] });
+  const replyMap = new Map<string, ReplyNode>();
+  for (const reply of replies) {
+    replyMap.set(getItemKey(reply), { reply, children: [] });
+  }
+
+  const topLevel: ReplyNode[] = [];
+  for (const reply of replies) {
+    const node = replyMap.get(getItemKey(reply));
+    if (!node) continue;
+
+    // A reply hangs off its parent only when that parent is in THIS batch and
+    // is not the thread root; everything else is a top-level reply.
+    const parentId = reply.parentPostId ?? '';
+    const parentNode = parentId === postId ? undefined : replyMap.get(parentId);
+    if (parentNode) {
+      parentNode.children.push(node);
+    } else {
+      topLevel.push(node);
     }
+  }
 
-    const topLevel: ReplyNode[] = [];
-    for (const reply of replies) {
-        const node = replyMap.get(getItemKey(reply));
-        if (!node) continue;
-
-        // A reply hangs off its parent only when that parent is in THIS batch and
-        // is not the thread root; everything else is a top-level reply.
-        const parentId = reply.parentPostId ?? '';
-        const parentNode = parentId === postId ? undefined : replyMap.get(parentId);
-        if (parentNode) {
-            parentNode.children.push(node);
-        } else {
-            topLevel.push(node);
-        }
-    }
-
-    return topLevel;
+  return topLevel;
 }
 
 /**
  * Deduplicate items using Map for O(1) lookups
  */
-export function deduplicateItems<T>(
-    items: T[],
-    getKey: (item: T) => string = getItemKey
-): T[] {
-    if (items.length === 0) return [];
-    
-    const seen = new Map<string, T>();
-    for (const item of items) {
-        const key = getKey(item);
-        if (key && !seen.has(key)) {
-            seen.set(key, item);
-        }
+export function deduplicateItems<T>(items: T[], getKey: (item: T) => string = getItemKey): T[] {
+  if (items.length === 0) return [];
+
+  const seen = new Map<string, T>();
+  for (const item of items) {
+    const key = getKey(item);
+    if (key && !seen.has(key)) {
+      seen.set(key, item);
     }
-    
-    return Array.from(seen.values());
+  }
+
+  return Array.from(seen.values());
 }

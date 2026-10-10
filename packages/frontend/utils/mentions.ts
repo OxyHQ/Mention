@@ -48,10 +48,7 @@ export function mergeMentionData(
         userId: mention.userId,
         username: mention.username || previous.username,
         displayName:
-          mention.displayName ||
-          previous.displayName ||
-          mention.username ||
-          previous.username,
+          mention.displayName || previous.displayName || mention.username || previous.username,
       });
     }
   }
@@ -115,11 +112,7 @@ export function storageTextToDisplayText(
   let result = storageText;
   for (const mention of mergeMentionData(mentions)) {
     if (!mention.username) continue;
-    result = replaceAllLiteral(
-      result,
-      `[mention:${mention.userId}]`,
-      `@${mention.username}`,
-    );
+    result = replaceAllLiteral(result, `[mention:${mention.userId}]`, `@${mention.username}`);
   }
   return result;
 }
@@ -137,11 +130,7 @@ function continuesHandleAfter(text: string, index: number): boolean {
   return hasHandleContinuation(text[index + 1]);
 }
 
-function replaceDisplayMention(
-  displayText: string,
-  username: string,
-  userId: string,
-): string {
+function replaceDisplayMention(displayText: string, username: string, userId: string): string {
   const needle = `@${username}`;
   if (needle.length <= 1) return displayText;
 
@@ -156,10 +145,7 @@ function replaceDisplayMention(
 
     const before = matchIndex > 0 ? displayText[matchIndex - 1] : undefined;
     const afterIndex = matchIndex + needle.length;
-    if (
-      hasHandleContinuation(before) ||
-      continuesHandleAfter(displayText, afterIndex)
-    ) {
+    if (hasHandleContinuation(before) || continuesHandleAfter(displayText, afterIndex)) {
       result += displayText.slice(cursor, afterIndex);
       cursor = afterIndex;
       continue;

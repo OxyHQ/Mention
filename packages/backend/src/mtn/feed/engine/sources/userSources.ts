@@ -4,7 +4,20 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, eq, exists, inArray, isNull, lt, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  lt,
+  notExists,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
@@ -22,7 +35,10 @@ import {
 import { union, type PgColumn } from 'drizzle-orm/pg-core';
 import { assemblePostRecords, loadPostRecords } from '../../../../db/posts/postRepository';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
-import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
+import {
+  excludedDisplayModesForTab,
+  loadExcludedLaneIds,
+} from '../../../../services/laneVisibility';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
@@ -113,7 +129,10 @@ export async function fetchAuthored(
   // `loadPostRecords` returns them in the order asked for, which is the order
   // the merge just established — the ids carry it, the second read must not
   // re-derive it.
-  return loadPostRecords(merged.map((row) => row.id), db);
+  return loadPostRecords(
+    merged.map((row) => row.id),
+    db,
+  );
 }
 
 /** Run a chronological post scan with the shared keyset + order. */
@@ -148,7 +167,11 @@ export const keywordsSource: SourceModule = {
 
     if (hashtags.length === 0 && keywords.length === 0) return [];
 
-    const conditions: SQL[] = [eq(posts.visibility, 'public'), eq(posts.status, 'published'), notCollapsedCrosspostSql()];
+    const conditions: SQL[] = [
+      eq(posts.visibility, 'public'),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
+    ];
     const alternatives: SQL[] = [];
 
     if (keywords.length > 0) {
@@ -173,7 +196,10 @@ export const keywordsSource: SourceModule = {
       // runtime rather than matching nothing. `coalesce(…, false)` stays because
       // `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
       alternatives.push(
-        sql`coalesce(${arrayOverlaps(posts.hashtags, keywords.map((k) => k.toLowerCase()))}, false)`,
+        sql`coalesce(${arrayOverlaps(
+          posts.hashtags,
+          keywords.map((k) => k.toLowerCase()),
+        )}, false)`,
       );
     }
 
@@ -224,29 +250,36 @@ export const trendTermsSource: SourceModule = {
 
     const story = await resolveTrendStory(term);
     const membership = story.trendId
-      ? or(
+      ? (or(
           exists(
-            getDb().select({ one: sql`1` }).from(trendStoryPosts).where(and(
-              eq(trendStoryPosts.trendId, story.trendId),
-              eq(trendStoryPosts.postId, posts.id),
-            )),
+            getDb()
+              .select({ one: sql`1` })
+              .from(trendStoryPosts)
+              .where(
+                and(
+                  eq(trendStoryPosts.trendId, story.trendId),
+                  eq(trendStoryPosts.postId, posts.id),
+                ),
+              ),
           ),
           and(
             notExists(
-              getDb().select({ one: sql`1` }).from(trendStoryPosts).where(
-                eq(trendStoryPosts.trendId, story.trendId),
-              ),
+              getDb()
+                .select({ one: sql`1` })
+                .from(trendStoryPosts)
+                .where(eq(trendStoryPosts.trendId, story.trendId)),
             ),
             trendTermMatchSql(story.terms),
           ),
-        ) as SQL
+        ) as SQL)
       : trendTermMatchSql(story.terms);
 
     return fetchChrono(
       [
         membership,
         eq(posts.visibility, 'public'),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -267,7 +300,8 @@ export const accountsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, authorIds),
         eq(posts.visibility, 'public'),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -304,7 +338,8 @@ function buildAuthoredConditions(
 ): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
-    eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+    eq(posts.status, 'published'),
+    notCollapsedCrosspostSql(),
   ];
 
   // The author's own curation (see `services/laneVisibility` for which modes are
@@ -474,7 +509,10 @@ function relationshipOrder(createdAtColumn: PgColumn, idColumn: PgColumn): SQL[]
 }
 
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
-async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Promise<CandidatePost[]> {
+async function gatherAuthorLikes(
+  authorId: string,
+  ctx: FeedEngineContext,
+): Promise<CandidatePost[]> {
   const pageLimit = ctx.pageLimit ?? 30;
   const db = getDb();
 
@@ -482,11 +520,7 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
   const likeRows = await db
     .select({ id: likes.id, postId: likes.postId, createdAt: likes.createdAt })
     .from(likes)
-    .where(
-      and(
-        ...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])],
-      ),
-    )
+    .where(and(...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])]))
     .orderBy(...relationshipOrder(likes.createdAt, likes.id))
     .limit(pageLimit + 1);
 
@@ -543,7 +577,8 @@ async function gatherAuthorMentions(
       mentioned,
       sql`${posts.oxyUserId} is distinct from ${authorId}`,
       buildViewerVisiblePostSql(ctx),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
     ],
     ctx.cursor,
     cap,
@@ -574,10 +609,7 @@ export const authoredSource: SourceModule = {
 
     if (filter === 'mentions') return gatherAuthorMentions(authorId, ctx, cap);
 
-    const excludedLaneIds = await loadExcludedLaneIds(
-      authorId,
-      excludedDisplayModesForTab(filter),
-    );
+    const excludedLaneIds = await loadExcludedLaneIds(authorId, excludedDisplayModesForTab(filter));
     // Sorted by `created_at` — never by id — to match the chronological keyset.
     // A federated post's import-time id bears no relation to its remote
     // `createdAt`, so an id sort behind a `createdAt` cursor permanently skips
@@ -657,7 +689,8 @@ export const laneSource: SourceModule = {
         eq(posts.laneId, laneId),
         eq(posts.oxyUserId, lane.ownerId),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -726,7 +759,8 @@ export const mutualsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, mutualIds),
         inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,

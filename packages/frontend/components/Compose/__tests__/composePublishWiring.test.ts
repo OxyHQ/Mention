@@ -14,7 +14,9 @@ import { join } from 'node:path';
 const screen = readFileSync(join(__dirname, '..', 'ComposeScreen.tsx'), 'utf8');
 
 function handlePostBody(): string {
-  const start = screen.indexOf('const handlePost = async (options?: { publishNow?: boolean }) => {');
+  const start = screen.indexOf(
+    'const handlePost = async (options?: { publishNow?: boolean }) => {',
+  );
   const end = screen.indexOf('\n  };\n', start);
   if (start < 0 || end < start) throw new Error('No handlePost in ComposeScreen');
   return screen.slice(start, end);
@@ -117,7 +119,9 @@ describe('resuming a draft', () => {
   it('closes the Unpublished sheet before restoring the draft, and hands the composer focus', () => {
     expect(at).toBeGreaterThan(-1);
     expect(resume.indexOf('openBottomSheet(false)')).toBeGreaterThan(-1);
-    expect(resume.indexOf('openBottomSheet(false)')).toBeLessThan(resume.indexOf('loadDraft(draft)'));
+    expect(resume.indexOf('openBottomSheet(false)')).toBeLessThan(
+      resume.indexOf('loadDraft(draft)'),
+    );
     expect(resume).toContain('.focus()');
   });
 

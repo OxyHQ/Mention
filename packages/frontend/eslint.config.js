@@ -24,8 +24,11 @@ const incrementalCompilerDiagnostics = [
 
 // Ported to Biome, so not repeated here: rules-of-hooks -> useHookAtTopLevel
 // (error), exhaustive-deps -> useExhaustiveDependencies.
-const { 'react-hooks/rules-of-hooks': _rulesOfHooks, 'react-hooks/exhaustive-deps': _exhaustiveDeps, ...compilerRules } =
-  reactHooks.configs.recommended.rules;
+const {
+  'react-hooks/rules-of-hooks': _rulesOfHooks,
+  'react-hooks/exhaustive-deps': _exhaustiveDeps,
+  ...compilerRules
+} = reactHooks.configs.recommended.rules;
 
 module.exports = defineConfig([
   {

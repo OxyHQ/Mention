@@ -10,10 +10,7 @@ import type {
   UpdatePostRequest,
 } from '@mention/shared-types';
 import { buildAttachmentsPayload } from './attachmentsUtils';
-import {
-  ComposerMediaItem,
-  createMediaAttachmentKey,
-} from './composeUtils';
+import { ComposerMediaItem, createMediaAttachmentKey } from './composeUtils';
 import {
   attachmentKeysOf,
   hasArticleContent,
@@ -145,10 +142,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   const roomPayload = hasRoomContent(room) ? room : null;
   const wasScheduled = Boolean(scheduledAt);
   const mentionIds = reconcileMentionIds(
-    [
-      postContent,
-      ...(variantContent ?? []).map((variant) => variant.text),
-    ],
+    [postContent, ...(variantContent ?? []).map((variant) => variant.text)],
     mentions.map((mention) => mention.userId),
   );
 
@@ -166,16 +160,18 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     jobId,
   });
 
-  const articlePayload = hasArticleContent(article) ? {
-    ...(article.title?.trim() ? { title: article.title.trim() } : {}),
-    ...(article.body?.trim() ? { body: article.body.trim() } : {}),
-  } : undefined;
+  const articlePayload = hasArticleContent(article)
+    ? {
+        ...(article.title?.trim() ? { title: article.title.trim() } : {}),
+        ...(article.body?.trim() ? { body: article.body.trim() } : {}),
+      }
+    : undefined;
 
   return {
     content: {
       text: postContent.trim(),
       ...(variantContent ? { variants: variantContent } : {}),
-      media: mediaIds.map(m => ({
+      media: mediaIds.map((m) => ({
         id: m.id,
         type: m.type,
         ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
@@ -183,18 +179,18 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
       ...(hasPoll && {
         poll: {
           question: pollTitle.trim() || postContent.trim() || 'Poll',
-          options: pollOptions.filter(opt => opt.trim().length > 0),
+          options: pollOptions.filter((opt) => opt.trim().length > 0),
           endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           votes: {},
-          userVotes: {}
-        }
+          userVotes: {},
+        },
       }),
       ...(location && {
         location: {
           type: 'Point' as const,
           coordinates: [location.longitude, location.latitude],
-          address: location.address
-        } as GeoJSONPoint
+          address: location.address,
+        } as GeoJSONPoint,
       }),
       ...(formattedSources.length > 0 && { sources: formattedSources }),
       ...(articlePayload && { article: articlePayload }),
@@ -202,7 +198,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
       ...(roomPayload && { room: roomContent(roomPayload) }),
       ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
       ...(jobId && { job: { mentionJobId: jobId } }),
-      ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
+      ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload }),
     },
     mentions: mentionIds,
     hashtags: [],
@@ -224,10 +220,12 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     // the account they chose, with a 201 and nothing to see.
     publishAsOxyUserId,
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
-    ...(wasScheduled && scheduledAt ? {
-      status: 'scheduled' as const,
-      scheduledFor: scheduledAt.toISOString()
-    } : {})
+    ...(wasScheduled && scheduledAt
+      ? {
+          status: 'scheduled' as const,
+          scheduledFor: scheduledAt.toISOString(),
+        }
+      : {}),
   };
 };
 
@@ -255,12 +253,17 @@ interface BuildEditPostParams {
  * multilingual post would silently strip every language but the primary.
  */
 export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
-  const { postContent, mediaIds, mentions, hashtags, collaboratorIds, variantContent, scheduledAt } = params;
+  const {
+    postContent,
+    mediaIds,
+    mentions,
+    hashtags,
+    collaboratorIds,
+    variantContent,
+    scheduledAt,
+  } = params;
   const mentionIds = reconcileMentionIds(
-    [
-      postContent,
-      ...(variantContent ?? []).map((variant) => variant.text),
-    ],
+    [postContent, ...(variantContent ?? []).map((variant) => variant.text)],
     mentions,
   );
 
@@ -268,7 +271,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
     content: {
       text: postContent,
       ...(variantContent ? { variants: variantContent } : {}),
-      media: mediaIds.map(m => ({
+      media: mediaIds.map((m) => ({
         id: m.id,
         type: m.type,
         ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
@@ -321,17 +324,15 @@ export const buildThreadPost = (
   const threadFormattedSources = linkedSources(item.sources);
   const threadHasSources = threadFormattedSources.length > 0;
   const mentionIds = reconcileMentionIds(
-    [
-      item.text,
-      ...(variantContent ?? []).map((variant) => variant.text),
-    ],
+    [item.text, ...(variantContent ?? []).map((variant) => variant.text)],
     item.mentions.map((mention) => mention.userId),
   );
 
   // The box's own order when it has one, otherwise the default card order.
-  const threadOrder = item.attachmentOrder.length > 0
-    ? item.attachmentOrder
-    : attachmentKeysOf({ ...item, showPollCreator: threadHasPoll });
+  const threadOrder =
+    item.attachmentOrder.length > 0
+      ? item.attachmentOrder
+      : attachmentKeysOf({ ...item, showPollCreator: threadHasPoll });
 
   const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
     includePoll: threadHasPoll,
@@ -343,16 +344,19 @@ export const buildThreadPost = (
     podcastId: threadPodcastId,
   });
 
-  const threadArticlePayload = threadHasArticle && item.article ? {
-    ...(item.article.title?.trim() ? { title: item.article.title.trim() } : {}),
-    ...(item.article.body?.trim() ? { body: item.article.body.trim() } : {}),
-  } : undefined;
+  const threadArticlePayload =
+    threadHasArticle && item.article
+      ? {
+          ...(item.article.title?.trim() ? { title: item.article.title.trim() } : {}),
+          ...(item.article.body?.trim() ? { body: item.article.body.trim() } : {}),
+        }
+      : undefined;
 
   return {
     content: {
       text: item.text.trim(),
       ...(variantContent ? { variants: variantContent } : {}),
-      media: item.mediaIds.map(m => ({
+      media: item.mediaIds.map((m) => ({
         id: m.id,
         type: m.type,
         ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
@@ -360,27 +364,32 @@ export const buildThreadPost = (
       ...(threadHasPoll && {
         poll: {
           question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',
-          options: item.pollOptions.filter(opt => opt.trim().length > 0),
+          options: item.pollOptions.filter((opt) => opt.trim().length > 0),
           endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           votes: {},
-          userVotes: {}
-        }
+          userVotes: {},
+        },
       }),
       ...(item.location && {
         location: {
           type: 'Point' as const,
           coordinates: [item.location.longitude, item.location.latitude],
-          address: item.location.address
-        } as GeoJSONPoint
+          address: item.location.address,
+        } as GeoJSONPoint,
       }),
-      ...(threadHasSources && { sources: threadFormattedSources.map(s => ({ url: s.url.trim(), title: s.title?.trim() || '' })) }),
+      ...(threadHasSources && {
+        sources: threadFormattedSources.map((s) => ({
+          url: s.url.trim(),
+          title: s.title?.trim() || '',
+        })),
+      }),
       ...(threadArticlePayload && { article: threadArticlePayload }),
       ...(threadEvent && { event: eventContent(threadEvent) }),
       ...(threadRoom && { room: roomContent(threadRoom) }),
       // Read per ENTRY by `POST /posts/thread`, in both modes, so a box that is
       // not the first may attach a show of its own.
       ...(threadPodcastId && { podcast: { syraPodcastId: threadPodcastId } }),
-      ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
+      ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload }),
     },
     mentions: mentionIds,
     hashtags: [],

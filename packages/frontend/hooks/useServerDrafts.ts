@@ -66,22 +66,28 @@ export function useServerDrafts(): UseServerDraftsResult {
 
   // Published or deleted, a draft leaves this list either way, so both
   // mutations share one optimistic removal.
-  const removeOptimistically = useCallback(async (postId: string): Promise<RemovalContext> => {
-    // A read already in flight would land after the removal and put the row
-    // straight back.
-    await queryClient.cancelQueries({ queryKey });
-    const previous = queryClient.getQueryData<HydratedPost[]>(queryKey);
-    queryClient.setQueryData<HydratedPost[]>(queryKey, (current) =>
-      current?.filter((post) => post.id !== postId),
-    );
-    return { previous };
-  }, [queryClient, queryKey]);
+  const removeOptimistically = useCallback(
+    async (postId: string): Promise<RemovalContext> => {
+      // A read already in flight would land after the removal and put the row
+      // straight back.
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<HydratedPost[]>(queryKey);
+      queryClient.setQueryData<HydratedPost[]>(queryKey, (current) =>
+        current?.filter((post) => post.id !== postId),
+      );
+      return { previous };
+    },
+    [queryClient, queryKey],
+  );
 
-  const restore = useCallback((context: RemovalContext | undefined) => {
-    if (context?.previous) {
-      queryClient.setQueryData<HydratedPost[]>(queryKey, context.previous);
-    }
-  }, [queryClient, queryKey]);
+  const restore = useCallback(
+    (context: RemovalContext | undefined) => {
+      if (context?.previous) {
+        queryClient.setQueryData<HydratedPost[]>(queryKey, context.previous);
+      }
+    },
+    [queryClient, queryKey],
+  );
 
   const revalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey });
@@ -102,17 +108,23 @@ export function useServerDrafts(): UseServerDraftsResult {
   });
 
   const { mutateAsync: publish } = publishMutation;
-  const publishServerDraft = useCallback(async (postId: string) => {
-    await publish(postId);
-  }, [publish]);
+  const publishServerDraft = useCallback(
+    async (postId: string) => {
+      await publish(postId);
+    },
+    [publish],
+  );
 
   const { mutateAsync: remove } = deleteMutation;
-  const deleteServerDraft = useCallback(async (postId: string) => {
-    await remove(postId);
-  }, [remove]);
+  const deleteServerDraft = useCallback(
+    async (postId: string) => {
+      await remove(postId);
+    },
+    [remove],
+  );
 
   return {
-    serverDrafts: enabled ? query.data ?? [] : [],
+    serverDrafts: enabled ? (query.data ?? []) : [],
     isLoading: enabled && query.isLoading,
     isError: query.isError,
     refetch: query.refetch,

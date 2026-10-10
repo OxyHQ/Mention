@@ -1,4 +1,4 @@
-import express, { Response } from "express";
+import express, { Response } from 'express';
 import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
@@ -44,10 +44,7 @@ function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
     getDb()
       .select({ one: sql`1` })
       .from(postMedia)
-      .where(and(
-        eq(postMedia.postId, posts.id),
-        ...(type ? [eq(postMedia.type, type)] : []),
-      )),
+      .where(and(eq(postMedia.postId, posts.id), ...(type ? [eq(postMedia.type, type)] : []))),
   ) as SQL;
 }
 
@@ -65,11 +62,13 @@ function isHandleOnlyQuery(query: string): boolean {
   const trimmed = query.trim();
   if (!trimmed.startsWith('@')) return false;
   const [entity, ...rest] = scanTextEntities(trimmed);
-  return rest.length === 0
-    && entity !== undefined
-    && (entity.kind === 'federatedHandle' || entity.kind === 'bareHandle')
-    && entity.start === 0
-    && entity.end === trimmed.length;
+  return (
+    rest.length === 0 &&
+    entity !== undefined &&
+    (entity.kind === 'federatedHandle' || entity.kind === 'bareHandle') &&
+    entity.start === 0 &&
+    entity.end === trimmed.length
+  );
 }
 
 const MAX_SEARCH_LIMIT = 100;
@@ -183,11 +182,11 @@ async function resolveOperatorUserId(
   }
 }
 
-router.get("/", async (req: AuthRequest, res: Response) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const {
       query,
-      type = "all",
+      type = 'all',
       dateFrom,
       dateTo,
       minLikes,
@@ -195,13 +194,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       mediaType,
       hasMedia,
       language,
-      cursor
+      cursor,
     } = req.query;
 
     const currentUserId = req.user?.id;
     const results: { posts: unknown[]; hasMore?: boolean; nextCursor?: string } = { posts: [] };
 
-    if (type === "all" || type === "posts") {
+    if (type === 'all' || type === 'posts') {
       // The viewer's safety rules. Search is a DISCOVERY surface, so it is subject to
       // the same two per-user gates every feed applies — the sensitive/NSFW opt-in and
       // the viewer's muted words. Both loaders short-circuit for an anonymous viewer
@@ -213,13 +212,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const compiledMuteWords = compileMuteWords(muteWords);
 
       // Parse search operators from query string
-      const rawQuery = (typeof query === 'string') ? query.trim() : '';
+      const rawQuery = typeof query === 'string' ? query.trim() : '';
       const operators = parseSearchOperators(rawQuery);
 
       // Build query with filters
       const conditions: SQL[] = [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
       ];
       // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
       // viewer's page is filled with results they can actually see. Same clause the
@@ -298,11 +298,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
             getDb()
               .select({ one: sql`1` })
               .from(postAuthorships)
-              .where(and(
-                eq(postAuthorships.postId, posts.id),
-                eq(postAuthorships.oxyUserId, authorId),
-                eq(postAuthorships.status, 'accepted'),
-              )),
+              .where(
+                and(
+                  eq(postAuthorships.postId, posts.id),
+                  eq(postAuthorships.oxyUserId, authorId),
+                  eq(postAuthorships.status, 'accepted'),
+                ),
+              ),
           ) as SQL,
         );
       }
@@ -323,16 +325,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
             getDb()
               .select({ one: sql`1` })
               .from(postMentions)
-              .where(and(
-                eq(postMentions.postId, posts.id),
-                eq(postMentions.oxyUserId, mentionedId),
-              )),
+              .where(
+                and(eq(postMentions.postId, posts.id), eq(postMentions.oxyUserId, mentionedId)),
+              ),
           ) as SQL,
         );
       }
 
       // since: / until: operators
-      const effectiveDateFrom = operators.since || (typeof dateFrom === 'string' ? dateFrom : undefined);
+      const effectiveDateFrom =
+        operators.since || (typeof dateFrom === 'string' ? dateFrom : undefined);
       const effectiveDateTo = operators.until || (typeof dateTo === 'string' ? dateTo : undefined);
 
       if (effectiveDateFrom || effectiveDateTo) {
@@ -360,7 +362,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           const maxRangeMs = config.search.maxDateRangeDays * 24 * 60 * 60 * 1000;
           if (toDate.getTime() - fromDate.getTime() > maxRangeMs) {
             return res.status(400).json({
-              message: `Date range cannot exceed ${config.search.maxDateRangeDays} days`
+              message: `Date range cannot exceed ${config.search.maxDateRangeDays} days`,
             });
           }
           if (toDate < fromDate) {
@@ -373,13 +375,20 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Engagement filters - operators take precedence over query params
-      const effectiveMinLikes = operators.minLikes ?? (typeof minLikes === 'string' ? parseInt(minLikes, 10) : undefined);
+      const effectiveMinLikes =
+        operators.minLikes ?? (typeof minLikes === 'string' ? parseInt(minLikes, 10) : undefined);
       if (effectiveMinLikes !== undefined && !isNaN(effectiveMinLikes) && effectiveMinLikes >= 0) {
         conditions.push(gte(posts.statsLikesCount, effectiveMinLikes));
       }
 
-      const effectiveMinBoosts = operators.minBoosts ?? (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
-      if (effectiveMinBoosts !== undefined && !isNaN(effectiveMinBoosts) && effectiveMinBoosts >= 0) {
+      const effectiveMinBoosts =
+        operators.minBoosts ??
+        (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
+      if (
+        effectiveMinBoosts !== undefined &&
+        !isNaN(effectiveMinBoosts) &&
+        effectiveMinBoosts >= 0
+      ) {
         conditions.push(gte(posts.statsBoostsCount, effectiveMinBoosts));
       }
 
@@ -407,9 +416,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // Cursor-based pagination
       let newest: Date | undefined;
       if (cursor !== undefined) {
-        const decodedCursor = typeof cursor === 'string'
-          ? decodeChronoCursor(cursor)
-          : undefined;
+        const decodedCursor = typeof cursor === 'string' ? decodeChronoCursor(cursor) : undefined;
         if (!decodedCursor) {
           return res.status(400).json({ message: 'Invalid search cursor' });
         }
@@ -428,7 +435,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Validate and normalize limit (max 100)
-      const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT);
+      const limitNum = Math.min(
+        Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1),
+        MAX_SEARCH_LIMIT,
+      );
 
       // Newest first through `chronoOrderBy()`, never a bare `desc()` — see
       // `CursorBuilder.ts`: drizzle emits `.desc()` in INDEX DDL as
@@ -480,11 +490,18 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const followedAuthorIds = compiledMuteWords?.needsFollowState
         ? await loadFollowedAuthorIds(currentUserId, scopedOxyClient)
         : NO_FOLLOWED_AUTHORS;
-      results.posts = transformedPosts.filter((post) => !isMutedSubject(
-        compiledMuteWords,
-        { text: post.content?.text, hashtags: post.metadata?.hashtags, authorId: post.user?.id },
-        followedAuthorIds,
-      ));
+      results.posts = transformedPosts.filter(
+        (post) =>
+          !isMutedSubject(
+            compiledMuteWords,
+            {
+              text: post.content?.text,
+              hashtags: post.metadata?.hashtags,
+              authorId: post.user?.id,
+            },
+            followedAuthorIds,
+          ),
+      );
       results.hasMore = hasMoreResults;
       results.nextCursor = nextCursor;
     }

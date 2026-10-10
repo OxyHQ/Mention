@@ -47,7 +47,8 @@ jest.mock('@oxy.so/bloom/field', () => {
   return { Field: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
 });
 jest.mock('@oxy.so/bloom/text-field', () => {
-  const { Text, TextInput, View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Text, TextInput, View } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
     TextField: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
     TextFieldHint: ({ children, testID }: { children?: React.ReactNode; testID?: string }) => (
@@ -60,7 +61,9 @@ jest.mock('@oxy.so/bloom/button', () => {
   const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Button: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) => (
-      <Pressable {...props}><Text>{children}</Text></Pressable>
+      <Pressable {...props}>
+        <Text>{children}</Text>
+      </Pressable>
     ),
   };
 });
@@ -87,7 +90,12 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const noop = () => {};
 
-const renderEditor = (date: string, onDateChange: (next: string) => void, name = 'Launch party', onSave: () => void = noop) => {
+const renderEditor = (
+  date: string,
+  onDateChange: (next: string) => void,
+  name = 'Launch party',
+  onSave: () => void = noop,
+) => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
@@ -111,14 +119,18 @@ const renderEditor = (date: string, onDateChange: (next: string) => void, name =
 };
 
 const findInput = (tree: TestRenderer.ReactTestRenderer) => {
-  const node = tree.root.findAll((n) => n.props.testID === 'eventEditorTimeField' && n.props.onChangeText)[0];
+  const node = tree.root.findAll(
+    (n) => n.props.testID === 'eventEditorTimeField' && n.props.onChangeText,
+  )[0];
   if (!node) throw new Error('time input not rendered');
   return node;
 };
 
 describe('EventEditor date field', () => {
   const findPicker = (tree: TestRenderer.ReactTestRenderer, testID: string) => {
-    const node = tree.root.findAll((n) => n.props.testID === testID && typeof n.type !== 'string')[0];
+    const node = tree.root.findAll(
+      (n) => n.props.testID === testID && typeof n.type !== 'string',
+    )[0];
     if (!node) throw new Error(`${testID} not rendered`);
     return node;
   };
@@ -132,8 +144,13 @@ describe('EventEditor date field', () => {
 
     const picker = findPicker(tree, 'eventEditorDatePicker');
     const shown = picker.props.value as Date;
-    expect([shown.getFullYear(), shown.getMonth(), shown.getDate(), shown.getHours(), shown.getMinutes()])
-      .toEqual([2026, 4, 3, 0, 0]);
+    expect([
+      shown.getFullYear(),
+      shown.getMonth(),
+      shown.getDate(),
+      shown.getHours(),
+      shown.getMinutes(),
+    ]).toEqual([2026, 4, 3, 0, 0]);
 
     act(() => {
       picker.props.onChange(new Date(2026, 6, 19));
@@ -165,8 +182,13 @@ describe('EventEditor date field', () => {
     });
     expect(onDateChange).toHaveBeenCalledTimes(1);
     const merged = new Date(onDateChange.mock.calls[0][0]);
-    expect([merged.getFullYear(), merged.getMonth(), merged.getDate(), merged.getHours(), merged.getMinutes()])
-      .toEqual([2026, 4, 3, 21, 30]);
+    expect([
+      merged.getFullYear(),
+      merged.getMonth(),
+      merged.getDate(),
+      merged.getHours(),
+      merged.getMinutes(),
+    ]).toEqual([2026, 4, 3, 21, 30]);
 
     act(() => tree.unmount());
   });
@@ -176,7 +198,12 @@ describe('EventEditor date field', () => {
     (typed) => {
       const onDateChange = jest.fn();
       const onSave = jest.fn();
-      const tree = renderEditor(new Date(2026, 4, 3, 20, 51).toISOString(), onDateChange, 'Launch party', onSave);
+      const tree = renderEditor(
+        new Date(2026, 4, 3, 20, 51).toISOString(),
+        onDateChange,
+        'Launch party',
+        onSave,
+      );
 
       act(() => {
         findInput(tree).props.onChangeText(typed);
@@ -184,8 +211,16 @@ describe('EventEditor date field', () => {
 
       expect(onDateChange).not.toHaveBeenCalled();
       expect(findInput(tree).props.value).toBe(typed);
-      expect(tree.root.findAll((n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string')).toHaveLength(1);
-      const save = (mockDialogProps.at(-1)?.header as { right: React.ReactElement<{ disabled?: boolean; onPress: () => void }> }).right;
+      expect(
+        tree.root.findAll(
+          (n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string',
+        ),
+      ).toHaveLength(1);
+      const save = (
+        mockDialogProps.at(-1)?.header as {
+          right: React.ReactElement<{ disabled?: boolean; onPress: () => void }>;
+        }
+      ).right;
       expect(save.props.disabled).toBe(true);
       // Even a press that slips past `disabled` must not close the editor.
       save.props.onPress();
@@ -197,13 +232,30 @@ describe('EventEditor date field', () => {
 
   it('saves again once the time is corrected', () => {
     const onSave = jest.fn();
-    const tree = renderEditor(new Date(2026, 4, 3, 20, 51).toISOString(), noop, 'Launch party', onSave);
+    const tree = renderEditor(
+      new Date(2026, 4, 3, 20, 51).toISOString(),
+      noop,
+      'Launch party',
+      onSave,
+    );
 
-    act(() => { findInput(tree).props.onChangeText('99:99'); });
-    act(() => { findInput(tree).props.onChangeText('7:05'); });
+    act(() => {
+      findInput(tree).props.onChangeText('99:99');
+    });
+    act(() => {
+      findInput(tree).props.onChangeText('7:05');
+    });
 
-    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string')).toHaveLength(0);
-    const save = (mockDialogProps.at(-1)?.header as { right: React.ReactElement<{ disabled?: boolean; onPress: () => void }> }).right;
+    expect(
+      tree.root.findAll(
+        (n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string',
+      ),
+    ).toHaveLength(0);
+    const save = (
+      mockDialogProps.at(-1)?.header as {
+        right: React.ReactElement<{ disabled?: boolean; onPress: () => void }>;
+      }
+    ).right;
     expect(save.props.disabled).toBe(false);
     save.props.onPress();
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -296,9 +348,15 @@ describe('EventEditor surface', () => {
       />
     );
 
-    act(() => { tree = TestRenderer.create(render(true)); });
-    act(() => { tree?.update(render(false)); });
-    act(() => { tree?.update(render(true)); });
+    act(() => {
+      tree = TestRenderer.create(render(true));
+    });
+    act(() => {
+      tree?.update(render(false));
+    });
+    act(() => {
+      tree?.update(render(true));
+    });
 
     // The composer owns every field, so the reopened surface shows what was
     // typed. A migration that moved any of them into local state would show an
@@ -324,14 +382,22 @@ describe('EventEditor name requirement', () => {
   it('keeps Save disabled and says why while the event has no name', () => {
     const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, '   ');
     expect(lastHeaderAction().props.disabled).toBe(true);
-    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string')).toHaveLength(1);
+    expect(
+      tree.root.findAll(
+        (n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string',
+      ),
+    ).toHaveLength(1);
     act(() => tree.unmount());
   });
 
   it('enables Save and drops the hint once the event is named', () => {
     const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, 'Launch party');
     expect(lastHeaderAction().props.disabled).toBe(false);
-    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string')).toHaveLength(0);
+    expect(
+      tree.root.findAll(
+        (n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string',
+      ),
+    ).toHaveLength(0);
     act(() => tree.unmount());
   });
 });

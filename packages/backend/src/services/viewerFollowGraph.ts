@@ -32,11 +32,12 @@ export async function mergeFederatedFollowIds(
   followingIds: string[],
   acceptedOutboundUris?: Promise<string[]>,
 ): Promise<void> {
-  const fedFollowUris = await (acceptedOutboundUris ?? distinctRemoteActorUris({
-    localUserId,
-    direction: 'outbound',
-    statuses: ['accepted'],
-  }));
+  const fedFollowUris = await (acceptedOutboundUris ??
+    distinctRemoteActorUris({
+      localUserId,
+      direction: 'outbound',
+      statuses: ['accepted'],
+    }));
   if (fedFollowUris.length === 0) return;
 
   // The Mongo filter also carried `{ oxyUserId: { $ne: null } }`. It is dropped
@@ -76,7 +77,7 @@ export async function loadFollowedAuthorIds(
   const ids: string[] = [];
   if (oxyClient) {
     try {
-      ids.push(...await getFollowingIds(userId, oxyClient));
+      ids.push(...(await getFollowingIds(userId, oxyClient)));
     } catch (error) {
       logger.warn('[viewerFollowGraph] Failed to load following list', error);
     }

@@ -58,7 +58,9 @@ vi.mock('../../utils/mediaResolver', () => ({
 }));
 
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),
@@ -331,19 +333,22 @@ describe('GET /notifications wire format', () => {
 });
 
 describe('read state', () => {
-  it.each(['put', 'patch'] as const)('%ss a single notification read and emits it', async (method) => {
-    const viewer = viewerId();
-    const row = await seed(viewer, { id: objectIdShaped(1) });
-    const emitted: unknown[] = [];
+  it.each(['put', 'patch'] as const)(
+    '%ss a single notification read and emits it',
+    async (method) => {
+      const viewer = viewerId();
+      const row = await seed(viewer, { id: objectIdShaped(1) });
+      const emitted: unknown[] = [];
 
-    const res = await request(makeApp(viewer, emitted))[method](`/${row.id}/read`).expect(200);
-    expect(res.body.notification._id).toBe(row.id);
-    expect(res.body.notification.read).toBe(true);
-    expect(emitted).toHaveLength(1);
+      const res = await request(makeApp(viewer, emitted))[method](`/${row.id}/read`).expect(200);
+      expect(res.body.notification._id).toBe(row.id);
+      expect(res.body.notification.read).toBe(true);
+      expect(emitted).toHaveLength(1);
 
-    const [stored] = await db.select().from(notifications).where(eq(notifications.id, row.id));
-    expect(stored.read).toBe(true);
-  });
+      const [stored] = await db.select().from(notifications).where(eq(notifications.id, row.id));
+      expect(stored.read).toBe(true);
+    },
+  );
 
   it('refuses to mark another user’s notification, and leaves it unread', async () => {
     const viewer = viewerId();
@@ -407,7 +412,9 @@ describe('DELETE /notifications/:id', () => {
     const row = await seed(stranger, { id: objectIdShaped(1) });
 
     await request(makeApp(viewer)).delete(`/${row.id}`).expect(404);
-    expect(await db.select().from(notifications).where(eq(notifications.id, row.id))).toHaveLength(1);
+    expect(await db.select().from(notifications).where(eq(notifications.id, row.id))).toHaveLength(
+      1,
+    );
   });
 });
 
@@ -481,7 +488,10 @@ describe('push tokens', () => {
   it('400s a missing or non-string token', async () => {
     const viewer = viewerId();
     await request(makeApp(viewer)).post('/push-token').send({}).expect(400);
-    await request(makeApp(viewer)).post('/push-token').send({ token: ['a'] }).expect(400);
+    await request(makeApp(viewer))
+      .post('/push-token')
+      .send({ token: ['a'] })
+      .expect(400);
   });
 
   it('unregisters a device, reaching the handler rather than the shadowing /:id route', async () => {
@@ -497,7 +507,9 @@ describe('push tokens', () => {
     await request(makeApp(owner)).post('/push-token').send({ token: deviceToken }).expect(200);
 
     await request(makeApp(owner)).delete('/push-token').send({ token: deviceToken }).expect(200);
-    expect(await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken))).toHaveLength(0);
+    expect(
+      await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken)),
+    ).toHaveLength(0);
   });
 
   it('repeating the unregister is idempotent', async () => {
@@ -520,7 +532,9 @@ describe('push tokens', () => {
     await request(makeApp(intruder)).delete('/push-token').send({ token: deviceToken }).expect(200);
     // Answers success either way (there is nothing case-specific to disclose),
     // but the row itself must survive untouched.
-    expect(await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken))).toHaveLength(1);
+    expect(
+      await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken)),
+    ).toHaveLength(1);
   });
 
   it('still 400s a missing token on unregister', async () => {
@@ -532,6 +546,8 @@ describe('push tokens', () => {
     const row = await seed(viewer, { id: objectIdShaped(1) });
 
     await request(makeApp(viewer)).delete(`/${row.id}`).expect(200);
-    expect(await db.select().from(notifications).where(eq(notifications.id, row.id))).toHaveLength(0);
+    expect(await db.select().from(notifications).where(eq(notifications.id, row.id))).toHaveLength(
+      0,
+    );
   });
 });

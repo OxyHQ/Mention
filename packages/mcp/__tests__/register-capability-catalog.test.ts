@@ -23,13 +23,15 @@ describe('describeRegistrationFailure', () => {
   });
 
   test('reads statusCode when that is the field carried', () => {
-    expect(describeRegistrationFailure({ message: 'Forbidden', statusCode: 403 }))
-      .toBe('Forbidden status=403');
+    expect(describeRegistrationFailure({ message: 'Forbidden', statusCode: 403 })).toBe(
+      'Forbidden status=403',
+    );
   });
 
   test('keeps an Error message as-is', () => {
-    expect(describeRegistrationFailure(new Error('OXY_SERVICE_API_KEY is required')))
-      .toBe('OXY_SERVICE_API_KEY is required');
+    expect(describeRegistrationFailure(new Error('OXY_SERVICE_API_KEY is required'))).toBe(
+      'OXY_SERVICE_API_KEY is required',
+    );
   });
 
   test('never answers [object Object] for an unanticipated shape', () => {

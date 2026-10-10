@@ -116,7 +116,9 @@ export interface MentionProfileSeoPolicy {
  * An account's Mention-side publishing policy, read fresh. An account with no
  * settings row has never changed a default: public and indexable.
  */
-export async function mentionProfileSeoPolicy(oxyUserId: string | undefined): Promise<MentionProfileSeoPolicy> {
+export async function mentionProfileSeoPolicy(
+  oxyUserId: string | undefined,
+): Promise<MentionProfileSeoPolicy> {
   if (!oxyUserId) return { visible: true, indexable: true };
   const [settings] = await getDb()
     .select({
@@ -151,10 +153,16 @@ function publicSeoPost(): ReturnType<typeof and> {
     eq(posts.status, 'published'),
     discoverySafeSql(),
     isNotNull(posts.oxyUserId),
-    or(isNull(userSettings.privacyProfileVisibility), eq(userSettings.privacyProfileVisibility, 'public')),
+    or(
+      isNull(userSettings.privacyProfileVisibility),
+      eq(userSettings.privacyProfileVisibility, 'public'),
+    ),
     // An author who opted out of search engines lists neither their posts nor,
     // since profiles are derived from these posts, their profile.
-    or(isNull(userSettings.privacySearchEngineIndexing), eq(userSettings.privacySearchEngineIndexing, true)),
+    or(
+      isNull(userSettings.privacySearchEngineIndexing),
+      eq(userSettings.privacySearchEngineIndexing, true),
+    ),
   );
 }
 
@@ -180,10 +188,12 @@ function isoDate(value: Date | string | undefined): string | undefined {
 
 export function renderUrlSet(urls: SitemapUrl[]): string {
   if (urls.length > SITEMAP_URL_LIMIT) throw new Error('Sitemap URL limit exceeded');
-  const entries = urls.map(({ loc, lastModified }) => {
-    const lastmod = isoDate(lastModified);
-    return `<url><loc>${xmlEscape(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`;
-  }).join('');
+  const entries = urls
+    .map(({ loc, lastModified }) => {
+      const lastmod = isoDate(lastModified);
+      return `<url><loc>${xmlEscape(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`;
+    })
+    .join('');
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`;
 }
 
@@ -225,22 +235,27 @@ export async function bulkUsers(ids: string[]): Promise<User[]> {
   const resolved: User[][] = Array.from({ length: batches.length });
   let nextBatch = 0;
   let failed = false;
-  const workers = Array.from({ length: Math.min(OXY_BULK_CONCURRENCY, batches.length) }, async () => {
-    while (!failed && nextBatch < batches.length) {
-      const index = nextBatch++;
-      try {
-        const users = await getServiceOxyClient().serviceRequest<User[]>(
-          'POST',
-          '/users/by-ids',
-          { ids: batches[index] },
-        );
-        resolved[index] = Array.isArray(users) ? users.map((user) => normalizeUserIdentity(user)) : [];
-      } catch (error) {
-        failed = true;
-        throw error;
+  const workers = Array.from(
+    { length: Math.min(OXY_BULK_CONCURRENCY, batches.length) },
+    async () => {
+      while (!failed && nextBatch < batches.length) {
+        const index = nextBatch++;
+        try {
+          const users = await getServiceOxyClient().serviceRequest<User[]>(
+            'POST',
+            '/users/by-ids',
+            { ids: batches[index] },
+          );
+          resolved[index] = Array.isArray(users)
+            ? users.map((user) => normalizeUserIdentity(user))
+            : [];
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
       }
-    }
-  });
+    },
+  );
   await Promise.all(workers);
   return resolved.flat();
 }
@@ -281,7 +296,10 @@ function inCatalog(catalog: SitemapCatalog, kind: SitemapKind, shard: SitemapSha
  * `absent` — a crawler probing bucket/page numbers gets a cheap 404, never a
  * query.
  */
-export async function sitemapShard(kind: SitemapKind, shard: SitemapShard): Promise<SitemapShardLookup> {
+export async function sitemapShard(
+  kind: SitemapKind,
+  shard: SitemapShard,
+): Promise<SitemapShardLookup> {
   const catalog = await readSitemapCatalog();
   if (!catalog) throw new SitemapNotReadyError();
   if (!inCatalog(catalog, kind, shard)) return { status: 'absent' };
@@ -298,7 +316,11 @@ export async function sitemapShard(kind: SitemapKind, shard: SitemapShard): Prom
 // Building: the leader's job
 // ---------------------------------------------------------------------------
 
-async function writeShard(kind: SitemapKind, shard: SitemapShard, urls: SitemapUrl[]): Promise<void> {
+async function writeShard(
+  kind: SitemapKind,
+  shard: SitemapShard,
+  urls: SitemapUrl[],
+): Promise<void> {
   const value: CompressedXml = {
     encoding: 'gzip-base64-v1',
     data: (await gzipAsync(renderUrlSet(urls))).toString('base64'),
@@ -307,11 +329,19 @@ async function writeShard(kind: SitemapKind, shard: SitemapShard, urls: SitemapU
 }
 
 /** Write one bucket's URLs as as many pages as it needs; returns the pages written. */
-async function writeBucket(kind: SitemapKind, bucket: number, urls: SitemapUrl[]): Promise<SitemapShard[]> {
+async function writeBucket(
+  kind: SitemapKind,
+  bucket: number,
+  urls: SitemapUrl[],
+): Promise<SitemapShard[]> {
   const pages: SitemapShard[] = [];
   for (let page = 0; page * SITEMAP_URL_LIMIT < urls.length; page += 1) {
     const shard = { bucket, page };
-    await writeShard(kind, shard, urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT));
+    await writeShard(
+      kind,
+      shard,
+      urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT),
+    );
     pages.push(shard);
   }
   return pages;
@@ -328,7 +358,11 @@ interface ProfileRow {
  * the pages written and the authors Oxy resolved as publicly listable, which is
  * exactly the author set the post sitemaps may list.
  */
-async function buildProfileSitemaps(): Promise<{ pages: SitemapShard[]; listable: Set<string>; authors: number }> {
+async function buildProfileSitemaps(): Promise<{
+  pages: SitemapShard[];
+  listable: Set<string>;
+  authors: number;
+}> {
   const bucket = stableBucket(posts.oxyUserId);
   const rows: ProfileRow[] = await getDb()
     .select({ bucket, oxyUserId: posts.oxyUserId, lastModified: max(posts.updatedAt) })
@@ -338,7 +372,7 @@ async function buildProfileSitemaps(): Promise<{ pages: SitemapShard[]; listable
     .groupBy(posts.oxyUserId)
     .orderBy(asc(posts.oxyUserId));
 
-  const ids = rows.flatMap((row) => row.oxyUserId ? [row.oxyUserId] : []);
+  const ids = rows.flatMap((row) => (row.oxyUserId ? [row.oxyUserId] : []));
   const users = await bulkUsers(ids);
   if (ids.length > 0 && users.length === 0) {
     throw new Error('Oxy returned no users for a non-empty author set');
@@ -359,7 +393,7 @@ async function buildProfileSitemaps(): Promise<{ pages: SitemapShard[]; listable
 
   const pages: SitemapShard[] = [];
   for (const bucketId of [...urlsByBucket.keys()].sort((a, b) => a - b)) {
-    pages.push(...await writeBucket('profiles', bucketId, urlsByBucket.get(bucketId) ?? []));
+    pages.push(...(await writeBucket('profiles', bucketId, urlsByBucket.get(bucketId) ?? [])));
   }
   return { pages, listable: new Set(userById.keys()), authors: ids.length };
 }
@@ -378,7 +412,9 @@ interface PostStreamRow {
  * which holds the read's connection meanwhile; 64 buckets of a few hundred KB
  * each is well inside what that costs.
  */
-async function buildPostSitemaps(listable: Set<string>): Promise<{ pages: SitemapShard[]; rows: number }> {
+async function buildPostSitemaps(
+  listable: Set<string>,
+): Promise<{ pages: SitemapShard[]; rows: number }> {
   const bucket = stableBucket(posts.id);
   const query = getDb()
     .select({
@@ -402,7 +438,7 @@ async function buildPostSitemaps(listable: Set<string>): Promise<{ pages: Sitema
 
   const flush = async (): Promise<void> => {
     if (currentBucket !== null && urls.length > 0) {
-      pages.push(...await writeBucket('posts', currentBucket, urls));
+      pages.push(...(await writeBucket('posts', currentBucket, urls)));
     }
     urls = [];
   };

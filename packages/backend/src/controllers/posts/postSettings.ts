@@ -9,7 +9,11 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { lanes as lanesTable } from '../../db/schema/channels';
 import { posts as postsTable } from '../../db/schema/posts';
-import { loadPostRecord, updatePostRecord, type PostRecordPatch } from '../../db/posts/postRepository';
+import {
+  loadPostRecord,
+  updatePostRecord,
+  type PostRecordPatch,
+} from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { ReplyPermission } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
@@ -42,7 +46,8 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       return res.status(settingsRefusal.status).json({ message: settingsRefusal.message });
     }
 
-    const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } = req.body;
+    const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } =
+      req.body;
 
     const patch: PostRecordPatch = {};
     const metadata: NonNullable<PostRecordPatch['metadata']> = {};
@@ -80,7 +85,9 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       }
       const allValid = replyPermission.every((p: string) => validPermissions.includes(p));
       if (!allValid) {
-        return res.status(400).json({ message: `replyPermission values must be one of: ${validPermissions.join(', ')}` });
+        return res.status(400).json({
+          message: `replyPermission values must be one of: ${validPermissions.join(', ')}`,
+        });
       }
       patch.replyPermission = replyPermission as ReplyPermission[];
     }
@@ -245,10 +252,10 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
 
     const [lane] = laneId
       ? await getDb()
-        .select({ id: lanesTable.id, name: lanesTable.name, displayMode: lanesTable.displayMode })
-        .from(lanesTable)
-        .where(eq(lanesTable.id, laneId))
-        .limit(1)
+          .select({ id: lanesTable.id, name: lanesTable.name, displayMode: lanesTable.displayMode })
+          .from(lanesTable)
+          .where(eq(lanesTable.id, laneId))
+          .limit(1)
       : [];
 
     return sendSuccessResponse(
@@ -256,9 +263,7 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
       200,
       {
         postId: post.id,
-        lane: lane
-          ? { id: lane.id, name: lane.name, displayMode: lane.displayMode }
-          : null,
+        lane: lane ? { id: lane.id, name: lane.name, displayMode: lane.displayMode } : null,
       },
       'Post lane updated',
     );

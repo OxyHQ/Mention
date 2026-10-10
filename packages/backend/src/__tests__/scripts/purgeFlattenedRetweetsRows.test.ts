@@ -31,13 +31,15 @@ const createdActors: string[] = [];
 
 async function seedActorOn(host: string, local: string): Promise<string> {
   const oxyUserId = `purge-rt-${local}`;
-  await getDb().insert(federatedActors).values({
-    uri: `https://${host}/users/${local}`,
-    username: local,
-    domain: host,
-    acct: `${local}@${host}`,
-    oxyUserId,
-  });
+  await getDb()
+    .insert(federatedActors)
+    .values({
+      uri: `https://${host}/users/${local}`,
+      username: local,
+      domain: host,
+      acct: `${local}@${host}`,
+      oxyUserId,
+    });
   createdActors.push(oxyUserId);
   return oxyUserId;
 }
@@ -71,11 +73,15 @@ afterAll(async () => {
 
 afterEach(async () => {
   if (createdPosts.length > 0) {
-    await getDb().delete(posts).where(inArray(posts.id, [...createdPosts]));
+    await getDb()
+      .delete(posts)
+      .where(inArray(posts.id, [...createdPosts]));
     createdPosts.length = 0;
   }
   if (createdActors.length > 0) {
-    await getDb().delete(federatedActors).where(inArray(federatedActors.oxyUserId, [...createdActors]));
+    await getDb()
+      .delete(federatedActors)
+      .where(inArray(federatedActors.oxyUserId, [...createdActors]));
     createdActors.length = 0;
   }
 });

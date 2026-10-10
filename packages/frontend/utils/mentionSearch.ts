@@ -27,18 +27,22 @@ interface OxyProfileResult {
 }
 
 /** Map an Oxy profile search response to picker rows, dropping unusable ones. */
-export function toMentionUsers(results: readonly OxyProfileResult[] | null | undefined): MentionUser[] {
+export function toMentionUsers(
+  results: readonly OxyProfileResult[] | null | undefined,
+): MentionUser[] {
   return (results || []).flatMap((profile) => {
     const id = profile.id || profile._id;
     const username = profile.username || profile.handle || '';
     if (!id || !username) return [];
-    return [{
-      id,
-      username,
-      displayName: profile.name?.displayName,
-      avatar: profile.avatar || profile.profilePicture || undefined,
-      verified: profile.verified || false,
-    }];
+    return [
+      {
+        id,
+        username,
+        displayName: profile.name?.displayName,
+        avatar: profile.avatar || profile.profilePicture || undefined,
+        verified: profile.verified || false,
+      },
+    ];
   });
 }
 

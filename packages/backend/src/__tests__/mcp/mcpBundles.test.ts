@@ -99,11 +99,13 @@ describe('MCP bundles routes', () => {
     const res = await request(buildApp(USER_A, centralContext)).get('/mcp/bundles/accounts');
 
     expect(res.status).toBe(200);
-    expect(res.body.accounts).toEqual([expect.objectContaining({
-      oxyUserId: USER_A,
-      isPrimary: true,
-      isActive: true,
-    })]);
+    expect(res.body.accounts).toEqual([
+      expect.objectContaining({
+        oxyUserId: USER_A,
+        isPrimary: true,
+        isActive: true,
+      }),
+    ]);
   });
 
   it('lists every account Oxy says the central connection covers', async () => {
@@ -113,8 +115,9 @@ describe('MCP bundles routes', () => {
       name: { displayName: id === USER_A ? 'Alice' : 'Brand' },
     }));
 
-    const res = await request(buildApp(USER_A, connectedCentralContext))
-      .get('/mcp/bundles/accounts');
+    const res = await request(buildApp(USER_A, connectedCentralContext)).get(
+      '/mcp/bundles/accounts',
+    );
 
     expect(res.status).toBe(200);
     expect(res.body.connectionId).toBe('connection-1');
@@ -178,7 +181,7 @@ describe('MCP bundles routes', () => {
     );
   });
 
-  it('relays Oxy\'s refusal to act as an account that never approved the connection', async () => {
+  it("relays Oxy's refusal to act as an account that never approved the connection", async () => {
     mocks.getProfileByUsername.mockResolvedValue({ id: USER_B, username: 'brand' });
     // The SDK normalizes an OAuth refusal into this shape, with
     // `error_description` already promoted to `message`.
@@ -231,17 +234,24 @@ describe('MCP bundles routes', () => {
     expect(res.body.displayName).toBe('Unknown user');
   });
 
-
   it('GET /mcp/bundles/me reports the origin account as primary, a linked one as not', async () => {
-    const asOrigin = await request(buildApp(USER_A, connectedCentralContext)).get('/mcp/bundles/me');
+    const asOrigin = await request(buildApp(USER_A, connectedCentralContext)).get(
+      '/mcp/bundles/me',
+    );
     expect(asOrigin.body.isPrimary).toBe(true);
 
-    mocks.getUserById.mockResolvedValue({ id: USER_B, username: 'brand', name: { displayName: 'Brand' } });
-    const asLinked = await request(buildApp(USER_B, {
-      ...connectedCentralContext!,
-      activeUserId: USER_B,
-      connection: { ...connectedCentralContext!.connection!, activeAccountId: USER_B },
-    })).get('/mcp/bundles/me');
+    mocks.getUserById.mockResolvedValue({
+      id: USER_B,
+      username: 'brand',
+      name: { displayName: 'Brand' },
+    });
+    const asLinked = await request(
+      buildApp(USER_B, {
+        ...connectedCentralContext!,
+        activeUserId: USER_B,
+        connection: { ...connectedCentralContext!.connection!, activeAccountId: USER_B },
+      }),
+    ).get('/mcp/bundles/me');
     expect(asLinked.body.isPrimary).toBe(false);
   });
 });

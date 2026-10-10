@@ -61,7 +61,11 @@ class LabelerService {
     return res.data;
   }
 
-  async create(data: { name: string; description?: string; labelDefinitions?: LabelDefinition[] }): Promise<Labeler> {
+  async create(data: {
+    name: string;
+    description?: string;
+    labelDefinitions?: LabelDefinition[];
+  }): Promise<Labeler> {
     const res = await authenticatedClient.post<Labeler>('/labelers', data);
     return res.data;
   }
@@ -76,23 +80,34 @@ class LabelerService {
     return res.data;
   }
 
-  async applyLabel(labelerId: string, data: { targetType: string; targetId: string; labelSlug: string; reason?: string }): Promise<ContentLabel> {
+  async applyLabel(
+    labelerId: string,
+    data: { targetType: string; targetId: string; labelSlug: string; reason?: string },
+  ): Promise<ContentLabel> {
     const res = await authenticatedClient.post<ContentLabel>(`/labelers/${labelerId}/labels`, data);
     return res.data;
   }
 
   async removeLabel(labelId: string): Promise<{ success: boolean }> {
-    const res = await authenticatedClient.delete<{ success: boolean }>(`/labelers/labels/${labelId}`);
+    const res = await authenticatedClient.delete<{ success: boolean }>(
+      `/labelers/labels/${labelId}`,
+    );
     return res.data;
   }
 
   async getContentLabels(type: string, id: string): Promise<ContentLabelsResponse> {
-    const res = await authenticatedClient.get<ContentLabelsResponse>(`/labelers/content/${type}/${id}`);
+    const res = await authenticatedClient.get<ContentLabelsResponse>(
+      `/labelers/content/${type}/${id}`,
+    );
     return res.data;
   }
 
-  async updatePreferences(labelActions: { labelerId: string; labelSlug: string; action: string }[]): Promise<{ success: boolean }> {
-    const res = await authenticatedClient.put<{ success: boolean }>('/labelers/preferences', { labelActions });
+  async updatePreferences(
+    labelActions: { labelerId: string; labelSlug: string; action: string }[],
+  ): Promise<{ success: boolean }> {
+    const res = await authenticatedClient.put<{ success: boolean }>('/labelers/preferences', {
+      labelActions,
+    });
     return res.data;
   }
 }

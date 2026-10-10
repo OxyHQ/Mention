@@ -59,10 +59,7 @@ import {
 } from '../services/federation/BlocklistProposalService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 const SCRIPT_NAME = 'reviewFederationBlocklistProposals';
 
@@ -81,8 +78,8 @@ function parseAction(value: string | undefined): ReviewAction {
   const action = Object.values(ACTIONS).find((candidate) => candidate === requested);
   if (action) return action;
   throw new Error(
-    `[${SCRIPT_NAME}] unknown BLOCKLIST_PROPOSAL_ACTION "${requested}";`
-    + ` expected one of ${Object.values(ACTIONS).join(', ')}`,
+    `[${SCRIPT_NAME}] unknown BLOCKLIST_PROPOSAL_ACTION "${requested}";` +
+      ` expected one of ${Object.values(ACTIONS).join(', ')}`,
   );
 }
 

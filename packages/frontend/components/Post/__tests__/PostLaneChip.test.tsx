@@ -88,9 +88,7 @@ describe('PostLaneChip', () => {
   });
 
   it('shows the lane name after a chevron', () => {
-    const renderer = render(
-      <PostLaneChip lane={laneOf('mixed')} authorHandle="nate" />,
-    );
+    const renderer = render(<PostLaneChip lane={laneOf('mixed')} authorHandle="nate" />);
     expect(renderer.root.findByType(Text).props.children).toBe('› dev notes');
   });
 

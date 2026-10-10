@@ -36,7 +36,9 @@ describe('communityNotesService', () => {
   });
 
   it('sends a note with the sources the writer cited', async () => {
-    mockAuthenticated.post.mockResolvedValue({ data: { note: { id: 'n1', status: 'needs_ratings' } } });
+    mockAuthenticated.post.mockResolvedValue({
+      data: { note: { id: 'n1', status: 'needs_ratings' } },
+    });
 
     const note = await communityNotesService.write({
       postId: 'p1',
@@ -72,7 +74,9 @@ describe('communityNotesService', () => {
   });
 
   it('asks for the rating queue with a POST, because asking issues the assignments', async () => {
-    mockAuthenticated.post.mockResolvedValue({ data: { entries: [{ note: { id: 'n1' }, post: { id: 'p1' } }] } });
+    mockAuthenticated.post.mockResolvedValue({
+      data: { entries: [{ note: { id: 'n1' }, post: { id: 'p1' } }] },
+    });
 
     const entries = await communityNotesService.toRate();
 

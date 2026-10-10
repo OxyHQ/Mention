@@ -74,8 +74,16 @@ describe('resolveApAttachment', () => {
       const att: ApAttachment = {
         type: 'Video',
         url: [
-          { type: 'Link', href: 'https://peertube.example/master.m3u8', mediaType: 'application/x-mpegURL' },
-          { type: 'Link', href: 'https://peertube.example/manifest.mpd', mediaType: 'application/dash+xml' },
+          {
+            type: 'Link',
+            href: 'https://peertube.example/master.m3u8',
+            mediaType: 'application/x-mpegURL',
+          },
+          {
+            type: 'Link',
+            href: 'https://peertube.example/manifest.mpd',
+            mediaType: 'application/dash+xml',
+          },
           { type: 'Link', href: 'https://peertube.example/720.mp4', mediaType: 'video/mp4' },
         ],
       };
@@ -191,12 +199,20 @@ describe('resolveApAttachment', () => {
     it('respects an explicit non-media MIME over the AP type (MIME-first preserved)', () => {
       // `type` says Image but the server explicitly declared a PDF MIME — the MIME
       // wins, so the attachment is skipped rather than mis-stored as an image.
-      const att: ApAttachment = { type: 'Image', mediaType: 'application/pdf', url: 'https://example/file' };
+      const att: ApAttachment = {
+        type: 'Image',
+        mediaType: 'application/pdf',
+        url: 'https://example/file',
+      };
       expect(resolveApAttachment(att)).toBeNull();
     });
 
     it('still resolves a declared image MIME normally (Mastodon path unchanged)', () => {
-      const att: ApAttachment = { type: 'Document', mediaType: 'image/jpeg', url: 'https://m.example/x.jpg' };
+      const att: ApAttachment = {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://m.example/x.jpg',
+      };
       expect(resolveApAttachment(att)).toEqual({ href: 'https://m.example/x.jpg', type: 'image' });
     });
   });
@@ -220,15 +236,14 @@ describe('resolveApAttachment', () => {
     });
 
     it('returns null for an unknown type that cannot be classified', () => {
-      expect(resolveApAttachment({ url: 'https://example/file.pdf', mediaType: 'application/pdf' })).toBeNull();
+      expect(
+        resolveApAttachment({ url: 'https://example/file.pdf', mediaType: 'application/pdf' }),
+      ).toBeNull();
     });
 
     it('skips bad entries in an array and resolves the good one', () => {
       const att: ApAttachment = {
-        url: [
-          { type: 'Link', mediaType: 'video/mp4' },
-          'https://example/good.mp4',
-        ],
+        url: [{ type: 'Link', mediaType: 'video/mp4' }, 'https://example/good.mp4'],
       };
       expect(resolveApAttachment(att)).toEqual({
         href: 'https://example/good.mp4',
@@ -258,9 +273,7 @@ describe('extractApMediaFromNote', () => {
 
   it('preserves minimal MediaItem shape when AP sends no metadata fields', () => {
     const note = {
-      attachment: [
-        { type: 'Document', mediaType: 'image/jpeg', url: 'https://example/a.jpg' },
-      ],
+      attachment: [{ type: 'Document', mediaType: 'image/jpeg', url: 'https://example/a.jpg' }],
     };
     const out = extractApMediaFromNote(note);
     expect(out).toEqual({
@@ -273,14 +286,16 @@ describe('extractApMediaFromNote', () => {
 
   it('copies AP width/height/duration/alt and derives orientation onto media items', () => {
     const note = {
-      attachment: [{
-        mediaType: 'video/mp4',
-        url: 'https://mastodon.example/media/clip.mp4',
-        width: 720,
-        height: 1280,
-        duration: 45,
-        name: 'Behind the scenes',
-      }],
+      attachment: [
+        {
+          mediaType: 'video/mp4',
+          url: 'https://mastodon.example/media/clip.mp4',
+          width: 720,
+          height: 1280,
+          duration: 45,
+          name: 'Behind the scenes',
+        },
+      ],
     };
     const out = extractApMediaFromNote(note);
     expect(out.media[0]).toMatchObject({

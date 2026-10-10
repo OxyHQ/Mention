@@ -75,9 +75,7 @@ const mocks = vi.hoisted(() => {
 // blocked-domain purge, so mocking here swaps the committed data for every
 // consumer at once. `resolveFederationBlocks` is left real — it is under test.
 vi.mock('../../connectors/activitypub/federationBlockPolicy', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../connectors/activitypub/federationBlockPolicy')
-  >()),
+  ...(await importOriginal<typeof import('../../connectors/activitypub/federationBlockPolicy')>()),
   getBlockedDomainPolicy: () => mocks.policyFixture,
 }));
 

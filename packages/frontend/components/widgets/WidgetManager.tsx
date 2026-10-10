@@ -9,34 +9,40 @@ import { createLogger } from '@oxy.so/core/logger';
 const logger = createLogger('WidgetManager');
 
 class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-    state = { hasError: false };
-    static getDerivedStateFromError() { return { hasError: true }; }
-    componentDidCatch(error: Error) { logger.error('Widget crashed', error); }
-    render() { return this.state.hasError ? null : this.props.children; }
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error) {
+    logger.error('Widget crashed', error);
+  }
+  render() {
+    return this.state.hasError ? null : this.props.children;
+  }
 }
 
 function WidgetSlot({ children }: { children: ReactNode }) {
-    return (
-        <View style={styles.slot} collapsable={false}>
-            {children}
-        </View>
-    );
+  return (
+    <View style={styles.slot} collapsable={false}>
+      {children}
+    </View>
+  );
 }
 
 // Define screen IDs for social network
 export type ScreenId =
-    | 'home'
-    | 'explore'
-    | 'notifications'
-    | 'messages'
-    | 'saved'
-    | 'profile'
-    | 'post-detail'
-    | 'search';
+  | 'home'
+  | 'explore'
+  | 'notifications'
+  | 'messages'
+  | 'saved'
+  | 'profile'
+  | 'post-detail'
+  | 'search';
 
 interface WidgetManagerProps {
-    screenId: ScreenId;
-    customWidgets?: ReactNode[];
+  screenId: ScreenId;
+  customWidgets?: ReactNode[];
 }
 
 /**
@@ -46,98 +52,92 @@ interface WidgetManagerProps {
  * It provides a centralized way to manage widget visibility based on screen context.
  */
 export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
 
-    const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
-        switch (screen) {
-            case 'home':
-                return [
-                    <LiveRoomsWidget key="live-rooms" divider />,
-                    <TrendsWidget key="trends" divider />,
-                    <WhoToFollowWidget key="who-to-follow" />,
-                ];
+  const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
+    switch (screen) {
+      case 'home':
+        return [
+          <LiveRoomsWidget key="live-rooms" divider />,
+          <TrendsWidget key="trends" divider />,
+          <WhoToFollowWidget key="who-to-follow" />,
+        ];
 
-            case 'explore':
-                return [
-                    <TrendsWidget key="trends" />,
-                ];
+      case 'explore':
+        return [<TrendsWidget key="trends" />];
 
-            case 'notifications':
-                return [
-                    <View key="notifications">
-                        <Text>{t('widgets.notifications')}</Text>
-                    </View>
-                ];
+      case 'notifications':
+        return [
+          <View key="notifications">
+            <Text>{t('widgets.notifications')}</Text>
+          </View>,
+        ];
 
-            case 'messages':
-                return [
-                    <View key="messages-preview">
-                        <Text>{t('widgets.messagesPreview')}</Text>
-                    </View>
-                ];
+      case 'messages':
+        return [
+          <View key="messages-preview">
+            <Text>{t('widgets.messagesPreview')}</Text>
+          </View>,
+        ];
 
-            case 'saved':
-                return [
-                    <View key="saved">
-                        <Text>{t('widgets.savedPosts')}</Text>
-                    </View>
-                ];
+      case 'saved':
+        return [
+          <View key="saved">
+            <Text>{t('widgets.savedPosts')}</Text>
+          </View>,
+        ];
 
-            case 'profile':
-                return [
-                    <View key="profile-stats">
-                        <Text>{t('widgets.profileStats')}</Text>
-                    </View>,
-                    <View key="engagement-stats">
-                        <Text>{t('widgets.engagementStats')}</Text>
-                    </View>
-                ];
+      case 'profile':
+        return [
+          <View key="profile-stats">
+            <Text>{t('widgets.profileStats')}</Text>
+          </View>,
+          <View key="engagement-stats">
+            <Text>{t('widgets.engagementStats')}</Text>
+          </View>,
+        ];
 
-            case 'post-detail':
-                return [
-                    <View key="related-posts">
-                        <Text>{t('widgets.relatedPosts')}</Text>
-                    </View>,
-                    <View key="recently-viewed">
-                        <Text>{t('widgets.recentlyViewed')}</Text>
-                    </View>
-                ];
+      case 'post-detail':
+        return [
+          <View key="related-posts">
+            <Text>{t('widgets.relatedPosts')}</Text>
+          </View>,
+          <View key="recently-viewed">
+            <Text>{t('widgets.recentlyViewed')}</Text>
+          </View>,
+        ];
 
-            case 'search':
-                return [
-                    <TrendsWidget key="trends" />,
-                ];
+      case 'search':
+        return [<TrendsWidget key="trends" />];
 
-            default:
-                return [];
-        }
-    };
-
-    const allWidgets = [...getWidgetsForScreen(screenId), ...customWidgets];
-
-    if (allWidgets.length === 0) {
-        return null;
+      default:
+        return [];
     }
+  };
 
-    // No column `gap` — each widget owns its own bottom margin, see `BaseWidget`.
-    return (
-        <View className="flex-col">
-            {allWidgets.map((widget, index) => {
-                const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
-                return (
-                    <WidgetErrorBoundary key={slotKey}>
-                        <WidgetSlot>
-                            {widget}
-                        </WidgetSlot>
-                    </WidgetErrorBoundary>
-                );
-            })}
-        </View>
-    );
+  const allWidgets = [...getWidgetsForScreen(screenId), ...customWidgets];
+
+  if (allWidgets.length === 0) {
+    return null;
+  }
+
+  // No column `gap` — each widget owns its own bottom margin, see `BaseWidget`.
+  return (
+    <View className="flex-col">
+      {allWidgets.map((widget, index) => {
+        const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
+        return (
+          <WidgetErrorBoundary key={slotKey}>
+            <WidgetSlot>{widget}</WidgetSlot>
+          </WidgetErrorBoundary>
+        );
+      })}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    slot: {
-        width: '100%',
-    },
+  slot: {
+    width: '100%',
+  },
 });

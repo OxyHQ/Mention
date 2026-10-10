@@ -61,9 +61,9 @@ async function seedLegacyFeed(options: {
 
   const members = options.memberOxyUserIds ?? [];
   if (members.length > 0) {
-    await getDb().insert(customFeedMembers).values(
-      members.map((oxyUserId, position) => ({ feedId: row.id, oxyUserId, position })),
-    );
+    await getDb()
+      .insert(customFeedMembers)
+      .values(members.map((oxyUserId, position) => ({ feedId: row.id, oxyUserId, position })));
   }
   return row.id;
 }
@@ -76,17 +76,15 @@ async function storedDefinition(feedId: string) {
 }
 
 /** Just the module ids of one list, in stored order. */
-async function moduleIds(
-  feedId: string,
-  kind: 'source' | 'signal' | 'filter',
-): Promise<string[]> {
+async function moduleIds(feedId: string, kind: 'source' | 'signal' | 'filter'): Promise<string[]> {
   const definition = await storedDefinition(feedId);
   if (!definition) return [];
-  const list = kind === 'source'
-    ? definition.sources
-    : kind === 'signal'
-      ? definition.signals
-      : definition.filters;
+  const list =
+    kind === 'source'
+      ? definition.sources
+      : kind === 'signal'
+        ? definition.signals
+        : definition.filters;
   return (list ?? []).map((ref) => ref.module);
 }
 
@@ -96,7 +94,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   // Members and definition modules both cascade from `custom_feeds`.
-  await getDb().delete(customFeeds).where(like(customFeeds.ownerOxyUserId, `${OWNER_PREFIX}%`));
+  await getDb()
+    .delete(customFeeds)
+    .where(like(customFeeds.ownerOxyUserId, `${OWNER_PREFIX}%`));
 });
 
 afterAll(async () => {
@@ -188,7 +188,7 @@ describe('mapping a legacy feed', () => {
    * un-migrated feed with whichever definition is in hand — both feeds come out
    * identical, every row typechecks, and the run reports success.
    */
-  it('gives each feed its own definition rather than one feed\'s to all of them', async () => {
+  it("gives each feed its own definition rather than one feed's to all of them", async () => {
     const keywordFeed = await seedLegacyFeed({
       ownerOxyUserId: owner('e'),
       keywords: ['postgres'],
@@ -238,7 +238,12 @@ describe('mapping a legacy feed', () => {
     const modules = await getDb()
       .select({ feedId: customFeedDefinitionModules.feedId })
       .from(customFeedDefinitionModules)
-      .where(inArray(customFeedDefinitionModules.feedId, rows.map((row) => row.id)));
+      .where(
+        inArray(
+          customFeedDefinitionModules.feedId,
+          rows.map((row) => row.id),
+        ),
+      );
 
     for (const row of rows) {
       expect(row.mode).toBe('chronological');

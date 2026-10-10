@@ -147,7 +147,9 @@ describe('statistics router rate limiting', () => {
   it('bounds the public activity route, which an anonymous caller can reach', async () => {
     const app = await buildApp();
 
-    expect(await hammer(app, 'get', '/public-statistics/user/someone/activity', ROUTER_MAX)).toBe(200);
+    expect(await hammer(app, 'get', '/public-statistics/user/someone/activity', ROUTER_MAX)).toBe(
+      200,
+    );
     expect(await hammer(app, 'get', '/public-statistics/user/someone/activity', 1)).toBe(429);
   });
 

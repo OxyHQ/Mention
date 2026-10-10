@@ -35,7 +35,18 @@ const SRC = join(HERE, '..');
  * Extension candidates, in the order a bundler would try them. `''` first so a
  * specifier that already carries its extension resolves to itself.
  */
-const CANDIDATES = ['', '.ts', '.tsx', '.js', '.mjs', '.cjs', '.json', '/index.ts', '/index.tsx', '/index.js'];
+const CANDIDATES = [
+  '',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '/index.ts',
+  '/index.tsx',
+  '/index.js',
+];
 
 /**
  * Floors. A scanner that silently reads nothing reports the same clean zero as a
@@ -182,7 +193,12 @@ const scan = (() => {
 
   for (const file of walk(SRC)) {
     const source = readFileSync(file, 'utf8');
-    if (!source.includes('vi.mock') && !source.includes('vi.doMock') && !source.includes('vi.unmock')) continue;
+    if (
+      !source.includes('vi.mock') &&
+      !source.includes('vi.doMock') &&
+      !source.includes('vi.unmock')
+    )
+      continue;
     const specs = extractMockSpecs(source);
     if (specs.length > 0) filesWithMocks += 1;
 
@@ -201,9 +217,7 @@ const scan = (() => {
 
 describe('every vi.mock names a module that exists', () => {
   it('finds no mock pointing at a path that resolves to nothing', () => {
-    expect(
-      scan.dead.map((reference) => `${reference.file} -> ${reference.spec}`),
-    ).toEqual([]);
+    expect(scan.dead.map((reference) => `${reference.file} -> ${reference.spec}`)).toEqual([]);
   });
 
   it('actually looked at the tree it is reporting on', () => {
@@ -226,7 +240,7 @@ describe('the scan itself', () => {
     "import { vi } from 'vitest';",
     "// vi.mock('../models/CommentedOut');",
     "/* vi.mock('../models/BlockCommented'); */",
-    "const prose = \"vi.mock('../models/InAString')\";",
+    'const prose = "vi.mock(\'../models/InAString\')";',
     "vi.mock('../models/GoneForGood');",
     "vi.mock('../utils/logger');",
     "vi.mock('@oxy.so/core/server');",

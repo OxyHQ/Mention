@@ -23,15 +23,15 @@ describe('stripRenderedQuoteMarker', () => {
   it('removes a LEADING marker and the blank line it leaves', () => {
     // Mastodon's shape, and 14,186 of the affected rows.
     const body = `RE: ${WEB}\n\nI heard there are only 5 tickets left for #kirbykonf`;
-    expect(stripRenderedQuoteMarker(body, [WEB]))
-      .toBe('I heard there are only 5 tickets left for #kirbykonf');
+    expect(stripRenderedQuoteMarker(body, [WEB])).toBe(
+      'I heard there are only 5 tickets left for #kirbykonf',
+    );
   });
 
   it('removes a TRAILING marker, which is most of the rest of the fediverse', () => {
     // Misskey / Akkoma / Bridgy Fed / Threads append it instead — 1,973 rows.
     const body = `im gonna cry i wanna thank these people\n\nRE: ${WEB}`;
-    expect(stripRenderedQuoteMarker(body, [WEB]))
-      .toBe('im gonna cry i wanna thank these people');
+    expect(stripRenderedQuoteMarker(body, [WEB])).toBe('im gonna cry i wanna thank these people');
   });
 
   it('matches the WEB url even when the note declared the AP id', () => {
@@ -60,7 +60,7 @@ describe('stripRenderedQuoteMarker', () => {
     expect(stripRenderedQuoteMarker(body, [])).toBe(body);
   });
 
-  it('leaves the author\'s own paragraph breaks alone', () => {
+  it("leaves the author's own paragraph breaks alone", () => {
     const body = `RE: ${WEB}\n\nfirst para\n\nsecond para`;
     expect(stripRenderedQuoteMarker(body, [WEB])).toBe('first para\n\nsecond para');
   });

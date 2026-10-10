@@ -164,7 +164,12 @@ describe('useTabSelect', () => {
       return null;
     }
     const refresh = jest.fn();
-    render(<><Screen handler={{ refresh }} /><Strip /></>);
+    render(
+      <>
+        <Screen handler={{ refresh }} />
+        <Strip />
+      </>,
+    );
     act(() => press('following'));
     expect(select).toHaveBeenCalledWith('following');
     expect(refresh).not.toHaveBeenCalled();

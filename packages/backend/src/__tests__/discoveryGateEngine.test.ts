@@ -18,7 +18,9 @@ const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
   return posts;
 });
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+  feedRankingService: {
+    rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
+  },
 }));
 
 vi.mock('../services/ThreadSlicingService', () => ({
@@ -40,7 +42,9 @@ vi.mock('../services/ThreadSlicingService', () => ({
  * of resolving the pool once.
  */
 const { resolveUserSummaries } = vi.hoisted(() => ({
-  resolveUserSummaries: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, { user: { id, name: {} } }]))),
+  resolveUserSummaries: vi.fn(
+    async (ids: string[]) => new Map(ids.map((id) => [id, { user: { id, name: {} } }])),
+  ),
 }));
 
 vi.mock('../services/PostHydrationService', () => ({
@@ -60,7 +64,12 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
-import type { CandidatePost, FeedDefinition, FilterModule, SourceModule } from '../mtn/feed/engine/types';
+import type {
+  CandidatePost,
+  FeedDefinition,
+  FilterModule,
+  SourceModule,
+} from '../mtn/feed/engine/types';
 import { feedCandidate } from './fixtures/feedCandidate';
 
 /** A pre-cutover ObjectId-hex id — see `feedEngine.test.ts` on why not `post-N`. */
@@ -147,7 +156,11 @@ describe('lane scoping', () => {
     registry.register(source('trusted', [junkPost(1)], true));
     registry.register(source('popular', [makePost(9)]));
 
-    await engine.run(def([{ module: 'trusted', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    await engine.run(
+      def([{ module: 'trusted', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     // The junk trusted post survived (not dropped) and is NOT marked `_discovery`.
     expect(idsOf(capturedPool)).toContain(id(1));
@@ -159,7 +172,11 @@ describe('lane scoping', () => {
     registry.register(source('disc', [makePost(1), junkPost(2)]));
     registry.register(source('popular', [makePost(9)]));
 
-    await engine.run(def([{ module: 'disc', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    await engine.run(
+      def([{ module: 'disc', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     // #2 (junk) dropped; #1 kept and marked `_discovery`.
     expect(idsOf(capturedPool)).toEqual([id(1)]);
@@ -174,7 +191,10 @@ describe('lane scoping', () => {
     registry.register(source('popular', [makePost(9)]));
 
     await engine.run(
-      def([{ module: 'trusted', enabled: true }, { module: 'disc', enabled: true }]),
+      def([
+        { module: 'trusted', enabled: true },
+        { module: 'disc', enabled: true },
+      ]),
       { currentUserId: 'v' },
       { limit: 30 },
     );
@@ -192,7 +212,11 @@ describe('shadow mode', () => {
     registry.register(source('disc', [makePost(1), junkPost(2)]));
     registry.register(source('popular', [makePost(9)]));
 
-    await engine.run(def([{ module: 'disc', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    await engine.run(
+      def([{ module: 'disc', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     // Both kept (nothing dropped in shadow); both marked `_discovery`.
     expect(idsOf(capturedPool).sort()).toEqual([id(1), id(2)].sort());
@@ -206,9 +230,18 @@ describe('never-blank', () => {
     setShadow(false); // enforce
     registry.register(source('disc', [junkPost(1), junkPost(2)]));
     const popularGather = vi.fn(async () => [makePost(9)]);
-    registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: popularGather });
+    registry.register({
+      id: 'popular',
+      kind: 'source',
+      userComposable: false,
+      gather: popularGather,
+    });
 
-    const result = await engine.run(def([{ module: 'disc', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    const result = await engine.run(
+      def([{ module: 'disc', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     expect(popularGather).toHaveBeenCalledOnce();
     expect(result.items.map((i) => i.id)).toEqual([id(9)]);
@@ -220,8 +253,12 @@ describe('no discoveryFilters → nothing gated or marked', () => {
     registry.register(source('disc', [junkPost(1)]));
     registry.register(source('popular', [makePost(9)]));
     const plain: FeedDefinition = {
-      id: 'plain', title: 'Plain', mode: 'ranked',
-      sources: [{ module: 'disc', enabled: true }], signals: [], filters: [],
+      id: 'plain',
+      title: 'Plain',
+      mode: 'ranked',
+      sources: [{ module: 'disc', enabled: true }],
+      signals: [],
+      filters: [],
       execution: {},
     };
 
@@ -251,7 +288,12 @@ describe('author-aware gate filters', () => {
 
   function authorDef(sources: FeedDefinition['sources']): FeedDefinition {
     return {
-      id: 'for_you', title: 'For You', mode: 'ranked', sources, signals: [], filters: [],
+      id: 'for_you',
+      title: 'For You',
+      mode: 'ranked',
+      sources,
+      signals: [],
+      filters: [],
       discoveryFilters: [{ module: 'authorGate', enabled: true }],
       execution: {},
     };
@@ -265,7 +307,11 @@ describe('author-aware gate filters', () => {
     setShadow(true); // measure-only: nothing is dropped, so the pool is observable
     registry.register(source('disc', [makePost(1), makePost(2)]));
 
-    await engine.run(authorDef([{ module: 'disc', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    await engine.run(
+      authorDef([{ module: 'disc', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     // ONE batch for the merged pool. `rankPosts` would otherwise resolve the same
     // author set a step later, which is the round trip this is here to prevent.
@@ -277,7 +323,11 @@ describe('author-aware gate filters', () => {
   it('never resolves authors for a gate that does not ask about them', async () => {
     registry.register(source('disc', [makePost(1)]));
 
-    await engine.run(def([{ module: 'disc', enabled: true }]), { currentUserId: 'v' }, { limit: 30 });
+    await engine.run(
+      def([{ module: 'disc', enabled: true }]),
+      { currentUserId: 'v' },
+      { limit: 30 },
+    );
 
     expect(resolveUserSummaries).not.toHaveBeenCalled();
   });
@@ -327,9 +377,12 @@ describe('author-aware gate filters', () => {
 describe('popular fallback — the gate applies there too', () => {
   function fallbackDef(): FeedDefinition {
     return {
-      id: 'for_you', title: 'For You', mode: 'ranked',
+      id: 'for_you',
+      title: 'For You',
+      mode: 'ranked',
       sources: [{ module: 'disc', enabled: true }],
-      signals: [], filters: [],
+      signals: [],
+      filters: [],
       discoveryFilters: [{ module: 'gate', enabled: true }],
       execution: { neverBlank: true, popularFallback: 'popular' },
     };
@@ -350,7 +403,9 @@ describe('popular fallback — the gate applies there too', () => {
     registry.register(source('disc', []));
     // The first two are junk. A fixed window of `limit` would have served ONE
     // post; scanning reaches past them for the two clean ones.
-    registry.register(source('popular', [junkPost(1), junkPost(2), makePost(3), makePost(4), makePost(5)]));
+    registry.register(
+      source('popular', [junkPost(1), junkPost(2), makePost(3), makePost(4), makePost(5)]),
+    );
 
     const result = await engine.run(fallbackDef(), {}, { limit: 2 });
 

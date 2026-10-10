@@ -19,5 +19,4 @@ describe('home compose FAB', () => {
     expect(fabLabelContract.collapsed).toBe(true);
     expect(source).toContain('minimizeProgress={minimizeProgress}');
   });
-
 });

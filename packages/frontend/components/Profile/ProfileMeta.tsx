@@ -41,9 +41,7 @@ export const ProfileMeta = memo(function ProfileMeta({
       {hasLocation && (
         <View className="flex-row items-center gap-1">
           <LocationIcon size={16} className="text-muted-foreground" />
-          <Text className="text-muted-foreground text-[15px]">
-            {location}
-          </Text>
+          <Text className="text-muted-foreground text-[15px]">{location}</Text>
         </View>
       )}
 

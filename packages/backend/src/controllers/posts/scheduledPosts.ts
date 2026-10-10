@@ -191,10 +191,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       const [own] = await getDb()
         .select({ status: postsTable.status })
         .from(postsTable)
-        .where(and(
-          eq(postsTable.id, targetId),
-          eq(postsTable.oxyUserId, ownerId),
-        ))
+        .where(and(eq(postsTable.id, targetId), eq(postsTable.oxyUserId, ownerId)))
         .limit(1);
       if (own && own.status === 'published') {
         return res.status(409).json({ message: 'This post has already been published' });

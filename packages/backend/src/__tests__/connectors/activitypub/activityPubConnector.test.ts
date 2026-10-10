@@ -76,7 +76,11 @@ const OUTBOX_URL = 'https://mastodon.social/users/alice/outbox';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL });
+  mocks.getOrFetchActor.mockResolvedValue({
+    uri: ACTOR_URI,
+    acct: 'alice@mastodon.social',
+    outboxUrl: OUTBOX_URL,
+  });
   mocks.syncOutboxPostsDetailed.mockResolvedValue({
     syncedCount: 20,
     shouldStampCooldown: false,
@@ -128,28 +132,18 @@ describe('ActivityPubConnector durable delivery boundary', () => {
   it('keeps ordinary delivery on the best-effort FollowService method', async () => {
     await activityPubConnector.deliver(likeEvent);
 
-    expect(mocks.federateLike).toHaveBeenCalledWith(
-      likeEvent.like,
-      'viewer-1',
-      'alice',
-    );
+    expect(mocks.federateLike).toHaveBeenCalledWith(likeEvent.like, 'viewer-1', 'alice');
     expect(mocks.federateLikeStrict).not.toHaveBeenCalled();
   });
 
   it('uses the strict FollowService method and propagates its rejection', async () => {
-    mocks.federateLikeStrict.mockRejectedValueOnce(
-      new Error('delivery queue unavailable'),
+    mocks.federateLikeStrict.mockRejectedValueOnce(new Error('delivery queue unavailable'));
+
+    await expect(activityPubConnector.deliverDurably(likeEvent)).rejects.toThrow(
+      'delivery queue unavailable',
     );
 
-    await expect(
-      activityPubConnector.deliverDurably(likeEvent),
-    ).rejects.toThrow('delivery queue unavailable');
-
-    expect(mocks.federateLikeStrict).toHaveBeenCalledWith(
-      likeEvent.like,
-      'viewer-1',
-      'alice',
-    );
+    expect(mocks.federateLikeStrict).toHaveBeenCalledWith(likeEvent.like, 'viewer-1', 'alice');
     expect(mocks.federateLike).not.toHaveBeenCalled();
   });
 
@@ -220,13 +214,18 @@ describe('ActivityPubConnector follow delivery', () => {
   it('rejects a Follow the delivery engine refused, instead of reporting it followed', async () => {
     mocks.sendFollow.mockResolvedValue({ success: false, pending: false });
 
-    await expect(activityPubConnector.deliver(follow(ACTOR_URI))).rejects.toThrow('Follow was not sent');
+    await expect(activityPubConnector.deliver(follow(ACTOR_URI))).rejects.toThrow(
+      'Follow was not sent',
+    );
   });
 
   it('resolves a handle before sending the Undo(Follow)', async () => {
     mocks.resolveWebFinger.mockResolvedValue(NUMERIC_ACTOR_URI);
 
-    await activityPubConnector.deliver({ ...follow('alice@mastodon.social'), kind: 'follow.remove' });
+    await activityPubConnector.deliver({
+      ...follow('alice@mastodon.social'),
+      kind: 'follow.remove',
+    });
 
     expect(mocks.sendUndoFollow).toHaveBeenCalledWith('local-1', 'mention', NUMERIC_ACTOR_URI);
   });

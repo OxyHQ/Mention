@@ -100,19 +100,19 @@ interface ScoreCursorCompatV1Payload {
 /** A millisecond timestamp we are willing to treat as a keyset boundary. */
 function isValidCursorTimestamp(value: unknown): value is number {
   return (
-    typeof value === 'number'
-    && Number.isSafeInteger(value)
-    && value > 0
-    && value <= MAX_JAVASCRIPT_DATE_MS
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= MAX_JAVASCRIPT_DATE_MS
   );
 }
 
 function isValidScoreCursorAsOf(value: unknown): value is number {
   if (
-    typeof value !== 'number'
-    || !Number.isSafeInteger(value)
-    || value <= 0
-    || value > MAX_JAVASCRIPT_DATE_MS
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > MAX_JAVASCRIPT_DATE_MS
   ) {
     return false;
   }
@@ -138,14 +138,9 @@ function normalizeExcludedIds(id: string, ids?: Iterable<string>): string[] {
 export const ScoreCursor = {
   build(score: number, id: string, options?: ScoreCursorBuildOptions): string {
     const rawAsOf = options?.asOf instanceof Date ? options.asOf.getTime() : options?.asOf;
-    if (
-      Number.isFinite(score)
-      && isLiveEntityId(id)
-      && isValidScoreCursorAsOf(rawAsOf)
-    ) {
-      const rawTiebreakAt = options?.tiebreakAt instanceof Date
-        ? options.tiebreakAt.getTime()
-        : options?.tiebreakAt;
+    if (Number.isFinite(score) && isLiveEntityId(id) && isValidScoreCursorAsOf(rawAsOf)) {
+      const rawTiebreakAt =
+        options?.tiebreakAt instanceof Date ? options.tiebreakAt.getTime() : options?.tiebreakAt;
       const metadata: ScoreCursorCompatV1Payload = {
         a: rawAsOf,
         x: normalizeExcludedIds(id, options?.excludeIds),
@@ -365,7 +360,10 @@ export function chronoOrderBy(direction: ChronoDirection = 'desc'): SQL[] {
 /**
  * Validate that cursor advanced (prevent infinite pagination loops).
  */
-export function didCursorAdvance(newCursor: string | undefined, previousCursor: string | undefined): boolean {
+export function didCursorAdvance(
+  newCursor: string | undefined,
+  previousCursor: string | undefined,
+): boolean {
   if (!newCursor || !previousCursor) return true;
   return newCursor !== previousCursor;
 }

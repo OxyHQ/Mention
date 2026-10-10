@@ -24,7 +24,7 @@ import { createMediaAttachmentKey, type ComposerMediaItem } from '../composeUtil
 const photo: ComposerMediaItem = { id: 'file_abc123', type: 'image' };
 
 describe('buildCapturePost', () => {
-  it('carries the capture as the post\'s only media', () => {
+  it("carries the capture as the post's only media", () => {
     const request = buildCapturePost(photo);
 
     expect(request.content.media).toEqual([{ id: 'file_abc123', type: 'image' }]);

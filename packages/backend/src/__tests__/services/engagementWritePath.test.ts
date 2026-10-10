@@ -104,7 +104,9 @@ async function seedPost(overrides: { oxyUserId?: string; federationActivityId?: 
  * command's insert waiting on a lock: the race branch runs every time, at any
  * pool size and under any load.
  */
-async function stageUncommittedWinner(insertWinner: (tx: postgres.TransactionSql) => Promise<unknown>) {
+async function stageUncommittedWinner(
+  insertWinner: (tx: postgres.TransactionSql) => Promise<unknown>,
+) {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   const winnerSql = postgres(url, { max: 1, onnotice: () => undefined });
@@ -127,15 +129,18 @@ async function stageUncommittedWinner(insertWinner: (tx: postgres.TransactionSql
   return {
     /** Resolves once `table`'s insert is blocked behind the winner's key. */
     async untilLoserBlocks(table: string): Promise<void> {
-      await vi.waitFor(async () => {
-        const [row] = await observerSql<{ waiting: number }[]>`
+      await vi.waitFor(
+        async () => {
+          const [row] = await observerSql<{ waiting: number }[]>`
           select count(*)::int as waiting from pg_stat_activity
           where datname = current_database()
             and wait_event_type = 'Lock'
             and query ilike ${`insert into "${table}"%`}
         `;
-        expect(row?.waiting).toBeGreaterThan(0);
-      }, { timeout: 10_000, interval: 10 });
+          expect(row?.waiting).toBeGreaterThan(0);
+        },
+        { timeout: 10_000, interval: 10 },
+      );
     },
     async commit(): Promise<void> {
       releaseWinner();
@@ -146,10 +151,7 @@ async function stageUncommittedWinner(insertWinner: (tx: postgres.TransactionSql
 }
 
 async function outboxRow(eventId: string) {
-  const [row] = await db
-    .select()
-    .from(engagementOutbox)
-    .where(eq(engagementOutbox.id, eventId));
+  const [row] = await db.select().from(engagementOutbox).where(eq(engagementOutbox.id, eventId));
   return row;
 }
 
@@ -243,8 +245,9 @@ describe('a save writes the relationship, the counter and the event together', (
 
     const result = await votePostCommand({ userId: 'viewer-a', postId, value: 1 });
 
-    expect((await outboxRow(result.outboxEventId ?? ''))?.payloadFederationActivityId)
-      .toBe('https://remote.example/activities/1');
+    expect((await outboxRow(result.outboxEventId ?? ''))?.payloadFederationActivityId).toBe(
+      'https://remote.example/activities/1',
+    );
   });
 
   it('a duplicate save writes NOTHING — not even updated_at', async () => {
@@ -292,9 +295,7 @@ describe('a save writes the relationship, the counter and the event together', (
     expect(removed.post.statsSavesCount).toBe(0);
     expect(repeat.changed).toBe(false);
     expect(repeat.outboxEventId).toBeUndefined();
-    expect(
-      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
-    ).toHaveLength(0);
+    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(0);
   });
 });
 
@@ -312,20 +313,17 @@ describe('the transaction boundary', () => {
     // Read the SQLSTATE rather than the message: drizzle re-wraps the driver
     // error as "Failed query: …", so the plpgsql text is only on `cause`.
     // `P0001` is `raise_exception`, i.e. the probe fired and nothing else did.
-    const rejection = await savePostCommand({ userId: ATOMICITY_PROBE_ACTOR, postId })
-      .then(() => null, (error: unknown) => error);
+    const rejection = await savePostCommand({ userId: ATOMICITY_PROBE_ACTOR, postId }).then(
+      () => null,
+      (error: unknown) => error,
+    );
     expect(rejection).not.toBeNull();
     expect(sqlStateOf(rejection)).toBe('P0001');
 
-    expect(
-      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
-    ).toHaveLength(0);
+    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(0);
     expect((await postRow(postId))?.statsSavesCount).toBe(0);
     expect(
-      await db
-        .select()
-        .from(engagementOutbox)
-        .where(eq(engagementOutbox.payloadPostId, postId)),
+      await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
     ).toHaveLength(0);
   });
 
@@ -333,15 +331,13 @@ describe('the transaction boundary', () => {
     const postId = await seedPost();
     const viewers = ['race-1', 'race-2', 'race-3', 'race-4', 'race-5'];
 
-    const results = await Promise.all(
-      viewers.map((userId) => savePostCommand({ userId, postId })),
-    );
+    const results = await Promise.all(viewers.map((userId) => savePostCommand({ userId, postId })));
 
     expect(results.every((result) => result.changed)).toBe(true);
     expect((await postRow(postId))?.statsSavesCount).toBe(viewers.length);
-    expect(
-      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
-    ).toHaveLength(viewers.length);
+    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(
+      viewers.length,
+    );
   });
 
   it('answers the loser of a SAVE race idempotently, staged rather than raced', async () => {
@@ -365,8 +361,10 @@ describe('the transaction boundary', () => {
      * once the command is SEEN waiting on that key (`stageUncommittedWinner`).
      */
     const postId = await seedPost();
-    const winner = await stageUncommittedWinner((tx) =>
-      tx`insert into bookmarks (id, user_id, post_id) values (${randomUUID()}, 'save-race', ${postId})`);
+    const winner = await stageUncommittedWinner(
+      (tx) =>
+        tx`insert into bookmarks (id, user_id, post_id) values (${randomUUID()}, 'save-race', ${postId})`,
+    );
 
     const racing = savePostCommand({ userId: 'save-race', postId });
     await winner.untilLoserBlocks('bookmarks');
@@ -374,9 +372,7 @@ describe('the transaction boundary', () => {
     const result = await racing;
 
     expect(result.changed).toBe(false);
-    expect(
-      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
-    ).toHaveLength(1);
+    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(1);
     // The counter belongs to the winner's save alone: a loser that incremented
     // it would be the bug this branch exists to prevent.
     expect((await postRow(postId))?.statsSavesCount).toBe(0);
@@ -397,8 +393,10 @@ describe('the transaction boundary', () => {
      * is SEEN waiting on that key (`stageUncommittedWinner`).
      */
     const postId = await seedPost();
-    const winner = await stageUncommittedWinner((tx) =>
-      tx`insert into likes (id, user_id, post_id, value, revision) values (${randomUUID()}, 'self-race', ${postId}, 1, 1)`);
+    const winner = await stageUncommittedWinner(
+      (tx) =>
+        tx`insert into likes (id, user_id, post_id, value, revision) values (${randomUUID()}, 'self-race', ${postId}, 1, 1)`,
+    );
 
     const racing = votePostCommand({ userId: 'self-race', postId, value: 1 });
     await winner.untilLoserBlocks('likes');
@@ -406,9 +404,7 @@ describe('the transaction boundary', () => {
     const result = await racing;
 
     expect(result).toMatchObject({ changed: false, previousValue: 1, value: 1 });
-    expect(
-      await db.select().from(likes).where(eq(likes.postId, postId)),
-    ).toHaveLength(1);
+    expect(await db.select().from(likes).where(eq(likes.postId, postId))).toHaveLength(1);
   });
 
   it('keeps the counter honest when several viewers vote at once', async () => {
@@ -491,31 +487,27 @@ describe('votes move both counters and carry the transition', () => {
     expect(repeat.outboxEventId).toBeUndefined();
     expect((await postRow(postId))?.statsLikesCount).toBe(1);
     expect(
-      await db
-        .select()
-        .from(engagementOutbox)
-        .where(eq(engagementOutbox.payloadPostId, postId)),
+      await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
     ).toHaveLength(1);
   });
 
   it.each([
     { value: 1 as const, kind: 'post.unlike', counter: 'statsLikesCount' as const },
     { value: -1 as const, kind: 'post.undownvote', counter: 'statsDownvotesCount' as const },
-  ])('removes a $kind vote and decrements only its own counter', async ({
-    value,
-    kind,
-    counter,
-  }) => {
-    const postId = await seedPost();
-    const cast = await votePostCommand({ userId: 'viewer-a', postId, value });
+  ])(
+    'removes a $kind vote and decrements only its own counter',
+    async ({ value, kind, counter }) => {
+      const postId = await seedPost();
+      const cast = await votePostCommand({ userId: 'viewer-a', postId, value });
 
-    const removed = await removeVoteCommand({ userId: 'viewer-a', postId });
+      const removed = await removeVoteCommand({ userId: 'viewer-a', postId });
 
-    expect(removed).toMatchObject({ changed: true, previousValue: value, value: null });
-    expect(removed.post[counter]).toBe(0);
-    expect(removed.outboxEventId).toBe(`engagement:${kind}:${cast.likeId}:v2`);
-    expect(await db.select().from(likes).where(eq(likes.postId, postId))).toHaveLength(0);
-  });
+      expect(removed).toMatchObject({ changed: true, previousValue: value, value: null });
+      expect(removed.post[counter]).toBe(0);
+      expect(removed.outboxEventId).toBe(`engagement:${kind}:${cast.likeId}:v2`);
+      expect(await db.select().from(likes).where(eq(likes.postId, postId))).toHaveLength(0);
+    },
+  );
 
   it('answers a removal with no vote to remove', async () => {
     const postId = await seedPost();
@@ -551,13 +543,13 @@ describe('a post that does not exist', () => {
      * built from. A guard that answered early for the third would once again be
      * deciding "not found" from the SHAPE of an id rather than from the data.
      */
-    await expect(savePostCommand({ userId: 'viewer-a', postId }))
-      .rejects.toBeInstanceOf(EngagementPostNotFoundError);
-    await expect(votePostCommand({ userId: 'viewer-a', postId, value: 1 }))
-      .rejects.toBeInstanceOf(EngagementPostNotFoundError);
-    expect(
-      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
-    ).toHaveLength(0);
+    await expect(savePostCommand({ userId: 'viewer-a', postId })).rejects.toBeInstanceOf(
+      EngagementPostNotFoundError,
+    );
+    await expect(votePostCommand({ userId: 'viewer-a', postId, value: 1 })).rejects.toBeInstanceOf(
+      EngagementPostNotFoundError,
+    );
+    expect(await db.select().from(bookmarks).where(eq(bookmarks.postId, postId))).toHaveLength(0);
   });
 });
 
@@ -580,10 +572,7 @@ describe('materializing a verified MTN relationship', () => {
     // The record was already signed and appended; re-emitting it would sign it
     // twice and federate a Like the origin never made.
     expect(
-      await db
-        .select()
-        .from(engagementOutbox)
-        .where(eq(engagementOutbox.payloadPostId, postId)),
+      await db.select().from(engagementOutbox).where(eq(engagementOutbox.payloadPostId, postId)),
     ).toHaveLength(0);
   });
 
@@ -716,16 +705,21 @@ describe('materializing a verified MTN relationship', () => {
 
 describe('the durable event id', () => {
   it('is derived from the relationship transition, not the request', () => {
-    expect(engagementOutboxEventId('post.like', 'like-1', 3))
-      .toBe('engagement:post.like:like-1:v3');
-    expect(engagementOutboxEventId('post.like', 'like-1', 3))
-      .toBe(engagementOutboxEventId('post.like', 'like-1', 3));
-    expect(engagementOutboxEventId('post.like', 'like-1', 4))
-      .not.toBe(engagementOutboxEventId('post.like', 'like-1', 3));
-    expect(engagementOutboxEventId('post.like', 'like-1', 0))
-      .toBe('engagement:post.like:like-1:v1');
-    expect(engagementOutboxEventId('post.like', 'like-1', Number.NaN))
-      .toBe('engagement:post.like:like-1:v1');
+    expect(engagementOutboxEventId('post.like', 'like-1', 3)).toBe(
+      'engagement:post.like:like-1:v3',
+    );
+    expect(engagementOutboxEventId('post.like', 'like-1', 3)).toBe(
+      engagementOutboxEventId('post.like', 'like-1', 3),
+    );
+    expect(engagementOutboxEventId('post.like', 'like-1', 4)).not.toBe(
+      engagementOutboxEventId('post.like', 'like-1', 3),
+    );
+    expect(engagementOutboxEventId('post.like', 'like-1', 0)).toBe(
+      'engagement:post.like:like-1:v1',
+    );
+    expect(engagementOutboxEventId('post.like', 'like-1', Number.NaN)).toBe(
+      'engagement:post.like:like-1:v1',
+    );
   });
 });
 
@@ -1024,19 +1018,15 @@ describe('claiming, leasing and releasing', () => {
     });
     const at = new Date(PAST_CLAIM_AT.getTime() + 1_000);
 
-    await expect(renewEngagementOutboxEvent(eventId, 'worker-b', 60_000, at))
-      .resolves.toBe(false);
-    await expect(completeEngagementOutboxEvent(eventId, 'worker-b', at))
-      .resolves.toBe(false);
+    await expect(renewEngagementOutboxEvent(eventId, 'worker-b', 60_000, at)).resolves.toBe(false);
+    await expect(completeEngagementOutboxEvent(eventId, 'worker-b', at)).resolves.toBe(false);
     await expect(
       failEngagementOutboxEvent({ id: eventId, attempts: 1 }, 'worker-b', new Error('x'), at),
     ).resolves.toBe(false);
     expect((await outboxRow(eventId))?.status).toBe('processing');
 
-    await expect(renewEngagementOutboxEvent(eventId, 'worker-a', 90_000, at))
-      .resolves.toBe(true);
-    await expect(completeEngagementOutboxEvent(eventId, 'worker-a', at))
-      .resolves.toBe(true);
+    await expect(renewEngagementOutboxEvent(eventId, 'worker-a', 90_000, at)).resolves.toBe(true);
+    await expect(completeEngagementOutboxEvent(eventId, 'worker-a', at)).resolves.toBe(true);
     const completed = await outboxRow(eventId);
     expect(completed?.status).toBe('processed');
     expect(completed?.leaseOwner).toBeNull();
@@ -1230,12 +1220,8 @@ describe('dispatching', () => {
     const eventId = saved.outboxEventId ?? '';
     await claimEngagementOutboxEvent({ leaseOwner: 'worker-a', eventId });
 
-    await expect(
-      markEngagementOutboxEffectDone(eventId, 'worker-b', 'mtn'),
-    ).resolves.toBe(false);
-    await expect(
-      markEngagementOutboxEffectDone(eventId, 'worker-a', 'mtn'),
-    ).resolves.toBe(true);
+    await expect(markEngagementOutboxEffectDone(eventId, 'worker-b', 'mtn')).resolves.toBe(false);
+    await expect(markEngagementOutboxEffectDone(eventId, 'worker-a', 'mtn')).resolves.toBe(true);
     expect((await outboxRow(eventId))?.completedEffects).toEqual(['mtn']);
   });
 

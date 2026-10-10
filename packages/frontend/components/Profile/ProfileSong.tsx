@@ -24,7 +24,11 @@ interface ProfileSongProps {
  * (long-press the row or tap the edit affordance). Placed right after the profile
  * stats. Mirrors `LinkSummary`'s compact-row shape.
  */
-export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdit }: ProfileSongProps) {
+export const ProfileSong = memo(function ProfileSong({
+  song,
+  isOwnProfile,
+  onEdit,
+}: ProfileSongProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const preview = useProfileSongPreview(song.previewUrl);
@@ -35,7 +39,9 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
         isPlaying={preview.isPlaying}
         isLoading={preview.isLoading}
         onPress={preview.toggle}
-        accessibilityLabel={preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')}
+        accessibilityLabel={
+          preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')
+        }
       />
       <Pressable
         className="flex-row items-center gap-2 shrink"

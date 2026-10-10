@@ -199,7 +199,6 @@ beforeEach(async () => {
   });
 
   h.isBlockedDomain.mockImplementation((domain: string) => h.state.blockedLocally.has(domain));
-
 });
 
 describe('parseDomainBlocks', () => {
@@ -299,7 +298,9 @@ describe('buildCorroboration', () => {
     const { byDomain, obfuscation } = buildCorroboration(
       [
         published('a.example', [{ domain: 'spa*.example', severity: 'suspend', digest }]),
-        published('b.example', [{ domain: 'oth**.example', severity: 'suspend', digest: 'b'.repeat(64) }]),
+        published('b.example', [
+          { domain: 'oth**.example', severity: 'suspend', digest: 'b'.repeat(64) },
+        ]),
       ],
       digestIndex,
     );
@@ -389,8 +390,14 @@ describe('reportFederationBlocklistCandidates', () => {
   });
 
   it('keeps suspend and silence separate on the candidate it reports', async () => {
-    h.state.responses.set('a.example', { status: 200, body: [block('mixed.example', 'suspend', 'Hate speech')] });
-    h.state.responses.set('b.example', { status: 200, body: [block('mixed.example', 'silence', 'Untagged porn')] });
+    h.state.responses.set('a.example', {
+      status: 200,
+      body: [block('mixed.example', 'suspend', 'Hate speech')],
+    });
+    h.state.responses.set('b.example', {
+      status: 200,
+      body: [block('mixed.example', 'silence', 'Untagged porn')],
+    });
     h.state.responses.set('c.example', { status: 200, body: [block('mixed.example', 'noop')] });
 
     const report = await reportFederationBlocklistCandidates({ sources });
@@ -485,7 +492,10 @@ describe('reportFederationBlocklistCandidates', () => {
     const digest = createHash('sha256').update('spam.example').digest('hex');
     // We hold nothing from spam.example, so the corpus alone cannot name it —
     // only the cross-seed from a.example's plain listing can.
-    h.state.responses.set('a.example', { status: 200, body: [block('spam.example', 'suspend', 'Hate speech')] });
+    h.state.responses.set('a.example', {
+      status: 200,
+      body: [block('spam.example', 'suspend', 'Hate speech')],
+    });
     h.state.responses.set('b.example', {
       status: 200,
       body: [{ domain: 'spa*.example', severity: 'suspend', comment: 'Hate speech', digest }],
@@ -499,7 +509,10 @@ describe('reportFederationBlocklistCandidates', () => {
     expect(report.candidates.map((c) => c.domain)).toEqual(['spam.example']);
     // Without the cross-seed this reads as a single-source opinion and is dropped.
     expect(report.candidates[0].sourceCount).toBe(2);
-    expect(report.candidates[0].observations.map((o) => o.resolvedFromDigest)).toEqual([false, true]);
+    expect(report.candidates[0].observations.map((o) => o.resolvedFromDigest)).toEqual([
+      false,
+      true,
+    ]);
   });
 
   it('polls the SSRF-safe transport at the published Mastodon endpoint', async () => {

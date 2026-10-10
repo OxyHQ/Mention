@@ -228,14 +228,16 @@ beforeEach(async () => {
       // The videos lane is the Reels surface: portrait, long enough to be worth
       // auto-advancing to, and with real dimensions. A media row missing any of
       // those is deliberately NOT a candidate.
-      media: [{
-        id: 'parity-video-1',
-        type: 'video',
-        orientation: MtnConfig.videosFeed.defaultOrientation,
-        durationSec: MtnConfig.videosFeed.minDurationSec,
-        width: 720,
-        height: 1280,
-      }],
+      media: [
+        {
+          id: 'parity-video-1',
+          type: 'video',
+          orientation: MtnConfig.videosFeed.defaultOrientation,
+          durationSec: MtnConfig.videosFeed.minDurationSec,
+          width: 720,
+          height: 1280,
+        },
+      ],
     },
   });
   await seed('profile-image', PROFILE, 2, {
@@ -248,7 +250,6 @@ beforeEach(async () => {
   });
   const saved = await seed('stranger-saved', STRANGER, 1, { createdAt: at(5) });
   await db.insert(bookmarks).values({ userId: VIEWER, postId: saved });
-
 });
 
 afterEach(async () => {

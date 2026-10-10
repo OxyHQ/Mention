@@ -22,12 +22,12 @@ export async function patchPostMediaMetadata(postId: string): Promise<boolean> {
   const changed = enriched.some((item, index) => {
     const prev = current[index];
     return (
-      item.width !== prev.width
-      || item.height !== prev.height
-      || item.durationSec !== prev.durationSec
-      || item.orientation !== prev.orientation
-      || item.aspectRatio !== prev.aspectRatio
-      || item.sizeBytes !== prev.sizeBytes
+      item.width !== prev.width ||
+      item.height !== prev.height ||
+      item.durationSec !== prev.durationSec ||
+      item.orientation !== prev.orientation ||
+      item.aspectRatio !== prev.aspectRatio ||
+      item.sizeBytes !== prev.sizeBytes
     );
   });
 

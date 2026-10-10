@@ -21,7 +21,7 @@ import { searchService, type SearchAllSource, type SearchResults } from '@/servi
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string | { defaultValue?: string }) =>
-      typeof fallback === 'string' ? fallback : fallback?.defaultValue ?? key,
+      typeof fallback === 'string' ? fallback : (fallback?.defaultValue ?? key),
   }),
 }));
 
@@ -48,18 +48,32 @@ jest.mock('@/utils/api', () => ({
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: { httpService: { get: jest.fn() } } }));
 jest.mock('@/services/feedService', () => ({ feedService: { getSavedPosts: jest.fn() } }));
 jest.mock('@/utils/storage', () => ({
-  Storage: { get: jest.fn(async () => null), set: jest.fn(async () => undefined), remove: jest.fn(async () => undefined) },
+  Storage: {
+    get: jest.fn(async () => null),
+    set: jest.fn(async () => undefined),
+    remove: jest.fn(async () => undefined),
+  },
 }));
 
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
-jest.mock('@/hooks/useDismissKeyboardOnBlur', () => ({ useDismissKeyboardOnBlur: () => undefined }));
+jest.mock('@/hooks/useDismissKeyboardOnBlur', () => ({
+  useDismissKeyboardOnBlur: () => undefined,
+}));
 jest.mock('@/hooks/useExternalActorResolve', () => ({ useExternalActorResolve: () => null }));
-jest.mock('@/hooks/useTrendNavigation', () => ({ useTrendNavigation: () => ({ navigateToTrend: jest.fn() }) }));
+jest.mock('@/hooks/useTrendNavigation', () => ({
+  useTrendNavigation: () => ({ navigateToTrend: jest.fn() }),
+}));
 
 jest.mock('@/stores/trendsStore', () => {
   const state = {
-    trends: [], hiddenTrendIds: [], isLoading: false, hasFetched: true, error: null,
-    fetchTrends: () => undefined, startPolling: () => 'subscription', stopPolling: () => undefined,
+    trends: [],
+    hiddenTrendIds: [],
+    isLoading: false,
+    hasFetched: true,
+    error: null,
+    fetchTrends: () => undefined,
+    startPolling: () => 'subscription',
+    stopPolling: () => undefined,
   };
   return { useTrendsStore: (select: (value: typeof state) => unknown) => select(state) };
 });
@@ -70,7 +84,9 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 function mockStub(name: string) {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
-  const Stub = (props: { children?: import('react').ReactNode }) => <RNText testID={name}>{props.children ?? null}</RNText>;
+  const Stub = (props: { children?: import('react').ReactNode }) => (
+    <RNText testID={name}>{props.children ?? null}</RNText>
+  );
   Stub.displayName = name;
   return Stub;
 }
@@ -92,10 +108,17 @@ jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/components/Error', () => ({ Error: mockStub('error') }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: mockStub('empty') }));
 jest.mock('@/components/trending/TrendItemRow', () => ({ TrendItemRow: mockStub('trend') }));
-jest.mock('@/components/search/ExternalActorFollowButton', () => ({ ExternalActorFollowButton: mockStub('follow') }));
+jest.mock('@/components/search/ExternalActorFollowButton', () => ({
+  ExternalActorFollowButton: mockStub('follow'),
+}));
 jest.mock('@/components/Feed/PostItem', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: ({ post }: { post: { id: string } }) => <RNText testID={`post-${post.id}`}>{post.id}</RNText> };
+  return {
+    __esModule: true,
+    default: ({ post }: { post: { id: string } }) => (
+      <RNText testID={`post-${post.id}`}>{post.id}</RNText>
+    ),
+  };
 });
 jest.mock('@/components/ProfileCard', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -106,7 +129,10 @@ jest.mock('@/components/ProfileCard', () => {
     ProfileCardSkeletonList: mockStub('profile-skeleton'),
   };
 });
-jest.mock('@/components/FeedCard', () => ({ FeedCard: mockStub('feed'), FeedCardSkeleton: mockStub('feed-skeleton') }));
+jest.mock('@/components/FeedCard', () => ({
+  FeedCard: mockStub('feed'),
+  FeedCardSkeleton: mockStub('feed-skeleton'),
+}));
 jest.mock('@/components/ListCard', () => ({ ListCard: mockStub('list') }));
 jest.mock('@/components/StarterPackCard', () => ({
   StarterPackCard: mockStub('pack'),
@@ -127,7 +153,9 @@ jest.mock('@shopify/flash-list', () => {
       <>
         {props.ListHeaderComponent}
         {props.data.map((item) => (
-          <React_.Fragment key={props.keyExtractor(item)}>{props.renderItem({ item })}</React_.Fragment>
+          <React_.Fragment key={props.keyExtractor(item)}>
+            {props.renderItem({ item })}
+          </React_.Fragment>
         ))}
       </>
     ),
@@ -140,7 +168,10 @@ const PEOPLE: SearchResults = {
   users: [{ id: 'u-1', username: 'rustacean' } as never],
 };
 const OVERVIEW: SearchResults = {
-  hashtags: [{ tag: 'rustlang', count: 12 } as never], feeds: [], lists: [], starterPacks: [],
+  hashtags: [{ tag: 'rustlang', count: 12 } as never],
+  feeds: [],
+  lists: [],
+  starterPacks: [],
 };
 const POSTS: SearchResults = { posts: [{ id: 'p-1' } as never] };
 
@@ -151,10 +182,16 @@ beforeEach(() => {
   jest.spyOn(searchService, 'getSearchHistory').mockResolvedValue([]);
   jest.spyOn(searchService, 'searchAllSource').mockImplementation((source: SearchAllSource) => {
     switch (source) {
-      case 'users': return Promise.resolve(PEOPLE);
-      case 'overview': return Promise.resolve(OVERVIEW);
-      case 'saved': return Promise.resolve({ saved: [] });
-      case 'posts': return new Promise<SearchResults>((resolve) => { releasePosts = resolve; });
+      case 'users':
+        return Promise.resolve(PEOPLE);
+      case 'overview':
+        return Promise.resolve(OVERVIEW);
+      case 'saved':
+        return Promise.resolve({ saved: [] });
+      case 'posts':
+        return new Promise<SearchResults>((resolve) => {
+          releasePosts = resolve;
+        });
     }
   });
 });
@@ -179,7 +216,9 @@ async function renderScreen(): Promise<{ renderer: ReactTestRenderer; client: Qu
 
 /** Let resolved sources reach the screen (React Query notifies on a timer tick). */
 async function settle(): Promise<void> {
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 function has(renderer: ReactTestRenderer, testID: string): boolean {
@@ -207,31 +246,41 @@ describe('the All search tab', () => {
     expect(has(renderer, 'loading')).toBe(false);
     expect(has(renderer, 'search-refreshing')).toBe(true);
 
-    await act(async () => { renderer.unmount(); });
+    await act(async () => {
+      renderer.unmount();
+    });
     client.clear();
   });
 
   it('adds the Posts section when the posts search answers, and drops the hairline', async () => {
     const { renderer, client } = await renderScreen();
 
-    await act(async () => { releasePosts(POSTS); });
+    await act(async () => {
+      releasePosts(POSTS);
+    });
     await settle();
 
     expect(has(renderer, 'post-p-1')).toBe(true);
     expect(has(renderer, 'profile-rustacean')).toBe(true);
     expect(has(renderer, 'search-refreshing')).toBe(false);
 
-    await act(async () => { renderer.unmount(); });
+    await act(async () => {
+      renderer.unmount();
+    });
     client.clear();
   });
 
   it('asks each source on its own, once', async () => {
     const { renderer, client } = await renderScreen();
 
-    const asked = (searchService.searchAllSource as jest.Mock).mock.calls.map(([source]) => source).sort();
+    const asked = (searchService.searchAllSource as jest.Mock).mock.calls
+      .map(([source]) => source)
+      .sort();
     expect(asked).toEqual(['overview', 'posts', 'saved', 'users']);
 
-    await act(async () => { renderer.unmount(); });
+    await act(async () => {
+      renderer.unmount();
+    });
     client.clear();
   });
 });

@@ -1,5 +1,10 @@
 import { scanTextEntities, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
-import { escapeApHtml, escapeApHtmlAttr, normalizeApBody, wrapApParagraphs } from './plainTextToApHtml';
+import {
+  escapeApHtml,
+  escapeApHtmlAttr,
+  normalizeApBody,
+  wrapApParagraphs,
+} from './plainTextToApHtml';
 
 /**
  * A resolved @mention link: the actor `href` (the anchor target AND the Note's

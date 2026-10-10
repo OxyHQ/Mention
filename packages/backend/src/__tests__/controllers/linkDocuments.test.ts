@@ -70,19 +70,39 @@ const VIEWER = scope.user('viewer');
 const ARTICLE = 'https://example.com/article';
 
 function document(url: string, title: string) {
-  return { id: `doc:${url}`, canonicalUrl: url, title, type: 'page', status: 'indexed', authors: [], evidence: {} };
+  return {
+    id: `doc:${url}`,
+    canonicalUrl: url,
+    title,
+    type: 'page',
+    status: 'indexed',
+    authors: [],
+    evidence: {},
+  };
 }
 
 function makeReq(body: unknown, userId: string | undefined = VIEWER) {
-  return { user: userId ? { id: userId } : undefined, params: {}, query: {}, headers: {}, body } as never;
+  return {
+    user: userId ? { id: userId } : undefined,
+    params: {},
+    query: {},
+    headers: {},
+    body,
+  } as never;
 }
 
 function makeRes() {
   return {
     statusCode: 200,
     body: undefined as unknown,
-    status(code: number) { this.statusCode = code; return this; },
-    json(body: unknown) { this.body = body; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+      return this;
+    },
   };
 }
 
@@ -113,14 +133,18 @@ function withText(text: string) {
 
 describe('POST /posts/documents', () => {
   it('returns the cards Clarity now has, waiting on it off the render path', async () => {
-    resolve.mockResolvedValue({ data: [{ url: ARTICLE, status: 'indexed', document: document(ARTICLE, 'Article') }] });
+    resolve.mockResolvedValue({
+      data: [{ url: ARTICLE, status: 'indexed', document: document(ARTICLE, 'Article') }],
+    });
     const post = await seedPost(scope, withText(`read ${ARTICLE}`));
     const res = makeRes();
 
     await getPostDocuments(makeReq({ ids: [post.id] }), res as never);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ posts: { [post.id]: { documents: [expect.objectContaining({ title: 'Article' })] } } });
+    expect(res.body).toEqual({
+      posts: { [post.id]: { documents: [expect.objectContaining({ title: 'Article' })] } },
+    });
     expect(resolve).toHaveBeenCalledWith({ urls: [ARTICLE], waitMs: 3_000 });
   });
 
@@ -135,8 +159,13 @@ describe('POST /posts/documents', () => {
   });
 
   it('answers nothing for a post the viewer may not read', async () => {
-    resolve.mockResolvedValue({ data: [{ url: ARTICLE, status: 'indexed', document: document(ARTICLE, 'Secret') }] });
-    const hidden = await seedPost(scope, { ...withText(`read ${ARTICLE}`), visibility: PostVisibility.PRIVATE });
+    resolve.mockResolvedValue({
+      data: [{ url: ARTICLE, status: 'indexed', document: document(ARTICLE, 'Secret') }],
+    });
+    const hidden = await seedPost(scope, {
+      ...withText(`read ${ARTICLE}`),
+      visibility: PostVisibility.PRIVATE,
+    });
     const res = makeRes();
 
     await getPostDocuments(makeReq({ ids: [hidden.id] }, undefined), res as never);
@@ -175,8 +204,9 @@ describe('POST /posts/link-previews', () => {
     await resolveLinkPreviews(makeReq({ urls: [second, ARTICLE] }), res as never);
 
     expect(resolve).toHaveBeenCalledWith({ urls: [second, ARTICLE], waitMs: 8_000 });
-    expect((res.body as { previews: Array<{ url: string }> }).previews.map((preview) => preview.url))
-      .toEqual([second, ARTICLE]);
+    expect(
+      (res.body as { previews: Array<{ url: string }> }).previews.map((preview) => preview.url),
+    ).toEqual([second, ARTICLE]);
   });
 
   it('lists a link Clarity is still indexing as pending', async () => {
@@ -200,7 +230,10 @@ describe('POST /posts/link-previews', () => {
   it('drops anything that is not an http(s) URL', async () => {
     const res = makeRes();
 
-    await resolveLinkPreviews(makeReq({ urls: ['javascript:alert(1)', 'not a url'] }), res as never);
+    await resolveLinkPreviews(
+      makeReq({ urls: ['javascript:alert(1)', 'not a url'] }),
+      res as never,
+    );
 
     expect(resolve).not.toHaveBeenCalled();
     expect(res.body).toEqual({ previews: [], pending: [] });

@@ -52,7 +52,11 @@ export default function ChannelsScreen() {
   const [handle, setHandle] = useState('');
   const [title, setTitle] = useState('');
 
-  const { data: accounts = [], isLoading, refetch } = useQuery<AccountNode[]>({
+  const {
+    data: accounts = [],
+    isLoading,
+    refetch,
+  } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(user?.id),
     queryFn: () => oxyServices.accounts.list(),
     enabled: canUsePrivateApi,
@@ -92,9 +96,7 @@ export default function ChannelsScreen() {
     },
     onError: (error) => {
       logger.error('[Channels] Failed to create a channel', error);
-      toast.error(
-        t('channels.createFailed', { defaultValue: 'Failed to create the channel' }),
-      );
+      toast.error(t('channels.createFailed', { defaultValue: 'Failed to create the channel' }));
     },
   });
 
@@ -115,7 +117,8 @@ export default function ChannelsScreen() {
       <SignInRequired
         label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
         description={t('channels.signInRequiredDesc', {
-          defaultValue: 'A channel is an account people follow without following the people who write for it.',
+          defaultValue:
+            'A channel is an account people follow without following the people who write for it.',
         })}
       >
         <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">

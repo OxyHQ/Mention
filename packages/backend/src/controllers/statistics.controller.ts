@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getBaseLanguage, getPrimaryLanguage } from '@oxy.so/core';
 import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';
@@ -138,10 +138,7 @@ interface UserStatisticsPayload {
   postsByType: Record<string, number>;
 }
 
-const statisticsCache = new Map<
-  string,
-  { expiresAt: number; value: UserStatisticsPayload }
->();
+const statisticsCache = new Map<string, { expiresAt: number; value: UserStatisticsPayload }>();
 
 function cacheStatistics(key: string, value: UserStatisticsPayload): void {
   statisticsCache.delete(key);
@@ -182,10 +179,7 @@ function rounded(value: number): number {
  * have. The same reasoning is why `routes/customFeeds.routes.ts` counts its
  * paginated listings with a second query.
  */
-async function queryUserStatistics(
-  userId: string,
-  days: number,
-): Promise<UserStatisticsPayload> {
+async function queryUserStatistics(userId: string, days: number): Promise<UserStatisticsPayload> {
   const cacheKey = `${userId}:${days}`;
   const cached = statisticsCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
@@ -328,9 +322,7 @@ async function queryUserStatistics(
       engagement: row.engagement,
       createdAt: row.createdAt,
     })),
-    postsByType: Object.fromEntries(
-      facets.typeRows.map(({ type, count }) => [type, count]),
-    ),
+    postsByType: Object.fromEntries(facets.typeRows.map(({ type, count }) => [type, count])),
   };
   cacheStatistics(cacheKey, value);
   return value;
@@ -433,7 +425,7 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
     logger.error('Error fetching user statistics:', error);
     res.status(500).json({
       message: 'Error fetching user statistics',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -486,9 +478,9 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
     // Window boundary in UTC — end of today minus `days`. The request timezone is
     // never read; both the boundary and the per-day buckets are computed in UTC.
     const now = new Date();
-    const endOfToday = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999
-    ));
+    const endOfToday = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999),
+    );
     const startDate = new Date(endOfToday.getTime() - days * 24 * 60 * 60 * 1000);
 
     // Count authored posts per UTC day: original posts + replies + quotes, but
@@ -524,7 +516,7 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
     logger.error('Error fetching user activity:', error);
     res.status(500).json({
       message: 'Error fetching user activity',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -612,9 +604,15 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     const related = await withStatisticsTimeout(async (tx) => {
       const [row] = await tx
         .select({
-          replies: sql<number>`count(*) filter (where ${posts.parentPostId} = ${post.id})`.mapWith(Number),
-          boosts: sql<number>`count(*) filter (where ${posts.boostOf} = ${post.id})`.mapWith(Number),
-          quotes: sql<number>`count(*) filter (where ${posts.quoteOf} = ${post.id})`.mapWith(Number),
+          replies: sql<number>`count(*) filter (where ${posts.parentPostId} = ${post.id})`.mapWith(
+            Number,
+          ),
+          boosts: sql<number>`count(*) filter (where ${posts.boostOf} = ${post.id})`.mapWith(
+            Number,
+          ),
+          quotes: sql<number>`count(*) filter (where ${posts.quoteOf} = ${post.id})`.mapWith(
+            Number,
+          ),
         })
         .from(posts)
         .where(
@@ -632,10 +630,9 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     // Calculate engagement metrics. The counters are `NOT NULL DEFAULT 0`
     // columns, so the `post.stats || { … }` fallback the Mongo version needed
     // for a document with no `stats` subdocument has nothing left to guard.
-    const totalInteractions = post.likesCount + post.commentsCount + post.boostsCount + post.sharesCount;
-    const engagementRate = post.viewsCount > 0
-      ? (totalInteractions / post.viewsCount) * 100
-      : 0;
+    const totalInteractions =
+      post.likesCount + post.commentsCount + post.boostsCount + post.sharesCount;
+    const engagementRate = post.viewsCount > 0 ? (totalInteractions / post.viewsCount) * 100 : 0;
 
     res.json({
       postId: post.id,
@@ -646,7 +643,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         replies: related.replies,
         boosts: related.boosts,
         quotes: related.quotes,
-        shares: post.sharesCount
+        shares: post.sharesCount,
       },
       engagement: {
         totalInteractions,
@@ -661,14 +658,14 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         likedBy: post.likesCount,
         hasReplies: related.replies > 0,
         hasBoosts: related.boosts > 0,
-        hasQuotes: related.quotes > 0
-      }
+        hasQuotes: related.quotes > 0,
+      },
     });
   } catch (error) {
     logger.error('Error fetching post insights:', error);
     res.status(500).json({
       message: 'Error fetching post insights',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -729,7 +726,7 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
     logger.error('Error tracking post view:', error);
     res.status(500).json({
       message: 'Error tracking post view',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -790,11 +787,11 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         likeRate: parseFloat(likeRate.toFixed(2)),
         replyRate: parseFloat(replyRate.toFixed(2)),
         boostRate: parseFloat(boostRate.toFixed(2)),
-        shareRate: parseFloat(shareRate.toFixed(2))
+        shareRate: parseFloat(shareRate.toFixed(2)),
       },
       averages: {
         viewsPerPost: parseFloat(avgViewsPerPost.toFixed(2)),
-        engagementPerPost: parseFloat(avgEngagementPerPost.toFixed(2))
+        engagementPerPost: parseFloat(avgEngagementPerPost.toFixed(2)),
       },
       totals: {
         posts: totalPosts,
@@ -803,14 +800,14 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         likes: totalLikes,
         replies: totalReplies,
         boosts: totalBoosts,
-        shares: totalShares
-      }
+        shares: totalShares,
+      },
     });
   } catch (error) {
     logger.error('Error fetching engagement ratios:', error);
     res.status(500).json({
       message: 'Error fetching engagement ratios',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -859,10 +856,13 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
         language = baseLanguage;
       }
     } catch (error) {
-      logger.warn('[statistics] Failed to resolve viewer language for the weekly summary; using English', {
-        userId,
-        reason: error instanceof Error ? error.message : 'unknown',
-      });
+      logger.warn(
+        '[statistics] Failed to resolve viewer language for the weekly summary; using English',
+        {
+          userId,
+          reason: error instanceof Error ? error.message : 'unknown',
+        },
+      );
     }
 
     const { startDate } = getDateRange(14);
@@ -920,8 +920,8 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const currentWeekPosts = postRows.filter(p => p.createdAt >= sevenDaysAgo);
-    const previousWeekPosts = postRows.filter(p => p.createdAt < sevenDaysAgo);
+    const currentWeekPosts = postRows.filter((p) => p.createdAt >= sevenDaysAgo);
+    const previousWeekPosts = postRows.filter((p) => p.createdAt < sevenDaysAgo);
 
     const computeStats = (postList: typeof postRows) => {
       const totalPosts = postList.length;
@@ -939,7 +939,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
 
     const delta = (cur: number, prev: number): string => {
       if (prev === 0) return cur > 0 ? '+100' : '0';
-      return ((cur - prev) / prev * 100).toFixed(0);
+      return (((cur - prev) / prev) * 100).toFixed(0);
     };
 
     // Skip AI call if the user had no activity in either week — nothing meaningful to summarize
@@ -953,8 +953,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       const type = p.type || 'text';
       postTypeMap[type] = (postTypeMap[type] || 0) + 1;
     }
-    const topPostType = Object.entries(postTypeMap)
-      .sort((a, b) => b[1] - a[1])[0];
+    const topPostType = Object.entries(postTypeMap).sort((a, b) => b[1] - a[1])[0];
 
     // Find the user's strongest interaction type this week
     const interactionRanking = [
@@ -968,7 +967,8 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     // Format the week's date range for context
     const weekStart = new Date(sevenDaysAgo);
     const weekEnd = new Date();
-    const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const formatDate = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const dateRange = `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
 
     const lines = [
@@ -981,12 +981,14 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       lines.push(`Most used post type this week: ${topPostType[0]} (${topPostType[1]} posts).`);
     }
     if (strongestInteraction.count > 0) {
-      lines.push(`Strongest interaction: ${strongestInteraction.type} (${strongestInteraction.count}). Weakest: ${weakestInteraction.type} (${weakestInteraction.count}).`);
+      lines.push(
+        `Strongest interaction: ${strongestInteraction.type} (${strongestInteraction.count}). Weakest: ${weakestInteraction.type} (${weakestInteraction.count}).`,
+      );
     }
 
     // Find the best-performing post this week by total engagement
     const bestPost = currentWeekPosts
-      .map(p => ({
+      .map((p) => ({
         engagement: p.likes + p.replies + p.boosts,
         views: p.views,
         type: p.type || 'text',
@@ -996,7 +998,9 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       .sort((a, b) => b.engagement - a.engagement)[0];
 
     if (bestPost && bestPost.engagement > 0) {
-      lines.push(`Best post this week: ${bestPost.type} post with ${bestPost.views} views and ${bestPost.engagement} interactions${bestPost.contentSnippet ? ` — "${bestPost.contentSnippet}${bestPost.contentSnippet.length >= 80 ? '...' : ''}"` : ''}.`);
+      lines.push(
+        `Best post this week: ${bestPost.type} post with ${bestPost.views} views and ${bestPost.engagement} interactions${bestPost.contentSnippet ? ` — "${bestPost.contentSnippet}${bestPost.contentSnippet.length >= 80 ? '...' : ''}"` : ''}.`,
+      );
     }
 
     // Find the most active day this week

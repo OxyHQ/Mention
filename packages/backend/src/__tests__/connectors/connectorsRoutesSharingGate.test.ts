@@ -3,10 +3,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-} from '../../__tests__/helpers/federationFixtures';
+import { clearFederationScope, federationScope } from '../../__tests__/helpers/federationFixtures';
 
 const scope = federationScope('connectors-routes-sharing-gate');
 

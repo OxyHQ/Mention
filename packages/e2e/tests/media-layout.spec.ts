@@ -236,7 +236,11 @@ test('an image post renders one layout, never a fallback then a jump', async ({
           top = Math.max(top, 0);
           right = Math.min(right, window.innerWidth);
           bottom = Math.min(bottom, window.innerHeight);
-          for (let node = image.parentElement; node && node !== document.body; node = node.parentElement) {
+          for (
+            let node = image.parentElement;
+            node && node !== document.body;
+            node = node.parentElement
+          ) {
             const style = getComputedStyle(node);
             if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
             const clip = node.getBoundingClientRect();
@@ -280,9 +284,9 @@ test('an image post renders one layout, never a fallback then a jump', async ({
           `${geometry.withoutGeometry.size} media item(s), none of them with dimensions: the DTO ` +
           `has stopped sending them again.`
       : `the feed described ${geometry.withGeometry.size} media URL(s) with geometry and ` +
-        `${geometry.withoutGeometry.size} without, but none of them rendered within ` +
-        `${MAX_FEED_SCREENS} screens of feed. The DTO is intact, so this is the page not ` +
-        `painting the media it was given.`,
+          `${geometry.withoutGeometry.size} without, but none of them rendered within ` +
+          `${MAX_FEED_SCREENS} screens of feed. The DTO is intact, so this is the page not ` +
+          `painting the media it was given.`,
   ).toBeGreaterThan(0);
 
   // The jump is driven by the image finishing its load — that is the moment the

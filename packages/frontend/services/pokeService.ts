@@ -55,7 +55,9 @@ class PokeService {
   }
 
   async getSuggested(): Promise<{ suggestions: SuggestedPoke[] }> {
-    const resp = await authenticatedClient.get<{ suggestions: SuggestedPoke[] }>('/pokes/suggested');
+    const resp = await authenticatedClient.get<{ suggestions: SuggestedPoke[] }>(
+      '/pokes/suggested',
+    );
     return resp.data;
   }
 }

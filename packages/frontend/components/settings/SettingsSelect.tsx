@@ -1,14 +1,14 @@
 import {
-Select,
-SelectContent,
-SelectIcon,
-SelectItem,
-SelectItemIndicator,
-SelectItemText,
-SelectTrigger,
-SelectValue,
-} from "@oxy.so/bloom/select";
-import { StyleSheet } from "react-native";
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import { StyleSheet } from 'react-native';
 
 /** The compact select composition used by Bloom's SettingsGeneralPage template. */
 export function SettingsSelect<T extends string>({
@@ -34,12 +34,8 @@ export function SettingsSelect<T extends string>({
         <SelectValue>
           {(value) => {
             const key =
-              typeof value === "object" && value !== null && "value" in value
-                ? value.value
-                : value;
-            return (
-              items.find((item) => item.value === key)?.label ?? String(key)
-            );
+              typeof value === 'object' && value !== null && 'value' in value ? value.value : value;
+            return items.find((item) => item.value === key)?.label ?? String(key);
           }}
         </SelectValue>
         <SelectIcon />

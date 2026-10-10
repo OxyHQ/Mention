@@ -123,7 +123,7 @@ describe('the search vector carries the labels GIF_RANK_WEIGHTS is derived from'
   });
 });
 
-describe('searchLocal ranking — Mongo\'s 5:1 searchTerms:title weighting', () => {
+describe("searchLocal ranking — Mongo's 5:1 searchTerms:title weighting", () => {
   it('ranks ONE searchTerms hit above THREE title hits', async () => {
     /**
      * THE order test, and the documents are chosen because the two weightings
@@ -167,9 +167,21 @@ describe('searchLocal ranking — Mongo\'s 5:1 searchTerms:title weighting', () 
     // order comes from the tiebreaks. Without them a `limit` cuts an arbitrary,
     // run-to-run-varying slice of the tie.
     const term = uniqueTerm('tie');
-    const cold = await seedGif({ searchTerms: [term], useCount: 1, lastUsedAt: new Date('2026-01-01T00:00:00.000Z') });
-    const warm = await seedGif({ searchTerms: [term], useCount: 1, lastUsedAt: new Date('2026-02-01T00:00:00.000Z') });
-    const hot = await seedGif({ searchTerms: [term], useCount: 9, lastUsedAt: new Date('2026-01-01T00:00:00.000Z') });
+    const cold = await seedGif({
+      searchTerms: [term],
+      useCount: 1,
+      lastUsedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const warm = await seedGif({
+      searchTerms: [term],
+      useCount: 1,
+      lastUsedAt: new Date('2026-02-01T00:00:00.000Z'),
+    });
+    const hot = await seedGif({
+      searchTerms: [term],
+      useCount: 9,
+      lastUsedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
 
     const results = await searchLocal(term, 10);
 
@@ -234,7 +246,11 @@ describe('re-surfacing an already-owned GIF appends terms as a SET', () => {
    * upload, straight to the append — so this exercises the real
    * `$addToSet`-replacement without touching the network.
    */
-  async function resurface(gif: GifRecord, extra: { title?: string; tags?: string[] }, queryTerm?: string) {
+  async function resurface(
+    gif: GifRecord,
+    extra: { title?: string; tags?: string[] },
+    queryTerm?: string,
+  ) {
     return importKlipyItem(
       {
         klipyId: gif.klipyId,

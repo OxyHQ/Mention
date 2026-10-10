@@ -136,12 +136,14 @@ export class InterestScoreService {
     return rows.flatMap((r) => {
       const oxyUserId = r.oxyUserId;
       if (typeof oxyUserId !== 'string' || oxyUserId.length === 0) return [];
-      return [{
-        oxyUserId,
-        raw: r.raw,
-        postCount: r.postCount,
-        lastPostMs: r.lastPost.getTime(),
-      }];
+      return [
+        {
+          oxyUserId,
+          raw: r.raw,
+          postCount: r.postCount,
+          lastPostMs: r.lastPost.getTime(),
+        },
+      ];
     });
   }
 

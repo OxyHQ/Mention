@@ -123,13 +123,17 @@ describe('userSummaryCache.mget', () => {
   });
 
   it('writes through one pipeline without a readiness PING', async () => {
-    await mset(new Map([[
-      'u1',
-      {
-        user: summaryFor('u1').summary,
-        followerCount: 7,
-      },
-    ]]));
+    await mset(
+      new Map([
+        [
+          'u1',
+          {
+            user: summaryFor('u1').summary,
+            followerCount: 7,
+          },
+        ],
+      ]),
+    );
 
     expect(mocks.multi).toHaveBeenCalledTimes(1);
     expect(mocks.setEx).toHaveBeenCalledTimes(1);

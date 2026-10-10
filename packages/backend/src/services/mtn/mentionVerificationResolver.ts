@@ -108,7 +108,10 @@ export function clearVerificationMethodCache(): void {
 }
 
 /** The Mention custodial branch, or nothing when its env is unconfigured. */
-function custodialBranch(): Pick<ResolvedVerificationMethods, 'custodialIssuer' | 'custodialPublicKey'> {
+function custodialBranch(): Pick<
+  ResolvedVerificationMethods,
+  'custodialIssuer' | 'custodialPublicKey'
+> {
   const custodialIssuer = getMentionCustodialIssuer();
   const custodialPublicKey = getMentionCustodialPublicKey();
   // Both present or both absent: when the Mention custodial key is

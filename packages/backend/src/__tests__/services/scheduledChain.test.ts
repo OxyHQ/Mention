@@ -234,8 +234,8 @@ describe('parentHasPublished', () => {
    * was scheduled must still go out rather than wedge in the queue forever.
    */
   it('passes when the parent has been deleted', async () => {
-    expect(
-      await parentHasPublished({ parentPostId: '019fffff-ffff-7fff-bfff-ffffffffffff' }),
-    ).toBe(true);
+    expect(await parentHasPublished({ parentPostId: '019fffff-ffff-7fff-bfff-ffffffffffff' })).toBe(
+      true,
+    );
   });
 });

@@ -129,7 +129,9 @@ export function getPostCreator(): PostCreator {
  */
 export function getPostFederator(): PostFederator {
   if (!postFederator) {
-    throw new Error('PostFederator not registered: the connector registry must be loaded before use');
+    throw new Error(
+      'PostFederator not registered: the connector registry must be loaded before use',
+    );
   }
   return postFederator;
 }

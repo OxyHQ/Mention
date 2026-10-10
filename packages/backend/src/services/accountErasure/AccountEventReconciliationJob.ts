@@ -109,7 +109,10 @@ export async function pullAccountEvents(): Promise<PullResult> {
 
 /** Re-schedule erasures that were recorded but never finished. */
 export async function retryUnfinishedErasures(): Promise<number> {
-  const eventIds = await findRetryableAccountErasures(RECONCILIATION_RETRY_LIMIT, RECONCILIATION_QUIET_MS);
+  const eventIds = await findRetryableAccountErasures(
+    RECONCILIATION_RETRY_LIMIT,
+    RECONCILIATION_QUIET_MS,
+  );
   for (const eventId of eventIds) {
     const row = await findAccountErasure(eventId);
     if (row) await scheduleAccountErasure(row);
@@ -164,7 +167,9 @@ export class AccountEventReconciliationJob {
       void this.tick();
     }, FIRST_TICK_DELAY_MS);
     this.firstTick.unref?.();
-    logger.info(`${LOG_PREFIX} reconciliation job started`, { intervalMs: RECONCILIATION_INTERVAL_MS });
+    logger.info(`${LOG_PREFIX} reconciliation job started`, {
+      intervalMs: RECONCILIATION_INTERVAL_MS,
+    });
   }
 
   stop(): void {

@@ -85,10 +85,12 @@ describe('getNetworkEngagerCounts', () => {
 
   it('ignores engagement from outside the network', async () => {
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
-    await getDb().insert(likes).values([
-      { userId: FRIEND_A, postId: post.id, value: 1 },
-      { userId: STRANGER, postId: post.id, value: 1 },
-    ]);
+    await getDb()
+      .insert(likes)
+      .values([
+        { userId: FRIEND_A, postId: post.id, value: 1 },
+        { userId: STRANGER, postId: post.id, value: 1 },
+      ]);
 
     const counts = await getNetworkEngagerCounts([post.id], [FRIEND_A]);
 

@@ -99,8 +99,12 @@ describe('the blocked-domain reconciliation entry point', () => {
     }
     expect(seeded.size).toBe(POLICY_DOMAINS.length);
 
-    const before = await getDb().select({ domain: blockedDomainPurges.domain }).from(blockedDomainPurges);
-    expect(before, 'the ledger must start empty, or the first assertion proves nothing').toEqual([]);
+    const before = await getDb()
+      .select({ domain: blockedDomainPurges.domain })
+      .from(blockedDomainPurges);
+    expect(before, 'the ledger must start empty, or the first assertion proves nothing').toEqual(
+      [],
+    );
 
     // RUN IT AS A PROCESS, not as an imported function. That is the whole point:
     // the bug this file exists for lived in the `require.main === module` block,

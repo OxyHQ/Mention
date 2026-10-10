@@ -183,7 +183,11 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -196,7 +200,11 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -206,7 +214,11 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -216,7 +228,11 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -226,13 +242,15 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
     // older API. `permissions.includes(...)` written without the array guard
     // raises a TypeError here, which a route turns into a 500 rather than a
     // refusal, and a 500 is not a "no" anybody can act on.
-    const reader = readerReturning([
-      member({ permissions: undefined as unknown as string[] }),
-    ]);
+    const reader = readerReturning([member({ permissions: undefined as unknown as string[] })]);
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -244,7 +262,11 @@ describe('assertCanDeleteAccount — the permission, not the membership', () => 
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -256,7 +278,11 @@ describe('assertCanDeleteAccount — who is asking', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -266,7 +292,11 @@ describe('assertCanDeleteAccount — who is asking', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -276,7 +306,11 @@ describe('assertCanDeleteAccount — who is asking', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: CHANNEL, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: CHANNEL,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(403);
   });
@@ -328,7 +362,11 @@ describe('assertCanDeleteAccount — it fails closed', () => {
 
     await expect(
       refusalStatus(
-        assertCanDeleteAccount({ targetOxyUserId: UNKNOWN, callerId: CALLER, memberReader: reader }),
+        assertCanDeleteAccount({
+          targetOxyUserId: UNKNOWN,
+          callerId: CALLER,
+          memberReader: reader,
+        }),
       ),
     ).resolves.toBe(400);
 

@@ -26,10 +26,12 @@ function buildApp(input: {
     };
     next();
   });
-  app.use(createMcpEffectIdempotency({
-    reserve: input.reserve,
-    finalize,
-  }));
+  app.use(
+    createMcpEffectIdempotency({
+      reserve: input.reserve,
+      finalize,
+    }),
+  );
   app.post('/posts', effect);
   app.get('/posts', (_req, res) => res.json({ ok: true }));
   return { app, effect, finalize };
@@ -48,12 +50,14 @@ describe('MCP effect idempotency middleware', () => {
 
     expect(response.status).toBe(201);
     expect(effect).toHaveBeenCalledOnce();
-    expect(reserve).toHaveBeenCalledWith(expect.objectContaining({
-      oxyUserId: 'account-1',
-      clientId: 'client-1',
-      toolName: 'create-post',
-      idempotencyKey: KEY,
-    }));
+    expect(reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oxyUserId: 'account-1',
+        clientId: 'client-1',
+        toolName: 'create-post',
+        idempotencyKey: KEY,
+      }),
+    );
     expect(finalize).toHaveBeenCalledWith('receipt-1', 201, false);
   });
 

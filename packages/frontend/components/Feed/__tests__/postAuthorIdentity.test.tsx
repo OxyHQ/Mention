@@ -75,13 +75,18 @@ jest.mock('@/context/BottomSheetContext', () => {
   return { BottomSheetContext: ReactActual.createContext(null) };
 });
 jest.mock('@/components/Post/PostContentText', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
+jest.mock('@/hooks/usePostLanguagePicker', () => ({
+  usePostLanguagePicker: () => () => undefined,
+}));
 jest.mock('@/components/Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostActions', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostLocation', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Post/PostAttachmentsRow', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: jest.fn() }));
 jest.mock('@/components/common/ContentDialog', () => ({ showContentDialog: jest.fn() }));
 jest.mock('@/lib/queryClient', () => ({
@@ -105,7 +110,9 @@ jest.mock('@/components/Post/PostHeader', () => {
       boostedBy?: { avatar?: string | null };
       authors?: { id: string; avatar?: string | null }[];
     }) =>
-      ReactActual.createElement(ReactActual.Fragment, null,
+      ReactActual.createElement(
+        ReactActual.Fragment,
+        null,
         ReactActual.createElement(
           Text,
           { testID: 'author-identity' },
@@ -270,19 +277,33 @@ describe('every actor on the row follows its identity', () => {
     act(() => {
       mounted = TestRenderer.create(
         <PostItem
-          post={{
-            ...stalePost(),
-            authors: [
-              { id: CHANNEL_ID, username: 'daily', name: { displayName: 'Daily' }, avatar: 'avatar-before' },
-              { id: COLLABORATOR, username: 'co', name: { displayName: 'Co' }, avatar: 'collab-before' },
-            ],
-          } as never}
-          repostedBy={{
-            id: BOOSTER,
-            username: 'boo',
-            name: { displayName: 'Boo' },
-            avatar: 'booster-before',
-          } as never}
+          post={
+            {
+              ...stalePost(),
+              authors: [
+                {
+                  id: CHANNEL_ID,
+                  username: 'daily',
+                  name: { displayName: 'Daily' },
+                  avatar: 'avatar-before',
+                },
+                {
+                  id: COLLABORATOR,
+                  username: 'co',
+                  name: { displayName: 'Co' },
+                  avatar: 'collab-before',
+                },
+              ],
+            } as never
+          }
+          repostedBy={
+            {
+              id: BOOSTER,
+              username: 'boo',
+              name: { displayName: 'Boo' },
+              avatar: 'booster-before',
+            } as never
+          }
         />,
       );
     });

@@ -210,9 +210,6 @@ describe('starter-pack curation with the real curator resolver', () => {
 
     const scores = await computeStarterPackScores(['author-1'], deps);
 
-    expect(scores.get('author-1')).toBeCloseTo(
-      Math.log1p(10) * CURATION.curatorAuthority.min,
-      10,
-    );
+    expect(scores.get('author-1')).toBeCloseTo(Math.log1p(10) * CURATION.curatorAuthority.min, 10);
   });
 });

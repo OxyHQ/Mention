@@ -158,9 +158,7 @@ export function rankTrendCandidates(candidates: readonly TrendCandidate[]): Scor
     if (trend) scored.push(trend);
   }
 
-  scored.sort(
-    (a, b) => b.score - a.score || b.volume - a.volume || a.term.localeCompare(b.term),
-  );
+  scored.sort((a, b) => b.score - a.score || b.volume - a.volume || a.term.localeCompare(b.term));
   return scored.slice(0, MtnConfig.trending.detection.maxTrends);
 }
 

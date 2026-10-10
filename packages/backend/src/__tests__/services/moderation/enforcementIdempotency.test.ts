@@ -294,11 +294,9 @@ describe('enforcement — idempotent on decisionId + revision + action', () => {
     const subject = { type: 'post', id: postId };
 
     // Fail the UPDATE that carries the effect, leaving the claim already written.
-    const update = vi
-      .spyOn(db, 'update')
-      .mockImplementationOnce(() => {
-        throw new Error('write concern not met');
-      });
+    const update = vi.spyOn(db, 'update').mockImplementationOnce(() => {
+      throw new Error('write concern not met');
+    });
 
     await expect(
       applyDecisionEnforcement({

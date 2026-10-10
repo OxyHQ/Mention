@@ -9,10 +9,7 @@ import {
   findFollow,
   upsertOutboundPending,
 } from '../../db/federation/followRepository';
-import {
-  insertDeliveries,
-  insertDelivery,
-} from '../../db/federation/deliveryQueueRepository';
+import { insertDeliveries, insertDelivery } from '../../db/federation/deliveryQueueRepository';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
   AP_CONTENT_TYPE,
@@ -116,10 +113,12 @@ export const deliveryService: DeliveryService = createDeliveryService<EngineFede
   },
   buildLocalActorObject,
   logger: {
-    debug: (message, detail) => (detail === undefined ? logger.debug(message) : logger.debug(message, detail)),
+    debug: (message, detail) =>
+      detail === undefined ? logger.debug(message) : logger.debug(message, detail),
     info: (message) => logger.info(message),
     warn: (message) => logger.warn(message),
-    error: (message, detail) => (detail === undefined ? logger.error(message) : logger.error(message, detail)),
+    error: (message, detail) =>
+      detail === undefined ? logger.error(message) : logger.error(message, detail),
   },
 });
 

@@ -17,16 +17,30 @@ describe('hidesBottomBar', () => {
     expect(hidesBottomBar('/compose')).toBe(true);
   });
 
-  it.each(['/', '/videos', '/notifications', '/you', '/aid', '/@ai', '/write', '/composer', undefined, null, ''])(
-    'keeps the bar on %p',
-    (pathname) => {
-      expect(hidesBottomBar(pathname)).toBe(false);
-    },
-  );
+  it.each([
+    '/',
+    '/videos',
+    '/notifications',
+    '/you',
+    '/aid',
+    '/@ai',
+    '/write',
+    '/composer',
+    undefined,
+    null,
+    '',
+  ])('keeps the bar on %p', (pathname) => {
+    expect(hidesBottomBar(pathname)).toBe(false);
+  });
 
   it('is what the app shell consults before drawing the bar', () => {
-    const layout = readFileSync(join(__dirname, '..', '..', '..', 'app', '(app)', '_layout.tsx'), 'utf8');
-    expect(layout).toMatch(/bottomBarContent\(\{\s*pathname,\s*keyboardVisible,\s*isAuthenticated,\s*isAuthResolved,?\s*\}\)/);
+    const layout = readFileSync(
+      join(__dirname, '..', '..', '..', 'app', '(app)', '_layout.tsx'),
+      'utf8',
+    );
+    expect(layout).toMatch(
+      /bottomBarContent\(\{\s*pathname,\s*keyboardVisible,\s*isAuthenticated,\s*isAuthResolved,?\s*\}\)/,
+    );
     expect(layout).toMatch(/bottomBar=\{bottomBar\}/);
   });
 });
@@ -36,7 +50,12 @@ describe('hidesBottomBar', () => {
  * after the route it rode every change in the page's height down the viewport.
  */
 describe('bottomBarContent', () => {
-  const base = { pathname: '/@nate', keyboardVisible: false, isAuthenticated: false, isAuthResolved: true };
+  const base = {
+    pathname: '/@nate',
+    keyboardVisible: false,
+    isAuthenticated: false,
+    isAuthResolved: true,
+  };
 
   it('pins the tab bar for a signed-in reader', () => {
     expect(bottomBarContent({ ...base, isAuthenticated: true })).toBe('tabs');
@@ -50,10 +69,13 @@ describe('bottomBarContent', () => {
     expect(bottomBarContent({ ...base, isAuthResolved: false })).toBeNull();
   });
 
-  it.each(['/ai', '/compose'])('draws nothing on the full-screen route %s, signed in or not', (pathname) => {
-    expect(bottomBarContent({ ...base, pathname })).toBeNull();
-    expect(bottomBarContent({ ...base, pathname, isAuthenticated: true })).toBeNull();
-  });
+  it.each(['/ai', '/compose'])(
+    'draws nothing on the full-screen route %s, signed in or not',
+    (pathname) => {
+      expect(bottomBarContent({ ...base, pathname })).toBeNull();
+      expect(bottomBarContent({ ...base, pathname, isAuthenticated: true })).toBeNull();
+    },
+  );
 
   it('draws nothing over the keyboard', () => {
     expect(bottomBarContent({ ...base, keyboardVisible: true })).toBeNull();

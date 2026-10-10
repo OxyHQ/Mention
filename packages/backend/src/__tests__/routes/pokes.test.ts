@@ -46,7 +46,9 @@ vi.mock('../../utils/privacyHelpers', () => ({
 }));
 
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: mocks.sendPushToTokens,
   formatPushForNotification: mocks.formatPushForNotification,
 }));
@@ -74,7 +76,12 @@ function userId(label: string): string {
 }
 
 function oxyUser(id: string) {
-  return { id, username: `user-${id.slice(-4)}`, name: { displayName: 'Someone' }, avatar: 'file-1' };
+  return {
+    id,
+    username: `user-${id.slice(-4)}`,
+    name: { displayName: 'Someone' },
+    avatar: 'file-1',
+  };
 }
 
 function makeApp(viewer: string | undefined) {
@@ -182,7 +189,9 @@ describe('POST /pokes/:userId — the block relationship gate', () => {
 
     expect(mocks.isUserBlocked).toHaveBeenCalledWith(poked);
     expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toEqual([]);
-    expect(await db.select().from(notifications).where(eq(notifications.recipientId, poked))).toEqual([]);
+    expect(
+      await db.select().from(notifications).where(eq(notifications.recipientId, poked)),
+    ).toEqual([]);
     expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
   });
 
@@ -232,7 +241,10 @@ describe('DELETE /pokes/:userId', () => {
 
     await request(makeApp(poker)).delete(`/${poked}`).expect(200, { poked: false });
 
-    const remaining = await db.select().from(pokes).where(inArray(pokes.pokerId, [poker, poked]));
+    const remaining = await db
+      .select()
+      .from(pokes)
+      .where(inArray(pokes.pokerId, [poker, poked]));
     expect(remaining).toHaveLength(1);
     expect(remaining[0].pokerId).toBe(poked);
   });
@@ -310,7 +322,9 @@ describe('GET /pokes/sent and /status', () => {
 
     expect((await request(makeApp(viewer)).get(`/${target}/status`)).body).toEqual({ poked: true });
     // The reverse direction is a different fact.
-    expect((await request(makeApp(target)).get(`/${viewer}/status`)).body).toEqual({ poked: false });
+    expect((await request(makeApp(target)).get(`/${viewer}/status`)).body).toEqual({
+      poked: false,
+    });
   });
 });
 

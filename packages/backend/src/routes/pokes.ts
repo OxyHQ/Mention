@@ -5,7 +5,11 @@ import { getDb } from '../db/postgres';
 import { pokes } from '../db/schema/engagement';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
-import { createScopedOxyClient, createUserScopedOxyServices, getServiceOxyClient } from '../utils/oxyHelpers';
+import {
+  createScopedOxyClient,
+  createUserScopedOxyServices,
+  getServiceOxyClient,
+} from '../utils/oxyHelpers';
 import { getBlockedUserIds } from '../utils/privacyHelpers';
 import type { User } from '@oxy.so/core';
 
@@ -42,7 +46,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function extractUsersFromResult(result: unknown, key: 'followers' | 'following'): User[] {
   const list = isRecord(result) ? result[key] : result;
-  return Array.isArray(list) ? list.filter((user): user is User => isRecord(user) && typeof user.id === 'string') : [];
+  return Array.isArray(list)
+    ? list.filter((user): user is User => isRecord(user) && typeof user.id === 'string')
+    : [];
 }
 
 const POKES_LIMIT = 100;
@@ -71,12 +77,13 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const visibleReceived = received.filter((p) => !blockedIds.has(p.pokerId));
 
     const pokerIds = visibleReceived.map((p) => p.pokerId);
-    const pokedBackRows = pokerIds.length > 0
-      ? await db
-          .select({ pokedId: pokes.pokedId })
-          .from(pokes)
-          .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, pokerIds)))
-      : [];
+    const pokedBackRows =
+      pokerIds.length > 0
+        ? await db
+            .select({ pokedId: pokes.pokedId })
+            .from(pokes)
+            .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, pokerIds)))
+        : [];
 
     const pokedBackSet = new Set(pokedBackRows.map((p) => p.pokedId));
     const profiles = await resolveUsers(pokerIds);
@@ -84,13 +91,15 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const items = visibleReceived.flatMap((p) => {
       const user = profiles.get(p.pokerId);
       return user
-        ? [{
-            id: p.id,
-            user: toUserSummary(user),
-            pokeCount: 1,
-            pokedBack: pokedBackSet.has(p.pokerId),
-            createdAt: p.createdAt,
-          }]
+        ? [
+            {
+              id: p.id,
+              user: toUserSummary(user),
+              pokeCount: 1,
+              pokedBack: pokedBackSet.has(p.pokerId),
+              createdAt: p.createdAt,
+            },
+          ]
         : [];
     });
 
@@ -118,11 +127,13 @@ router.get('/sent', async (req: AuthRequest, res: Response) => {
     const items = sent.flatMap((p) => {
       const user = profiles.get(p.pokedId);
       return user
-        ? [{
-            id: p.id,
-            user: toUserSummary(user),
-            createdAt: p.createdAt,
-          }]
+        ? [
+            {
+              id: p.id,
+              user: toUserSummary(user),
+              createdAt: p.createdAt,
+            },
+          ]
         : [];
     });
 
@@ -150,24 +161,28 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     ]);
 
     const followerIds = extractUsersFromResult(followersResult, 'followers').map((user) => user.id);
-    const followingIds = extractUsersFromResult(followingResult, 'following').map((user) => user.id);
+    const followingIds = extractUsersFromResult(followingResult, 'following').map(
+      (user) => user.id,
+    );
 
     // Merge and deduplicate the follow graph, excluding self and anyone the
     // viewer has blocked — the same policy `POST /:userId` enforces, applied
     // here to what gets SUGGESTED rather than what gets sent. Only the
     // viewer's own block list is checkable from their own bearer.
     const blockedIds = new Set(await getBlockedUserIds(createScopedOxyClient(req), userId));
-    const candidatePool = [...new Set([...followerIds, ...followingIds])]
-      .filter((id) => id !== userId && !blockedIds.has(id));
+    const candidatePool = [...new Set([...followerIds, ...followingIds])].filter(
+      (id) => id !== userId && !blockedIds.has(id),
+    );
 
     // Bound the poke-state lookup to the suggestion candidates instead of the
     // caller's entire poke history.
-    const existingPokes = candidatePool.length > 0
-      ? await getDb()
-          .select({ pokedId: pokes.pokedId })
-          .from(pokes)
-          .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, candidatePool)))
-      : [];
+    const existingPokes =
+      candidatePool.length > 0
+        ? await getDb()
+            .select({ pokedId: pokes.pokedId })
+            .from(pokes)
+            .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, candidatePool)))
+        : [];
     const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
 
     // Exclude already-poked candidates, then limit to 20 suggestions.
@@ -204,7 +219,11 @@ router.get('/:userId/status', async (req: AuthRequest, res: Response) => {
       .limit(1);
     return res.json({ poked: !!existing });
   } catch (error) {
-    logger.error('[Pokes] Error checking poke status:', { userId: req.user?.id, targetId: req.params.userId, error });
+    logger.error('[Pokes] Error checking poke status:', {
+      userId: req.user?.id,
+      targetId: req.params.userId,
+      error,
+    });
     return res.status(500).json({ message: 'Error checking poke status' });
   }
 });
@@ -274,7 +293,11 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
 
     return res.json({ poked: true });
   } catch (error) {
-    logger.error('[Pokes] Error poking user:', { userId: req.user?.id, targetId: req.params.userId, error });
+    logger.error('[Pokes] Error poking user:', {
+      userId: req.user?.id,
+      targetId: req.params.userId,
+      error,
+    });
     return res.status(500).json({ message: 'Error poking user' });
   }
 });
@@ -295,7 +318,11 @@ router.delete('/:userId', async (req: AuthRequest, res: Response) => {
       .where(and(eq(pokes.pokerId, pokerId), eq(pokes.pokedId, userId)));
     return res.json({ poked: false });
   } catch (error) {
-    logger.error('[Pokes] Error undoing poke:', { userId: req.user?.id, targetId: req.params.userId, error });
+    logger.error('[Pokes] Error undoing poke:', {
+      userId: req.user?.id,
+      targetId: req.params.userId,
+      error,
+    });
     return res.status(500).json({ message: 'Error undoing poke' });
   }
 });

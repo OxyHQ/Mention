@@ -18,7 +18,9 @@ const processAccountErasure = vi.hoisted(() => vi.fn(async () => ({ outcome: 'co
 
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  getServiceOxyClient: () => ({ accountEvents: { verify: verifyAccountEvent, list: listAccountEvents } }),
+  getServiceOxyClient: () => ({
+    accountEvents: { verify: verifyAccountEvent, list: listAccountEvents },
+  }),
 }));
 vi.mock('../../queue/producers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../queue/producers')>()),
@@ -80,8 +82,12 @@ async function recordedEventIds(): Promise<string[]> {
 }
 
 async function reset(): Promise<void> {
-  await getDb().delete(accountErasures).where(like(accountErasures.oxyUserId, `${PREFIX}%`));
-  await getDb().delete(oxyAccountEventCursors).where(eq(oxyAccountEventCursors.id, ACCOUNT_EVENTS_FEED));
+  await getDb()
+    .delete(accountErasures)
+    .where(like(accountErasures.oxyUserId, `${PREFIX}%`));
+  await getDb()
+    .delete(oxyAccountEventCursors)
+    .where(eq(oxyAccountEventCursors.id, ACCOUNT_EVENTS_FEED));
 }
 
 beforeAll(async () => {
@@ -106,8 +112,7 @@ afterAll(async () => {
 
 describe('pullAccountEvents', () => {
   it('records every event on a page and advances the cursor to the page end', async () => {
-    listAccountEvents
-      .mockResolvedValueOnce({ events: [item(1), item(2)], nextCursor: 'c2' });
+    listAccountEvents.mockResolvedValueOnce({ events: [item(1), item(2)], nextCursor: 'c2' });
 
     const result = await pullAccountEvents();
 
@@ -127,7 +132,11 @@ describe('pullAccountEvents', () => {
     await pullAccountEvents();
 
     expect(listAccountEvents).toHaveBeenLastCalledWith({ after: 'c2', limit: 100 });
-    expect(await recordedEventIds()).toEqual([`${PREFIX}evt-1`, `${PREFIX}evt-2`, `${PREFIX}evt-3`]);
+    expect(await recordedEventIds()).toEqual([
+      `${PREFIX}evt-1`,
+      `${PREFIX}evt-2`,
+      `${PREFIX}evt-3`,
+    ]);
     expect(await readAccountEventCursor(ACCOUNT_EVENTS_FEED)).toBe('c3');
   });
 
@@ -221,9 +230,15 @@ describe('retryUnfinishedErasures and the username scrub', () => {
     const retried = await retryUnfinishedErasures();
 
     expect(retried).toBeGreaterThanOrEqual(3);
-    const scheduled = enqueueAccountErasure.mock.calls.map((call) => (call[0] as { eventId: string }).eventId);
+    const scheduled = enqueueAccountErasure.mock.calls.map(
+      (call) => (call[0] as { eventId: string }).eventId,
+    );
     expect(scheduled).toEqual(
-      expect.arrayContaining([`${PREFIX}stale-failed`, `${PREFIX}stale-pending`, `${PREFIX}lapsed`]),
+      expect.arrayContaining([
+        `${PREFIX}stale-failed`,
+        `${PREFIX}stale-pending`,
+        `${PREFIX}lapsed`,
+      ]),
     );
     expect(scheduled).not.toContain(`${PREFIX}fresh`);
     expect(scheduled).not.toContain(`${PREFIX}done`);
@@ -236,7 +251,10 @@ describe('retryUnfinishedErasures and the username scrub', () => {
 
   it('runs a stale row in-process when there is no queue', async () => {
     enqueueAccountErasure.mockResolvedValue(false);
-    await seedRow(`${PREFIX}inline`, { status: 'pending', updatedAt: new Date(Date.now() - 60 * 60 * 1000) });
+    await seedRow(`${PREFIX}inline`, {
+      status: 'pending',
+      updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+    });
 
     await retryUnfinishedErasures();
     await vi.waitFor(() => expect(processAccountErasure).toHaveBeenCalledWith(`${PREFIX}inline`));

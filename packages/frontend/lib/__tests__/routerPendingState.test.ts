@@ -5,32 +5,52 @@ import vm from 'node:vm';
 
 type State = { routes: Array<{ key: string; name: string; state?: State }> };
 
-function readStateThroughRouter(state: State, listeners: Record<string, (() => State | undefined) | undefined>) {
+function readStateThroughRouter(
+  state: State,
+  listeners: Record<string, (() => State | undefined) | undefined>,
+) {
   let readState: (() => State) | undefined;
   const builderContext = {};
   const routeContext = {};
   const React = {
-    use: (context: unknown) => context === builderContext
-      ? { addKeyedListener: (_type: string, _key: string, listener: () => State) => { readState = listener; } }
-      : undefined,
+    use: (context: unknown) =>
+      context === builderContext
+        ? {
+            addKeyedListener: (_type: string, _key: string, listener: () => State) => {
+              readState = listener;
+            },
+          }
+        : undefined,
     useCallback: (callback: unknown) => callback,
     useEffect: (effect: () => void) => effect(),
   };
   const exports: Record<string, any> = {};
-  const source = fs.readFileSync(path.join(
-    path.dirname(require.resolve('expo-router/package.json')),
-    'build/react-navigation/core/useOnGetState.js',
-  ), 'utf8');
-  vm.runInNewContext(source, {
-    exports,
-    require: (name: string) => {
-      if (name === 'react') return React;
-      if (name === './NavigationBuilderContext') return { NavigationBuilderContext: builderContext };
-      if (name === './NavigationProvider') return { NavigationRouteContext: routeContext };
-      if (name === './isArrayEqual') return { isArrayEqual: (a: unknown[], b: unknown[]) => a.length === b.length && a.every((item, index) => item === b[index]) };
-      throw new Error(`Unexpected Expo Router hook dependency: ${name}`);
+  const source = fs.readFileSync(
+    path.join(
+      path.dirname(require.resolve('expo-router/package.json')),
+      'build/react-navigation/core/useOnGetState.js',
+    ),
+    'utf8',
+  );
+  vm.runInNewContext(
+    source,
+    {
+      exports,
+      require: (name: string) => {
+        if (name === 'react') return React;
+        if (name === './NavigationBuilderContext')
+          return { NavigationBuilderContext: builderContext };
+        if (name === './NavigationProvider') return { NavigationRouteContext: routeContext };
+        if (name === './isArrayEqual')
+          return {
+            isArrayEqual: (a: unknown[], b: unknown[]) =>
+              a.length === b.length && a.every((item, index) => item === b[index]),
+          };
+        throw new Error(`Unexpected Expo Router hook dependency: ${name}`);
+      },
     },
-  }, { filename: 'expo-router/useOnGetState.js' });
+    { filename: 'expo-router/useOnGetState.js' },
+  );
   exports.useOnGetState({ getState: () => state, getStateListeners: listeners });
   if (!readState) throw new Error('Expo Router did not register its state getter');
   return readState;
@@ -56,7 +76,9 @@ describe('Expo Router pending child navigation state', () => {
   });
 
   it('does not restore a stale deep link when a registered navigator returns undefined', () => {
-    expect(readStateThroughRouter(initialState, { root: () => undefined })().routes[0].state).toBeUndefined();
+    expect(
+      readStateThroughRouter(initialState, { root: () => undefined })().routes[0].state,
+    ).toBeUndefined();
   });
 
   it('does not invent state for a leaf or a fresh route after a reset', () => {
@@ -73,17 +95,29 @@ type MatchingState = {
 };
 
 function matchingStates(a: MatchingState, b: MatchingState) {
-  const exports: { read?: (a: MatchingState, b: MatchingState) => [MatchingState | undefined, MatchingState | undefined] } = {};
-  const source = fs.readFileSync(path.join(
-    path.dirname(require.resolve('expo-router/package.json')),
-    'build/fork/useLinking.js',
-  ), 'utf8');
+  const exports: {
+    read?: (
+      a: MatchingState,
+      b: MatchingState,
+    ) => [MatchingState | undefined, MatchingState | undefined];
+  } = {};
+  const source = fs.readFileSync(
+    path.join(
+      path.dirname(require.resolve('expo-router/package.json')),
+      'build/fork/useLinking.js',
+    ),
+    'utf8',
+  );
   // Exercise the private matcher from the actual patched module without
   // mounting a NavigationContainer; do not duplicate its implementation.
-  vm.runInNewContext(`${source}\nexports.read = findMatchingState;`, {
-    exports,
-    require: () => ({}),
-  }, { filename: 'expo-router/useLinking.js' });
+  vm.runInNewContext(
+    `${source}\nexports.read = findMatchingState;`,
+    {
+      exports,
+      require: () => ({}),
+    },
+    { filename: 'expo-router/useLinking.js' },
+  );
   if (!exports.read) throw new Error('Expo Router history matcher missing');
   return exports.read(a, b);
 }
@@ -91,7 +125,12 @@ function matchingStates(a: MatchingState, b: MatchingState) {
 describe('Expo Router history reconciliation during pending child boot', () => {
   it('treats unhydrated nested states as a replacement, without poisoning the history queue', () => {
     const pending: MatchingState = { routes: [{}] };
-    const root: MatchingState = { key: 'root', index: 0, stale: false, routes: [{ key: 'layout', state: pending }] };
+    const root: MatchingState = {
+      key: 'root',
+      index: 0,
+      stale: false,
+      routes: [{ key: 'layout', state: pending }],
+    };
     expect(matchingStates(root, root)).toEqual([undefined, undefined]);
   });
 
@@ -101,9 +140,24 @@ describe('Expo Router history reconciliation during pending child boot', () => {
   });
 
   it('still identifies the hydrated child stack for push and back navigation', () => {
-    const before: MatchingState = { key: 'child', index: 0, stale: false, routes: [{ key: 'profile' }] };
-    const after: MatchingState = { key: 'child', index: 1, stale: false, routes: [{ key: 'profile' }, { key: 'media' }] };
-    const root = (state: MatchingState): MatchingState => ({ key: 'root', index: 0, stale: false, routes: [{ key: 'layout', state }] });
+    const before: MatchingState = {
+      key: 'child',
+      index: 0,
+      stale: false,
+      routes: [{ key: 'profile' }],
+    };
+    const after: MatchingState = {
+      key: 'child',
+      index: 1,
+      stale: false,
+      routes: [{ key: 'profile' }, { key: 'media' }],
+    };
+    const root = (state: MatchingState): MatchingState => ({
+      key: 'root',
+      index: 0,
+      stale: false,
+      routes: [{ key: 'layout', state }],
+    });
     expect(matchingStates(root(before), root(after))).toEqual([before, after]);
     expect(matchingStates(root(after), root(before))).toEqual([after, before]);
   });

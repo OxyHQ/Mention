@@ -74,9 +74,12 @@ async function readCached(curatorIds: string[]): Promise<Map<string, number>> {
       // against ElastiCache Valkey); iterating it would throw a TypeError that
       // `withRedisFallback` does NOT swallow. Treat it as a full miss.
       if (!Array.isArray(values)) {
-        logger.debug('[CuratorFollowerCounts] mGet returned a non-array reply; treating as cache miss', {
-          keyCount: curatorIds.length,
-        });
+        logger.debug(
+          '[CuratorFollowerCounts] mGet returned a non-array reply; treating as cache miss',
+          {
+            keyCount: curatorIds.length,
+          },
+        );
         return hits;
       }
 
@@ -126,7 +129,9 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
  * resolved, or Oxy failed) — `curatorAuthority` maps that to the neutral floor, so
  * an unresolvable curator is never penalized, only un-amplified. Never throws.
  */
-export async function resolveCuratorFollowerCounts(curatorIds: string[]): Promise<Map<string, number>> {
+export async function resolveCuratorFollowerCounts(
+  curatorIds: string[],
+): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   const uniqueIds = Array.from(new Set(curatorIds.filter((id) => id.length > 0)));
   if (uniqueIds.length === 0) {
@@ -163,10 +168,13 @@ export async function resolveCuratorFollowerCounts(curatorIds: string[]): Promis
   } catch (error) {
     // Fail-soft: the misses keep an UNKNOWN count → neutral curator authority. The
     // curation signal still scores (usage-weighted), the feed still serves.
-    logger.warn('[CuratorFollowerCounts] Bulk follower lookup failed; curators fall back to neutral authority', {
-      curatorCount: missIds.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
+    logger.warn(
+      '[CuratorFollowerCounts] Bulk follower lookup failed; curators fall back to neutral authority',
+      {
+        curatorCount: missIds.length,
+        reason: error instanceof Error ? error.message : 'unknown',
+      },
+    );
     return counts;
   }
 

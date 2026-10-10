@@ -61,7 +61,13 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deletePostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
-import { clearServiceScope, readPost, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
+import {
+  clearServiceScope,
+  readPost,
+  readScopePosts,
+  seedPost,
+  serviceScope,
+} from '../helpers/serviceFixtures';
 import { postCreationService } from '../../services/PostCreationService';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
 
@@ -199,7 +205,9 @@ describe('PostCreationService.create — publishing as another account', () => {
     const stored = await readPost(created.id);
     expect(stored?.oxyUserId).toBe(CHANNEL);
     expect(stored?.writtenByOxyUserId).toBe(WRITER);
-    expect(stored?.authorship).toEqual([expect.objectContaining({ oxyUserId: CHANNEL, role: 'owner' })]);
+    expect(stored?.authorship).toEqual([
+      expect.objectContaining({ oxyUserId: CHANNEL, role: 'owner' }),
+    ]);
   });
 
   it('authors the post as the ORGANIZATION the same way', async () => {
@@ -350,8 +358,8 @@ describe('PostCreationService.create — publishing as another account', () => {
  * pin is that the parameter grants nothing by itself: every case below sets it,
  * and only the genuine continuation is written.
  */
-describe('PostCreationService.create — continuing the account\'s own thread', () => {
-  it('writes a continuation of the channel\'s own thread, authored by the channel', async () => {
+describe("PostCreationService.create — continuing the account's own thread", () => {
+  it("writes a continuation of the channel's own thread, authored by the channel", async () => {
     const created = await postCreationService.create({
       oxyUserId: WRITER,
       content: { text: 'part two' },
@@ -397,7 +405,7 @@ describe('PostCreationService.create — continuing the account\'s own thread', 
    * parent's account" — the wider rule that reads as the same thing — and this
    * passes, which is a channel's replies reopened to everybody who operates it.
    */
-  it('MUTATION GUARD: refuses a claimed continuation of SOMEBODY ELSE\'S post', async () => {
+  it("MUTATION GUARD: refuses a claimed continuation of SOMEBODY ELSE'S post", async () => {
     await expect(
       postCreationService.create({
         oxyUserId: WRITER,
@@ -476,7 +484,7 @@ describe('PostCreationService.create — continuing the account\'s own thread', 
  * deleted outright with the suite still green.
  */
 describe('PostCreationService.create — one operated account answering another', () => {
-  it('writes an organization\'s answer to another organization\'s post', async () => {
+  it("writes an organization's answer to another organization's post", async () => {
     const created: PostRecord = await postCreationService.create({
       oxyUserId: WRITER,
       content: { text: 'B answers A' },
@@ -504,7 +512,7 @@ describe('PostCreationService.create — one operated account answering another'
    * one is satisfied. Accepting `answersOperatedAccount` without running the
    * verification writes this post, and what it writes is a reply to a channel.
    */
-  it('MUTATION GUARD: refuses an organization answering a CHANNEL\'s post', async () => {
+  it("MUTATION GUARD: refuses an organization answering a CHANNEL's post", async () => {
     await expect(
       postCreationService.create({
         oxyUserId: WRITER,
@@ -526,7 +534,7 @@ describe('PostCreationService.create — one operated account answering another'
    * CHANNEL is doing the answering — refused by the publishing-account half of the
    * boundary, which a parent-only check would miss.
    */
-  it('MUTATION GUARD: refuses a CHANNEL answering an organization\'s post', async () => {
+  it("MUTATION GUARD: refuses a CHANNEL answering an organization's post", async () => {
     await expect(
       postCreationService.create({
         oxyUserId: WRITER,

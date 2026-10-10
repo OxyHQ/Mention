@@ -6,10 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * are mocked so this focuses on the controller's resolve → run → respond flow.
  */
 
-const engineRun = vi.fn(async (
-  _definition?: unknown,
-  _context?: Record<string, unknown>,
-) => ({
+const engineRun = vi.fn(async (_definition?: unknown, _context?: Record<string, unknown>) => ({
   slices: [],
   items: [{ id: 'p1', user: { id: 'u1' } }],
   hasMore: false,
@@ -17,7 +14,10 @@ const engineRun = vi.fn(async (
   totalCount: 1,
 }));
 vi.mock('../mtn/feed/engine/FeedEngine', () => ({
-  feedEngine: { run: (...a: unknown[]) => engineRun(...(a as [])), peekLatest: vi.fn(async () => undefined) },
+  feedEngine: {
+    run: (...a: unknown[]) => engineRun(...(a as [])),
+    peekLatest: vi.fn(async () => undefined),
+  },
 }));
 
 vi.mock('../runtime/oxyClient', () => ({
@@ -72,7 +72,10 @@ vi.mock('../services/laneVisibility', () => ({
   ownerHasProfileAffectingLane: laneExists,
 }));
 vi.mock('../services/UserPreferenceService', () => ({
-  userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
+  userPreferenceService: {
+    getUserBehavior: vi.fn(async () => undefined),
+    getTopRegion: vi.fn(() => undefined),
+  },
 }));
 
 // Driveable anon-feed cache: read defaults to a miss so the engine still runs
@@ -105,8 +108,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(c) { this.statusCode = c; return this; },
-    json(b) { this.body = b; return this; },
+    status(c) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b) {
+      this.body = b;
+      return this;
+    },
   };
   return res;
 }
@@ -175,7 +184,11 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
   /** Make the engine return an empty page (the discovery trigger). */
   function engineReturnsEmpty(): void {
     engineRun.mockResolvedValueOnce({
-      slices: [], items: [], hasMore: false, nextCursor: undefined, totalCount: 0,
+      slices: [],
+      items: [],
+      hasMore: false,
+      nextCursor: undefined,
+      totalCount: 0,
     });
   }
 
@@ -225,7 +238,10 @@ describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
 
   it('does not sync on a later page — an empty page 2 is just the end of the feed', async () => {
     engineReturnsEmpty();
-    const req = { query: { descriptor: 'author|fed1', cursor: '123:abc' }, user: { id: 'viewer1' } } as never;
+    const req = {
+      query: { descriptor: 'author|fed1', cursor: '123:abc' },
+      user: { id: 'viewer1' },
+    } as never;
     const res = makeRes();
 
     await mtnFeedController.getFeed(req, res as never);
@@ -289,7 +305,10 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(anonCache.read).toHaveBeenCalledWith('anon-key');
     expect(engineRun).toHaveBeenCalledOnce();
     // The freshly built page is persisted for the next anonymous viewer.
-    expect(anonCache.write).toHaveBeenCalledWith('anon-key', expect.objectContaining({ items: expect.any(Array) }));
+    expect(anonCache.write).toHaveBeenCalledWith(
+      'anon-key',
+      expect.objectContaining({ items: expect.any(Array) }),
+    );
   });
 
   /**
@@ -302,7 +321,7 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
    * reader's feed, which is precisely the bug the whole change exists to fix,
    * reintroduced one layer up where no query-level test would ever see it.
    */
-  it('keys the anon cache on the reader\'s languages', async () => {
+  it("keys the anon cache on the reader's languages", async () => {
     anonCache.read.mockResolvedValue(null);
     const res = makeRes();
     const withLanguages = {
@@ -335,7 +354,12 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
   });
 
   it('returns the cached page on a hit without running the engine', async () => {
-    const cached = { slices: [], items: [{ id: 'cachedPost', user: { id: 'u9' } }], hasMore: false, totalCount: 1 };
+    const cached = {
+      slices: [],
+      items: [{ id: 'cachedPost', user: { id: 'u9' } }],
+      hasMore: false,
+      totalCount: 1,
+    };
     anonCache.read.mockResolvedValueOnce(cached);
     const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
     const res = makeRes();
@@ -352,7 +376,10 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     anonCache.claimBuild.mockReturnValueOnce({ role: 'lead', settle });
     const res = makeRes();
 
-    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+    await mtnFeedController.getFeed(
+      { query: { descriptor: 'for_you' }, user: undefined } as never,
+      res as never,
+    );
 
     expect(anonCache.claimBuild).toHaveBeenCalledWith('anon-key');
     expect(settle).toHaveBeenCalledWith(expect.objectContaining({ items: expect.any(Array) }));
@@ -360,10 +387,16 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
 
   it('serves a page another request is already building, without running the engine', async () => {
     const shared = { items: [], slices: [], hasMore: false, totalCount: 0 };
-    anonCache.claimBuild.mockReturnValueOnce({ role: 'join', result: Promise.resolve(shared) } as never);
+    anonCache.claimBuild.mockReturnValueOnce({
+      role: 'join',
+      result: Promise.resolve(shared),
+    } as never);
     const res = makeRes();
 
-    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+    await mtnFeedController.getFeed(
+      { query: { descriptor: 'for_you' }, user: undefined } as never,
+      res as never,
+    );
 
     expect(engineRun).not.toHaveBeenCalled();
     expect(anonCache.write).not.toHaveBeenCalled();
@@ -371,10 +404,16 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
   });
 
   it('builds its own page when the build it joined had nothing to share', async () => {
-    anonCache.claimBuild.mockReturnValueOnce({ role: 'join', result: Promise.resolve(null) } as never);
+    anonCache.claimBuild.mockReturnValueOnce({
+      role: 'join',
+      result: Promise.resolve(null),
+    } as never);
     const res = makeRes();
 
-    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+    await mtnFeedController.getFeed(
+      { query: { descriptor: 'for_you' }, user: undefined } as never,
+      res as never,
+    );
 
     expect(engineRun).toHaveBeenCalledOnce();
   });

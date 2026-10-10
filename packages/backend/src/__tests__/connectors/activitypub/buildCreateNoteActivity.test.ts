@@ -13,8 +13,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
-vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
+vi.mock('../../../queue/producers', () => ({
+  enqueueDelivery: vi.fn(),
+  enqueueInboxActivity: vi.fn(),
+}));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
@@ -126,7 +132,10 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
     expect(note.content).toBe('<p>hola mundo</p>');
     expect(Object.keys(note.contentMap as Record<string, string>)).toEqual(['es-ES', 'en-US']);
     // Every contentMap value is AP HTML — the localized bodies are wrapped too.
-    expect(note.contentMap).toEqual({ 'es-ES': '<p>hola mundo</p>', 'en-US': '<p>hello world</p>' });
+    expect(note.contentMap).toEqual({
+      'es-ES': '<p>hola mundo</p>',
+      'en-US': '<p>hello world</p>',
+    });
     expect(note.language).toBe('es-ES');
     // `content` and the primary contentMap key are the SAME string byte-for-byte.
     expect((note.contentMap as Record<string, string>)['es-ES']).toBe(note.content);
@@ -242,7 +251,12 @@ describe('buildCreateNoteActivity — media attachments', () => {
 
     expect(note.attachment).toEqual([
       // Native file id → resolved CDN url (no extension → category default), alt → name.
-      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-abc', name: 'a cat' },
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://cloud.oxy.so/file-abc',
+        name: 'a cat',
+      },
       // Federated raw url stays raw; extension .png → precise mediaType; no alt → no name.
       { type: 'Document', mediaType: 'image/png', url: 'https://remote.example/pic.png' },
       // Native video id → category default video/mp4.
@@ -296,7 +310,9 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
       id: 'p1',
       content: {
         media: [{ id: 'file-shared', type: 'image', alt: 'a cat' }],
-        variants: [{ tag: 'es', source: 'author', text: 'hola', alt: { 'file-shared': 'un gato' } }],
+        variants: [
+          { tag: 'es', source: 'author', text: 'hola', alt: { 'file-shared': 'un gato' } },
+        ],
       },
       createdAt: ISO,
     });
@@ -304,7 +320,12 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
     // The AP `name` on the attachment is the accessibility description, and it
     // must be in the same language as the body it ships with.
     expect(note.attachment).toEqual([
-      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-shared', name: 'un gato' },
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://cloud.oxy.so/file-shared',
+        name: 'un gato',
+      },
     ]);
   });
 });
@@ -341,12 +362,21 @@ describe('buildCreateNoteActivity — media width/height', () => {
   it('emits width and height on an attachment when both are present on the item', () => {
     const { note } = noteFor({
       id: 'p1',
-      content: { ...body('sized'), media: [{ id: 'file-abc', type: 'image', width: 1200, height: 800 }] },
+      content: {
+        ...body('sized'),
+        media: [{ id: 'file-abc', type: 'image', width: 1200, height: 800 }],
+      },
       createdAt: ISO,
     });
 
     expect(note.attachment).toEqual([
-      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-abc', width: 1200, height: 800 },
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://cloud.oxy.so/file-abc',
+        width: 1200,
+        height: 800,
+      },
     ]);
   });
 
@@ -370,12 +400,20 @@ describe('buildCreateNoteActivity — media width/height', () => {
   it('emits only the present dimension and never a zero placeholder', () => {
     const { note } = noteFor({
       id: 'p1',
-      content: { ...body('half sized'), media: [{ id: 'file-abc', type: 'image', width: 640, height: 0 }] },
+      content: {
+        ...body('half sized'),
+        media: [{ id: 'file-abc', type: 'image', width: 640, height: 0 }],
+      },
       createdAt: ISO,
     });
 
     expect(note.attachment).toEqual([
-      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-abc', width: 640 },
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://cloud.oxy.so/file-abc',
+        width: 640,
+      },
     ]);
   });
 });

@@ -37,10 +37,7 @@ function claims(tool: string, capability: string): CapabilityTicketClaims {
   };
 }
 
-function appFor(
-  ticketClaims: CapabilityTicketClaims,
-  introspect = vi.fn(async () => true),
-) {
+function appFor(ticketClaims: CapabilityTicketClaims, introspect = vi.fn(async () => true)) {
   const dependencies: MentionCapabilityAuthDependencies = {
     verify: vi.fn(async () => ticketClaims),
     introspect,

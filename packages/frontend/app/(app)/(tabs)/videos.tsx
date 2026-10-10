@@ -1,9 +1,26 @@
 import React, { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  Platform,
+  Share,
+  useWindowDimensions,
+  type ViewStyle,
+  type TextStyle,
+  type ImageStyle,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
@@ -51,15 +68,24 @@ import { useReelImpressions } from '@/hooks/useReelImpressions';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import {
-    useReelChrome,
-    REEL_TIME_UPDATE_INTERVAL_S,
-    type PlayableSource,
-    type ReelChromeParams,
-    type RegisterTransportSeek,
+  useReelChrome,
+  REEL_TIME_UPDATE_INTERVAL_S,
+  type PlayableSource,
+  type ReelChromeParams,
+  type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
+import {
+  MediaFlightHost,
+  hasFlight,
+  useMediaFlight,
+  type MediaFlightHostProps,
+} from '@oxy.so/bloom/media-flight';
 import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
-import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
+import {
+  useVideoPlayerLease,
+  videoPlayerKey,
+  type VideoPlayerKey,
+} from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -116,21 +142,21 @@ const RETAINED_BEHIND_RADIUS = ACTIVE_WINDOW_RADIUS + 1;
  * is OR'd outside the distance test, not folded into it.
  */
 function isSlideNear(
-    index: number,
-    activeIndex: number,
-    aheadRadius: number,
-    isPipOwner: boolean,
-    screenFocused: boolean,
+  index: number,
+  activeIndex: number,
+  aheadRadius: number,
+  isPipOwner: boolean,
+  screenFocused: boolean,
 ): boolean {
-    if (isPipOwner) return true;
-    // A reel the reader has left (another tab, a pushed profile) keeps the one
-    // slide it will come back to and gives every other decoder back: the tabs
-    // stay mounted side by side, and the home feed's own players would otherwise
-    // compete with up to five paused neighbours for Android's hardware decoders.
-    if (!screenFocused) return index === activeIndex;
-    return index <= activeIndex
-        ? activeIndex - index <= RETAINED_BEHIND_RADIUS
-        : index - activeIndex <= aheadRadius;
+  if (isPipOwner) return true;
+  // A reel the reader has left (another tab, a pushed profile) keeps the one
+  // slide it will come back to and gives every other decoder back: the tabs
+  // stay mounted side by side, and the home feed's own players would otherwise
+  // compete with up to five paused neighbours for Android's hardware decoders.
+  if (!screenFocused) return index === activeIndex;
+  return index <= activeIndex
+    ? activeIndex - index <= RETAINED_BEHIND_RADIUS
+    : index - activeIndex <= aheadRadius;
 }
 
 /**
@@ -168,21 +194,21 @@ const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
 // slower than scrolling down. `isSlideNear` promising a player for a row the
 // list never renders cannot produce one.
 const FLATLIST_CONFIG = {
-    INITIAL_NUM_TO_RENDER: 2,
-    MAX_TO_RENDER_PER_BATCH: 2,
-    // 1 visible + 3 above + 3 below = 7 rows, covering RETAINED_BEHIND_RADIUS=3
-    // (the larger radius) on the side FlatList makes symmetric.
-    WINDOW_SIZE: 7,
-    // Raised from 0.4: trigger the next page fetch with more runway left in
-    // the current page, so pagination network latency is absorbed before the
-    // viewer actually runs out of loaded posts, instead of racing it.
-    END_REACHED_THRESHOLD: 0.6,
+  INITIAL_NUM_TO_RENDER: 2,
+  MAX_TO_RENDER_PER_BATCH: 2,
+  // 1 visible + 3 above + 3 below = 7 rows, covering RETAINED_BEHIND_RADIUS=3
+  // (the larger radius) on the side FlatList makes symmetric.
+  WINDOW_SIZE: 7,
+  // Raised from 0.4: trigger the next page fetch with more runway left in
+  // the current page, so pagination network latency is absorbed before the
+  // viewer actually runs out of loaded posts, instead of racing it.
+  END_REACHED_THRESHOLD: 0.6,
 } as const;
 
 const VIEWABILITY_CONFIG = {
-    itemVisiblePercentThreshold: 60,
-    waitForInteraction: false,
-    minimumViewTime: 100,
+  itemVisiblePercentThreshold: 60,
+  waitForInteraction: false,
+  minimumViewTime: 100,
 } as const;
 
 // When a `videos` page yields zero NEW posts but more pages exist, walk forward
@@ -225,8 +251,12 @@ const WEB_RENDER_RADIUS = 6;
 const TABS_ROW_HEIGHT = 34;
 const WEB_TABS_STICKY_CLASS = 'web:sticky web:[margin-bottom:-34px]';
 
-
-const GRADIENT_COLORS = ['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000'] as const;
+const GRADIENT_COLORS = [
+  'transparent',
+  'rgba(0, 0, 0, 0.3)',
+  'rgba(0, 0, 0, 0.8)',
+  '#000000',
+] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
 const BOOST_ACTIVE_COLOR = '#10B981';
@@ -244,83 +274,83 @@ type VideoFeedTab = 'videos' | 'following';
 // server-resolved final URLs (`url`, `thumbUrl`, `posterUrl`). We type the superset
 // we actually read here, keeping `id` for the legacy fallback path.
 interface MediaRef {
-    id?: string;
-    url?: string;
-    thumbUrl?: string;
-    posterUrl?: string;
-    hlsUrl?: string;
-    type?: 'image' | 'video' | 'gif';
-    durationSec?: number;
-    orientation?: 'portrait' | 'landscape' | 'square';
-    aspectRatio?: number;
-    // Intrinsic pixel size, persisted at ingest. Read for the PiP window's shape,
-    // which needs a size before playback has reported one.
-    width?: number;
-    height?: number;
+  id?: string;
+  url?: string;
+  thumbUrl?: string;
+  posterUrl?: string;
+  hlsUrl?: string;
+  type?: 'image' | 'video' | 'gif';
+  durationSec?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  aspectRatio?: number;
+  // Intrinsic pixel size, persisted at ingest. Read for the PiP window's shape,
+  // which needs a size before playback has reported one.
+  width?: number;
+  height?: number;
 }
 
 interface VideoPost extends HydratedPost {
-    videoUrl: string;
-    // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
-    // adaptive HLS stream when present; `ActiveVideoSurface` retries with this
-    // exactly once if the preferred source errors (e.g. HLS not transcoded yet).
-    fallbackVideoUrl?: string;
-    posterUrl?: string;
-    /** Persisted duration from content.media[] (seconds); seeds scrubber before player metadata loads. */
-    durationSec?: number;
-    /**
-     * Persisted intrinsic pixel size from content.media[]. Gives the OS
-     * Picture-in-Picture window its shape before the player reports a track — see
-     * `usePipAspectRatio`.
-     */
-    intrinsicSize?: MediaPixelSize;
-    /**
-     * The media item this slide plays. Half of the identity the feed and this
-     * screen agree on for one video — the other half is the post id — so a slide
-     * can tell whether it is the one a flight was aimed at.
-     */
-    mediaId?: string;
-    createdAt: string;
+  videoUrl: string;
+  // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
+  // adaptive HLS stream when present; `ActiveVideoSurface` retries with this
+  // exactly once if the preferred source errors (e.g. HLS not transcoded yet).
+  fallbackVideoUrl?: string;
+  posterUrl?: string;
+  /** Persisted duration from content.media[] (seconds); seeds scrubber before player metadata loads. */
+  durationSec?: number;
+  /**
+   * Persisted intrinsic pixel size from content.media[]. Gives the OS
+   * Picture-in-Picture window its shape before the player reports a track — see
+   * `usePipAspectRatio`.
+   */
+  intrinsicSize?: MediaPixelSize;
+  /**
+   * The media item this slide plays. Half of the identity the feed and this
+   * screen agree on for one video — the other half is the post id — so a slide
+   * can tell whether it is the one a flight was aimed at.
+   */
+  mediaId?: string;
+  createdAt: string;
 }
 
 interface ViewableItem {
-    index: number | null;
-    isViewable: boolean;
+  index: number | null;
+  isViewable: boolean;
 }
 
 interface VideoItemProps {
-    item: VideoPost;
-    isActive: boolean;
-    isNear: boolean;
-    /** Reported by the active slide; the screen decides when neighbours may mount. */
-    onBufferAhead?: (seconds: number) => void;
-    // True only while the /videos route is the focused screen. When another
-    // route is pushed on top, freezeOnBlur pauses JS but the native decoder may
-    // keep playing audio/video; gating playback on this prevents that bleed.
-    screenFocused: boolean;
-    theme: ReturnType<typeof useTheme>;
-    onLike: (postId: string, isLiked: boolean) => void;
-    onComment: (postId: string) => void;
-    onBoost: (postId: string, isBoosted: boolean) => void;
-    onSave: (postId: string, isSaved: boolean) => void;
-    onShare: (post: VideoPost) => void;
-    formatCompactNumber: (count: number) => string;
-    muted: boolean;
-    onMutedChange: (muted: boolean) => void;
-    bottomBarHeight: number;
-    t: (key: string) => string;
-    windowHeight: number;
-    bottomSheetProgress?: SharedValue<number>;
-    // The signed-in viewer's id — hides the on-video follow button on the
-    // author's own video.
-    viewerId?: string;
-    // PiP session plumbing, forwarded to the surface (see ActiveVideoSurfaceProps).
-    ownsSession: boolean;
-    sessionActive: boolean;
-    sessionSource?: PlayableSource;
-    onSessionStart: (postId: string) => void;
-    onSessionEnd: (postId: string) => void;
-    onRegisterTransportSeek: RegisterTransportSeek;
+  item: VideoPost;
+  isActive: boolean;
+  isNear: boolean;
+  /** Reported by the active slide; the screen decides when neighbours may mount. */
+  onBufferAhead?: (seconds: number) => void;
+  // True only while the /videos route is the focused screen. When another
+  // route is pushed on top, freezeOnBlur pauses JS but the native decoder may
+  // keep playing audio/video; gating playback on this prevents that bleed.
+  screenFocused: boolean;
+  theme: ReturnType<typeof useTheme>;
+  onLike: (postId: string, isLiked: boolean) => void;
+  onComment: (postId: string) => void;
+  onBoost: (postId: string, isBoosted: boolean) => void;
+  onSave: (postId: string, isSaved: boolean) => void;
+  onShare: (post: VideoPost) => void;
+  formatCompactNumber: (count: number) => string;
+  muted: boolean;
+  onMutedChange: (muted: boolean) => void;
+  bottomBarHeight: number;
+  t: (key: string) => string;
+  windowHeight: number;
+  bottomSheetProgress?: SharedValue<number>;
+  // The signed-in viewer's id — hides the on-video follow button on the
+  // author's own video.
+  viewerId?: string;
+  // PiP session plumbing, forwarded to the surface (see ActiveVideoSurfaceProps).
+  ownsSession: boolean;
+  sessionActive: boolean;
+  sessionSource?: PlayableSource;
+  onSessionStart: (postId: string) => void;
+  onSessionEnd: (postId: string) => void;
+  onRegisterTransportSeek: RegisterTransportSeek;
 }
 
 // ── Active player surface ────────────────────────────────────────
@@ -349,47 +379,47 @@ interface VideoItemProps {
  * replacing was showing the same pixels.
  */
 const ReelPoster = memo<{
-    posterUrl?: string;
-    posterFailed: boolean;
-    onPosterError: () => void;
-    theme: ReturnType<typeof useTheme>;
+  posterUrl?: string;
+  posterFailed: boolean;
+  onPosterError: () => void;
+  theme: ReturnType<typeof useTheme>;
 }>(({ posterUrl, posterFailed, onPosterError, theme }) => (
-    <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
-        {posterUrl && !posterFailed ? (
-            <Image
-                source={{ uri: posterUrl }}
-                style={styles.poster}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                priority="high"
-                onError={onPosterError}
-            />
-        ) : (
-            <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
-        )}
-    </View>
+  <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
+    {posterUrl && !posterFailed ? (
+      <Image
+        source={{ uri: posterUrl }}
+        style={styles.poster}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+        priority="high"
+        onError={onPosterError}
+      />
+    ) : (
+      <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
+    )}
+  </View>
 ));
 
 ReelPoster.displayName = 'ReelPoster';
 
 interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'restartOnActivate'> {
-    // How much of the surface's bottom edge the floating BottomBar covers. The
-    // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
-    // own bottom padding and has to lift itself clear of the bar.
-    bottomBarHeight: number;
-    theme: ReturnType<typeof useTheme>;
-    /**
-     * The poster's failure flag and its reporter, OWNED BY THE ROW.
-     *
-     * A surface lives only while its row is inside the live-player window; the
-     * row outlives it and draws the same poster on the other side. Holding
-     * "this poster 404s" in the surface meant the answer was thrown away and
-     * re-learned every time the reader scrolled the row back in — and it was
-     * held twice, once here and once in the row, so the two copies could
-     * disagree about the same image.
-     */
-    posterFailed: boolean;
-    onPosterError: () => void;
+  // How much of the surface's bottom edge the floating BottomBar covers. The
+  // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
+  // own bottom padding and has to lift itself clear of the bar.
+  bottomBarHeight: number;
+  theme: ReturnType<typeof useTheme>;
+  /**
+   * The poster's failure flag and its reporter, OWNED BY THE ROW.
+   *
+   * A surface lives only while its row is inside the live-player window; the
+   * row outlives it and draws the same poster on the other side. Holding
+   * "this poster 404s" in the surface meant the answer was thrown away and
+   * re-learned every time the reader scrolled the row back in — and it was
+   * held twice, once here and once in the row, so the two copies could
+   * disagree about the same image.
+   */
+  posterFailed: boolean;
+  onPosterError: () => void;
 }
 
 /**
@@ -411,7 +441,8 @@ type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderV
 
 const reelHostId = (postId: string): string => `reel:${postId}`;
 
-const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
+const ReelSurface: React.FC<
+  ActiveVideoSurfaceProps & {
     player: VideoPlayer;
     /**
      * The id this slide shares with the feed row it came from. Present whenever
@@ -432,30 +463,77 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
      * with no HLS decoder of its own). Undefined everywhere else.
      */
     jsHlsSource?: string;
-}> = ({
+  }
+> = ({
+  player,
+  flightId,
+  restartOnActivate,
+  onFirstFrameRender,
+  jsHlsSource,
+  postId,
+  videoUrl,
+  fallbackVideoUrl,
+  posterUrl,
+  posterFailed,
+  onPosterError,
+  initialDurationSec,
+  intrinsicSize,
+  isActive,
+  onBufferAhead,
+  screenFocused,
+  bottomBarHeight,
+  windowHeight,
+  muted,
+  onMutedChange,
+  onError,
+  t,
+  theme,
+  isLiked,
+  onLikePost,
+  ownsSession,
+  sessionActive,
+  sessionSource,
+  onSessionStart,
+  onSessionEnd,
+  onRegisterTransportSeek,
+}) => {
+  // Everything layered on top of that player — poster, heart, mute, PiP,
+  // scrubber, playback gate, wake lock, transport. It takes the player as an
+  // argument and never asks who made it, which is what will let a surface be
+  // handed one from a shared registry instead of building its own.
+  const {
+    videoViewRef,
+    isWatched,
+    handlePictureInPictureStart,
+    handlePictureInPictureStop,
+    showPoster,
+    handleSurfacePress,
+    userPaused,
+    heartStyle,
+    showPauseAffordance,
+    showBufferSpinner,
+    showScrubber,
+    onTrackLayout,
+    panResponder,
+    isScrubbing,
+    progressStyle,
+  } = useReelChrome({
     player,
-    flightId,
     restartOnActivate,
-    onFirstFrameRender,
-    jsHlsSource,
     postId,
     videoUrl,
     fallbackVideoUrl,
     posterUrl,
-    posterFailed,
-    onPosterError,
     initialDurationSec,
     intrinsicSize,
     isActive,
     onBufferAhead,
     screenFocused,
-    bottomBarHeight,
     windowHeight,
     muted,
     onMutedChange,
     onError,
     t,
-    theme,
     isLiked,
     onLikePost,
     ownsSession,
@@ -464,77 +542,31 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     onSessionStart,
     onSessionEnd,
     onRegisterTransportSeek,
-}) => {
-    // Everything layered on top of that player — poster, heart, mute, PiP,
-    // scrubber, playback gate, wake lock, transport. It takes the player as an
-    // argument and never asks who made it, which is what will let a surface be
-    // handed one from a shared registry instead of building its own.
-    const {
-        videoViewRef,
-        isWatched,
-        handlePictureInPictureStart,
-        handlePictureInPictureStop,
-        showPoster,
-        handleSurfacePress,
-        userPaused,
-        heartStyle,
-        showPauseAffordance,
-        showBufferSpinner,
-        showScrubber,
-        onTrackLayout,
-        panResponder,
-        isScrubbing,
-        progressStyle,
-    } = useReelChrome({
-        player,
-        restartOnActivate,
-        postId,
-        videoUrl,
-        fallbackVideoUrl,
-        posterUrl,
-        initialDurationSec,
-        intrinsicSize,
-        isActive,
-        onBufferAhead,
-        screenFocused,
-        windowHeight,
-        muted,
-        onMutedChange,
-        onError,
-        t,
-        isLiked,
-        onLikePost,
-        ownsSession,
-        sessionActive,
-        sessionSource,
-        onSessionStart,
-        onSessionEnd,
-        onRegisterTransportSeek,
-    });
+  });
 
-    // Inert unless `jsHlsSource` is set, and always on native.
-    useHlsPlayback(jsHlsSource ?? '', videoViewRef);
+  // Inert unless `jsHlsSource` is set, and always on native.
+  useHlsPlayback(jsHlsSource ?? '', videoViewRef);
 
-    // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
-    // without a size. `player` passes through untouched including `null`, which
-    // is how expo-video empties a source silently.
-    const renderReelVideo = useCallback(
-        ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
-            <VideoView
-                ref={videoViewRef}
-                        // `null` is forwarded verbatim — it is the instruction to unbind
-                // this element, and expo-video answers it by emptying the source
-                // without an event, which is what stops an outgoing surface
-                // pausing the one that just landed. Anything else is OUR player:
-                // Bloom never makes one, it hands back what it was given, and
-                // that is the object this component already holds, fully typed.
-                // Narrowed rather than cast, because `VideoPlayerLike` is
-                // deliberately smaller than expo-video's `VideoPlayer`.
-                player={slotPlayer === null ? null : player}
-                style={slotStyle}
-                contentFit={slotFit}
-                nativeControls={false}
-                /* ANDROID: a TextureView, not the default SurfaceView.
+  // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
+  // without a size. `player` passes through untouched including `null`, which
+  // is how expo-video empties a source silently.
+  const renderReelVideo = useCallback(
+    ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
+      <VideoView
+        ref={videoViewRef}
+        // `null` is forwarded verbatim — it is the instruction to unbind
+        // this element, and expo-video answers it by emptying the source
+        // without an event, which is what stops an outgoing surface
+        // pausing the one that just landed. Anything else is OUR player:
+        // Bloom never makes one, it hands back what it was given, and
+        // that is the object this component already holds, fully typed.
+        // Narrowed rather than cast, because `VideoPlayerLike` is
+        // deliberately smaller than expo-video's `VideoPlayer`.
+        player={slotPlayer === null ? null : player}
+        style={slotStyle}
+        contentFit={slotFit}
+        nativeControls={false}
+        /* ANDROID: a TextureView, not the default SurfaceView.
                    A SurfaceView is its own window punched through the view
                    hierarchy: it does not clip to its React parent and it does
                    not move with the list mid-scroll. With up to five slides
@@ -549,128 +581,137 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                    frame, which is the right trade against showing the wrong
                    video. Set here and never changed at runtime, as the prop
                    requires. */
-                surfaceType="textureView"
-                fullscreenOptions={{ enable: false }}
-                allowsPictureInPicture={isWatched}
-                startsPictureInPictureAutomatically={isWatched}
-                onPictureInPictureStart={handlePictureInPictureStart}
-                onPictureInPictureStop={handlePictureInPictureStop}
-                onFirstFrameRender={onFirstFrameRender}
-            />
-        ),
-        [player, videoViewRef, isWatched, handlePictureInPictureStart, handlePictureInPictureStop, onFirstFrameRender],
-    );
+        surfaceType="textureView"
+        fullscreenOptions={{ enable: false }}
+        allowsPictureInPicture={isWatched}
+        startsPictureInPictureAutomatically={isWatched}
+        onPictureInPictureStart={handlePictureInPictureStart}
+        onPictureInPictureStop={handlePictureInPictureStop}
+        onFirstFrameRender={onFirstFrameRender}
+      />
+    ),
+    [
+      player,
+      videoViewRef,
+      isWatched,
+      handlePictureInPictureStart,
+      handlePictureInPictureStop,
+      onFirstFrameRender,
+    ],
+  );
 
-    // One object per player: the host compares `content` by reference.
-    const flightContent = useMemo(() => ({ kind: 'video' as const, player }), [player]);
+  // One object per player: the host compares `content` by reference.
+  const flightContent = useMemo(() => ({ kind: 'video' as const, player }), [player]);
 
-    return (
-        <>
-            {/* The same shared node the feed row was painting, claimed by id:
+  return (
+    <>
+      {/* The same shared node the feed row was painting, claimed by id:
                 one element that MOVES keeps the decoder, the position and the
                 playback across the route change. The element itself is still
                 this screen's, built in the slot below — Picture-in-Picture is
                 asked of a `VideoView` through its ref, so a host that built its
                 own would paint the button and answer nothing. */}
-            <MediaFlightHost
-                id={flightId ?? reelHostId(postId)}
-                content={flightContent}
-                style={StyleSheet.absoluteFill}
-                contentFit="contain"
-                renderVideo={renderReelVideo}
-                pointerEvents="none"
-            />
+      <MediaFlightHost
+        id={flightId ?? reelHostId(postId)}
+        content={flightContent}
+        style={StyleSheet.absoluteFill}
+        contentFit="contain"
+        renderVideo={renderReelVideo}
+        pointerEvents="none"
+      />
 
-            {showPoster && (
-                <ReelPoster
-                    posterUrl={posterUrl}
-                    posterFailed={posterFailed}
-                    onPosterError={onPosterError}
-                    theme={theme}
-                />
-            )}
+      {showPoster && (
+        <ReelPoster
+          posterUrl={posterUrl}
+          posterFailed={posterFailed}
+          onPosterError={onPosterError}
+          theme={theme}
+        />
+      )}
 
-            {/* Full-surface tap target → toggle play/pause (single tap, deferred)
+      {/* Full-surface tap target → toggle play/pause (single tap, deferred)
                 or like (double tap). It sits ABOVE the video/poster but BELOW the
                 mute button (z 10), scrubber, and the bottom overlay actions, so
                 those keep their own taps. */}
-            <Pressable
-                style={styles.tapLayer}
-                onPress={handleSurfacePress}
-                accessibilityRole="button"
-                accessibilityLabel={t(muted
-                    ? 'settings.lanes.muted.unmute'
-                    : userPaused ? 'videos.play' : 'videos.pause')}
-            />
+      <Pressable
+        style={styles.tapLayer}
+        onPress={handleSurfacePress}
+        accessibilityRole="button"
+        accessibilityLabel={t(
+          muted ? 'settings.lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause',
+        )}
+      />
 
-            {/* Double-tap heart pop — large, centered, non-interactive. */}
-            <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
-                <RiHeartFill width={96} height={96} fill={LIKE_ACTIVE_COLOR} />
-            </Animated.View>
+      {/* Double-tap heart pop — large, centered, non-interactive. */}
+      <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
+        <RiHeartFill width={96} height={96} fill={LIKE_ACTIVE_COLOR} />
+      </Animated.View>
 
-            {showPauseAffordance && (
-                <View style={styles.pauseAffordance} pointerEvents="none">
-                    <View style={styles.pauseAffordanceInner}>
-                        <RiPlayFill width={44} height={44} fill="white" />
-                    </View>
-                </View>
-            )}
+      {showPauseAffordance && (
+        <View style={styles.pauseAffordance} pointerEvents="none">
+          <View style={styles.pauseAffordanceInner}>
+            <RiPlayFill width={44} height={44} fill="white" />
+          </View>
+        </View>
+      )}
 
-            {showBufferSpinner && (
-                <View style={styles.bufferSpinner} pointerEvents="none">
-                    <View style={styles.bufferSpinnerInner}>
-                        <SpinnerIcon size={32} className="text-white" />
-                    </View>
-                </View>
-            )}
+      {showBufferSpinner && (
+        <View style={styles.bufferSpinner} pointerEvents="none">
+          <View style={styles.bufferSpinnerInner}>
+            <SpinnerIcon size={32} className="text-white" />
+          </View>
+        </View>
+      )}
 
-            {showScrubber && (
-                <View
-                    // Lifted clear of the floating BottomBar: pinned to the
-                    // surface's own bottom edge the whole 16px band sits UNDER
-                    // the bar, which takes every touch meant for the track.
-                    style={[styles.scrubberHitArea, { bottom: bottomBarHeight }]}
-                    // Vertical only on purpose: the track's x maps to seek
-                    // position, so widening it horizontally would make the
-                    // touch-to-time mapping lie past both ends.
-                    hitSlop={{ top: 8, bottom: 8 }}
-                    onLayout={onTrackLayout}
-                    {...panResponder.panHandlers}
-                >
-                    <View style={[styles.scrubberTrack, isScrubbing && styles.scrubberTrackActive]}>
-                        <Animated.View style={[styles.scrubberFill, progressStyle]} />
-                    </View>
-                </View>
-            )}
-        </>
-    );
+      {showScrubber && (
+        <View
+          // Lifted clear of the floating BottomBar: pinned to the
+          // surface's own bottom edge the whole 16px band sits UNDER
+          // the bar, which takes every touch meant for the track.
+          style={[styles.scrubberHitArea, { bottom: bottomBarHeight }]}
+          // Vertical only on purpose: the track's x maps to seek
+          // position, so widening it horizontally would make the
+          // touch-to-time mapping lie past both ends.
+          hitSlop={{ top: 8, bottom: 8 }}
+          onLayout={onTrackLayout}
+          {...panResponder.panHandlers}
+        >
+          <View style={[styles.scrubberTrack, isScrubbing && styles.scrubberTrackActive]}>
+            <Animated.View style={[styles.scrubberFill, progressStyle]} />
+          </View>
+        </View>
+      )}
+    </>
+  );
 };
 
 /** The ordinary slide: its own player, released with it, rewound on activation. */
 const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
-    // Built ONCE from this row's own source and never rebuilt: `useVideoPlayer`
-    // releases and recreates its player whenever the source argument changes,
-    // which would tear the OS window's subject out from under it mid-session.
-    // Every later source change goes through `replaceAsync`.
-    // Memoised on the URL: `useVideoPlayer` REBUILDS its player whenever the
-    // source it is handed changes, and a fresh object literal every render is a
-    // change every render — which would rebuild the decoder on each commit.
-    // A playlist this browser cannot decode goes to hls.js instead, which needs
-    // the element to itself: the player is built with no source at all.
-    const [jsHlsSource] = useState(() => (needsJsHlsDecoder(props.videoUrl) ? props.videoUrl : undefined));
-    const source = useMemo(
-        () => (jsHlsSource ? null : videoSourceFor(props.videoUrl)),
-        [jsHlsSource, props.videoUrl],
-    );
-    const player = useVideoPlayer(source, (p: VideoPlayer) => {
-        p.loop = true;
-        // Drive the scrubber at a smooth-but-cheap cadence.
-        p.timeUpdateEventInterval = REEL_TIME_UPDATE_INTERVAL_S;
-        // Single source of truth for the initial mute: the global store value
-        // captured at mount. Subsequent changes flow through the sync effect.
-        p.muted = props.muted;
-    });
-    return <ReelSurface {...props} player={player} restartOnActivate jsHlsSource={jsHlsSource} />;
+  // Built ONCE from this row's own source and never rebuilt: `useVideoPlayer`
+  // releases and recreates its player whenever the source argument changes,
+  // which would tear the OS window's subject out from under it mid-session.
+  // Every later source change goes through `replaceAsync`.
+  // Memoised on the URL: `useVideoPlayer` REBUILDS its player whenever the
+  // source it is handed changes, and a fresh object literal every render is a
+  // change every render — which would rebuild the decoder on each commit.
+  // A playlist this browser cannot decode goes to hls.js instead, which needs
+  // the element to itself: the player is built with no source at all.
+  const [jsHlsSource] = useState(() =>
+    needsJsHlsDecoder(props.videoUrl) ? props.videoUrl : undefined,
+  );
+  const source = useMemo(
+    () => (jsHlsSource ? null : videoSourceFor(props.videoUrl)),
+    [jsHlsSource, props.videoUrl],
+  );
+  const player = useVideoPlayer(source, (p: VideoPlayer) => {
+    p.loop = true;
+    // Drive the scrubber at a smooth-but-cheap cadence.
+    p.timeUpdateEventInterval = REEL_TIME_UPDATE_INTERVAL_S;
+    // Single source of truth for the initial mute: the global store value
+    // captured at mount. Subsequent changes flow through the sync effect.
+    p.muted = props.muted;
+  });
+  return <ReelSurface {...props} player={player} restartOnActivate jsHlsSource={jsHlsSource} />;
 };
 
 /**
@@ -689,32 +730,39 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
  * again later (expo-video re-emits it when the video track changes), which
  * costs nothing — handing off an id that is no longer in flight is a no-op.
  */
-const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: VideoPlayerKey }> = ({ flightId, ...props }) => {
-    const player = useVideoPlayerLease(flightId, props.videoUrl);
-    const { handOff } = useMediaFlight();
-    const handleFirstFrame = useCallback(() => handOff(flightId), [handOff, flightId]);
-    return (
-        <ReelSurface
-            {...props}
-            flightId={flightId}
-            player={player}
-            restartOnActivate={false}
-            onFirstFrameRender={handleFirstFrame}
-        />
-    );
+const AdoptedPlayerSurface: React.FC<ActiveVideoSurfaceProps & { flightId: VideoPlayerKey }> = ({
+  flightId,
+  ...props
+}) => {
+  const player = useVideoPlayerLease(flightId, props.videoUrl);
+  const { handOff } = useMediaFlight();
+  const handleFirstFrame = useCallback(() => handOff(flightId), [handOff, flightId]);
+  return (
+    <ReelSurface
+      {...props}
+      flightId={flightId}
+      player={player}
+      restartOnActivate={false}
+      onFirstFrameRender={handleFirstFrame}
+    />
+  );
 };
 
-const ActiveVideoSurface = memo<ActiveVideoSurfaceProps & { flightId?: VideoPlayerKey }>((props) => {
+const ActiveVideoSurface = memo<ActiveVideoSurfaceProps & { flightId?: VideoPlayerKey }>(
+  (props) => {
     const { flightId, ...rest } = props;
     // Decided ONCE, at mount: "was a flight live for this media when this slide
     // appeared". Read through a lazy initialiser rather than during every render
     // — the answer stops being true the moment the flight is released, and a
     // slide that swapped player identity mid-life would restart the video.
     const [adopted] = useState(() => flightId !== undefined && hasFlight(flightId));
-    return adopted && flightId
-        ? <AdoptedPlayerSurface {...rest} flightId={flightId} />
-        : <OwnPlayerSurface {...rest} />;
-});
+    return adopted && flightId ? (
+      <AdoptedPlayerSurface {...rest} flightId={flightId} />
+    ) : (
+      <OwnPlayerSurface {...rest} />
+    );
+  },
+);
 
 ActiveVideoSurface.displayName = 'ActiveVideoSurface';
 
@@ -722,7 +770,8 @@ ActiveVideoSurface.displayName = 'ActiveVideoSurface';
 // Always mounted while inside the FlatList window. The decoder-bearing
 // ActiveVideoSurface is mounted only when `isNear`; otherwise we render the
 // static poster so the row keeps its slot without holding a player.
-const VideoItem = memo<VideoItemProps>(({
+const VideoItem = memo<VideoItemProps>(
+  ({
     item,
     isActive,
     isNear,
@@ -748,7 +797,7 @@ const VideoItem = memo<VideoItemProps>(({
     onSessionStart,
     onSessionEnd,
     onRegisterTransportSeek,
-}) => {
+  }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
     // The poster can 404 (no extractable frame) or fail to load → fall back to
@@ -761,8 +810,8 @@ const VideoItem = memo<VideoItemProps>(({
     const [posterFailed, setPosterFailed] = useState(false);
     const [prevPosterUrl, setPrevPosterUrl] = useState(item.posterUrl);
     if (prevPosterUrl !== item.posterUrl) {
-        setPrevPosterUrl(item.posterUrl);
-        setPosterFailed(false);
+      setPrevPosterUrl(item.posterUrl);
+      setPosterFailed(false);
     }
     // A load that failed once must not condemn the slide for the whole session.
     // `videoError` unmounts the surface and paints "Video unavailable", the row
@@ -777,10 +826,10 @@ const VideoItem = memo<VideoItemProps>(({
     // The fuller story is in `__tests__/reelErrorIsNotPermanent.test.ts`.
     const [prevIsActive, setPrevIsActive] = useState(isActive);
     if (prevIsActive !== isActive) {
-        setPrevIsActive(isActive);
-        if (isActive && videoError) {
-            setVideoError(false);
-        }
+      setPrevIsActive(isActive);
+      if (isActive && videoError) {
+        setVideoError(false);
+      }
     }
     // TikTok-style expandable caption: collapsed to two lines until toggled.
     const [captionExpanded, setCaptionExpanded] = useState(false);
@@ -789,1736 +838,1892 @@ const VideoItem = memo<VideoItemProps>(({
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
     const toggleCaption = useCallback(() => setCaptionExpanded((prev) => !prev), []);
 
-    const userName = useMemo(() => item.user?.name?.displayName ?? '', [item.user?.name?.displayName]);
+    const userName = useMemo(
+      () => item.user?.name?.displayName ?? '',
+      [item.user?.name?.displayName],
+    );
     const userHandle = useMemo(
-        () => getNormalizedUserHandle(item.user) || t('common.unknown'),
-        [item.user, t],
+      () => getNormalizedUserHandle(item.user) || t('common.unknown'),
+      [item.user, t],
     );
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
     const handleProfilePress = useCallback(() => {
-        // The author's VIDEOS tab: a reader who tapped a face in the reel came
-        // for more of the same, not for a text timeline.
-        const href = profileHrefForUser(item.user, 'videos');
-        if (href) {
-            router.push(href);
-        }
+      // The author's VIDEOS tab: a reader who tapped a face in the reel came
+      // for more of the same, not for a text timeline.
+      const href = profileHrefForUser(item.user, 'videos');
+      if (href) {
+        router.push(href);
+      }
     }, [item.user, router]);
 
     // Like-only handler for the double-tap gesture — never unlikes.
     const handleDoubleTapLike = useCallback(() => {
-        if (!item.viewerState.isLiked) {
-            onLike(item.id, false);
-        }
+      if (!item.viewerState.isLiked) {
+        onLike(item.id, false);
+      }
     }, [item.id, item.viewerState.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
     const showOnVideoFollow = Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
     const repliesTransformStyle = useAnimatedStyle(() => {
-        const progress = bottomSheetProgress?.value ?? 0;
-        return {
-            transform: [
-                { translateY: -(windowHeight * 0.31 * progress) },
-                { scale: interpolate(progress, [0, 1], [1, 0.38]) },
-            ],
-        };
+      const progress = bottomSheetProgress?.value ?? 0;
+      return {
+        transform: [
+          { translateY: -(windowHeight * 0.31 * progress) },
+          { scale: interpolate(progress, [0, 1], [1, 0.38]) },
+        ],
+      };
     }, [bottomSheetProgress, windowHeight]);
 
     return (
-        <Animated.View
-            className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
-            style={[
-                styles.videoContainer,
-                Platform.OS === 'web' ? null : { height: windowHeight },
-                repliesTransformStyle,
-            ]}
-        >
-            {canRenderPlayer ? (
-                <ActiveVideoSurface
-                    flightId={item.mediaId ? videoPlayerKey(item.id, item.mediaId) : undefined}
-                    postId={item.id}
-                    videoUrl={item.videoUrl}
-                    fallbackVideoUrl={item.fallbackVideoUrl}
-                    posterUrl={item.posterUrl}
-                    posterFailed={posterFailed}
-                    onPosterError={handlePosterError}
-                    initialDurationSec={item.durationSec}
-                    intrinsicSize={item.intrinsicSize}
-                    isActive={isActive}
-                    onBufferAhead={onBufferAhead}
-                    screenFocused={screenFocused}
-                    bottomBarHeight={bottomBarHeight}
-                    windowHeight={windowHeight}
-                    muted={muted}
-                    onMutedChange={onMutedChange}
-                    onError={handleError}
-                    t={t}
-                    theme={theme}
-                    isLiked={item.viewerState.isLiked}
-                    onLikePost={handleDoubleTapLike}
-                    ownsSession={ownsSession}
-                    sessionActive={sessionActive}
-                    sessionSource={sessionSource}
-                    onSessionStart={onSessionStart}
-                    onSessionEnd={onSessionEnd}
-                    onRegisterTransportSeek={onRegisterTransportSeek}
-                />
-            ) : (
-                // Outside the live window (or errored): no decoder, just the
-                // poster — the SAME element the surface draws on the other side
-                // of the window, so crossing it changes nothing on screen.
-                <>
-                    <ReelPoster
-                        posterUrl={item.posterUrl}
-                        posterFailed={posterFailed}
-                        onPosterError={handlePosterError}
-                        theme={theme}
-                    />
-                    {videoError && (
-                        <View style={styles.posterLayer} pointerEvents="none">
-                            <Text className="mt-2 text-xs text-muted-foreground">
-                                {t('videos.unavailable')}
-                            </Text>
-                        </View>
-                    )}
-                </>
+      <Animated.View
+        className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
+        style={[
+          styles.videoContainer,
+          Platform.OS === 'web' ? null : { height: windowHeight },
+          repliesTransformStyle,
+        ]}
+      >
+        {canRenderPlayer ? (
+          <ActiveVideoSurface
+            flightId={item.mediaId ? videoPlayerKey(item.id, item.mediaId) : undefined}
+            postId={item.id}
+            videoUrl={item.videoUrl}
+            fallbackVideoUrl={item.fallbackVideoUrl}
+            posterUrl={item.posterUrl}
+            posterFailed={posterFailed}
+            onPosterError={handlePosterError}
+            initialDurationSec={item.durationSec}
+            intrinsicSize={item.intrinsicSize}
+            isActive={isActive}
+            onBufferAhead={onBufferAhead}
+            screenFocused={screenFocused}
+            bottomBarHeight={bottomBarHeight}
+            windowHeight={windowHeight}
+            muted={muted}
+            onMutedChange={onMutedChange}
+            onError={handleError}
+            t={t}
+            theme={theme}
+            isLiked={item.viewerState.isLiked}
+            onLikePost={handleDoubleTapLike}
+            ownsSession={ownsSession}
+            sessionActive={sessionActive}
+            sessionSource={sessionSource}
+            onSessionStart={onSessionStart}
+            onSessionEnd={onSessionEnd}
+            onRegisterTransportSeek={onRegisterTransportSeek}
+          />
+        ) : (
+          // Outside the live window (or errored): no decoder, just the
+          // poster — the SAME element the surface draws on the other side
+          // of the window, so crossing it changes nothing on screen.
+          <>
+            <ReelPoster
+              posterUrl={item.posterUrl}
+              posterFailed={posterFailed}
+              onPosterError={handlePosterError}
+              theme={theme}
+            />
+            {videoError && (
+              <View style={styles.posterLayer} pointerEvents="none">
+                <Text className="mt-2 text-xs text-muted-foreground">
+                  {t('videos.unavailable')}
+                </Text>
+              </View>
             )}
+          </>
+        )}
 
-            {/* `box-none`: the overlay container spans the bottom half of the
+        {/* `box-none`: the overlay container spans the bottom half of the
                 surface, but only its interactive leaves (author press, follow,
                 caption toggle, action buttons) should capture touches — empty
                 regions must fall through to the tap layer below (single-tap pause
                 / double-tap like). Without this the overlay (zIndex 5, above the
                 zIndex-2 tap layer) would swallow taps on the lower half. */}
-            <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]} pointerEvents="box-none">
-                <LinearGradient
-                    colors={GRADIENT_COLORS}
-                    locations={GRADIENT_LOCATIONS}
-                    style={styles.gradientOverlay}
-                />
+        <View
+          style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}
+          pointerEvents="box-none"
+        >
+          <LinearGradient
+            colors={GRADIENT_COLORS}
+            locations={GRADIENT_LOCATIONS}
+            style={styles.gradientOverlay}
+          />
 
-                <View style={styles.bottomInfo} pointerEvents="box-none">
-                    <View style={styles.userInfo} pointerEvents="box-none">
-                        <View style={styles.userHeaderRow} pointerEvents="box-none">
-                            <Pressable onPress={handleProfilePress} style={styles.userHeader}>
-                                <Avatar
-                                    source={item.user?.avatar ?? undefined}
-                                    size={40}
-                                    variant={MEDIA_VARIANT_AVATAR}
-                                    verified={item.user?.verified || false}
-                                    style={styles.userAvatar}
-                                />
-                                <View style={styles.userNameContainer}>
-                                    <View style={styles.userNameRow}>
-                                        <Text style={styles.userFullName} numberOfLines={1}>
-                                            {userName}
-                                        </Text>
-                                        {item.user?.verified && (
-                                            <VerifiedIcon size={14} style={styles.verifiedIcon} />
-                                        )}
-                                    </View>
-                                    <Text style={styles.userHandle} numberOfLines={1}>
-                                        @{userHandle}
-                                    </Text>
-                                </View>
-                            </Pressable>
-                            {showOnVideoFollow && item.user?.id && (
-                                <View style={styles.onVideoFollow}>
-                                    <FollowButton userId={item.user.id} size="sm" />
-                                </View>
-                            )}
-                        </View>
-                        {postText ? (
-                            <View style={styles.caption}>
-                                <LinkifiedText
-                                    text={postText}
-                                    style={styles.postText}
-                                    linkStyle={styles.postLink}
-                                    numberOfLines={captionExpanded ? undefined : 2}
-                                />
-                                {showCaptionToggle && (
-                                    <Text
-                                        style={styles.captionToggle}
-                                        onPress={toggleCaption}
-                                        accessibilityRole="button"
-                                    >
-                                        {t(captionExpanded ? 'videos.less' : 'videos.more')}
-                                    </Text>
-                                )}
-                            </View>
-                        ) : null}
-                        <View style={styles.soundRow} pointerEvents="none">
-                            <Ionicons name="musical-notes-outline" size={13} color="#FFFFFF" style={styles.soundIcon} />
-                            <Text style={styles.soundText} numberOfLines={1}>
-                                {t('videos.original_audio')} · @{userHandle}
-                            </Text>
-                        </View>
+          <View style={styles.bottomInfo} pointerEvents="box-none">
+            <View style={styles.userInfo} pointerEvents="box-none">
+              <View style={styles.userHeaderRow} pointerEvents="box-none">
+                <Pressable onPress={handleProfilePress} style={styles.userHeader}>
+                  <Avatar
+                    source={item.user?.avatar ?? undefined}
+                    size={40}
+                    variant={MEDIA_VARIANT_AVATAR}
+                    verified={item.user?.verified || false}
+                    style={styles.userAvatar}
+                  />
+                  <View style={styles.userNameContainer}>
+                    <View style={styles.userNameRow}>
+                      <Text style={styles.userFullName} numberOfLines={1}>
+                        {userName}
+                      </Text>
+                      {item.user?.verified && (
+                        <VerifiedIcon size={14} style={styles.verifiedIcon} />
+                      )}
                     </View>
+                    <Text style={styles.userHandle} numberOfLines={1}>
+                      @{userHandle}
+                    </Text>
+                  </View>
+                </Pressable>
+                {showOnVideoFollow && item.user?.id && (
+                  <View style={styles.onVideoFollow}>
+                    <FollowButton userId={item.user.id} size="sm" />
+                  </View>
+                )}
+              </View>
+              {postText ? (
+                <View style={styles.caption}>
+                  <LinkifiedText
+                    text={postText}
+                    style={styles.postText}
+                    linkStyle={styles.postLink}
+                    numberOfLines={captionExpanded ? undefined : 2}
+                  />
+                  {showCaptionToggle && (
+                    <Text
+                      style={styles.captionToggle}
+                      onPress={toggleCaption}
+                      accessibilityRole="button"
+                    >
+                      {t(captionExpanded ? 'videos.less' : 'videos.more')}
+                    </Text>
+                  )}
                 </View>
+              ) : null}
+              <View style={styles.soundRow} pointerEvents="none">
+                <Ionicons
+                  name="musical-notes-outline"
+                  size={13}
+                  color="#FFFFFF"
+                  style={styles.soundIcon}
+                />
+                <Text style={styles.soundText} numberOfLines={1}>
+                  {t('videos.original_audio')} · @{userHandle}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-                <View style={styles.rightActions} pointerEvents="box-none">
-                    <ActionButton
-                        icon={item.viewerState.isLiked
-                            ? <HeartIconActive size={30} color={LIKE_ACTIVE_COLOR} />
-                            : <HeartIcon size={30} color="white" />}
-                        count={item.engagement.likes ?? 0}
-                        isActive={item.viewerState.isLiked}
-                        activeColor={LIKE_ACTIVE_COLOR}
-                        onPress={() => onLike(item.id, item.viewerState.isLiked)}
-                        formatCompactNumber={formatCompactNumber}
-                        accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
-                    />
-                    <ActionButton
-                        icon={<CommentIcon size={30} color="white" />}
-                        count={item.engagement.replies ?? 0}
-                        onPress={() => onComment(item.id)}
-                        formatCompactNumber={formatCompactNumber}
-                        accessibilityLabel={t('videos.comment')}
-                    />
-                    <ActionButton
-                        icon={item.viewerState.isBoosted
-                            ? <BoostIconActive size={30} color={BOOST_ACTIVE_COLOR} />
-                            : <BoostIcon size={30} color="white" />}
-                        count={item.engagement.boosts ?? 0}
-                        isActive={item.viewerState.isBoosted}
-                        activeColor={BOOST_ACTIVE_COLOR}
-                        onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
-                        formatCompactNumber={formatCompactNumber}
-                        accessibilityLabel={t(item.viewerState.isBoosted ? 'videos.unboost' : 'videos.boost')}
-                    />
-                    {/* Saved state is carried by the filled icon alone — a reel's
+          <View style={styles.rightActions} pointerEvents="box-none">
+            <ActionButton
+              icon={
+                item.viewerState.isLiked ? (
+                  <HeartIconActive size={30} color={LIKE_ACTIVE_COLOR} />
+                ) : (
+                  <HeartIcon size={30} color="white" />
+                )
+              }
+              count={item.engagement.likes ?? 0}
+              isActive={item.viewerState.isLiked}
+              activeColor={LIKE_ACTIVE_COLOR}
+              onPress={() => onLike(item.id, item.viewerState.isLiked)}
+              formatCompactNumber={formatCompactNumber}
+              accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
+            />
+            <ActionButton
+              icon={<CommentIcon size={30} color="white" />}
+              count={item.engagement.replies ?? 0}
+              onPress={() => onComment(item.id)}
+              formatCompactNumber={formatCompactNumber}
+              accessibilityLabel={t('videos.comment')}
+            />
+            <ActionButton
+              icon={
+                item.viewerState.isBoosted ? (
+                  <BoostIconActive size={30} color={BOOST_ACTIVE_COLOR} />
+                ) : (
+                  <BoostIcon size={30} color="white" />
+                )
+              }
+              count={item.engagement.boosts ?? 0}
+              isActive={item.viewerState.isBoosted}
+              activeColor={BOOST_ACTIVE_COLOR}
+              onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
+              formatCompactNumber={formatCompactNumber}
+              accessibilityLabel={t(item.viewerState.isBoosted ? 'videos.unboost' : 'videos.boost')}
+            />
+            {/* Saved state is carried by the filled icon alone — a reel's
                         rail has no brand colour for it, and inventing one would
                         put a fourth accent over the video. */}
-                    <ActionButton
-                        icon={item.viewerState.isSaved
-                            ? <BookmarkActive size={30} color="white" />
-                            : <Bookmark size={30} color="white" />}
-                        count={item.engagement.saves ?? 0}
-                        onPress={() => onSave(item.id, item.viewerState.isSaved)}
-                        formatCompactNumber={formatCompactNumber}
-                        accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
-                    />
-                    <ActionButton
-                        icon={<ShareIcon size={30} color="white" />}
-                        count={0}
-                        onPress={() => onShare(item)}
-                        formatCompactNumber={formatCompactNumber}
-                        hideCount={true}
-                        accessibilityLabel={t('videos.share')}
-                    />
-                </View>
-            </View>
-        </Animated.View>
+            <ActionButton
+              icon={
+                item.viewerState.isSaved ? (
+                  <BookmarkActive size={30} color="white" />
+                ) : (
+                  <Bookmark size={30} color="white" />
+                )
+              }
+              count={item.engagement.saves ?? 0}
+              onPress={() => onSave(item.id, item.viewerState.isSaved)}
+              formatCompactNumber={formatCompactNumber}
+              accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
+            />
+            <ActionButton
+              icon={<ShareIcon size={30} color="white" />}
+              count={0}
+              onPress={() => onShare(item)}
+              formatCompactNumber={formatCompactNumber}
+              hideCount={true}
+              accessibilityLabel={t('videos.share')}
+            />
+          </View>
+        </View>
+      </Animated.View>
     );
-});
+  },
+);
 
 VideoItem.displayName = 'VideoItem';
 
 // ── Action button ────────────────────────────────────────────────
 interface ActionButtonProps {
-    icon: React.ReactNode;
-    count: number;
-    isActive?: boolean;
-    activeColor?: string;
-    onPress: () => void;
-    formatCompactNumber: (count: number) => string;
-    hideCount?: boolean;
-    // Required: the icon carries the whole meaning of these buttons, and the
-    // count beside it reads as the label to a screen reader otherwise ("4.2K").
-    accessibilityLabel: string;
+  icon: React.ReactNode;
+  count: number;
+  isActive?: boolean;
+  activeColor?: string;
+  onPress: () => void;
+  formatCompactNumber: (count: number) => string;
+  hideCount?: boolean;
+  // Required: the icon carries the whole meaning of these buttons, and the
+  // count beside it reads as the label to a screen reader otherwise ("4.2K").
+  accessibilityLabel: string;
 }
 
-const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false, accessibilityLabel }) => (
+const ActionButton = memo<ActionButtonProps>(
+  ({
+    icon,
+    count,
+    isActive,
+    activeColor,
+    onPress,
+    formatCompactNumber,
+    hideCount = false,
+    accessibilityLabel,
+  }) => (
     <Pressable
-        style={styles.actionButton}
-        onPress={onPress}
-        hitSlop={HIT_SLOP_LG}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
+      style={styles.actionButton}
+      onPress={onPress}
+      hitSlop={HIT_SLOP_LG}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
-        {icon}
-        {!hideCount && (
-            <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
-                {formatCompactNumber(count)}
-            </Text>
-        )}
+      {icon}
+      {!hideCount && (
+        <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
+          {formatCompactNumber(count)}
+        </Text>
+      )}
     </Pressable>
-));
+  ),
+);
 
 ActionButton.displayName = 'ActionButton';
 
 // ── Feed tab pill ────────────────────────────────────────────────
 interface FeedTabProps {
-    label: string;
-    active: boolean;
-    onPress: () => void;
+  label: string;
+  active: boolean;
+  onPress: () => void;
 }
 
 const FeedTab = memo<FeedTabProps>(({ label, active, onPress }) => (
-    <Pressable
-        style={[styles.tabPill, active ? styles.tabPillActive : styles.tabPillInactive]}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityState={{ selected: active }}
-        hitSlop={HIT_SLOP_LG}
-    >
-        <Text style={[styles.tabLabel, active ? styles.tabLabelActive : styles.tabLabelInactive]}>
-            {label}
-        </Text>
-    </Pressable>
+  <Pressable
+    style={[styles.tabPill, active ? styles.tabPillActive : styles.tabPillInactive]}
+    onPress={onPress}
+    accessibilityRole="button"
+    accessibilityState={{ selected: active }}
+    hitSlop={HIT_SLOP_LG}
+  >
+    <Text style={[styles.tabLabel, active ? styles.tabLabelActive : styles.tabLabelInactive]}>
+      {label}
+    </Text>
+  </Pressable>
 ));
 
 FeedTab.displayName = 'FeedTab';
 
 // ── Screen ───────────────────────────────────────────────────────
 export default function VideosScreen() {
-    const { t } = useTranslation();
-    const theme = useTheme();
-    const haptic = useHaptics();
-    const insets = useSafeAreaInsets();
-    const { height: WINDOW_HEIGHT } = useWindowDimensions();
-    const isFocused = useIsFocused();
-    const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
-    const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
-    const viewerId = user?.id;
-    // Per-action selectors: a bare usePostsStore() re-renders the whole reel
-    // screen on every unrelated posts-store write.
-    const likePost = usePostsStore((s) => s.likePost);
-    const unlikePost = usePostsStore((s) => s.unlikePost);
-    const boostPost = usePostsStore((s) => s.boostPost);
-    const unboostPost = usePostsStore((s) => s.unboostPost);
-    const savePost = usePostsStore((s) => s.savePost);
-    const unsavePost = usePostsStore((s) => s.unsavePost);
-    const getPostById = usePostsStore((s) => s.getPostById);
-    const cachePosts = usePostsStore((s) => s.cachePosts);
-    // Desktop (>=990) gate. Actions + follow now overlay the video on every
-    // breakpoint (matching mobile); `isDesktop` only decides how the comment
-    // button behaves — a no-op on desktop (replies are already open in the
-    // RightBar) vs. opening the bottom sheet on mobile.
-    const isDesktop = useIsRightBarVisible();
-    const { setRailState, requestComposerFocus } = useVideosRail();
-    const {
-        openBottomSheet,
-        setBottomSheetContent,
-        setBottomSheetProgress,
-    } = useContext(BottomSheetContext);
-    const bottomSheetProgress = useSharedValue(0);
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const haptic = useHaptics();
+  const insets = useSafeAreaInsets();
+  const { height: WINDOW_HEIGHT } = useWindowDimensions();
+  const isFocused = useIsFocused();
+  const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
+  const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
+  const viewerId = user?.id;
+  // Per-action selectors: a bare usePostsStore() re-renders the whole reel
+  // screen on every unrelated posts-store write.
+  const likePost = usePostsStore((s) => s.likePost);
+  const unlikePost = usePostsStore((s) => s.unlikePost);
+  const boostPost = usePostsStore((s) => s.boostPost);
+  const unboostPost = usePostsStore((s) => s.unboostPost);
+  const savePost = usePostsStore((s) => s.savePost);
+  const unsavePost = usePostsStore((s) => s.unsavePost);
+  const getPostById = usePostsStore((s) => s.getPostById);
+  const cachePosts = usePostsStore((s) => s.cachePosts);
+  // Desktop (>=990) gate. Actions + follow now overlay the video on every
+  // breakpoint (matching mobile); `isDesktop` only decides how the comment
+  // button behaves — a no-op on desktop (replies are already open in the
+  // RightBar) vs. opening the bottom sheet on mobile.
+  const isDesktop = useIsRightBarVisible();
+  const { setRailState, requestComposerFocus } = useVideosRail();
+  const { openBottomSheet, setBottomSheetContent, setBottomSheetProgress } =
+    useContext(BottomSheetContext);
+  const bottomSheetProgress = useSharedValue(0);
 
-    useEffect(() => {
-        setBottomSheetProgress?.(bottomSheetProgress);
-        return () => setBottomSheetProgress?.(undefined);
-    }, [bottomSheetProgress, setBottomSheetProgress]);
+  useEffect(() => {
+    setBottomSheetProgress?.(bottomSheetProgress);
+    return () => setBottomSheetProgress?.(undefined);
+  }, [bottomSheetProgress, setBottomSheetProgress]);
 
-    const [posts, setPosts] = useState<VideoPost[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [hasMore, setHasMore] = useState(true);
-    const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
+  const [posts, setPosts] = useState<VideoPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
 
-    // Close the mobile bottom sheet when the active video changes — otherwise
-    // swiping to a new video while it's open would leave the PREVIOUS video's
-    // replies showing over the new one. Desktop has no such toggle anymore —
-    // the always-open replies column (RightBar) reflects whatever video is
-    // currently active via VideosRailContext's `activePost`, no reset needed.
-    const isFirstVisibleIndexRender = useRef(true);
-    useEffect(() => {
-        if (isFirstVisibleIndexRender.current) {
-            isFirstVisibleIndexRender.current = false;
-            return;
-        }
-        openBottomSheet(false);
-    }, [currentVisibleIndex, openBottomSheet]);
-
-    // Prefetch posters in a wider radius than the live-player window — see
-    // `POSTER_PREFETCH_RADIUS` above.
-    useEffect(() => {
-        const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
-        const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
-        for (let i = start; i <= end; i++) {
-            const posterUrl = posts[i]?.posterUrl;
-            if (posterUrl) {
-                Image.prefetch(posterUrl).catch(() => {
-                    // Prefetch is a pure optimization — a failure here is
-                    // identical to a cache miss, never surfaced to the viewer.
-                });
-            }
-        }
-    }, [currentVisibleIndex, posts]);
-    // 'videos' = For You (ranked video feed); 'following' = following feed filtered
-    // to videos. Read through a ref inside the stable load callbacks so switching
-    // tabs doesn't thrash callback identity.
-    const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
-    const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
-    activeFeedRef.current = activeFeed;
-    const globalMuted = useVideoMuteStore((s) => s.isMuted);
-    const loadMutedState = useVideoMuteStore((s) => s.loadMutedState);
-
-    // If the viewer signs out while on Following, fall back to For You. Gated on
-    // `isAuthResolved` so the undetermined cold-boot window (where the session is
-    // about to restore) doesn't yank a Following viewer back to For You. Adjusted
-    // during render rather than in an effect — this converges in one pass (the
-    // condition is false once `activeFeed` flips) and avoids a throwaway Following
-    // fetch from the load effect below. See React "You Might Not Need an Effect".
-    if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
-        setActiveFeed('videos');
+  // Close the mobile bottom sheet when the active video changes — otherwise
+  // swiping to a new video while it's open would leave the PREVIOUS video's
+  // replies showing over the new one. Desktop has no such toggle anymore —
+  // the always-open replies column (RightBar) reflects whatever video is
+  // currently active via VideosRailContext's `activePost`, no reset needed.
+  const isFirstVisibleIndexRender = useRef(true);
+  useEffect(() => {
+    if (isFirstVisibleIndexRender.current) {
+      isFirstVisibleIndexRender.current = false;
+      return;
     }
-    // The deep-link target post + media index.
-    //
-    // These used to be frozen at first mount, and that was right while this
-    // screen was a pushed route: it was rebuilt on every entry, so freezing only
-    // said "param ticks after arrival must not re-order the reel under the
-    // reader". As a TAB it is mounted for the life of the app, and a freeze then
-    // means the SECOND `router.push('/videos?postId=…')` — from a profile's
-    // media grid, from a post's attachment row — silently opens the reel the
-    // reader was last on. So the rule is stated as what it always meant: adopt a
-    // target that is genuinely NEW, ignore everything else.
-    //
-    // Ignoring "everything else" is the load-bearing half. A tick that repeats
-    // the same id is the repaint the freeze existed for, and a tick that DROPS
-    // the param — which is what arriving on the tab by tap or swipe looks like —
-    // must never un-pin a reel the reader is in the middle of. Adjusted during
-    // render rather than in an effect, converging in one pass, for the same
-    // reason as the feed reset just above.
-    const parsedMediaIndex = Number(params.mediaIndex);
-    const paramTarget = params.postId
-        ? {
-            postId: params.postId,
-            mediaIndex:
-                Number.isInteger(parsedMediaIndex) && parsedMediaIndex >= 0
-                    ? parsedMediaIndex
-                    : undefined,
-        }
-        : null;
-    const [target, setTarget] = useState<{ postId: string; mediaIndex?: number } | null>(
-        () => paramTarget,
-    );
-    if (paramTarget && paramTarget.postId !== target?.postId) {
-        setTarget(paramTarget);
+    openBottomSheet(false);
+  }, [currentVisibleIndex, openBottomSheet]);
+
+  // Prefetch posters in a wider radius than the live-player window — see
+  // `POSTER_PREFETCH_RADIUS` above.
+  useEffect(() => {
+    const start = Math.max(0, currentVisibleIndex - POSTER_PREFETCH_RADIUS);
+    const end = Math.min(posts.length - 1, currentVisibleIndex + POSTER_PREFETCH_RADIUS);
+    for (let i = start; i <= end; i++) {
+      const posterUrl = posts[i]?.posterUrl;
+      if (posterUrl) {
+        Image.prefetch(posterUrl).catch(() => {
+          // Prefetch is a pure optimization — a failure here is
+          // identical to a cache miss, never surfaced to the viewer.
+        });
+      }
     }
-    const targetPostId = target?.postId;
-    const targetMediaIndex = target?.mediaIndex;
+  }, [currentVisibleIndex, posts]);
+  // 'videos' = For You (ranked video feed); 'following' = following feed filtered
+  // to videos. Read through a ref inside the stable load callbacks so switching
+  // tabs doesn't thrash callback identity.
+  const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
+  const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
+  activeFeedRef.current = activeFeed;
+  const globalMuted = useVideoMuteStore((s) => s.isMuted);
+  const loadMutedState = useVideoMuteStore((s) => s.loadMutedState);
 
-    const flatListRef = useRef<FlatList<VideoPost>>(null);
+  // If the viewer signs out while on Following, fall back to For You. Gated on
+  // `isAuthResolved` so the undetermined cold-boot window (where the session is
+  // about to restore) doesn't yank a Following viewer back to For You. Adjusted
+  // during render rather than in an effect — this converges in one pass (the
+  // condition is false once `activeFeed` flips) and avoids a throwaway Following
+  // fetch from the load effect below. See React "You Might Not Need an Effect".
+  if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
+    setActiveFeed('videos');
+  }
+  // The deep-link target post + media index.
+  //
+  // These used to be frozen at first mount, and that was right while this
+  // screen was a pushed route: it was rebuilt on every entry, so freezing only
+  // said "param ticks after arrival must not re-order the reel under the
+  // reader". As a TAB it is mounted for the life of the app, and a freeze then
+  // means the SECOND `router.push('/videos?postId=…')` — from a profile's
+  // media grid, from a post's attachment row — silently opens the reel the
+  // reader was last on. So the rule is stated as what it always meant: adopt a
+  // target that is genuinely NEW, ignore everything else.
+  //
+  // Ignoring "everything else" is the load-bearing half. A tick that repeats
+  // the same id is the repaint the freeze existed for, and a tick that DROPS
+  // the param — which is what arriving on the tab by tap or swipe looks like —
+  // must never un-pin a reel the reader is in the middle of. Adjusted during
+  // render rather than in an effect, converging in one pass, for the same
+  // reason as the feed reset just above.
+  const parsedMediaIndex = Number(params.mediaIndex);
+  const paramTarget = params.postId
+    ? {
+        postId: params.postId,
+        mediaIndex:
+          Number.isInteger(parsedMediaIndex) && parsedMediaIndex >= 0
+            ? parsedMediaIndex
+            : undefined,
+      }
+    : null;
+  const [target, setTarget] = useState<{ postId: string; mediaIndex?: number } | null>(
+    () => paramTarget,
+  );
+  if (paramTarget && paramTarget.postId !== target?.postId) {
+    setTarget(paramTarget);
+  }
+  const targetPostId = target?.postId;
+  const targetMediaIndex = target?.mediaIndex;
 
-    // The neighbours wait until the video the viewer is watching has runway.
-    // Re-armed on every slide, because each landing starts a fresh fetch and is
-    // exactly as starvable as the first.
-    // Held against the INDEX rather than as a flag, so it re-arms by itself when
-    // the viewer swipes — no effect, and no way to leave it armed for a slide
-    // that has not buffered anything yet.
-    const [armedIndex, setArmedIndex] = useState<number | null>(null);
-    // Read through a ref so the callback keeps ONE identity for the screen's
-    // life: it is a prop of every mounted slide, and a new function per swipe
-    // broke `VideoItem`'s memo for all of them at once.
-    const currentVisibleIndexRef = useRef(currentVisibleIndex);
-    const armedIndexRef = useRef(armedIndex);
-    useEffect(() => {
-        currentVisibleIndexRef.current = currentVisibleIndex;
-        armedIndexRef.current = armedIndex;
-    }, [currentVisibleIndex, armedIndex]);
-    const handleBufferAhead = useCallback((seconds: number) => {
-        const index = currentVisibleIndexRef.current;
-        if (armedIndexRef.current === index || seconds < PRELOAD_BUFFER_SECONDS) return;
-        armedIndexRef.current = index;
-        setArmedIndex(index);
-    }, []);
-    const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
+  const flatListRef = useRef<FlatList<VideoPost>>(null);
 
-    const bottomBarHeight = useMemo(
-        () => Platform.OS === 'web' ? 60 : 60 + insets.bottom,
-        [insets.bottom]
-    );
+  // The neighbours wait until the video the viewer is watching has runway.
+  // Re-armed on every slide, because each landing starts a fresh fetch and is
+  // exactly as starvable as the first.
+  // Held against the INDEX rather than as a flag, so it re-arms by itself when
+  // the viewer swipes — no effect, and no way to leave it armed for a slide
+  // that has not buffered anything yet.
+  const [armedIndex, setArmedIndex] = useState<number | null>(null);
+  // Read through a ref so the callback keeps ONE identity for the screen's
+  // life: it is a prop of every mounted slide, and a new function per swipe
+  // broke `VideoItem`'s memo for all of them at once.
+  const currentVisibleIndexRef = useRef(currentVisibleIndex);
+  const armedIndexRef = useRef(armedIndex);
+  useEffect(() => {
+    currentVisibleIndexRef.current = currentVisibleIndex;
+    armedIndexRef.current = armedIndex;
+  }, [currentVisibleIndex, armedIndex]);
+  const handleBufferAhead = useCallback((seconds: number) => {
+    const index = currentVisibleIndexRef.current;
+    if (armedIndexRef.current === index || seconds < PRELOAD_BUFFER_SECONDS) return;
+    armedIndexRef.current = index;
+    setArmedIndex(index);
+  }, []);
+  const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
-    // The raw/original URL — always playable, used as `fallbackVideoUrl`.
-    // Unchanged from before this HLS work; every existing resolution path
-    // (server `url`, http passthrough via proxy, legacy client-side Oxy
-    // resolution) is preserved exactly.
-    const resolveFallbackVideoUrl = useCallback((ref: MediaRef): string => {
-        if (ref?.url) return ref.url;
-        const raw = ref?.id || '';
-        if (!raw) return '';
-        if (raw.startsWith('http')) return proxyExternalUrl(raw);
-        return oxyServices ? oxyServices.assets.publicUrl(raw) : '';
-    }, [oxyServices]);
+  const bottomBarHeight = useMemo(
+    () => (Platform.OS === 'web' ? 60 : 60 + insets.bottom),
+    [insets.bottom],
+  );
 
-    // Preferred playback URL: the adaptive HLS stream when the server resolved
-    // one (native video only — federated media never has `hlsUrl`), else the
-    // same raw/original URL `resolveFallbackVideoUrl` would return.
-    //
-    // NOT on web, and that is a defect being removed rather than an
-    // optimisation being tuned. A browser plays HLS only where it decodes the
-    // playlist itself (Safari) or where something hands the bytes to hls.js —
-    // and this screen does neither: it puts the URL straight on the element.
-    // Measured on a build of `main`, cold, against the production origin: a
-    // slide that mounts its own player sat at `?variant=hls_master` with
-    // `networkState` LOADING, `readyState` 0, no error and `paused === false`
-    // for the whole 26 second window, four runs out of four. The
-    // element had not failed and had not finished, so nothing downstream could
-    // react: `useReelChrome` swaps to `fallbackVideoUrl` on `status === 'error'`
-    // and the error never arrives. Every slide that mounts its OWN player is
-    // affected — opening the reel from the bar, swiping to the next video, a
-    // flight whose player never arrived — which is why tapping a feed video
-    // looked healthy throughout: that path adopts the feed's already-loaded
-    // player and never resolves a source at all.
-    //
-    // The MP4 is what web has always actually played, so the only thing given
-    // up here is adaptivity in Safari, which could decode the playlist. The
-    // screen now routes FEDERATED playlists (`.m3u8`, which have no MP4 to fall
-    // back to) through `useHlsPlayback`; our own `?variant=hls_master` ladder is
-    // not recognised by `isHlsSource`, so it stays native-only until it is.
-    const resolveVideoUrl = useCallback((ref: MediaRef): string => {
-        if (ref?.hlsUrl && Platform.OS !== 'web') return ref.hlsUrl;
-        return resolveFallbackVideoUrl(ref);
-    }, [resolveFallbackVideoUrl]);
+  // The raw/original URL — always playable, used as `fallbackVideoUrl`.
+  // Unchanged from before this HLS work; every existing resolution path
+  // (server `url`, http passthrough via proxy, legacy client-side Oxy
+  // resolution) is preserved exactly.
+  const resolveFallbackVideoUrl = useCallback(
+    (ref: MediaRef): string => {
+      if (ref?.url) return ref.url;
+      const raw = ref?.id || '';
+      if (!raw) return '';
+      if (raw.startsWith('http')) return proxyExternalUrl(raw);
+      return oxyServices ? oxyServices.assets.publicUrl(raw) : '';
+    },
+    [oxyServices],
+  );
 
-    // Resolve a static poster. Prefer the server-resolved final `posterUrl`
-    // (fallback `thumbUrl`); fall back to the legacy client resolver from the RAW
-    // media id/url when absent. Returns undefined when nothing sensible → neutral
-    // placeholder. The poster URL may 404 → the Image layer's own error handling
-    // falls back to the placeholder, so this never yields a broken image.
-    const resolvePosterUrl = useCallback((ref: MediaRef): string | undefined => {
-        if (ref?.posterUrl) return ref.posterUrl;
-        if (ref?.thumbUrl) return ref.thumbUrl;
-        const raw = ref?.id || ref?.url || '';
-        return videoPosterUrl(raw, oxyServices);
-    }, [oxyServices]);
+  // Preferred playback URL: the adaptive HLS stream when the server resolved
+  // one (native video only — federated media never has `hlsUrl`), else the
+  // same raw/original URL `resolveFallbackVideoUrl` would return.
+  //
+  // NOT on web, and that is a defect being removed rather than an
+  // optimisation being tuned. A browser plays HLS only where it decodes the
+  // playlist itself (Safari) or where something hands the bytes to hls.js —
+  // and this screen does neither: it puts the URL straight on the element.
+  // Measured on a build of `main`, cold, against the production origin: a
+  // slide that mounts its own player sat at `?variant=hls_master` with
+  // `networkState` LOADING, `readyState` 0, no error and `paused === false`
+  // for the whole 26 second window, four runs out of four. The
+  // element had not failed and had not finished, so nothing downstream could
+  // react: `useReelChrome` swaps to `fallbackVideoUrl` on `status === 'error'`
+  // and the error never arrives. Every slide that mounts its OWN player is
+  // affected — opening the reel from the bar, swiping to the next video, a
+  // flight whose player never arrived — which is why tapping a feed video
+  // looked healthy throughout: that path adopts the feed's already-loaded
+  // player and never resolves a source at all.
+  //
+  // The MP4 is what web has always actually played, so the only thing given
+  // up here is adaptivity in Safari, which could decode the playlist. The
+  // screen now routes FEDERATED playlists (`.m3u8`, which have no MP4 to fall
+  // back to) through `useHlsPlayback`; our own `?variant=hls_master` ladder is
+  // not recognised by `isHlsSource`, so it stays native-only until it is.
+  const resolveVideoUrl = useCallback(
+    (ref: MediaRef): string => {
+      if (ref?.hlsUrl && Platform.OS !== 'web') return ref.hlsUrl;
+      return resolveFallbackVideoUrl(ref);
+    },
+    [resolveFallbackVideoUrl],
+  );
 
-    // Build a VideoPost from a canonical hydrated post, selecting the requested
-    // video. Posts that merely CONTAIN a video qualify (multi-video, or a video
-    // among images).
-    const toVideoPost = useCallback((post: HydratedPost, preferredMediaIndex?: number): VideoPost | null => {
-        const media: MediaRef[] = post.content.media ?? post.attachments.media ?? [];
-        if (media.length === 0) return null;
+  // Resolve a static poster. Prefer the server-resolved final `posterUrl`
+  // (fallback `thumbUrl`); fall back to the legacy client resolver from the RAW
+  // media id/url when absent. Returns undefined when nothing sensible → neutral
+  // placeholder. The poster URL may 404 → the Image layer's own error handling
+  // falls back to the placeholder, so this never yields a broken image.
+  const resolvePosterUrl = useCallback(
+    (ref: MediaRef): string | undefined => {
+      if (ref?.posterUrl) return ref.posterUrl;
+      if (ref?.thumbUrl) return ref.thumbUrl;
+      const raw = ref?.id || ref?.url || '';
+      return videoPosterUrl(raw, oxyServices);
+    },
+    [oxyServices],
+  );
 
-        let selected: MediaRef | undefined;
-        if (
-            preferredMediaIndex !== undefined &&
-            media[preferredMediaIndex]?.type === 'video'
-        ) {
-            selected = media[preferredMediaIndex];
-        } else {
-            selected = media.find((m) => m?.type === 'video' && m?.orientation === 'portrait')
-                ?? media.find((m) => m?.type === 'video');
+  // Build a VideoPost from a canonical hydrated post, selecting the requested
+  // video. Posts that merely CONTAIN a video qualify (multi-video, or a video
+  // among images).
+  const toVideoPost = useCallback(
+    (post: HydratedPost, preferredMediaIndex?: number): VideoPost | null => {
+      const media: MediaRef[] = post.content.media ?? post.attachments.media ?? [];
+      if (media.length === 0) return null;
+
+      let selected: MediaRef | undefined;
+      if (preferredMediaIndex !== undefined && media[preferredMediaIndex]?.type === 'video') {
+        selected = media[preferredMediaIndex];
+      } else {
+        selected =
+          media.find((m) => m?.type === 'video' && m?.orientation === 'portrait') ??
+          media.find((m) => m?.type === 'video');
+      }
+      if (!selected) return null;
+
+      const videoUrl = resolveVideoUrl(selected);
+      if (!videoUrl) return null;
+      const rawFallback = resolveFallbackVideoUrl(selected);
+      const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
+
+      return {
+        ...post,
+        createdAt: post.metadata.createdAt,
+        videoUrl,
+        fallbackVideoUrl,
+        posterUrl: resolvePosterUrl(selected),
+        durationSec: readMediaDurationSec(selected),
+        intrinsicSize: readMediaPixelSize(selected),
+        mediaId: selected.id ? String(selected.id) : undefined,
+      };
+    },
+    [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl],
+  );
+
+  const filterVideoPosts = useCallback(
+    (allPosts: HydratedPost[]): VideoPost[] => {
+      const out: VideoPost[] = [];
+      for (const post of allPosts) {
+        const vp = toVideoPost(post);
+        if (vp) out.push(vp);
+      }
+      return out;
+    },
+    [toVideoPost],
+  );
+
+  // Target post — fetched independently of the ranked chain and shown first.
+  const fetchPostById = useCallback(
+    async (postId: string): Promise<VideoPost | null> => {
+      try {
+        const post = await getPostById(postId);
+        if (!post) return null;
+        return toVideoPost(post, targetMediaIndex);
+      } catch {
+        return null;
+      }
+    },
+    [getPostById, toVideoPost, targetMediaIndex],
+  );
+
+  // Stable snapshot of currently-shown ids for StrictMode-safe de-dup counting
+  // (the setPosts updater can run twice in dev; we must count deterministically).
+  const shownIdsRef = useRef<Set<string>>(new Set());
+
+  // Infinite-scroll source: the ranked `videos` MTN feed (For You) or the
+  // general `following` feed filtered to videos. Reads the active tab through a
+  // ref so the callback identity stays stable across tab switches. De-dupes
+  // against everything already shown and returns how many NEW posts were appended.
+  const fetchVideos = useCallback(
+    async (cursor?: string): Promise<number> => {
+      try {
+        const response = await feedService.getFeed({
+          type: activeFeedRef.current === 'following' ? 'following' : 'videos',
+          cursor,
+          limit: FEED_PAGE_LIMIT,
+        });
+
+        // The `following` descriptor returns all post types; both paths run
+        // through filterVideoPosts so only video posts reach the reel.
+        const videoPosts = filterVideoPosts(response.items ?? []);
+        const newPosts = videoPosts.filter((p) => !shownIdsRef.current.has(p.id));
+
+        if (newPosts.length > 0) {
+          newPosts.forEach((p) => shownIdsRef.current.add(p.id));
+          // Seed the SHARED post cache, exactly as `useFeedState` does for
+          // every other feed. Without it the reel is invisible to the store:
+          // `updatePostEverywhere` is a read-modify-write that returns null
+          // for a post it has never seen, so every store write about a reel
+          // post — a like, a save, the server's view count — was a silent
+          // no-op, and none of it reached `/p/[id]` or the profile grids.
+          // Only the deep-link target escaped that, because `getPostById`
+          // upserts on its way through.
+          cachePosts(newPosts);
+          setPosts((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const toAdd = newPosts.filter((p) => !existingIds.has(p.id));
+            return toAdd.length === 0 ? prev : [...prev, ...toAdd];
+          });
         }
-        if (!selected) return null;
 
-        const videoUrl = resolveVideoUrl(selected);
-        if (!videoUrl) return null;
-        const rawFallback = resolveFallbackVideoUrl(selected);
-        const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
+        setHasMore(response.hasMore || false);
+        setNextCursor(response.nextCursor);
 
-        return {
-            ...post,
-            createdAt: post.metadata.createdAt,
-            videoUrl,
-            fallbackVideoUrl,
-            posterUrl: resolvePosterUrl(selected),
-            durationSec: readMediaDurationSec(selected),
-            intrinsicSize: readMediaPixelSize(selected),
-            mediaId: selected.id ? String(selected.id) : undefined,
-        };
-    }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
+        return newPosts.length;
+      } catch {
+        // A failing feed must never clear the target post; degrade gracefully.
+        setHasMore(false);
+        return 0;
+      }
+    },
+    [filterVideoPosts, cachePosts],
+  );
 
-    const filterVideoPosts = useCallback((allPosts: HydratedPost[]): VideoPost[] => {
-        const out: VideoPost[] = [];
-        for (const post of allPosts) {
-            const vp = toVideoPost(post);
-            if (vp) out.push(vp);
+  // Mirror the latest pagination state into a ref so the auto-continue loop
+  // reads fresh values without re-creating the callback each render.
+  const feedCursorRef = useRef<{ hasMore: boolean; nextCursor?: string }>({
+    hasMore: true,
+    nextCursor: undefined,
+  });
+  feedCursorRef.current = { hasMore, nextCursor };
+
+  // Walk forward through `videos` pages until at least one NEW post is added or
+  // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel.
+  const fetchVideosUntilProgress = useCallback(
+    async (startCursor?: string): Promise<void> => {
+      let cursor = startCursor;
+      let attempts = 0;
+      // The first call always runs; up to MAX_AUTO_CONTINUE_PAGES extra follow-ups.
+      while (attempts <= MAX_AUTO_CONTINUE_PAGES) {
+        const added = await fetchVideos(cursor);
+        if (added > 0) return;
+        const state = feedCursorRef.current;
+        if (!state.hasMore || !state.nextCursor) return;
+        cursor = state.nextCursor;
+        attempts += 1;
+      }
+    },
+    [fetchVideos],
+  );
+
+  // Reset the reel scroll window to the top across both platforms — used on a
+  // tab switch so the new feed starts from the first slide.
+  const scrollReelToTop = useCallback(() => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0 });
+      }
+    } else {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, []);
+
+  // Reselecting the tab away from the first slide goes back to it; on the
+  // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
+  const reloadNonce = useReselectReloadKey({
+    isAtTop: () => currentVisibleIndex === 0,
+    scrollToTop: scrollReelToTop,
+  });
+
+  // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
+  // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
+  // (the feed and per-post flags are viewer-dependent). `activeFeed` rebuilds it
+  // on a tab switch — this effect already resets the accumulated state, so the
+  // de-dup set never suppresses the new feed's results. The deep-link target
+  // post is only pinned on the For You tab so a Following reload doesn't re-pin it.
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      shownIdsRef.current = new Set();
+      setPosts([]);
+      setNextCursor(undefined);
+      setHasMore(true);
+      setCurrentVisibleIndex(0);
+      scrollReelToTop();
+
+      if (targetPostId && activeFeed === 'videos') {
+        const targetPost = await fetchPostById(targetPostId);
+        if (!isMounted) return;
+        if (targetPost) {
+          shownIdsRef.current.add(targetPost.id);
+          setPosts((prev) =>
+            prev.some((p) => p.id === targetPost.id) ? prev : [targetPost, ...prev],
+          );
+          setCurrentVisibleIndex(0);
         }
-        return out;
-    }, [toVideoPost]);
+      }
 
-    // Target post — fetched independently of the ranked chain and shown first.
-    const fetchPostById = useCallback(async (postId: string): Promise<VideoPost | null> => {
-        try {
-            const post = await getPostById(postId);
-            if (!post) return null;
-            return toVideoPost(post, targetMediaIndex);
-        } catch {
-            return null;
+      await fetchVideosUntilProgress(undefined);
+
+      if (!isMounted) return;
+      setIsLoading(false);
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    targetPostId,
+    viewerId,
+    activeFeed,
+    reloadNonce,
+    fetchPostById,
+    fetchVideosUntilProgress,
+    scrollReelToTop,
+  ]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || !nextCursor) return;
+    setLoadingMore(true);
+    try {
+      await fetchVideosUntilProgress(nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
+
+  // Stable for the lifetime of the screen: its only output is the stable
+  // `setCurrentVisibleIndex` setter, so the FlatList never sees a new identity.
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewableItem[] }) => {
+      // AN EMPTY SET MEANS "BETWEEN SLIDES", NOT "NOTHING TO SHOW", and the
+      // difference is the whole of this handler.
+      //
+      // Slides are full-screen and `itemVisiblePercentThreshold` is 60, so a
+      // fast swipe passes through a moment where NEITHER the outgoing slide
+      // nor the incoming one covers 60% of the viewport. This used to answer
+      // that moment with `-1`, and `-1` is not a position the reel can hold:
+      // the live-player window is `|index - currentVisibleIndex| <= 2`, so
+      // every surface fell out of it at once. Measured on a Pixel 10 Pro, one
+      // swipe cost 13 surface lifecycle events — four decoders destroyed, two
+      // built, those two destroyed 140ms later, then five built — and three of
+      // them were the very surfaces torn down at the start of the same swipe.
+      // Each rebuild re-shows a poster and re-decodes a first frame, which is
+      // what the reel looked like from the outside: video flickering on every
+      // scroll.
+      //
+      // So an empty set changes nothing. The reader is still between the two
+      // slides the window already covers, and the next non-empty report says
+      // where they landed.
+      const next = viewableItems?.find((vi) => vi.isViewable)?.index;
+      if (next != null) {
+        setCurrentVisibleIndex(next);
+      }
+    },
+    [],
+  );
+
+  // Web: videos scroll with the DOCUMENT (the BODY/documentElement is the
+  // scroller, same as every other screen), so scroll-snap lives on the document
+  // scroller — but ONLY while /videos is mounted. Set `scroll-snap-type: y
+  // mandatory` on the documentElement on mount and RESTORE the exact prior
+  // inline value on unmount, so it never leaks to home/explore (which do not
+  // snap) and never clobbers an unrelated inline value. External-DOM
+  // synchronization with a cleanup is the legitimate `useEffect` case.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    const previousSnapType = root.style.scrollSnapType;
+    root.style.scrollSnapType = 'y mandatory';
+    return () => {
+      root.style.scrollSnapType = previousSnapType;
+    };
+  }, []);
+
+  // Web: derive the active index from the document scroll position and trigger
+  // infinite scroll near the bottom. Each slide is exactly `innerHeight` tall
+  // (`web:h-[100dvh]`) so the nearest snapped index is
+  // `round(scrollY / innerHeight)`. The listener is passive and coalesced via
+  // requestAnimationFrame so bursts of scroll events collapse to one read per
+  // frame. Re-attaches when `handleLoadMore` changes (its pagination closure),
+  // which is cheap for a passive listener.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      const viewportH = window.innerHeight;
+      if (viewportH > 0) {
+        const index = Math.round(window.scrollY / viewportH);
+        setCurrentVisibleIndex((prev) => (prev === index ? prev : index));
+      }
+      if (
+        window.scrollY + viewportH >=
+        document.documentElement.scrollHeight - WEB_END_REACHED_PX
+      ) {
+        handleLoadMore();
+      }
+    };
+    const onScroll = () => {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(read);
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [handleLoadMore]);
+
+  // Scroll the reel to a clamped target index. Powers the rail arrows + the
+  // web keyboard ↑/↓ shortcuts. Web scrolls the document; native scrolls the
+  // FlatList by the slide height. `animated` is off for the jump back from a
+  // PiP session, which can span dozens of slides the viewer never scrolled.
+  const goToIndex = useCallback(
+    (targetIndex: number, animated = true) => {
+      const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
+      if (clamped < 0) return;
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.scrollTo({
+            top: clamped * window.innerHeight,
+            behavior: animated ? 'smooth' : 'auto',
+          });
         }
-    }, [getPostById, toVideoPost, targetMediaIndex]);
+      } else {
+        flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated });
+      }
+    },
+    [posts.length, WINDOW_HEIGHT],
+  );
 
-    // Stable snapshot of currently-shown ids for StrictMode-safe de-dup counting
-    // (the setPosts updater can run twice in dev; we must count deterministically).
-    const shownIdsRef = useRef<Set<string>>(new Set());
+  const prev = useCallback(
+    () => goToIndex(currentVisibleIndex - 1),
+    [goToIndex, currentVisibleIndex],
+  );
+  const next = useCallback(
+    () => goToIndex(currentVisibleIndex + 1),
+    [goToIndex, currentVisibleIndex],
+  );
 
-    // Infinite-scroll source: the ranked `videos` MTN feed (For You) or the
-    // general `following` feed filtered to videos. Reads the active tab through a
-    // ref so the callback identity stays stable across tab switches. De-dupes
-    // against everything already shown and returns how many NEW posts were appended.
-    const fetchVideos = useCallback(async (cursor?: string): Promise<number> => {
-        try {
-            const response = await feedService.getFeed({
-                type: activeFeedRef.current === 'following' ? 'following' : 'videos',
-                cursor,
-                limit: FEED_PAGE_LIMIT,
-            });
+  // ── Picture-in-Picture session ──────────────────────────────────
+  // While the OS window is open the pager stays exactly where it was: the
+  // window is bound to that surface's player, and moving the pager would both
+  // unmount the player out from under the OS and hand the audible slot to a
+  // surface nobody can see. The session walks its own cursor instead, the
+  // owner's player takes each new source, and the pager is re-synced to the
+  // cursor on the way out so the app comes back on the right video.
+  //
+  // A session can also end because its owner was torn down rather than because
+  // the viewer closed the window — a tab switch rebuilds the whole list — and
+  // then the reload owns the index, so a cursor that no longer points into the
+  // list is dropped instead of applied. The length is mirrored into a ref (as
+  // the pagination state above is) because the surface that reports the end is
+  // unmounting, and its callback closes over the render BEFORE the rebuild.
+  const postsLengthRef = useRef(posts.length);
+  postsLengthRef.current = posts.length;
 
-            // The `following` descriptor returns all post types; both paths run
-            // through filterVideoPosts so only video posts reach the reel.
-            const videoPosts = filterVideoPosts(response.items ?? []);
-            const newPosts = videoPosts.filter(p => !shownIdsRef.current.has(p.id));
+  const handleSessionEnded = useCallback(
+    (index: number) => {
+      if (index >= postsLengthRef.current) return;
+      setCurrentVisibleIndex(index);
+      goToIndex(index, false);
+    },
+    [goToIndex],
+  );
 
-            if (newPosts.length > 0) {
-                newPosts.forEach(p => shownIdsRef.current.add(p.id));
-                // Seed the SHARED post cache, exactly as `useFeedState` does for
-                // every other feed. Without it the reel is invisible to the store:
-                // `updatePostEverywhere` is a read-modify-write that returns null
-                // for a post it has never seen, so every store write about a reel
-                // post — a like, a save, the server's view count — was a silent
-                // no-op, and none of it reached `/p/[id]` or the profile grids.
-                // Only the deep-link target escaped that, because `getPostById`
-                // upserts on its way through.
-                cachePosts(newPosts);
-                setPosts(prev => {
-                    const existingIds = new Set(prev.map(p => p.id));
-                    const toAdd = newPosts.filter(p => !existingIds.has(p.id));
-                    return toAdd.length === 0 ? prev : [...prev, ...toAdd];
-                });
-            }
+  const {
+    ownerId: pipOwnerId,
+    playing: pipPlaying,
+    start: startPipSession,
+    end: endPipSession,
+    goToNext: pipGoToNext,
+    goToPrevious: pipGoToPrevious,
+  } = useVideoPipSession({
+    items: posts,
+    onEnded: handleSessionEnded,
+    loadMore: handleLoadMore,
+    hasMore,
+  });
 
-            setHasMore(response.hasMore || false);
-            setNextCursor(response.nextCursor);
+  const sessionSource = useMemo<PlayableSource | undefined>(
+    () =>
+      pipPlaying
+        ? { url: pipPlaying.videoUrl, fallbackUrl: pipPlaying.fallbackVideoUrl }
+        : undefined,
+    [pipPlaying],
+  );
 
-            return newPosts.length;
-        } catch {
-            // A failing feed must never clear the target post; degrade gracefully.
-            setHasMore(false);
-            return 0;
+  // The transport controls act on ONE player, published up by whichever surface
+  // is currently being watched (see `onRegisterTransportSeek` there).
+  const transportSeekRef = useRef<((seconds: number) => void) | null>(null);
+  const registerTransportSeek = useCallback<RegisterTransportSeek>((seek) => {
+    transportSeekRef.current = seek;
+    return () => {
+      if (transportSeekRef.current === seek) {
+        transportSeekRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleSelectFeed = useTabSelect(activeFeed, setActiveFeed);
+
+  // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
+  // textarea / contenteditable so the composer and search are unaffected.
+  // External-system (window) listener with a cleanup — the legitimate effect case.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = document.activeElement;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (target as HTMLElement).isContentEditable) {
+          return;
         }
-    }, [filterVideoPosts, cachePosts]);
-
-    // Mirror the latest pagination state into a ref so the auto-continue loop
-    // reads fresh values without re-creating the callback each render.
-    const feedCursorRef = useRef<{ hasMore: boolean; nextCursor?: string }>({ hasMore: true, nextCursor: undefined });
-    feedCursorRef.current = { hasMore, nextCursor };
-
-    // Walk forward through `videos` pages until at least one NEW post is added or
-    // the feed is exhausted, so a page of pure duplicates doesn't dead-end the reel.
-    const fetchVideosUntilProgress = useCallback(async (startCursor?: string): Promise<void> => {
-        let cursor = startCursor;
-        let attempts = 0;
-        // The first call always runs; up to MAX_AUTO_CONTINUE_PAGES extra follow-ups.
-        while (attempts <= MAX_AUTO_CONTINUE_PAGES) {
-            const added = await fetchVideos(cursor);
-            if (added > 0) return;
-            const state = feedCursorRef.current;
-            if (!state.hasMore || !state.nextCursor) return;
-            cursor = state.nextCursor;
-            attempts += 1;
-        }
-    }, [fetchVideos]);
-
-    // Reset the reel scroll window to the top across both platforms — used on a
-    // tab switch so the new feed starts from the first slide.
-    const scrollReelToTop = useCallback(() => {
-        if (Platform.OS === 'web') {
-            if (typeof window !== 'undefined') {
-                window.scrollTo({ top: 0 });
-            }
-        } else {
-            flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-        }
-    }, []);
-
-    // Reselecting the tab away from the first slide goes back to it; on the
-    // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
-    const reloadNonce = useReselectReloadKey({
-        isAtTop: () => currentVisibleIndex === 0,
-        scrollToTop: scrollReelToTop,
-    });
-
-    // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
-    // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
-    // (the feed and per-post flags are viewer-dependent). `activeFeed` rebuilds it
-    // on a tab switch — this effect already resets the accumulated state, so the
-    // de-dup set never suppresses the new feed's results. The deep-link target
-    // post is only pinned on the For You tab so a Following reload doesn't re-pin it.
-    useEffect(() => {
-        let isMounted = true;
-
-        const load = async () => {
-            setIsLoading(true);
-            shownIdsRef.current = new Set();
-            setPosts([]);
-            setNextCursor(undefined);
-            setHasMore(true);
-            setCurrentVisibleIndex(0);
-            scrollReelToTop();
-
-            if (targetPostId && activeFeed === 'videos') {
-                const targetPost = await fetchPostById(targetPostId);
-                if (!isMounted) return;
-                if (targetPost) {
-                    shownIdsRef.current.add(targetPost.id);
-                    setPosts(prev => (prev.some(p => p.id === targetPost.id) ? prev : [targetPost, ...prev]));
-                    setCurrentVisibleIndex(0);
-                }
-            }
-
-            await fetchVideosUntilProgress(undefined);
-
-            if (!isMounted) return;
-            setIsLoading(false);
-        };
-
-        load();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [targetPostId, viewerId, activeFeed, reloadNonce, fetchPostById, fetchVideosUntilProgress, scrollReelToTop]);
-
-    const handleLoadMore = useCallback(async () => {
-        if (loadingMore || !hasMore || !nextCursor) return;
-        setLoadingMore(true);
-        try {
-            await fetchVideosUntilProgress(nextCursor);
-        } finally {
-            setLoadingMore(false);
-        }
-    }, [fetchVideosUntilProgress, hasMore, nextCursor, loadingMore]);
-
-    // Stable for the lifetime of the screen: its only output is the stable
-    // `setCurrentVisibleIndex` setter, so the FlatList never sees a new identity.
-    const handleViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewableItem[] }) => {
-        // AN EMPTY SET MEANS "BETWEEN SLIDES", NOT "NOTHING TO SHOW", and the
-        // difference is the whole of this handler.
-        //
-        // Slides are full-screen and `itemVisiblePercentThreshold` is 60, so a
-        // fast swipe passes through a moment where NEITHER the outgoing slide
-        // nor the incoming one covers 60% of the viewport. This used to answer
-        // that moment with `-1`, and `-1` is not a position the reel can hold:
-        // the live-player window is `|index - currentVisibleIndex| <= 2`, so
-        // every surface fell out of it at once. Measured on a Pixel 10 Pro, one
-        // swipe cost 13 surface lifecycle events — four decoders destroyed, two
-        // built, those two destroyed 140ms later, then five built — and three of
-        // them were the very surfaces torn down at the start of the same swipe.
-        // Each rebuild re-shows a poster and re-decodes a first frame, which is
-        // what the reel looked like from the outside: video flickering on every
-        // scroll.
-        //
-        // So an empty set changes nothing. The reader is still between the two
-        // slides the window already covers, and the next non-empty report says
-        // where they landed.
-        const next = viewableItems?.find((vi) => vi.isViewable)?.index;
-        if (next != null) {
-            setCurrentVisibleIndex(next);
-        }
-    }, []);
-
-    // Web: videos scroll with the DOCUMENT (the BODY/documentElement is the
-    // scroller, same as every other screen), so scroll-snap lives on the document
-    // scroller — but ONLY while /videos is mounted. Set `scroll-snap-type: y
-    // mandatory` on the documentElement on mount and RESTORE the exact prior
-    // inline value on unmount, so it never leaks to home/explore (which do not
-    // snap) and never clobbers an unrelated inline value. External-DOM
-    // synchronization with a cleanup is the legitimate `useEffect` case.
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-        const root = document.documentElement;
-        const previousSnapType = root.style.scrollSnapType;
-        root.style.scrollSnapType = 'y mandatory';
-        return () => {
-            root.style.scrollSnapType = previousSnapType;
-        };
-    }, []);
-
-    // Web: derive the active index from the document scroll position and trigger
-    // infinite scroll near the bottom. Each slide is exactly `innerHeight` tall
-    // (`web:h-[100dvh]`) so the nearest snapped index is
-    // `round(scrollY / innerHeight)`. The listener is passive and coalesced via
-    // requestAnimationFrame so bursts of scroll events collapse to one read per
-    // frame. Re-attaches when `handleLoadMore` changes (its pagination closure),
-    // which is cheap for a passive listener.
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-        let frame = 0;
-        const read = () => {
-            frame = 0;
-            const viewportH = window.innerHeight;
-            if (viewportH > 0) {
-                const index = Math.round(window.scrollY / viewportH);
-                setCurrentVisibleIndex(prev => (prev === index ? prev : index));
-            }
-            if (window.scrollY + viewportH >= document.documentElement.scrollHeight - WEB_END_REACHED_PX) {
-                handleLoadMore();
-            }
-        };
-        const onScroll = () => {
-            if (frame === 0) {
-                frame = window.requestAnimationFrame(read);
-            }
-        };
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => {
-            window.removeEventListener('scroll', onScroll);
-            if (frame !== 0) {
-                window.cancelAnimationFrame(frame);
-            }
-        };
-    }, [handleLoadMore]);
-
-    // Scroll the reel to a clamped target index. Powers the rail arrows + the
-    // web keyboard ↑/↓ shortcuts. Web scrolls the document; native scrolls the
-    // FlatList by the slide height. `animated` is off for the jump back from a
-    // PiP session, which can span dozens of slides the viewer never scrolled.
-    const goToIndex = useCallback((targetIndex: number, animated = true) => {
-        const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
-        if (clamped < 0) return;
-        if (Platform.OS === 'web') {
-            if (typeof window !== 'undefined') {
-                window.scrollTo({ top: clamped * window.innerHeight, behavior: animated ? 'smooth' : 'auto' });
-            }
-        } else {
-            flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated });
-        }
-    }, [posts.length, WINDOW_HEIGHT]);
-
-    const prev = useCallback(() => goToIndex(currentVisibleIndex - 1), [goToIndex, currentVisibleIndex]);
-    const next = useCallback(() => goToIndex(currentVisibleIndex + 1), [goToIndex, currentVisibleIndex]);
-
-    // ── Picture-in-Picture session ──────────────────────────────────
-    // While the OS window is open the pager stays exactly where it was: the
-    // window is bound to that surface's player, and moving the pager would both
-    // unmount the player out from under the OS and hand the audible slot to a
-    // surface nobody can see. The session walks its own cursor instead, the
-    // owner's player takes each new source, and the pager is re-synced to the
-    // cursor on the way out so the app comes back on the right video.
-    //
-    // A session can also end because its owner was torn down rather than because
-    // the viewer closed the window — a tab switch rebuilds the whole list — and
-    // then the reload owns the index, so a cursor that no longer points into the
-    // list is dropped instead of applied. The length is mirrored into a ref (as
-    // the pagination state above is) because the surface that reports the end is
-    // unmounting, and its callback closes over the render BEFORE the rebuild.
-    const postsLengthRef = useRef(posts.length);
-    postsLengthRef.current = posts.length;
-
-    const handleSessionEnded = useCallback((index: number) => {
-        if (index >= postsLengthRef.current) return;
-        setCurrentVisibleIndex(index);
-        goToIndex(index, false);
-    }, [goToIndex]);
-
-    const {
-        ownerId: pipOwnerId,
-        playing: pipPlaying,
-        start: startPipSession,
-        end: endPipSession,
-        goToNext: pipGoToNext,
-        goToPrevious: pipGoToPrevious,
-    } = useVideoPipSession({
-        items: posts,
-        onEnded: handleSessionEnded,
-        loadMore: handleLoadMore,
-        hasMore,
-    });
-
-    const sessionSource = useMemo<PlayableSource | undefined>(
-        () => (pipPlaying
-            ? { url: pipPlaying.videoUrl, fallbackUrl: pipPlaying.fallbackVideoUrl }
-            : undefined),
-        [pipPlaying],
-    );
-
-    // The transport controls act on ONE player, published up by whichever surface
-    // is currently being watched (see `onRegisterTransportSeek` there).
-    const transportSeekRef = useRef<((seconds: number) => void) | null>(null);
-    const registerTransportSeek = useCallback<RegisterTransportSeek>((seek) => {
-        transportSeekRef.current = seek;
-        return () => {
-            if (transportSeekRef.current === seek) {
-                transportSeekRef.current = null;
-            }
-        };
-    }, []);
-
-    const handleSelectFeed = useTabSelect(activeFeed, setActiveFeed);
-
-    // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
-    // textarea / contenteditable so the composer and search are unaffected.
-    // External-system (window) listener with a cleanup — the legitimate effect case.
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-        const onKeyDown = (e: KeyboardEvent) => {
-            const target = document.activeElement;
-            if (target) {
-                const tag = target.tagName;
-                if (tag === 'INPUT' || tag === 'TEXTAREA' || (target as HTMLElement).isContentEditable) {
-                    return;
-                }
-            }
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                prev();
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                next();
-            }
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [prev, next]);
-
-    const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
-        haptic('light');
-        try {
-            if (isLiked) {
-                await unlikePost({ postId, type: 'post' });
-            } else {
-                // Surface attribution (the active Reels tab) returns when the affinity hooks land.
-                await likePost({ postId, type: 'post' });
-            }
-            setPosts(prev => prev.map(p =>
-                p.id === postId
-                    ? {
-                        ...p,
-                        viewerState: { ...p.viewerState, isLiked: !isLiked },
-                        engagement: {
-                            ...p.engagement,
-                            likes: Math.max(
-                                0,
-                                (p.engagement.likes ?? 0) + (isLiked ? -1 : 1),
-                            ),
-                        },
-                    }
-                    : p
-            ));
-        } catch {
-            toast(t('common.error'), { type: 'error' });
-        }
-    }, [haptic, likePost, unlikePost, t]);
-
-    const handleCommentPosted = useCallback((postId: string) => {
-        setPosts(prev => prev.map(p =>
-            p.id === postId
-                ? {
-                    ...p,
-                    engagement: {
-                        ...p.engagement,
-                        replies: (p.engagement.replies ?? 0) + 1,
-                    },
-                }
-                : p
-        ));
-    }, []);
-
-    const handleComment = useCallback((postId: string) => {
-        if (isDesktop) {
-            // The replies column (RightBar) is already showing this post, so
-            // there is nothing to open — but a button that paints and then does
-            // nothing observable is a dead button. Put the caret in that
-            // column's composer instead, which is what the press was asking for.
-            requestComposerFocus();
-            return;
-        }
-        setBottomSheetContent(
-            <LazyVideoReplies
-                postId={postId}
-                onClose={() => openBottomSheet(false)}
-                onCommentPosted={() => handleCommentPosted(postId)}
-            />,
-            { scrollable: false, presentation: 'videoReplies' },
-        );
-        openBottomSheet(true);
-    }, [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
-
-    const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
-        haptic('light');
-        try {
-            if (isBoosted) {
-                await unboostPost({ postId });
-            } else {
-                // Surface attribution (the active Reels tab) returns when the affinity hooks land.
-                await boostPost({ postId });
-            }
-            setPosts(prev => prev.map(p =>
-                p.id === postId
-                    ? {
-                        ...p,
-                        viewerState: { ...p.viewerState, isBoosted: !isBoosted },
-                        engagement: {
-                            ...p.engagement,
-                            boosts: Math.max(
-                                0,
-                                (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1),
-                            ),
-                        },
-                    }
-                    : p
-            ));
-        } catch {
-            toast(t('common.error'), { type: 'error' });
-        }
-    }, [haptic, boostPost, unboostPost, t]);
-
-    // Same optimistic shape as like/boost: the store's own update lands on its
-    // copy of the post, which this screen's local `posts` state never reads, so
-    // the rail's icon only flips if the screen updates itself.
-    const handleSave = useCallback(async (postId: string, isSaved: boolean) => {
-        haptic('light');
-        try {
-            if (isSaved) {
-                await unsavePost({ postId });
-            } else {
-                // Attributed to the reel surface, not to the active tab's feed
-                // descriptor: a save made here means "more videos like this"
-                // whichever feed served it, and `following` is not classified as
-                // a video-first surface (see `isVideoSurface`).
-                await savePost({ postId }, 'videos');
-            }
-            setPosts(prev => prev.map(p =>
-                p.id === postId
-                    ? {
-                        ...p,
-                        viewerState: { ...p.viewerState, isSaved: !isSaved },
-                        engagement: {
-                            ...p.engagement,
-                            saves: Math.max(
-                                0,
-                                (p.engagement.saves ?? 0) + (isSaved ? -1 : 1),
-                            ),
-                        },
-                    }
-                    : p
-            ));
-        } catch {
-            toast(t('common.error'), { type: 'error' });
-        }
-    }, [haptic, savePost, unsavePost, t]);
-
-    const handleShare = useCallback(async (post: VideoPost) => {
-        try {
-            const postUrl = `https://mention.earth/p/${post.id}`;
-            const contentText = post?.content?.text || '';
-            const user = post?.user;
-            const name = user?.name?.displayName ?? t('common.someone');
-            const handle = getNormalizedUserHandle(user) || '';
-            const shareMessage = contentText
-                ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
-                : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
-
-            const shareTitle = `${name} ${t('videos.on_mention')}`;
-
-            if (Platform.OS === 'web') {
-                if (navigator.share) {
-                    await navigator.share({ title: shareTitle, text: shareMessage, url: postUrl });
-                } else if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    toast(t('videos.link_copied'), { type: 'success' });
-                } else {
-                    toast(t('videos.sharing_not_available'), { type: 'error' });
-                }
-            } else {
-                await Share.share({ message: `${shareMessage}\n\n${postUrl}`, url: postUrl, title: shareTitle });
-            }
-        } catch (error) {
-            const err = error as { message?: string; code?: string };
-            if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
-                toast(t('videos.share_failed'), { type: 'error' });
-            }
-        }
-    }, [t]);
-
-    const handleMuteChange = useCallback((muted: boolean) => {
-        useVideoMuteStore.getState().setMuted(muted);
-    }, []);
-
-    useEffect(() => {
-        loadMutedState();
-    }, [loadMutedState]);
-
-    // ── Desktop replies-panel coordination ──────────────────────────
-    // The RightBar replies panel is a read-only projection of this screen's
-    // active post. Writing this derived state to an external store is the same
-    // legitimate-effect pattern as the ScreenColor screens. `active` flips true
-    // on mount and false on unmount so the panel mounts/unmounts in lockstep
-    // with /videos.
-    useEffect(() => {
-        setRailState({ active: true });
-        return () => {
-            setRailState({ active: false, activePost: null });
-        };
-    }, [setRailState]);
-
-    const activeVideoPost = posts[currentVisibleIndex];
-
-    const railActivePost = useMemo<VideosRailActivePost | null>(() => {
-        if (!activeVideoPost) return null;
-        return { id: activeVideoPost.id };
-    }, [activeVideoPost]);
-
-    // ── OS transport controls ───────────────────────────────────────
-    // Media keys, the lock screen, and — the reason this is wired at all — the
-    // next / previous buttons Chromium renders INSIDE the Picture-in-Picture
-    // window. They act on whatever is playing: the session's cursor while the OS
-    // window is open, else the slide the pager is on.
-    const nowPlaying = pipPlaying ?? activeVideoPost;
-    const transportTrack = useMemo<MediaSessionTrack | null>(() => {
-        if (!nowPlaying) return null;
-        const displayName = nowPlaying.user?.name?.displayName ?? '';
-        const handle = getNormalizedUserHandle(nowPlaying.user);
-        const caption = nowPlaying.content?.text?.trim() ?? '';
-        return {
-            // A caption-less reel is labelled by its author rather than by a
-            // placeholder, and an unresolved author by the same string the sound
-            // row already shows for one.
-            title: caption || displayName || t('videos.original_audio'),
-            artist: handle ? `@${handle}` : displayName,
-            artwork: nowPlaying.posterUrl,
-        };
-    }, [nowPlaying, t]);
-
-    const handleTransportNext = useCallback(() => {
-        // Inside a session the pager is frozen, so "next" moves the cursor and
-        // swaps the source under the OS window; outside one it pages normally.
-        if (pipOwnerId !== null) {
-            pipGoToNext();
-            return;
-        }
-        next();
-    }, [pipOwnerId, pipGoToNext, next]);
-
-    const handleTransportPrevious = useCallback(() => {
-        if (pipOwnerId !== null) {
-            pipGoToPrevious();
-            return;
-        }
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
         prev();
-    }, [pipOwnerId, pipGoToPrevious, prev]);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        next();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [prev, next]);
 
-    const handleTransportSeek = useCallback((seconds: number) => {
-        transportSeekRef.current?.(seconds);
-    }, []);
+  const handleLike = useCallback(
+    async (postId: string, isLiked: boolean) => {
+      haptic('light');
+      try {
+        if (isLiked) {
+          await unlikePost({ postId, type: 'post' });
+        } else {
+          // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+          await likePost({ postId, type: 'post' });
+        }
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  viewerState: { ...p.viewerState, isLiked: !isLiked },
+                  engagement: {
+                    ...p.engagement,
+                    likes: Math.max(0, (p.engagement.likes ?? 0) + (isLiked ? -1 : 1)),
+                  },
+                }
+              : p,
+          ),
+        );
+      } catch {
+        toast(t('common.error'), { type: 'error' });
+      }
+    },
+    [haptic, likePost, unlikePost, t],
+  );
 
-    useMediaSessionTransport({
-        track: transportTrack,
-        onNext: handleTransportNext,
-        onPrevious: handleTransportPrevious,
-        onSeek: handleTransportSeek,
-    });
-
-    // Android draws the same two controls INSIDE the OS window, from a
-    // `RemoteAction` list only native code can set — the platform's counterpart
-    // to what `navigator.mediaSession` does for Chromium above, sharing its
-    // handlers and therefore its session, so a press swaps the source under the
-    // window instead of moving a pager nobody can see. A no-op on iOS (AVKit
-    // offers no such API) and on web, and in any build that predates the module.
-    usePipTransportActions({
-        active: pipOwnerId !== null,
-        nextLabel: t('videos.next'),
-        previousLabel: t('videos.previous'),
-        onNext: handleTransportNext,
-        onPrevious: handleTransportPrevious,
-    });
-
-    // The reel is the viewability source for its own surfaces (native), exactly as
-    // a feed list is for the players inside it: the snapped slide is the only one on
-    // screen, and only while this screen is focused. The focus gate is what releases
-    // the audible slot when another route is pushed on top — the reel stays mounted
-    // underneath, so without it a blurred reel would keep the slot from the newly
-    // focused screen's videos.
-    const viewableVideoKeys = useMemo<ReadonlySet<string>>(
-        () => (isFocused && activeVideoPost ? new Set([activeVideoPost.id]) : new Set()),
-        [isFocused, activeVideoPost],
+  const handleCommentPosted = useCallback((postId: string) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              engagement: {
+                ...p.engagement,
+                replies: (p.engagement.replies ?? 0) + 1,
+              },
+            }
+          : p,
+      ),
     );
+  }, []);
 
-    // Report what is being watched. The screen owns this — not the surfaces and
-    // not the PiP session — because the two things a reel can be watching (the
-    // pager's slide, the OS window's cursor) have to share ONE tracker to dedupe
-    // against each other. See `useReelImpressions`.
-    useReelImpressions({
-        pipOwnerId,
-        pipPlayingId: pipPlaying?.id,
-        screenFocused: isFocused,
-        activePostId: activeVideoPost?.id,
-        // The reel fetches with exactly these feed types, so its impressions are
-        // attributed to the same descriptor the feed was served under.
-        feedDescriptor: resolveFeedDescriptor(activeFeed),
-        impressionResetKey: viewerId,
-        canReportImpressions: canUsePrivateApi,
-    });
+  const handleComment = useCallback(
+    (postId: string) => {
+      if (isDesktop) {
+        // The replies column (RightBar) is already showing this post, so
+        // there is nothing to open — but a button that paints and then does
+        // nothing observable is a dead button. Put the caret in that
+        // column's composer instead, which is what the press was asking for.
+        requestComposerFocus();
+        return;
+      }
+      setBottomSheetContent(
+        <LazyVideoReplies
+          postId={postId}
+          onClose={() => openBottomSheet(false)}
+          onCommentPosted={() => handleCommentPosted(postId)}
+        />,
+        { scrollable: false, presentation: 'videoReplies' },
+      );
+      openBottomSheet(true);
+    },
+    [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted],
+  );
 
-    // Publish the active post + the comment-posted callback so the RightBar
-    // replies panel tracks whichever video is currently active and can bump the
-    // comment count after a reply posts. Engagement itself lives on the on-video
-    // action buttons (both platforms), so nothing else needs to cross over.
-    useEffect(() => {
-        setRailState({ activePost: railActivePost, onCommentPosted: handleCommentPosted });
-    }, [setRailState, railActivePost, handleCommentPosted]);
+  const handleBoost = useCallback(
+    async (postId: string, isBoosted: boolean) => {
+      haptic('light');
+      try {
+        if (isBoosted) {
+          await unboostPost({ postId });
+        } else {
+          // Surface attribution (the active Reels tab) returns when the affinity hooks land.
+          await boostPost({ postId });
+        }
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  viewerState: { ...p.viewerState, isBoosted: !isBoosted },
+                  engagement: {
+                    ...p.engagement,
+                    boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1)),
+                  },
+                }
+              : p,
+          ),
+        );
+      } catch {
+        toast(t('common.error'), { type: 'error' });
+      }
+    },
+    [haptic, boostPost, unboostPost, t],
+  );
 
-    const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
-        <VideoItem
-            item={item}
-            isActive={index === currentVisibleIndex}
-            // The session's owner keeps its player for as long as the OS window
-            // is open, however far the pager has been scrolled from it: dropping
-            // out of the live window would release the very player the window is
-            // showing.
-            isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId, isFocused)}
-            onBufferAhead={handleBufferAhead}
-            screenFocused={isFocused}
-            theme={theme}
-            onLike={handleLike}
-            onComment={handleComment}
-            onBoost={handleBoost}
-            onSave={handleSave}
-            onShare={handleShare}
-            formatCompactNumber={formatCompactNumber}
-            muted={globalMuted}
-            onMutedChange={handleMuteChange}
-            bottomBarHeight={bottomBarHeight}
-            t={t}
-            windowHeight={WINDOW_HEIGHT}
-            bottomSheetProgress={bottomSheetProgress}
-            viewerId={viewerId}
-            ownsSession={item.id === pipOwnerId}
-            sessionActive={pipOwnerId !== null}
-            sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
-            onSessionStart={startPipSession}
-            onSessionEnd={endPipSession}
-            onRegisterTransportSeek={registerTransportSeek}
-        />
-    ), [currentVisibleIndex, activeRadius, handleBufferAhead, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, bottomSheetProgress, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
+  // Same optimistic shape as like/boost: the store's own update lands on its
+  // copy of the post, which this screen's local `posts` state never reads, so
+  // the rail's icon only flips if the screen updates itself.
+  const handleSave = useCallback(
+    async (postId: string, isSaved: boolean) => {
+      haptic('light');
+      try {
+        if (isSaved) {
+          await unsavePost({ postId });
+        } else {
+          // Attributed to the reel surface, not to the active tab's feed
+          // descriptor: a save made here means "more videos like this"
+          // whichever feed served it, and `following` is not classified as
+          // a video-first surface (see `isVideoSurface`).
+          await savePost({ postId }, 'videos');
+        }
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  viewerState: { ...p.viewerState, isSaved: !isSaved },
+                  engagement: {
+                    ...p.engagement,
+                    saves: Math.max(0, (p.engagement.saves ?? 0) + (isSaved ? -1 : 1)),
+                  },
+                }
+              : p,
+          ),
+        );
+      } catch {
+        toast(t('common.error'), { type: 'error' });
+      }
+    },
+    [haptic, savePost, unsavePost, t],
+  );
 
-    const keyExtractor = useCallback((item: VideoPost) => item.id, []);
+  const handleShare = useCallback(
+    async (post: VideoPost) => {
+      try {
+        const postUrl = `https://mention.earth/p/${post.id}`;
+        const contentText = post?.content?.text || '';
+        const user = post?.user;
+        const name = user?.name?.displayName ?? t('common.someone');
+        const handle = getNormalizedUserHandle(user) || '';
+        const shareMessage = contentText
+          ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
+          : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
 
-    const getItemLayout = useCallback((_: ArrayLike<VideoPost> | null | undefined, index: number) => ({
-        length: WINDOW_HEIGHT,
-        offset: WINDOW_HEIGHT * index,
-        index,
-    }), [WINDOW_HEIGHT]);
+        const shareTitle = `${name} ${t('videos.on_mention')}`;
 
-    return (
-        <>
-            <SEO
-                title={t('seo.videos.title')}
-                description={t('seo.videos.description')}
-            />
-            <View style={styles.container}>
-                {isLoading && posts.length === 0 && (
-                    <View style={styles.initialLoadingContainer}>
-                        <SpinnerIcon size={44} className="text-primary-foreground" />
-                    </View>
-                )}
+        if (Platform.OS === 'web') {
+          if (navigator.share) {
+            await navigator.share({ title: shareTitle, text: shareMessage, url: postUrl });
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
+            toast(t('videos.link_copied'), { type: 'success' });
+          } else {
+            toast(t('videos.sharing_not_available'), { type: 'error' });
+          }
+        } else {
+          await Share.share({
+            message: `${shareMessage}\n\n${postUrl}`,
+            url: postUrl,
+            title: shareTitle,
+          });
+        }
+      } catch (error) {
+        const err = error as { message?: string; code?: string };
+        if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
+          toast(t('videos.share_failed'), { type: 'error' });
+        }
+      }
+    },
+    [t],
+  );
 
-                {/* Immersive pill tabs over the video — top-center, respecting the
+  const handleMuteChange = useCallback((muted: boolean) => {
+    useVideoMuteStore.getState().setMuted(muted);
+  }, []);
+
+  useEffect(() => {
+    loadMutedState();
+  }, [loadMutedState]);
+
+  // ── Desktop replies-panel coordination ──────────────────────────
+  // The RightBar replies panel is a read-only projection of this screen's
+  // active post. Writing this derived state to an external store is the same
+  // legitimate-effect pattern as the ScreenColor screens. `active` flips true
+  // on mount and false on unmount so the panel mounts/unmounts in lockstep
+  // with /videos.
+  useEffect(() => {
+    setRailState({ active: true });
+    return () => {
+      setRailState({ active: false, activePost: null });
+    };
+  }, [setRailState]);
+
+  const activeVideoPost = posts[currentVisibleIndex];
+
+  const railActivePost = useMemo<VideosRailActivePost | null>(() => {
+    if (!activeVideoPost) return null;
+    return { id: activeVideoPost.id };
+  }, [activeVideoPost]);
+
+  // ── OS transport controls ───────────────────────────────────────
+  // Media keys, the lock screen, and — the reason this is wired at all — the
+  // next / previous buttons Chromium renders INSIDE the Picture-in-Picture
+  // window. They act on whatever is playing: the session's cursor while the OS
+  // window is open, else the slide the pager is on.
+  const nowPlaying = pipPlaying ?? activeVideoPost;
+  const transportTrack = useMemo<MediaSessionTrack | null>(() => {
+    if (!nowPlaying) return null;
+    const displayName = nowPlaying.user?.name?.displayName ?? '';
+    const handle = getNormalizedUserHandle(nowPlaying.user);
+    const caption = nowPlaying.content?.text?.trim() ?? '';
+    return {
+      // A caption-less reel is labelled by its author rather than by a
+      // placeholder, and an unresolved author by the same string the sound
+      // row already shows for one.
+      title: caption || displayName || t('videos.original_audio'),
+      artist: handle ? `@${handle}` : displayName,
+      artwork: nowPlaying.posterUrl,
+    };
+  }, [nowPlaying, t]);
+
+  const handleTransportNext = useCallback(() => {
+    // Inside a session the pager is frozen, so "next" moves the cursor and
+    // swaps the source under the OS window; outside one it pages normally.
+    if (pipOwnerId !== null) {
+      pipGoToNext();
+      return;
+    }
+    next();
+  }, [pipOwnerId, pipGoToNext, next]);
+
+  const handleTransportPrevious = useCallback(() => {
+    if (pipOwnerId !== null) {
+      pipGoToPrevious();
+      return;
+    }
+    prev();
+  }, [pipOwnerId, pipGoToPrevious, prev]);
+
+  const handleTransportSeek = useCallback((seconds: number) => {
+    transportSeekRef.current?.(seconds);
+  }, []);
+
+  useMediaSessionTransport({
+    track: transportTrack,
+    onNext: handleTransportNext,
+    onPrevious: handleTransportPrevious,
+    onSeek: handleTransportSeek,
+  });
+
+  // Android draws the same two controls INSIDE the OS window, from a
+  // `RemoteAction` list only native code can set — the platform's counterpart
+  // to what `navigator.mediaSession` does for Chromium above, sharing its
+  // handlers and therefore its session, so a press swaps the source under the
+  // window instead of moving a pager nobody can see. A no-op on iOS (AVKit
+  // offers no such API) and on web, and in any build that predates the module.
+  usePipTransportActions({
+    active: pipOwnerId !== null,
+    nextLabel: t('videos.next'),
+    previousLabel: t('videos.previous'),
+    onNext: handleTransportNext,
+    onPrevious: handleTransportPrevious,
+  });
+
+  // The reel is the viewability source for its own surfaces (native), exactly as
+  // a feed list is for the players inside it: the snapped slide is the only one on
+  // screen, and only while this screen is focused. The focus gate is what releases
+  // the audible slot when another route is pushed on top — the reel stays mounted
+  // underneath, so without it a blurred reel would keep the slot from the newly
+  // focused screen's videos.
+  const viewableVideoKeys = useMemo<ReadonlySet<string>>(
+    () => (isFocused && activeVideoPost ? new Set([activeVideoPost.id]) : new Set()),
+    [isFocused, activeVideoPost],
+  );
+
+  // Report what is being watched. The screen owns this — not the surfaces and
+  // not the PiP session — because the two things a reel can be watching (the
+  // pager's slide, the OS window's cursor) have to share ONE tracker to dedupe
+  // against each other. See `useReelImpressions`.
+  useReelImpressions({
+    pipOwnerId,
+    pipPlayingId: pipPlaying?.id,
+    screenFocused: isFocused,
+    activePostId: activeVideoPost?.id,
+    // The reel fetches with exactly these feed types, so its impressions are
+    // attributed to the same descriptor the feed was served under.
+    feedDescriptor: resolveFeedDescriptor(activeFeed),
+    impressionResetKey: viewerId,
+    canReportImpressions: canUsePrivateApi,
+  });
+
+  // Publish the active post + the comment-posted callback so the RightBar
+  // replies panel tracks whichever video is currently active and can bump the
+  // comment count after a reply posts. Engagement itself lives on the on-video
+  // action buttons (both platforms), so nothing else needs to cross over.
+  useEffect(() => {
+    setRailState({ activePost: railActivePost, onCommentPosted: handleCommentPosted });
+  }, [setRailState, railActivePost, handleCommentPosted]);
+
+  const renderVideoItem = useCallback(
+    ({ item, index }: { item: VideoPost; index: number }) => (
+      <VideoItem
+        item={item}
+        isActive={index === currentVisibleIndex}
+        // The session's owner keeps its player for as long as the OS window
+        // is open, however far the pager has been scrolled from it: dropping
+        // out of the live window would release the very player the window is
+        // showing.
+        isNear={isSlideNear(
+          index,
+          currentVisibleIndex,
+          activeRadius,
+          item.id === pipOwnerId,
+          isFocused,
+        )}
+        onBufferAhead={handleBufferAhead}
+        screenFocused={isFocused}
+        theme={theme}
+        onLike={handleLike}
+        onComment={handleComment}
+        onBoost={handleBoost}
+        onSave={handleSave}
+        onShare={handleShare}
+        formatCompactNumber={formatCompactNumber}
+        muted={globalMuted}
+        onMutedChange={handleMuteChange}
+        bottomBarHeight={bottomBarHeight}
+        t={t}
+        windowHeight={WINDOW_HEIGHT}
+        bottomSheetProgress={bottomSheetProgress}
+        viewerId={viewerId}
+        ownsSession={item.id === pipOwnerId}
+        sessionActive={pipOwnerId !== null}
+        sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+        onSessionStart={startPipSession}
+        onSessionEnd={endPipSession}
+        onRegisterTransportSeek={registerTransportSeek}
+      />
+    ),
+    [
+      currentVisibleIndex,
+      activeRadius,
+      handleBufferAhead,
+      isFocused,
+      theme,
+      handleLike,
+      handleComment,
+      handleBoost,
+      handleSave,
+      handleShare,
+      globalMuted,
+      handleMuteChange,
+      bottomBarHeight,
+      t,
+      WINDOW_HEIGHT,
+      bottomSheetProgress,
+      viewerId,
+      pipOwnerId,
+      sessionSource,
+      startPipSession,
+      endPipSession,
+      registerTransportSeek,
+    ],
+  );
+
+  const keyExtractor = useCallback((item: VideoPost) => item.id, []);
+
+  const getItemLayout = useCallback(
+    (_: ArrayLike<VideoPost> | null | undefined, index: number) => ({
+      length: WINDOW_HEIGHT,
+      offset: WINDOW_HEIGHT * index,
+      index,
+    }),
+    [WINDOW_HEIGHT],
+  );
+
+  return (
+    <>
+      <SEO title={t('seo.videos.title')} description={t('seo.videos.description')} />
+      <View style={styles.container}>
+        {isLoading && posts.length === 0 && (
+          <View style={styles.initialLoadingContainer}>
+            <SpinnerIcon size={44} className="text-primary-foreground" />
+          </View>
+        )}
+
+        {/* Immersive pill tabs over the video — top-center, respecting the
                     safe-area inset. On web they pin to the viewport top via
                     `position: sticky` (WEB_TABS_STICKY_CLASS) so they stay visible
                     while the document scrolls, staying confined to the central
                     column (not full-bleed over the sidebars / right rail). Native
                     keeps the StyleSheet `position: absolute`. Following is gated on
                     the private API (auth). */}
-                <View
-                    className={WEB_TABS_STICKY_CLASS}
-                    style={[styles.tabsRow, { top: insets.top + 12 }]}
-                    pointerEvents="box-none"
-                >
-                    <FeedTab
-                        label={t('For You')}
-                        active={activeFeed === 'videos'}
-                        onPress={() => handleSelectFeed('videos')}
-                    />
-                    {canUsePrivateApi && (
-                        <FeedTab
-                            label={t('Following')}
-                            active={activeFeed === 'following'}
-                            onPress={() => handleSelectFeed('following')}
-                        />
-                    )}
-                </View>
+        <View
+          className={WEB_TABS_STICKY_CLASS}
+          style={[styles.tabsRow, { top: insets.top + 12 }]}
+          pointerEvents="box-none"
+        >
+          <FeedTab
+            label={t('For You')}
+            active={activeFeed === 'videos'}
+            onPress={() => handleSelectFeed('videos')}
+          />
+          {canUsePrivateApi && (
+            <FeedTab
+              label={t('Following')}
+              active={activeFeed === 'following'}
+              onPress={() => handleSelectFeed('following')}
+            />
+          )}
+        </View>
 
-                {/* The reel publishes its own viewability (the snapped slide) to the
+        {/* The reel publishes its own viewability (the snapped slide) to the
                     playback authority. A context provider renders no view, so the
                     slides' layout is untouched. */}
-                {posts.length > 0 && (
-                    <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
-                        {Platform.OS === 'web' ? (
-                            // WEB: slides flow in the DOCUMENT — no internal scroller, no
-                            // `overflow-y-scroll`, no height clamp. This plain full-column
-                            // `<View>` grows to the sum of its `100dvh` slides, and the
-                            // BODY/documentElement is the scroller (the `html, body {
-                            // overflow: visible }` reset in `global.css`), exactly like every
-                            // other screen — so wheeling anywhere (over the SideBar, right
-                            // rail, or gutter) scrolls the videos. Scroll-snap is applied to
-                            // the document scroller (scoped to /videos via the mount effect
-                            // above); each slide carries `web:[scroll-snap-align:start]` so it
-                            // rests flush at the viewport top. The active index + infinite
-                            // scroll come from the window scroll listener above. The slides
-                            // stay full COLUMN width (sidebars/rail visible) because this
-                            // `<View>` lives inside the central column, not the viewport.
-                            <View className="web:w-full">
-                                {posts.map((item, index) => Math.abs(index - currentVisibleIndex) > WEB_RENDER_RADIUS ? (
-                                    // Far from the reader: an empty slide of the
-                                    // same height, so snapping and the scroll
-                                    // offset → index mapping are unchanged, but
-                                    // the poster, avatar, gradient and buttons
-                                    // of a long session stop living in the DOM.
-                                    <View
-                                        key={item.id}
-                                        className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
-                                    />
-                                ) : (
-                                    <VideoItem
-                                        key={item.id}
-                                        item={item}
-                                        isActive={index === currentVisibleIndex}
-                                        // See the native path: the session's owner keeps its player.
-                                        isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId, isFocused)}
-                                        onBufferAhead={handleBufferAhead}
-                                        screenFocused={isFocused}
-                                        theme={theme}
-                                        onLike={handleLike}
-                                        onComment={handleComment}
-                                        onBoost={handleBoost}
-                                        onSave={handleSave}
-                                        onShare={handleShare}
-                                        formatCompactNumber={formatCompactNumber}
-                                        muted={globalMuted}
-                                        onMutedChange={handleMuteChange}
-                                        bottomBarHeight={bottomBarHeight}
-                                        t={t}
-                                        windowHeight={WINDOW_HEIGHT}
-                                        bottomSheetProgress={bottomSheetProgress}
-                                        viewerId={viewerId}
-                                        ownsSession={item.id === pipOwnerId}
-                                        sessionActive={pipOwnerId !== null}
-                                        sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
-                                        onSessionStart={startPipSession}
-                                        onSessionEnd={endPipSession}
-                                        onRegisterTransportSeek={registerTransportSeek}
-                                    />
-                                ))}
-                            </View>
-                        ) : (
-                            <FlatList
-                                ref={flatListRef}
-                                data={posts}
-                                renderItem={renderVideoItem}
-                                keyExtractor={keyExtractor}
-                                pagingEnabled
-                                snapToInterval={WINDOW_HEIGHT}
-                                snapToAlignment="start"
-                                decelerationRate="fast"
-                                onEndReached={handleLoadMore}
-                                onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                                onViewableItemsChanged={handleViewableItemsChanged}
-                                viewabilityConfig={VIEWABILITY_CONFIG}
-                                showsVerticalScrollIndicator={false}
-                                removeClippedSubviews
-                                maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                                windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                                initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                                style={styles.list}
-                                contentContainerStyle={styles.listContent}
-                                contentInsetAdjustmentBehavior="never"
-                                getItemLayout={getItemLayout}
-                            />
-                        )}
-                    </VideoViewabilityProvider>
-                )}
-
-                {!isLoading && posts.length === 0 && (
-                    <EmptyState
-                        title={t('videos.no_video_posts_yet')}
-                        subtitle={t('videos.no_posts_found')}
-                        sticker="videosTab"
-                        containerStyle={styles.emptyState}
+        {posts.length > 0 && (
+          <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+            {Platform.OS === 'web' ? (
+              // WEB: slides flow in the DOCUMENT — no internal scroller, no
+              // `overflow-y-scroll`, no height clamp. This plain full-column
+              // `<View>` grows to the sum of its `100dvh` slides, and the
+              // BODY/documentElement is the scroller (the `html, body {
+              // overflow: visible }` reset in `global.css`), exactly like every
+              // other screen — so wheeling anywhere (over the SideBar, right
+              // rail, or gutter) scrolls the videos. Scroll-snap is applied to
+              // the document scroller (scoped to /videos via the mount effect
+              // above); each slide carries `web:[scroll-snap-align:start]` so it
+              // rests flush at the viewport top. The active index + infinite
+              // scroll come from the window scroll listener above. The slides
+              // stay full COLUMN width (sidebars/rail visible) because this
+              // `<View>` lives inside the central column, not the viewport.
+              <View className="web:w-full">
+                {posts.map((item, index) =>
+                  Math.abs(index - currentVisibleIndex) > WEB_RENDER_RADIUS ? (
+                    // Far from the reader: an empty slide of the
+                    // same height, so snapping and the scroll
+                    // offset → index mapping are unchanged, but
+                    // the poster, avatar, gradient and buttons
+                    // of a long session stop living in the DOM.
+                    <View
+                      key={item.id}
+                      className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
                     />
+                  ) : (
+                    <VideoItem
+                      key={item.id}
+                      item={item}
+                      isActive={index === currentVisibleIndex}
+                      // See the native path: the session's owner keeps its player.
+                      isNear={isSlideNear(
+                        index,
+                        currentVisibleIndex,
+                        activeRadius,
+                        item.id === pipOwnerId,
+                        isFocused,
+                      )}
+                      onBufferAhead={handleBufferAhead}
+                      screenFocused={isFocused}
+                      theme={theme}
+                      onLike={handleLike}
+                      onComment={handleComment}
+                      onBoost={handleBoost}
+                      onSave={handleSave}
+                      onShare={handleShare}
+                      formatCompactNumber={formatCompactNumber}
+                      muted={globalMuted}
+                      onMutedChange={handleMuteChange}
+                      bottomBarHeight={bottomBarHeight}
+                      t={t}
+                      windowHeight={WINDOW_HEIGHT}
+                      bottomSheetProgress={bottomSheetProgress}
+                      viewerId={viewerId}
+                      ownsSession={item.id === pipOwnerId}
+                      sessionActive={pipOwnerId !== null}
+                      sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+                      onSessionStart={startPipSession}
+                      onSessionEnd={endPipSession}
+                      onRegisterTransportSeek={registerTransportSeek}
+                    />
+                  ),
                 )}
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={posts}
+                renderItem={renderVideoItem}
+                keyExtractor={keyExtractor}
+                pagingEnabled
+                snapToInterval={WINDOW_HEIGHT}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                onViewableItemsChanged={handleViewableItemsChanged}
+                viewabilityConfig={VIEWABILITY_CONFIG}
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews
+                maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                contentInsetAdjustmentBehavior="never"
+                getItemLayout={getItemLayout}
+              />
+            )}
+          </VideoViewabilityProvider>
+        )}
 
-                {loadingMore && (
-                    <View style={styles.loadingMore}>
-                        <View style={styles.loadingIndicator}>
-                            <Text className="text-sm font-semibold text-muted-foreground">
-                                {t('videos.loading')}
-                            </Text>
-                        </View>
-                    </View>
-                )}
+        {!isLoading && posts.length === 0 && (
+          <EmptyState
+            title={t('videos.no_video_posts_yet')}
+            subtitle={t('videos.no_posts_found')}
+            sticker="videosTab"
+            containerStyle={styles.emptyState}
+          />
+        )}
+
+        {loadingMore && (
+          <View style={styles.loadingMore}>
+            <View style={styles.loadingIndicator}>
+              <Text className="text-sm font-semibold text-muted-foreground">
+                {t('videos.loading')}
+              </Text>
             </View>
-        </>
-    );
+          </View>
+        )}
+      </View>
+    </>
+  );
 }
 
-const TEXT_SHADOW_STRONG: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+const TEXT_SHADOW_STRONG: Pick<
+  TextStyle,
+  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
+> = {
+  textShadowColor: 'rgba(0, 0, 0, 0.8)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 3,
 };
 
-const TEXT_SHADOW_MEDIUM: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+const TEXT_SHADOW_MEDIUM: Pick<
+  TextStyle,
+  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
+> = {
+  textShadowColor: 'rgba(0, 0, 0, 0.8)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 2,
 };
 
-const TEXT_SHADOW_HANDLE: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+const TEXT_SHADOW_HANDLE: Pick<
+  TextStyle,
+  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
+> = {
+  textShadowColor: 'rgba(0, 0, 0, 0.9)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 4,
 };
 
 interface VideosStyles {
-    container: ViewStyle;
-    initialLoadingContainer: ViewStyle;
-    list: ViewStyle;
-    listContent: ViewStyle;
-    videoContainer: ViewStyle;
-    video: ViewStyle;
-    videoPlaceholder: ViewStyle;
-    posterLayer: ViewStyle;
-    poster: ImageStyle;
-    tapLayer: ViewStyle;
-    heartPop: ViewStyle;
-    pauseAffordance: ViewStyle;
-    pauseAffordanceInner: ViewStyle;
-    bufferSpinner: ViewStyle;
-    bufferSpinnerInner: ViewStyle;
-    scrubberHitArea: ViewStyle;
-    scrubberTrack: ViewStyle;
-    scrubberTrackActive: ViewStyle;
-    scrubberFill: ViewStyle;
-    overlay: ViewStyle;
-    gradientOverlay: ViewStyle;
-    rightActions: ViewStyle;
-    actionButton: ViewStyle;
-    actionCount: TextStyle;
-    bottomInfo: ViewStyle;
-    userInfo: ViewStyle;
-    userHeaderRow: ViewStyle;
-    userHeader: ViewStyle;
-    onVideoFollow: ViewStyle;
-    userAvatar: ViewStyle;
-    userNameContainer: ViewStyle;
-    userNameRow: ViewStyle;
-    userFullName: TextStyle;
-    userHandle: TextStyle;
-    verifiedIcon: ViewStyle;
-    caption: ViewStyle;
-    postText: TextStyle;
-    postLink: TextStyle;
-    captionToggle: TextStyle;
-    soundRow: ViewStyle;
-    soundIcon: TextStyle;
-    soundText: TextStyle;
-    tabsRow: ViewStyle;
-    tabPill: ViewStyle;
-    tabPillActive: ViewStyle;
-    tabPillInactive: ViewStyle;
-    tabLabel: TextStyle;
-    tabLabelActive: TextStyle;
-    tabLabelInactive: TextStyle;
-    emptyState: ViewStyle;
-    loadingMore: ViewStyle;
-    loadingIndicator: ViewStyle;
+  container: ViewStyle;
+  initialLoadingContainer: ViewStyle;
+  list: ViewStyle;
+  listContent: ViewStyle;
+  videoContainer: ViewStyle;
+  video: ViewStyle;
+  videoPlaceholder: ViewStyle;
+  posterLayer: ViewStyle;
+  poster: ImageStyle;
+  tapLayer: ViewStyle;
+  heartPop: ViewStyle;
+  pauseAffordance: ViewStyle;
+  pauseAffordanceInner: ViewStyle;
+  bufferSpinner: ViewStyle;
+  bufferSpinnerInner: ViewStyle;
+  scrubberHitArea: ViewStyle;
+  scrubberTrack: ViewStyle;
+  scrubberTrackActive: ViewStyle;
+  scrubberFill: ViewStyle;
+  overlay: ViewStyle;
+  gradientOverlay: ViewStyle;
+  rightActions: ViewStyle;
+  actionButton: ViewStyle;
+  actionCount: TextStyle;
+  bottomInfo: ViewStyle;
+  userInfo: ViewStyle;
+  userHeaderRow: ViewStyle;
+  userHeader: ViewStyle;
+  onVideoFollow: ViewStyle;
+  userAvatar: ViewStyle;
+  userNameContainer: ViewStyle;
+  userNameRow: ViewStyle;
+  userFullName: TextStyle;
+  userHandle: TextStyle;
+  verifiedIcon: ViewStyle;
+  caption: ViewStyle;
+  postText: TextStyle;
+  postLink: TextStyle;
+  captionToggle: TextStyle;
+  soundRow: ViewStyle;
+  soundIcon: TextStyle;
+  soundText: TextStyle;
+  tabsRow: ViewStyle;
+  tabPill: ViewStyle;
+  tabPillActive: ViewStyle;
+  tabPillInactive: ViewStyle;
+  tabLabel: TextStyle;
+  tabLabelActive: TextStyle;
+  tabLabelInactive: TextStyle;
+  emptyState: ViewStyle;
+  loadingMore: ViewStyle;
+  loadingIndicator: ViewStyle;
 }
 
 const styles = StyleSheet.create<VideosStyles>({
-    container: {
-        flex: 1,
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#000000',
-    },
-    initialLoadingContainer: {
-        ...StyleSheet.absoluteFill,
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1,
-    },
-    list: {
-        flex: 1,
-    },
-    listContent: {
-        flexGrow: 1,
-    },
-    videoContainer: {
-        width: '100%',
-        backgroundColor: '#000000',
-        position: 'relative',
-        overflow: 'hidden',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    video: {
-        flex: 1,
-        width: '100%',
-        height: '100%',
-        alignSelf: 'center',
-    },
-    videoPlaceholder: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    posterLayer: {
-        ...StyleSheet.absoluteFill,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1,
-    },
-    poster: {
-        width: '100%',
-        height: '100%',
-    },
-    tapLayer: {
-        ...StyleSheet.absoluteFill,
-        zIndex: 2,
-    },
-    heartPop: {
-        ...StyleSheet.absoluteFill,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 4,
-    },
-    pauseAffordance: {
-        ...StyleSheet.absoluteFill,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 3,
-    },
-    pauseAffordanceInner: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    bufferSpinner: {
-        ...StyleSheet.absoluteFill,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 4,
-    },
-    bufferSpinnerInner: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scrubberHitArea: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        // `bottom` is supplied at the use site — it tracks the BottomBar's height.
-        height: 16,
-        justifyContent: 'flex-end',
-        zIndex: 7,
-    },
-    scrubberTrack: {
-        height: 3,
-        width: '100%',
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    },
-    scrubberTrackActive: {
-        height: 5,
-    },
-    scrubberFill: {
-        height: '100%',
-        backgroundColor: '#FFFFFF',
-    },
-    overlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 16,
-        backgroundColor: 'transparent',
-        zIndex: 5,
-    },
-    gradientOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 180,
-        pointerEvents: 'none',
-    },
-    rightActions: {
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 10,
-        zIndex: 6,
-        paddingRight: 8,
-    },
-    actionButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 2,
-        minWidth: 36,
-    },
-    actionCount: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '600',
-        ...TEXT_SHADOW_MEDIUM,
-        marginTop: 0,
-        textAlign: 'center',
-    },
-    bottomInfo: {
-        flex: 1,
-        justifyContent: 'flex-end',
-        // Gutter between the caption and the rail. Unaffected by the rail's
-        // compaction: a 36px button plus 8px of padding is the same 44px box the
-        // old 40 + 4 made, so the clearance is exactly what it was.
-        marginRight: 70,
-        maxWidth: '70%',
-        zIndex: 6,
-        paddingBottom: 0,
-    },
-    userInfo: {
-        gap: 8,
-    },
-    userHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    userHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        flexShrink: 1,
-    },
-    onVideoFollow: {
-        flexShrink: 0,
-    },
-    userAvatar: {
-        borderWidth: 0,
-    },
-    userNameContainer: {
-        flex: 1,
-    },
-    userNameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    userFullName: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '600',
-        ...TEXT_SHADOW_STRONG,
-    },
-    userHandle: {
-        color: 'rgba(255, 255, 255, 0.9)',
-        fontSize: 14,
-        fontWeight: '600',
-        ...TEXT_SHADOW_HANDLE,
-    },
-    verifiedIcon: {
-        marginLeft: 2,
-    },
-    caption: {
-        marginTop: 4,
-    },
-    postText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        lineHeight: 18,
-        fontWeight: '400',
-        ...TEXT_SHADOW_STRONG,
-    },
-    postLink: {
-        color: '#9FD0FF',
-        fontWeight: '600',
-    },
-    captionToggle: {
-        color: 'rgba(255, 255, 255, 0.85)',
-        fontSize: 13,
-        fontWeight: '700',
-        marginTop: 2,
-        ...TEXT_SHADOW_MEDIUM,
-    },
-    soundRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 2,
-    },
-    soundIcon: {
-        ...TEXT_SHADOW_STRONG,
-    },
-    soundText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '500',
-        flexShrink: 1,
-        ...TEXT_SHADOW_STRONG,
-    },
-    tabsRow: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 8,
-        zIndex: 12,
-        // Web only: a fixed row height so the `position: sticky` overlay's
-        // negative bottom margin (WEB_TABS_STICKY_CLASS, -TABS_ROW_HEIGHT) nets to
-        // exactly zero layout height. Native sizes to content and stays
-        // `position: absolute` with no layout footprint.
-        ...Platform.select({ web: { height: TABS_ROW_HEIGHT }, default: {} }),
-    },
-    tabPill: {
-        paddingHorizontal: 16,
-        paddingVertical: 7,
-        borderRadius: 18,
-    },
-    tabPillActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    tabPillInactive: {
-        backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    },
-    tabLabel: {
-        fontSize: 15,
-        // Explicit line height makes the pill height deterministic
-        // (paddingVertical 7×2 + 20 = TABS_ROW_HEIGHT) so the web sticky overlay's
-        // negative bottom margin nets to zero.
-        lineHeight: 20,
-        ...TEXT_SHADOW_STRONG,
-    },
-    tabLabelActive: {
-        color: '#FFFFFF',
-        fontWeight: '800',
-    },
-    tabLabelInactive: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontWeight: '600',
-    },
-    emptyState: {
-        flex: 1,
-    },
-    loadingMore: {
-        position: 'absolute',
-        bottom: 40,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    loadingIndicator: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
-    },
+  container: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
+  },
+  initialLoadingContainer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    flexGrow: 1,
+  },
+  videoContainer: {
+    width: '100%',
+    backgroundColor: '#000000',
+    position: 'relative',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  video: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignSelf: 'center',
+  },
+  videoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  posterLayer: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  poster: {
+    width: '100%',
+    height: '100%',
+  },
+  tapLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
+  },
+  heartPop: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4,
+  },
+  pauseAffordance: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  pauseAffordanceInner: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bufferSpinner: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4,
+  },
+  bufferSpinnerInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrubberHitArea: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    // `bottom` is supplied at the use site — it tracks the BottomBar's height.
+    height: 16,
+    justifyContent: 'flex-end',
+    zIndex: 7,
+  },
+  scrubberTrack: {
+    height: 3,
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  scrubberTrackActive: {
+    height: 5,
+  },
+  scrubberFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+  },
+  overlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: 'transparent',
+    zIndex: 5,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    pointerEvents: 'none',
+  },
+  rightActions: {
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 6,
+    paddingRight: 8,
+  },
+  actionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    minWidth: 36,
+  },
+  actionCount: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    ...TEXT_SHADOW_MEDIUM,
+    marginTop: 0,
+    textAlign: 'center',
+  },
+  bottomInfo: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    // Gutter between the caption and the rail. Unaffected by the rail's
+    // compaction: a 36px button plus 8px of padding is the same 44px box the
+    // old 40 + 4 made, so the clearance is exactly what it was.
+    marginRight: 70,
+    maxWidth: '70%',
+    zIndex: 6,
+    paddingBottom: 0,
+  },
+  userInfo: {
+    gap: 8,
+  },
+  userHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+  },
+  onVideoFollow: {
+    flexShrink: 0,
+  },
+  userAvatar: {
+    borderWidth: 0,
+  },
+  userNameContainer: {
+    flex: 1,
+  },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  userFullName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    ...TEXT_SHADOW_STRONG,
+  },
+  userHandle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    fontWeight: '600',
+    ...TEXT_SHADOW_HANDLE,
+  },
+  verifiedIcon: {
+    marginLeft: 2,
+  },
+  caption: {
+    marginTop: 4,
+  },
+  postText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '400',
+    ...TEXT_SHADOW_STRONG,
+  },
+  postLink: {
+    color: '#9FD0FF',
+    fontWeight: '600',
+  },
+  captionToggle: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+    ...TEXT_SHADOW_MEDIUM,
+  },
+  soundRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  soundIcon: {
+    ...TEXT_SHADOW_STRONG,
+  },
+  soundText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
+    flexShrink: 1,
+    ...TEXT_SHADOW_STRONG,
+  },
+  tabsRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    zIndex: 12,
+    // Web only: a fixed row height so the `position: sticky` overlay's
+    // negative bottom margin (WEB_TABS_STICKY_CLASS, -TABS_ROW_HEIGHT) nets to
+    // exactly zero layout height. Native sizes to content and stays
+    // `position: absolute` with no layout footprint.
+    ...Platform.select({ web: { height: TABS_ROW_HEIGHT }, default: {} }),
+  },
+  tabPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 18,
+  },
+  tabPillActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  tabPillInactive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  tabLabel: {
+    fontSize: 15,
+    // Explicit line height makes the pill height deterministic
+    // (paddingVertical 7×2 + 20 = TABS_ROW_HEIGHT) so the web sticky overlay's
+    // negative bottom margin nets to zero.
+    lineHeight: 20,
+    ...TEXT_SHADOW_STRONG,
+  },
+  tabLabelActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  tabLabelInactive: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+  },
+  loadingMore: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  loadingIndicator: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
 });

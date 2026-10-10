@@ -50,7 +50,9 @@ function keyFor(term: string): string {
  * error (or a genuine "no row for this term") both resolve to; only this outer
  * catch may return it, or the failure path would get cached as a real answer.
  */
-export async function resolveTrendStory(term: string): Promise<{ terms: string[]; trendId?: string }> {
+export async function resolveTrendStory(
+  term: string,
+): Promise<{ terms: string[]; trendId?: string }> {
   try {
     return await cache.getOrCompute(keyFor(term), async () => {
       const [row] = await getDb()

@@ -16,28 +16,34 @@ export function initialSEODocumentPath(document: Document): string {
 
 /** Only the backend marks these nodes; ExpoHead owns its own lifecycle. */
 export function releaseServerSEO(document: Document): void {
-  document.head.querySelectorAll('[data-mention-seo="true"]')
-    .forEach((node) => {
-      // Helmet updates document.title in place: do not delete the adopted title.
-      if (node.tagName === 'TITLE') node.removeAttribute('data-mention-seo');
-      else node.remove();
-    });
+  document.head.querySelectorAll('[data-mention-seo="true"]').forEach((node) => {
+    // Helmet updates document.title in place: do not delete the adopted title.
+    if (node.tagName === 'TITLE') node.removeAttribute('data-mention-seo');
+    else node.remove();
+  });
 }
 
 /** Compare decoded segments without confusing an encoded slash with a separator. */
 function pathKey(pathname: string): string {
-  return JSON.stringify(pathname.replace(/\/+$/, '').split('/').map((segment) => {
-    try { return decodeURIComponent(segment); }
-    catch {
-      logger.warn('Malformed route encoding in SEO handoff');
-      return segment;
-    }
-  }));
+  return JSON.stringify(
+    pathname
+      .replace(/\/+$/, '')
+      .split('/')
+      .map((segment) => {
+        try {
+          return decodeURIComponent(segment);
+        } catch {
+          logger.warn('Malformed route encoding in SEO handoff');
+          return segment;
+        }
+      }),
+  );
 }
 
 export function matchesSEOPath(url: string, pathname: string): boolean {
-  try { return pathKey(new URL(url).pathname) === pathKey(pathname); }
-  catch {
+  try {
+    return pathKey(new URL(url).pathname) === pathKey(pathname);
+  } catch {
     logger.warn('Invalid server canonical in SEO handoff');
     return false;
   }
@@ -49,7 +55,9 @@ export function releaseServerSEOForNavigation(
   initialTitle?: string,
   siteName = 'Mention',
 ): void {
-  const canonical = document.querySelector<HTMLLinkElement>('link[data-mention-seo="true"][rel="canonical"]');
+  const canonical = document.querySelector<HTMLLinkElement>(
+    'link[data-mention-seo="true"][rel="canonical"]',
+  );
   const initialUrl = canonical?.href;
   if (!initialUrl) return;
   const initialPath = initialSEODocumentPath(document);
@@ -65,13 +73,26 @@ export function releaseServerSEOForNavigation(
 
 /** The hydrated post DTO does not contain every discovery/privacy safety flag. */
 export function readServerSEO(document: Document, pathname: string) {
-  const canonical = document.querySelector<HTMLLinkElement>('link[data-mention-seo="true"][rel="canonical"]');
+  const canonical = document.querySelector<HTMLLinkElement>(
+    'link[data-mention-seo="true"][rel="canonical"]',
+  );
   const documentPath = initialSEODocumentPath(document);
-  if (!canonical || (pathKey(documentPath) !== pathKey(pathname) && !matchesSEOPath(canonical.href, pathname))) return undefined;
-  const meta = (selector: string) => document.querySelector<HTMLMetaElement>(`meta[data-mention-seo="true"]${selector}`)?.content;
-  const structured = document.querySelector('script[data-mention-seo="true"][type="application/ld+json"]')?.textContent;
+  if (
+    !canonical ||
+    (pathKey(documentPath) !== pathKey(pathname) && !matchesSEOPath(canonical.href, pathname))
+  )
+    return undefined;
+  const meta = (selector: string) =>
+    document.querySelector<HTMLMetaElement>(`meta[data-mention-seo="true"]${selector}`)?.content;
+  const structured = document.querySelector(
+    'script[data-mention-seo="true"][type="application/ld+json"]',
+  )?.textContent;
   let jsonLd: Record<string, unknown> | undefined;
-  try { jsonLd = structured ? JSON.parse(structured) : undefined; } catch { logger.warn('Invalid server structured metadata; omitted during handoff'); }
+  try {
+    jsonLd = structured ? JSON.parse(structured) : undefined;
+  } catch {
+    logger.warn('Invalid server structured metadata; omitted during handoff');
+  }
   return {
     url: canonical.href,
     documentPath,
@@ -83,11 +104,15 @@ export function readServerSEO(document: Document, pathname: string) {
   };
 }
 
-
-export function matchesServerSEOPath(server: ReturnType<typeof readServerSEO>, pathname: string): boolean {
-  return Boolean(server && (pathKey(server.documentPath) === pathKey(pathname) || matchesSEOPath(server.url, pathname)));
+export function matchesServerSEOPath(
+  server: ReturnType<typeof readServerSEO>,
+  pathname: string,
+): boolean {
+  return Boolean(
+    server &&
+      (pathKey(server.documentPath) === pathKey(pathname) || matchesSEOPath(server.url, pathname)),
+  );
 }
-
 
 export function profileSEOPolicy(
   visibility: 'public' | 'private' | 'followers_only' | undefined,
@@ -101,7 +126,11 @@ export function profileSEOPolicy(
   const detailsAllowed = visibility === 'public' && !server?.robots.startsWith('noindex');
   // An account that opted out of search engines stays public to people: its
   // details still render, the page is just not indexed.
-  const fresh = !detailsAllowed ? 'noindex,nofollow' : searchEngineIndexing === false ? 'noindex,follow' : 'index,follow';
+  const fresh = !detailsAllowed
+    ? 'noindex,nofollow'
+    : searchEngineIndexing === false
+      ? 'noindex,follow'
+      : 'index,follow';
   return {
     detailsAllowed,
     server: authoritative,

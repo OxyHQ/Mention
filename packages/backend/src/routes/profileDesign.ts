@@ -52,7 +52,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.userId as string;
     const currentUserId = req.user?.id;
-    
+
     const validationError = validateRequired(userId, 'userId');
     if (validationError) {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
@@ -91,15 +91,22 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // Report the same resolved policy used by the access check, including the
     // public default when no settings row exists. Missing client privacy then
     // means unresolved/failed data rather than an implicitly public profile.
-    response.privacy = { profileVisibility, searchEngineIndexing: doc?.privacy?.searchEngineIndexing ?? true };
+    response.privacy = {
+      profileVisibility,
+      searchEngineIndexing: doc?.privacy?.searchEngineIndexing ?? true,
+    };
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
-    logger.error('[ProfileDesign] Error fetching profile design:', { userId: req.user?.id, targetUserId: req.params.userId, error });
+    logger.error('[ProfileDesign] Error fetching profile design:', {
+      userId: req.user?.id,
+      targetUserId: req.params.userId,
+      error,
+    });
     return sendErrorResponse(
       res,
       500,
       'Internal Server Error',
-      'Failed to fetch profile design data'
+      'Failed to fetch profile design data',
     );
   }
 });

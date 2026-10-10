@@ -173,7 +173,11 @@ export async function getJobBySlug(slug: string): Promise<MentionJobRow | undefi
  * set" when every key is undefined), so `location: undefined` and
  * `location: null` are not the same request and must not collapse into one.
  */
-export interface UpdateJobParams extends Omit<UpdateMentionJobRequest, 'location' | 'workplaceType' | 'employmentType' | 'salary' | 'externalApplyUrl'> {
+export interface UpdateJobParams
+  extends Omit<
+    UpdateMentionJobRequest,
+    'location' | 'workplaceType' | 'employmentType' | 'salary' | 'externalApplyUrl'
+  > {
   /** Already resolved against Clarity, like {@link CreateJobParams.location}. */
   location?: MentionJobLocation | null;
   workplaceType?: UpdateMentionJobRequest['workplaceType'] | null;
@@ -182,7 +186,10 @@ export interface UpdateJobParams extends Omit<UpdateMentionJobRequest, 'location
   externalApplyUrl?: UpdateMentionJobRequest['externalApplyUrl'] | null;
 }
 
-export async function updateJob(id: string, patch: UpdateJobParams): Promise<MentionJobRow | undefined> {
+export async function updateJob(
+  id: string,
+  patch: UpdateJobParams,
+): Promise<MentionJobRow | undefined> {
   const values: Partial<typeof mentionJobs.$inferInsert> = {};
   if (patch.title !== undefined) values.title = patch.title;
   if (patch.description !== undefined) values.description = patch.description;

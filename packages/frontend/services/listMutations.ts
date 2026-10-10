@@ -52,8 +52,7 @@ export function notifyListChanged(listId: string | null): void {
   if (listId) {
     queryClient.invalidateQueries({
       predicate: (query) =>
-        viewerQueryKeys.isFamily(query.queryKey, 'lists') &&
-        query.queryKey.includes(listId),
+        viewerQueryKeys.isFamily(query.queryKey, 'lists') && query.queryKey.includes(listId),
     });
   }
   queryClient.invalidateQueries({

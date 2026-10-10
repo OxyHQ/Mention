@@ -42,10 +42,8 @@ const clampLikesLimit = (limit: number | undefined): number =>
  * degraded user (neutral name, EMPTY username) — never the raw id as a handle,
  * which would render a ghost `@<oxyUserId>` and a broken profile link.
  */
-const mapActorSummary = (
-  userId: string,
-  user: PostUser | undefined,
-): PostUser => user ?? degradedActorSummary(userId);
+const mapActorSummary = (userId: string, user: PostUser | undefined): PostUser =>
+  user ?? degradedActorSummary(userId);
 
 // Get users who liked a post
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
@@ -91,7 +89,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
-    const userIds = [...new Set(likesToReturn.map(like => like.userId))];
+    const userIds = [...new Set(likesToReturn.map((like) => like.userId))];
     const summaries = await resolveUserSummaries(userIds);
     const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
@@ -99,7 +97,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: likesToReturn.length
+      totalCount: likesToReturn.length,
     });
   } catch (error) {
     logger.error('Error fetching post likes', error);
@@ -173,8 +171,10 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
       return res.json({ likers: [], total: 0 });
     }
 
-    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph())
-      .slice(0, MAX_KNOWN_LIKER_CANDIDATES);
+    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph()).slice(
+      0,
+      MAX_KNOWN_LIKER_CANDIDATES,
+    );
     if (followingIds.length === 0) {
       return res.json({ likers: [], total: 0 });
     }
@@ -201,7 +201,9 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
 
     const likerIds = [...new Set(likes.map((like) => like.userId))];
     const summaries = await resolveUserSummaries(likerIds);
-    const likers = likerIds.map((likerId) => mapActorSummary(likerId, summaries.get(likerId)?.user));
+    const likers = likerIds.map((likerId) =>
+      mapActorSummary(likerId, summaries.get(likerId)?.user),
+    );
 
     return res.json({ likers, total: totals?.total ?? 0 });
   } catch (error) {
@@ -234,7 +236,11 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     if (keyset) conditions.push(keyset);
 
     const boosts = await getDb()
-      .select({ id: postsTable.id, oxyUserId: postsTable.oxyUserId, createdAt: postsTable.createdAt })
+      .select({
+        id: postsTable.id,
+        oxyUserId: postsTable.oxyUserId,
+        createdAt: postsTable.createdAt,
+      })
       .from(postsTable)
       .where(and(...conditions))
       .orderBy(...chronoOrderBy())
@@ -250,7 +256,13 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
-    const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((value): value is string => typeof value === 'string'))];
+    const userIds = [
+      ...new Set(
+        boostsToReturn
+          .map((boost) => boost.oxyUserId)
+          .filter((value): value is string => typeof value === 'string'),
+      ),
+    ];
     const summaries = await resolveUserSummaries(userIds);
     const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
@@ -258,7 +270,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: boostsToReturn.length
+      totalCount: boostsToReturn.length,
     });
   } catch (error) {
     logger.error('Error fetching post boosts', error);

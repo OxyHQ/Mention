@@ -1,10 +1,4 @@
-import {
-  createContext,
-  use,
-  useMemo,
-  useSyncExternalStore,
-  type PropsWithChildren,
-} from 'react';
+import { createContext, use, useMemo, useSyncExternalStore, type PropsWithChildren } from 'react';
 
 export interface LiveRoomRuntimeBridge {
   activeRoomId: string | null;
@@ -50,8 +44,8 @@ export function createLiveRoomRuntimeController(): LiveRoomRuntimeController {
 
   const publish = (next: LiveRoomSnapshot) => {
     if (
-      next.activeRoomId === snapshot.activeRoomId
-      && next.runtimeRequested === snapshot.runtimeRequested
+      next.activeRoomId === snapshot.activeRoomId &&
+      next.runtimeRequested === snapshot.runtimeRequested
     ) {
       return;
     }
@@ -120,19 +114,13 @@ export function createLiveRoomRuntimeController(): LiveRoomRuntimeController {
 
 export const liveRoomRuntimeController = createLiveRoomRuntimeController();
 
-const LiveRoomContext = createContext<LiveRoomRuntimeController>(
-  liveRoomRuntimeController
-);
+const LiveRoomContext = createContext<LiveRoomRuntimeController>(liveRoomRuntimeController);
 
 export function LiveRoomControllerProvider({
   children,
   controller = liveRoomRuntimeController,
 }: PropsWithChildren<{ controller?: LiveRoomRuntimeController }>) {
-  return (
-    <LiveRoomContext.Provider value={controller}>
-      {children}
-    </LiveRoomContext.Provider>
-  );
+  return <LiveRoomContext.Provider value={controller}>{children}</LiveRoomContext.Provider>;
 }
 
 /**
@@ -144,7 +132,7 @@ export function useLiveRoom(): LiveRoomController {
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
-    controller.getSnapshot
+    controller.getSnapshot,
   );
 
   return useMemo(
@@ -154,6 +142,6 @@ export function useLiveRoom(): LiveRoomController {
       joinLiveRoom: controller.joinLiveRoom,
       leaveLiveRoom: controller.leaveLiveRoom,
     }),
-    [controller, snapshot]
+    [controller, snapshot],
   );
 }

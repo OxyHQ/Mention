@@ -26,11 +26,7 @@ export function ScreenColorProvider({ children }: { children: React.ReactNode })
     [screenColor, setScreenColor],
   );
 
-  return (
-    <ScreenColorContext.Provider value={value}>
-      {children}
-    </ScreenColorContext.Provider>
-  );
+  return <ScreenColorContext.Provider value={value}>{children}</ScreenColorContext.Provider>;
 }
 
 export function useScreenColor() {

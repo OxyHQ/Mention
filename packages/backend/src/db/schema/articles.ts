@@ -33,9 +33,7 @@ export const articles = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    index('articles_post_id_idx')
-      .on(t.postId)
-      .where(sql`${t.postId} is not null`),
+    index('articles_post_id_idx').on(t.postId).where(sql`${t.postId} is not null`),
     index('articles_created_by_idx').on(t.createdBy),
-  ]
+  ],
 );

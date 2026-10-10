@@ -12,10 +12,21 @@ vi.mock('../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ indexing: { resolve } }),
 }));
 
-import { CLARITY_RESOLVE_BATCH, clarityHostedDocument, resolveClarityDocuments } from '../../utils/clarityDocuments';
+import {
+  CLARITY_RESOLVE_BATCH,
+  clarityHostedDocument,
+  resolveClarityDocuments,
+} from '../../utils/clarityDocuments';
 
 function document(url: string) {
-  return { id: `doc:${url}`, canonicalUrl: url, type: 'page', status: 'indexed', authors: [], evidence: {} };
+  return {
+    id: `doc:${url}`,
+    canonicalUrl: url,
+    type: 'page',
+    status: 'indexed',
+    authors: [],
+    evidence: {},
+  };
 }
 
 /** Answers like Clarity: one result per requested URL, in request order. */
@@ -68,10 +79,16 @@ describe('resolveClarityDocuments', () => {
   it('keeps quota-throttled URLs pending while retaining ready previews from the same response', async () => {
     const ready = 'https://example.com/ready';
     const busy = 'https://example.com/busy';
-    resolve.mockResolvedValue({ data: [
-      { url: ready, status: 'indexed', document: document(ready) },
-      { url: busy, status: 'throttled', error: { code: 'active_crawl_quota_exceeded', retryable: true } },
-    ] });
+    resolve.mockResolvedValue({
+      data: [
+        { url: ready, status: 'indexed', document: document(ready) },
+        {
+          url: busy,
+          status: 'throttled',
+          error: { code: 'active_crawl_quota_exceeded', retryable: true },
+        },
+      ],
+    });
     const result = await resolveClarityDocuments([ready, busy]);
     expect([...result.documents.keys()]).toEqual([ready]);
     expect([...result.pending]).toEqual([busy]);
@@ -93,10 +110,21 @@ describe('resolveClarityDocuments', () => {
 });
 
 describe('clarityHostedDocument', () => {
-  const base = { id: 'd', canonicalUrl: 'https://site.example/a', type: 'page', status: 'indexed', authors: [], evidence: {} };
+  const base = {
+    id: 'd',
+    canonicalUrl: 'https://site.example/a',
+    type: 'page',
+    status: 'indexed',
+    authors: [],
+    evidence: {},
+  };
 
-  it('keeps images on Clarity\'s own origin', () => {
-    const doc = { ...base, imageUrl: 'https://api.clarity.surf/images/documents/d/abc', faviconUrl: 'https://api.clarity.surf/favicons/site.example' };
+  it("keeps images on Clarity's own origin", () => {
+    const doc = {
+      ...base,
+      imageUrl: 'https://api.clarity.surf/images/documents/d/abc',
+      faviconUrl: 'https://api.clarity.surf/favicons/site.example',
+    };
     expect(clarityHostedDocument(doc as never)).toEqual(doc);
   });
 

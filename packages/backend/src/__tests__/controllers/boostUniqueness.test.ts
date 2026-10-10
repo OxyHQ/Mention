@@ -198,11 +198,13 @@ describe('boosting the same post twice at once', () => {
     const original = await seedOriginal();
     const [a, b] = [booster(), booster()];
 
-    const responses = await Promise.all([a, b].map(async (viewer) => {
-      const res = makeRes();
-      await feedController.createBoost(makeReq(viewer, original), res);
-      return res;
-    }));
+    const responses = await Promise.all(
+      [a, b].map(async (viewer) => {
+        const res = makeRes();
+        await feedController.createBoost(makeReq(viewer, original), res);
+        return res;
+      }),
+    );
 
     expect(responses.map((res) => res.statusCode)).toEqual([201, 201]);
     const rows = await boostRows(original);
@@ -226,7 +228,13 @@ describe('boosting the same post twice at once', () => {
 
     const removed = makeRes();
     await feedController.unboostItem(
-      { user: { id: viewer }, params: { postId: original }, body: {}, query: {}, headers: {} } as unknown as AuthRequest,
+      {
+        user: { id: viewer },
+        params: { postId: original },
+        body: {},
+        query: {},
+        headers: {},
+      } as unknown as AuthRequest,
       removed,
     );
 

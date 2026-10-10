@@ -162,9 +162,7 @@ describe('subscriptions', () => {
     // Drift, exactly as a legacy row could carry it.
     await db.update(labelers).set({ subscriberCount: 0 }).where(eq(labelers.id, labeler.id));
 
-    await expect(
-      LabelService.unsubscribeFromLabeler(viewer, labeler.id),
-    ).resolves.toBeUndefined();
+    await expect(LabelService.unsubscribeFromLabeler(viewer, labeler.id)).resolves.toBeUndefined();
 
     expect(await LabelService.getSubscribedLabelerIds(viewer)).toEqual([]);
     expect((await LabelService.getLabelerById(labeler.id))?.subscriberCount).toBe(0);
@@ -208,9 +206,7 @@ describe('label action overrides', () => {
     await LabelService.subscribeToLabeler(viewer, first.id);
     const { labelActions } = await LabelService.getUserEffectiveLabels(viewer);
 
-    expect(
-      [...labelActions].sort((a, b) => a.labelerId.localeCompare(b.labelerId)),
-    ).toEqual(
+    expect([...labelActions].sort((a, b) => a.labelerId.localeCompare(b.labelerId))).toEqual(
       [
         { labelerId: first.id, labelSlug: 'spam', action: 'blur' },
         { labelerId: second.id, labelSlug: 'gore', action: 'hide' },
@@ -229,9 +225,7 @@ describe('label action overrides', () => {
 
     await LabelService.subscribeToLabeler(viewer, labeler.id);
     const { labelActions } = await LabelService.getUserEffectiveLabels(viewer);
-    expect(labelActions).toEqual([
-      { labelerId: labeler.id, labelSlug: 'spam', action: 'hide' },
-    ]);
+    expect(labelActions).toEqual([{ labelerId: labeler.id, labelSlug: 'spam', action: 'hide' }]);
   });
 });
 
@@ -324,7 +318,7 @@ describe('applying and removing labels', () => {
         labelSlug: 'nonexistent',
         createdBy: 'oxy-label-creator',
       }),
-    ).rejects.toThrow("does not exist in this labeler");
+    ).rejects.toThrow('does not exist in this labeler');
   });
 
   it('labels a post whose id is a uuid v7, and one that is an ObjectId hex', async () => {

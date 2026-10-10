@@ -111,8 +111,8 @@ const ActionChips = React.memo(
             >
               <Text
                 className={cn(
-                  "text-xs font-semibold",
-                  isActive ? "text-primary" : "text-muted-foreground"
+                  'text-xs font-semibold',
+                  isActive ? 'text-primary' : 'text-muted-foreground',
                 )}
               >
                 {t(labelKey)}
@@ -237,7 +237,9 @@ const LabelerDetailScreen: React.FC = () => {
           await labelerService.updatePreferences(updates);
         } catch (e) {
           logger.warn('Failed to save label preferences', { error: e });
-          toast(t('labelers.prefSaveError', { defaultValue: 'Failed to save preferences' }), { type: 'error' });
+          toast(t('labelers.prefSaveError', { defaultValue: 'Failed to save preferences' }), {
+            type: 'error',
+          });
         }
       }, 800);
     },
@@ -309,8 +311,7 @@ const LabelerDetailScreen: React.FC = () => {
           <View className="flex-row items-center gap-1">
             <RiGroupLine width={14} height={14} fill={theme.colors.textSecondary} />
             <Text className="text-[13px] text-muted-foreground">
-              {labeler.subscriberCount}{' '}
-              {t('labelers.subscribers', { defaultValue: 'subscribers' })}
+              {labeler.subscriberCount} {t('labelers.subscribers', { defaultValue: 'subscribers' })}
             </Text>
           </View>
 
@@ -336,12 +337,17 @@ const LabelerDetailScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
+            <Loading
+              className="text-primary"
+              variant="inline"
+              size="sm"
+              style={{ flex: undefined }}
+            />
           ) : (
             <Text
               className={cn(
-                "text-[15px] font-semibold",
-                labeler.isSubscribed ? "text-foreground" : "text-white"
+                'text-[15px] font-semibold',
+                labeler.isSubscribed ? 'text-foreground' : 'text-white',
               )}
             >
               {labeler.isSubscribed
@@ -362,7 +368,8 @@ const LabelerDetailScreen: React.FC = () => {
           <View className="rounded-2xl p-4 gap-3 bg-muted">
             {(labeler.labelDefinitions ?? []).map((ld, index) => {
               const severity: Severity = ld.severity ?? 'low';
-              const currentAction: LabelAction = labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
+              const currentAction: LabelAction =
+                labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
 
               return (
                 <React.Fragment key={ld.slug}>
@@ -379,10 +386,7 @@ const LabelerDetailScreen: React.FC = () => {
                             badge solid primary under its own `text-primary`
                             label. Tint and hairline both come from classes. */}
                         {ld.defaultAction && (
-                          <View
-                            className="bg-primary/10 border-primary/25"
-                            style={styles.badge}
-                          >
+                          <View className="bg-primary/10 border-primary/25" style={styles.badge}>
                             <Text className="text-[11px] font-semibold text-primary">
                               {ld.defaultAction}
                             </Text>

@@ -34,7 +34,11 @@ import { logger } from './logger';
  * link-card helper does not reach into the ActivityPub connector.
  */
 const OWN_PROFILE_HOSTS: readonly string[] = [
-  ...new Set([config.federation.domain, config.federation.actorDomain].filter((host): host is string => Boolean(host))),
+  ...new Set(
+    [config.federation.domain, config.federation.actorDomain].filter((host): host is string =>
+      Boolean(host),
+    ),
+  ),
 ];
 
 /**
@@ -162,28 +166,30 @@ export async function resolveClarityDocuments(
     for (const url of unique) pending.add(url);
     return { documents, pending };
   }
-  await Promise.all(batches.map(async (batch) => {
-    try {
-      const response = await client.indexing.resolve({
-        urls: batch,
-        ...(options.waitMs !== undefined ? { waitMs: options.waitMs } : {}),
-      });
-      batch.forEach((url, index) => {
-        const resolution = response.data[index];
-        if (resolution?.document) {
-          documents.set(url, clarityHostedDocument(resolution.document));
-        } else if (!resolution || IN_PROGRESS_STATUSES.has(resolution.status)) {
-          pending.add(url);
-        }
-      });
-    } catch (error) {
-      logger.warn('[ClarityDocuments] Failed to resolve documents from Clarity', {
-        count: batch.length,
-        reason: error instanceof Error ? error.message : 'unknown',
-      });
-      for (const url of batch) pending.add(url);
-    }
-  }));
+  await Promise.all(
+    batches.map(async (batch) => {
+      try {
+        const response = await client.indexing.resolve({
+          urls: batch,
+          ...(options.waitMs !== undefined ? { waitMs: options.waitMs } : {}),
+        });
+        batch.forEach((url, index) => {
+          const resolution = response.data[index];
+          if (resolution?.document) {
+            documents.set(url, clarityHostedDocument(resolution.document));
+          } else if (!resolution || IN_PROGRESS_STATUSES.has(resolution.status)) {
+            pending.add(url);
+          }
+        });
+      } catch (error) {
+        logger.warn('[ClarityDocuments] Failed to resolve documents from Clarity', {
+          count: batch.length,
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+        for (const url of batch) pending.add(url);
+      }
+    }),
+  );
 
   return { documents, pending };
 }

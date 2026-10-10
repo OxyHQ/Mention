@@ -160,17 +160,19 @@ function extractItems(response: unknown): OxyRecommendationItem[] {
  * normalized handle so the caller can drop it.
  */
 function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
-  const id = typeof raw.id === 'string' && raw.id.length > 0
-    ? raw.id
-    : typeof raw._id === 'string' && raw._id.length > 0
-      ? raw._id
-      : '';
+  const id =
+    typeof raw.id === 'string' && raw.id.length > 0
+      ? raw.id
+      : typeof raw._id === 'string' && raw._id.length > 0
+        ? raw._id
+        : '';
   if (!id) return null;
 
   const providedName = raw.name;
-  const displayName = typeof providedName?.displayName === 'string' && providedName.displayName.trim()
-    ? providedName.displayName
-    : getNormalizedUserHandle(raw);
+  const displayName =
+    typeof providedName?.displayName === 'string' && providedName.displayName.trim()
+      ? providedName.displayName
+      : getNormalizedUserHandle(raw);
   // displayName is optional. Its only display fallback is the canonical handle;
   // a first/last name or opaque account ID cannot become a visual label.
   if (!displayName) return null;
@@ -227,7 +229,8 @@ export class OxyRankingClient {
     };
     if (clientId) body.clientId = clientId;
     if (typeof options.offset === 'number' && options.offset > 0) body.offset = options.offset;
-    if (options.excludeTypes && options.excludeTypes.length > 0) body.excludeTypes = options.excludeTypes;
+    if (options.excludeTypes && options.excludeTypes.length > 0)
+      body.excludeTypes = options.excludeTypes;
     if (options.excludeIds && options.excludeIds.length > 0) body.excludeIds = options.excludeIds;
     if (options.boosts && options.boosts.length > 0) body.boosts = options.boosts;
 
@@ -235,11 +238,12 @@ export class OxyRankingClient {
     if (options.viewerId && !foregroundClient) {
       throw new Error('Personalized ranking requires the verified foreground bearer');
     }
-    const response = options.viewerId && foregroundClient
-      ? await foregroundClient.recommend({ ...body })
-      : await getServiceOxyClient().serviceRequest<
-          OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
-        >('POST', RECOMMENDATIONS_PATH, body);
+    const response =
+      options.viewerId && foregroundClient
+        ? await foregroundClient.recommend({ ...body })
+        : await getServiceOxyClient().serviceRequest<
+            OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
+          >('POST', RECOMMENDATIONS_PATH, body);
 
     const items = extractItems(response);
     const profiles: RankedProfile[] = [];

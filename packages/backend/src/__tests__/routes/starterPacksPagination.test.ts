@@ -29,7 +29,9 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../services/userSummaryCache', () => ({
+  invalidate: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
@@ -54,7 +56,9 @@ let authUserId: string | undefined = VIEWER_ID;
 const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
-  (req as express.Request & { user?: { id: string } }).user = authUserId ? { id: authUserId } : undefined;
+  (req as express.Request & { user?: { id: string } }).user = authUserId
+    ? { id: authUserId }
+    : undefined;
   next();
 });
 app.use('/starter-packs', starterPackRoutes);
@@ -88,15 +92,15 @@ async function seedPack(options: SeedOptions = {}): Promise<string> {
 
   const members = options.members ?? [];
   if (members.length > 0) {
-    await db.insert(starterPackMembers).values(
-      members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })),
-    );
+    await db
+      .insert(starterPackMembers)
+      .values(members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })));
   }
   const usedBy = options.usedBy ?? [];
   if (usedBy.length > 0) {
-    await db.insert(starterPackUses).values(
-      usedBy.map((oxyUserId) => ({ packId: pack.id, oxyUserId })),
-    );
+    await db
+      .insert(starterPackUses)
+      .values(usedBy.map((oxyUserId) => ({ packId: pack.id, oxyUserId })));
   }
   return pack.id;
 }
@@ -144,7 +148,10 @@ describe('GET /starter-packs — pagination', () => {
   it('reports the real match count, not the page length', async () => {
     await seedSixty();
 
-    const res = await request(app).get('/starter-packs').query({ search: run, limit: 10 }).expect(200);
+    const res = await request(app)
+      .get('/starter-packs')
+      .query({ search: run, limit: 10 })
+      .expect(200);
 
     expect(res.body.items).toHaveLength(10);
     expect(res.body.total).toBe(60);
@@ -185,7 +192,10 @@ describe('GET /starter-packs — pagination', () => {
   it('clamps an oversized limit to the ceiling', async () => {
     await seedSixty();
 
-    const res = await request(app).get('/starter-packs').query({ search: run, limit: 500 }).expect(200);
+    const res = await request(app)
+      .get('/starter-packs')
+      .query({ search: run, limit: 500 })
+      .expect(200);
 
     expect(res.body.items).toHaveLength(60);
     expect(res.body.totalPages).toBe(1);
@@ -214,7 +224,10 @@ describe('GET /starter-packs — the sort is total', () => {
     const res = await request(app).get('/starter-packs').query({ search: run }).expect(200);
 
     expect(names(res.body)).toEqual([
-      scopedName('Tied 3'), scopedName('Tied 2'), scopedName('Tied 1'), scopedName('Tied 0'),
+      scopedName('Tied 3'),
+      scopedName('Tied 2'),
+      scopedName('Tied 1'),
+      scopedName('Tied 0'),
     ]);
   });
 
@@ -231,7 +244,10 @@ describe('GET /starter-packs — the sort is total', () => {
     const res = await request(app).get('/starter-packs').query({ mine: 'true' }).expect(200);
 
     expect(names(res.body)).toEqual([
-      scopedName('Mine 3'), scopedName('Mine 2'), scopedName('Mine 1'), scopedName('Mine 0'),
+      scopedName('Mine 3'),
+      scopedName('Mine 2'),
+      scopedName('Mine 1'),
+      scopedName('Mine 0'),
     ]);
   });
 
@@ -250,13 +266,24 @@ describe('GET /starter-packs — the sort is total', () => {
     }
 
     expect(seen).toEqual([
-      scopedName('Tied 3'), scopedName('Tied 2'), scopedName('Tied 1'), scopedName('Tied 0'),
+      scopedName('Tied 3'),
+      scopedName('Tied 2'),
+      scopedName('Tied 1'),
+      scopedName('Tied 0'),
     ]);
   });
 
   it('ranks discovery by useCount before recency', async () => {
-    await seedPack({ name: scopedName('Popular'), useCount: 9, createdAt: new Date(Date.UTC(2020, 0, 1)) });
-    await seedPack({ name: scopedName('Fresh'), useCount: 1, createdAt: new Date(Date.UTC(2026, 0, 1)) });
+    await seedPack({
+      name: scopedName('Popular'),
+      useCount: 9,
+      createdAt: new Date(Date.UTC(2020, 0, 1)),
+    });
+    await seedPack({
+      name: scopedName('Fresh'),
+      useCount: 1,
+      createdAt: new Date(Date.UTC(2026, 0, 1)),
+    });
 
     const res = await request(app).get('/starter-packs').query({ search: run }).expect(200);
 
@@ -267,7 +294,11 @@ describe('GET /starter-packs — the sort is total', () => {
 describe('GET /starter-packs — search', () => {
   it('narrows by search over name and description', async () => {
     await seedPack({ name: scopedName('Photographers'), description: '', useCount: 3 });
-    await seedPack({ name: scopedName('Chefs'), description: `great photo accounts ${run}`, useCount: 2 });
+    await seedPack({
+      name: scopedName('Chefs'),
+      description: `great photo accounts ${run}`,
+      useCount: 2,
+    });
     await seedPack({ name: scopedName('Cyclists'), description: 'road racing', useCount: 1 });
 
     const res = await request(app).get('/starter-packs').query({ search: `photo` }).expect(200);
@@ -287,7 +318,10 @@ describe('GET /starter-packs — search', () => {
     const wildcard = await request(app).get('/starter-packs').query({ search: '%' }).expect(200);
     expect(names(wildcard.body)).not.toContain(scopedName('Percent'));
 
-    const literal = await request(app).get('/starter-packs').query({ search: `Percent ${run}` }).expect(200);
+    const literal = await request(app)
+      .get('/starter-packs')
+      .query({ search: `Percent ${run}` })
+      .expect(200);
     expect(names(literal.body)).toEqual([scopedName('Percent')]);
   });
 });

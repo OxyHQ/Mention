@@ -61,10 +61,7 @@ import type { StoredPostContent } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import {
-  insertPostRecord,
-  replacePostContent,
-} from '../../db/posts/postRepository';
+import { insertPostRecord, replacePostContent } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 
 let db: Database;
@@ -195,11 +192,7 @@ describe('has_links on edit', () => {
     const content = body('read this https://example.test/article');
     const id = await create(content);
 
-    await replacePostContent(
-      id,
-      { ...content, media: [{ id: 'file-1', type: 'image' }] },
-      [],
-    );
+    await replacePostContent(id, { ...content, media: [{ id: 'file-1', type: 'image' }] }, []);
 
     expect(await storedHasLinks(id)).toBe(true);
   });

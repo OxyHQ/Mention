@@ -3,12 +3,7 @@
  * Shared between frontend and backend
  */
 
-import {
-  HydratedPost,
-  PostContentInput,
-  PostVisibility,
-  PostUser,
-} from './post';
+import { HydratedPost, PostContentInput, PostVisibility, PostUser } from './post';
 
 export interface Reply extends HydratedPost {
   postId?: string;
@@ -19,7 +14,28 @@ export interface FeedBoost extends HydratedPost {
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'quotes' | 'likes' | 'boosts' | 'mentions' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'videos' | 'custom' | 'hashtag' | 'topic' | 'trend' | 'trending' | 'mutuals' | 'friends_popular' | 'friends_of_friends';
+export type FeedType =
+  | 'posts'
+  | 'media'
+  | 'replies'
+  | 'quotes'
+  | 'likes'
+  | 'boosts'
+  | 'mentions'
+  | 'mixed'
+  | 'for_you'
+  | 'following'
+  | 'saved'
+  | 'explore'
+  | 'videos'
+  | 'custom'
+  | 'hashtag'
+  | 'topic'
+  | 'trend'
+  | 'trending'
+  | 'mutuals'
+  | 'friends_popular'
+  | 'friends_of_friends';
 
 export type PostAction = 'reply' | 'boost' | 'like' | 'share';
 

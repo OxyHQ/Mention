@@ -45,8 +45,9 @@ export function createMentionCapabilityEffectIdempotency(
       return;
     }
     const policy = MENTION_TOOL_POLICIES[toolName];
-    const ownsRoute = mentionCapabilityRequirementsForRequest(request.method, request.path)
-      .some((requirement) => requirement.toolName === toolName);
+    const ownsRoute = mentionCapabilityRequirementsForRequest(request.method, request.path).some(
+      (requirement) => requirement.toolName === toolName,
+    );
     if (!policy || policy.effect === 'read' || !ownsRoute) {
       response.status(400).json({ error: 'capability_tool_route_mismatch' });
       return;

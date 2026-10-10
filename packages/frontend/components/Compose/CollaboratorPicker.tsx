@@ -56,24 +56,28 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
       setLoading(true);
       try {
         const { data: searchResults } = await oxyServices.users.search(query, { limit: 10 });
-        const mapped: CollaboratorUser[] = (searchResults || []).flatMap((profile: {
-          id?: string;
-          _id?: string;
-          username?: string;
-          handle?: string;
-          name?: { displayName?: string };
-          avatar?: string | null;
-        }) => {
-          const username = profile.username || profile.handle || '';
-          const id = profile.id || profile._id || '';
-          if (!username || !id) return [];
-          return [{
-            id,
-            username,
-            displayName: profile.name?.displayName,
-            avatar: profile.avatar || undefined,
-          }];
-        });
+        const mapped: CollaboratorUser[] = (searchResults || []).flatMap(
+          (profile: {
+            id?: string;
+            _id?: string;
+            username?: string;
+            handle?: string;
+            name?: { displayName?: string };
+            avatar?: string | null;
+          }) => {
+            const username = profile.username || profile.handle || '';
+            const id = profile.id || profile._id || '';
+            if (!username || !id) return [];
+            return [
+              {
+                id,
+                username,
+                displayName: profile.name?.displayName,
+                avatar: profile.avatar || undefined,
+              },
+            ];
+          },
+        );
         setResults(mapped.filter((u) => u.id !== user?.id));
       } catch {
         logger.error('Collaborator search failed');
@@ -120,7 +124,10 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
       {selected.length > 0 && (
         <View className="flex-row flex-wrap gap-2 mb-2">
           {selected.map((collab) => (
-            <View key={collab.id} className="flex-row items-center bg-surface border border-border rounded-full pl-1 pr-2 py-1 gap-1">
+            <View
+              key={collab.id}
+              className="flex-row items-center bg-surface border border-border rounded-full pl-1 pr-2 py-1 gap-1"
+            >
               <Avatar source={collab.avatar} size={24} variant={MEDIA_VARIANT_AVATAR} />
               <Text className="text-foreground text-sm" numberOfLines={1}>
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
@@ -139,7 +146,9 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
             <RiSearchLine width={18} height={18} fill={colors.textSecondary} />
             <TextInput
               className="flex-1 text-foreground text-[15px]"
-              placeholder={t('collab.searchPlaceholder', { defaultValue: 'Search people to collaborate with' })}
+              placeholder={t('collab.searchPlaceholder', {
+                defaultValue: 'Search people to collaborate with',
+              })}
               placeholderTextColor="#888"
               value={query}
               onChangeText={setQuery}
@@ -147,7 +156,9 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
             />
             <TouchableOpacity
               accessibilityRole="button"
-              accessibilityLabel={t('collab.closeSearch', { defaultValue: 'Close collaborator search' })}
+              accessibilityLabel={t('collab.closeSearch', {
+                defaultValue: 'Close collaborator search',
+              })}
               onPress={closeSearch}
             >
               <RiCloseLine size="md" fill={colors.textSecondary} />
@@ -171,7 +182,10 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                 ) : null
               }
               renderItem={({ item }) => (
-                <TouchableOpacity className="flex-row items-center px-3 py-2 gap-3" onPress={() => addUser(item)}>
+                <TouchableOpacity
+                  className="flex-row items-center px-3 py-2 gap-3"
+                  onPress={() => addUser(item)}
+                >
                   <Avatar source={item.avatar} size={32} variant={MEDIA_VARIANT_AVATAR} />
                   <View className="flex-1">
                     <Text className="text-foreground text-[15px] font-medium">

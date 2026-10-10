@@ -4,14 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
-const { resolve, classifyQuery, getUserById, serviceRequest, connectorFor, fetchProfile } = vi.hoisted(() => ({
-  resolve: vi.fn(),
-  serviceRequest: vi.fn(),
-  connectorFor: vi.fn(),
-  fetchProfile: vi.fn(),
-  classifyQuery: vi.fn(() => 'activitypub' as const),
-  getUserById: vi.fn(),
-}));
+const { resolve, classifyQuery, getUserById, serviceRequest, connectorFor, fetchProfile } =
+  vi.hoisted(() => ({
+    resolve: vi.fn(),
+    serviceRequest: vi.fn(),
+    connectorFor: vi.fn(),
+    fetchProfile: vi.fn(),
+    classifyQuery: vi.fn(() => 'activitypub' as const),
+    getUserById: vi.fn(),
+  }));
 
 // Same isolation strategy as `connectorsRoutesSharingGate.test.ts`: the route
 // module transitively imports the server entrypoint and the full connector
@@ -90,7 +91,12 @@ const app = express();
 app.use(express.json());
 app.use('/federation', connectorsRoutes);
 
-const source = { actorUri: 'https://bird.makeup/users/elonmusk', transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com' };
+const source = {
+  actorUri: 'https://bird.makeup/users/elonmusk',
+  transportAcct: 'elonmusk@bird.makeup',
+  canonicalAcct: 'elonmusk@x.com',
+  network: 'x.com',
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -102,11 +108,18 @@ beforeEach(() => {
 
 describe('GET /federation/resolve delegates public identity discovery to Oxy', () => {
   it.each(['https://x.com/elonmusk', '@elonmusk@x.com', '@elonmusk@bird.makeup'])(
-    'passes %s to Oxy and imports only its returned transport actor', async (handle) => {
+    'passes %s to Oxy and imports only its returned transport actor',
+    async (handle) => {
       const res = await request(app).get('/federation/resolve').query({ handle });
       expect(res.status).toBe(200);
-      expect(res.body.actor).toMatchObject({ handle: 'elonmusk@x.com', externalId: source.actorUri, oxyUserId: 'oxy-resolved' });
-      expect(serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { handle });
+      expect(res.body.actor).toMatchObject({
+        handle: 'elonmusk@x.com',
+        externalId: source.actorUri,
+        oxyUserId: 'oxy-resolved',
+      });
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+        handle,
+      });
       expect(fetchProfile).toHaveBeenCalledExactlyOnceWith(source.actorUri);
       expect(resolve).not.toHaveBeenCalled();
     },
@@ -114,7 +127,9 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
 
   it('returns no match when Oxy cannot prove a profile for the query', async () => {
     serviceRequest.mockRejectedValue(Object.assign(new Error('Unknown profile'), { status: 404 }));
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/unknown' });
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'https://x.com/unknown' });
     expect(res.status).toBe(200);
     expect(res.body.actor).toBeNull();
     expect(fetchProfile).not.toHaveBeenCalled();
@@ -122,7 +137,9 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
 
   it('does not import a source rejected by Mention transport policy', async () => {
     connectorFor.mockReturnValue(undefined);
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: 'https://x.com/elonmusk' });
     expect(res.body.actor).toBeNull();
     expect(fetchProfile).not.toHaveBeenCalled();
   });
@@ -131,18 +148,31 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
     const response = oxyIdentityFixture(source);
     response.externalIdentity.userId = 'somebody-else';
     serviceRequest.mockResolvedValue(response);
-    const res = await request(app).get('/federation/resolve').query({ handle: source.transportAcct });
+    const res = await request(app)
+      .get('/federation/resolve')
+      .query({ handle: source.transportAcct });
     expect(res.status).toBe(500);
     expect(fetchProfile).not.toHaveBeenCalled();
   });
 
   it('imports atproto by the DID Oxy verified and renders its canonical username', async () => {
     const did = 'did:plc:verified';
-    serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: did, transportAcct: 'alice.bsky.social',
-      canonicalAcct: 'alice@bsky.social', network: 'bsky.social', protocol: 'atproto' }));
+    serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: did,
+        transportAcct: 'alice.bsky.social',
+        canonicalAcct: 'alice@bsky.social',
+        network: 'bsky.social',
+        protocol: 'atproto',
+      }),
+    );
     connectorFor.mockReturnValue({ id: 'atproto', enabled: true, fetchProfile });
     fetchProfile.mockResolvedValue({ externalId: did });
     const res = await request(app).get('/federation/resolve').query({ handle: did });
-    expect(res.body.actor).toMatchObject({ handle: 'alice@bsky.social', externalId: did, network: 'atproto' });
+    expect(res.body.actor).toMatchObject({
+      handle: 'alice@bsky.social',
+      externalId: did,
+      network: 'atproto',
+    });
   });
 });

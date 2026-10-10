@@ -37,7 +37,11 @@ describe('useCachedUserSnapshot', () => {
     expect(seen.at(-1)).toEqual({ id: 'u1', username: 'ada' });
 
     await act(async () => {
-      client.setQueryData(['users', 'detail', 'u1'], { id: 'u1', username: 'ada', avatar: 'file-1' });
+      client.setQueryData(['users', 'detail', 'u1'], {
+        id: 'u1',
+        username: 'ada',
+        avatar: 'file-1',
+      });
       // React Query delivers observer notifications on its next tick.
       await new Promise((resolve) => setTimeout(resolve, 0));
     });

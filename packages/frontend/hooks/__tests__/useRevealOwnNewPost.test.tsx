@@ -8,12 +8,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
 import { publishNewLocalPost } from '@/stores/feedQueryCache';
 import { feedReceivesOwnNewPost } from '@/utils/feedUtils';
-import {
-  resetRevealOwnNewPost,
-  useRevealOwnNewPost,
-} from '../useRevealOwnNewPost';
+import { resetRevealOwnNewPost, useRevealOwnNewPost } from '../useRevealOwnNewPost';
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 function Probe(props: { feedKey: string; enabled: boolean; scrollToTop: () => void }) {
   useRevealOwnNewPost(props);
@@ -42,7 +41,9 @@ describe('useRevealOwnNewPost', () => {
     const scrollToTop = jest.fn();
     let tree!: TestRenderer.ReactTestRenderer;
     act(() => {
-      tree = TestRenderer.create(<Probe feedKey="home" enabled={false} scrollToTop={scrollToTop} />);
+      tree = TestRenderer.create(
+        <Probe feedKey="home" enabled={false} scrollToTop={scrollToTop} />,
+      );
     });
 
     // Published from the composer, while the feed is behind it.
@@ -87,9 +88,13 @@ describe('feedReceivesOwnNewPost', () => {
   });
 
   it('is never someone else’s profile, a scoped feed, or the saved feed', () => {
-    expect(feedReceivesOwnNewPost({ type: 'posts', userId: 'ana', currentUserId: 'me' })).toBe(false);
+    expect(feedReceivesOwnNewPost({ type: 'posts', userId: 'ana', currentUserId: 'me' })).toBe(
+      false,
+    );
     expect(feedReceivesOwnNewPost({ type: 'replies', filters: { postId: 'p' } })).toBe(false);
     expect(feedReceivesOwnNewPost({ type: 'saved' })).toBe(false);
-    expect(feedReceivesOwnNewPost({ type: 'likes', userId: 'me', currentUserId: 'me' })).toBe(false);
+    expect(feedReceivesOwnNewPost({ type: 'likes', userId: 'me', currentUserId: 'me' })).toBe(
+      false,
+    );
   });
 });

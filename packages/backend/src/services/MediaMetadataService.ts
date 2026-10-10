@@ -102,13 +102,18 @@ export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<
   if (aspectRatio !== undefined) out.aspectRatio = aspectRatio;
   if (sizeBytes) out.sizeBytes = sizeBytes;
 
-  if (raw.orientation === 'portrait' || raw.orientation === 'landscape' || raw.orientation === 'square') {
+  if (
+    raw.orientation === 'portrait' ||
+    raw.orientation === 'landscape' ||
+    raw.orientation === 'square'
+  ) {
     out.orientation = raw.orientation;
   }
   const alt = normalizeAlt(raw.alt);
   if (alt) out.alt = alt;
   if (typeof raw.mime === 'string' && raw.mime.trim().length > 0) out.mime = raw.mime.trim();
-  if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0) out.remoteUrl = raw.remoteUrl.trim();
+  if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0)
+    out.remoteUrl = raw.remoteUrl.trim();
   if (raw.cachedFromFederation === true) out.cachedFromFederation = true;
 
   return out;
@@ -124,7 +129,8 @@ export function mergeMediaItem(existing: MediaItem, patch: Partial<MediaItem>): 
   if (patch.sizeBytes !== undefined) merged.sizeBytes = patch.sizeBytes;
   if (patch.mime !== undefined) merged.mime = patch.mime;
   if (patch.remoteUrl !== undefined) merged.remoteUrl = patch.remoteUrl;
-  if (patch.cachedFromFederation !== undefined) merged.cachedFromFederation = patch.cachedFromFederation;
+  if (patch.cachedFromFederation !== undefined)
+    merged.cachedFromFederation = patch.cachedFromFederation;
   const alt = normalizeAlt(patch.alt);
   if (alt) merged.alt = alt;
   return merged;
@@ -231,10 +237,10 @@ export class MediaMetadataService {
   needsOxyRetry(items: MediaItem[]): boolean {
     return items.some(
       (item) =>
-        isOxyFileId(item.id)
-        && (item.width === undefined
-          || item.height === undefined
-          || (item.type === 'video' && item.durationSec === undefined)),
+        isOxyFileId(item.id) &&
+        (item.width === undefined ||
+          item.height === undefined ||
+          (item.type === 'video' && item.durationSec === undefined)),
     );
   }
 }

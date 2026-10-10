@@ -79,7 +79,10 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-jest.mock('@oxy.so/bloom/icons', () => ({ RiCornerDownRightLine: () => null, RiLinkM: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiCornerDownRightLine: () => null,
+  RiLinkM: () => null,
+}));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
@@ -93,7 +96,9 @@ jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => nu
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
+jest.mock('@/hooks/usePostLanguagePicker', () => ({
+  usePostLanguagePicker: () => () => undefined,
+}));
 jest.mock('../../ProfileHoverCard', () => ({
   ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -265,9 +270,7 @@ describe('PostItem boost wiring', () => {
     // finds a match when there is one.
     render(<PostItem post={postWith([channel, writer])} repostedBy={writer} />);
     expect(lastHeader().boostedBy?.id).toBe(writer.id);
-    expect(lastHeader().authors?.map((author) => author.id)).toContain(
-      lastHeader().boostedBy?.id,
-    );
+    expect(lastHeader().authors?.map((author) => author.id)).toContain(lastHeader().boostedBy?.id);
   });
 
   it('hands over an outside booster too — the header decides what to do with them', () => {

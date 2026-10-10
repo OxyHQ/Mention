@@ -9,7 +9,9 @@ vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: false,
     isOpen: false,
-    connect: vi.fn().mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
+    connect: vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
     ping: vi.fn().mockRejectedValue(new Error('not connected')),
     get: vi.fn(),
     set: vi.fn(),

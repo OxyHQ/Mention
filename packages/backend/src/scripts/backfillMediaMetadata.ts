@@ -43,11 +43,15 @@ export interface BackfillMediaMetadataResult {
 function mediaNeedsEnrichment(items: MediaItem[]): boolean {
   return items.some((item) => {
     if (isOxyFileId(item.id)) {
-      return item.width === undefined || item.height === undefined
-        || (item.type === 'video' && item.durationSec === undefined);
+      return (
+        item.width === undefined ||
+        item.height === undefined ||
+        (item.type === 'video' && item.durationSec === undefined)
+      );
     }
-    return item.type === 'video'
-      && (item.orientation === undefined || item.durationSec === undefined);
+    return (
+      item.type === 'video' && (item.orientation === undefined || item.durationSec === undefined)
+    );
   });
 }
 
@@ -131,7 +135,8 @@ interface MediaMetadataWrite {
 async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promise<void> {
   if (writes.length === 0) return;
 
-  const values = writes.map(({ postId, position, item }) => sql`(
+  const values = writes.map(
+    ({ postId, position, item }) => sql`(
     ${postId}::text,
     ${position}::integer,
     ${item.width ?? null}::integer,
@@ -140,7 +145,8 @@ async function applyMediaMetadata(writes: readonly MediaMetadataWrite[]): Promis
     ${item.orientation ?? null}::text,
     ${item.aspectRatio ?? null}::double precision,
     ${item.sizeBytes ?? null}::integer
-  )`);
+  )`,
+  );
 
   await getDb().execute(sql`
     update ${postMedia} set
@@ -229,9 +235,7 @@ export async function backfillMediaMetadata(
      */
     const pageCandidates = rows.map((row) => {
       const media = row.content.media;
-      return Array.isArray(media) && media.length > 0 && mediaNeedsEnrichment(media)
-        ? media
-        : null;
+      return Array.isArray(media) && media.length > 0 && mediaNeedsEnrichment(media) ? media : null;
     });
     const flatMedia = pageCandidates.flatMap((media) => media ?? []);
     let enrichedFlat = flatMedia;
@@ -267,12 +271,12 @@ export async function backfillMediaMetadata(
       const changed = enriched.some((item, index) => {
         const prev = current[index];
         return (
-          item.width !== prev.width
-          || item.height !== prev.height
-          || item.durationSec !== prev.durationSec
-          || item.orientation !== prev.orientation
-          || item.aspectRatio !== prev.aspectRatio
-          || item.sizeBytes !== prev.sizeBytes
+          item.width !== prev.width ||
+          item.height !== prev.height ||
+          item.durationSec !== prev.durationSec ||
+          item.orientation !== prev.orientation ||
+          item.aspectRatio !== prev.aspectRatio ||
+          item.sizeBytes !== prev.sizeBytes
         );
       });
 
@@ -302,7 +306,13 @@ export async function backfillMediaMetadata(
     // the whole point of the preview is the number, and a killed preview
     // reported nothing at all. Per page, the number survives in the log
     // whatever happens to the process.
-    logger.info('[backfillMediaMetadata] progress', { dryRun, scanned, updated, skipped, unresolved });
+    logger.info('[backfillMediaMetadata] progress', {
+      dryRun,
+      scanned,
+      updated,
+      skipped,
+      unresolved,
+    });
 
     if (rows.length < pageSize) break;
   }

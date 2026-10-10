@@ -61,10 +61,7 @@ export async function getNetworkEngagerCounts(
     const likeRows = await getDb()
       .select({ postId: likes.postId, userId: likes.userId })
       .from(likes)
-      .where(and(
-        inArray(likes.postId, boundedPostIds),
-        inArray(likes.userId, boundedEngagers),
-      ));
+      .where(and(inArray(likes.postId, boundedPostIds), inArray(likes.userId, boundedEngagers)));
     for (const like of likeRows) {
       add(like.postId, like.userId);
     }
@@ -73,11 +70,13 @@ export async function getNetworkEngagerCounts(
     const boosts = await getDb()
       .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
       .from(posts)
-      .where(and(
-        eq(posts.type, 'boost'),
-        inArray(posts.boostOf, boundedPostIds),
-        inArray(posts.oxyUserId, boundedEngagers),
-      ));
+      .where(
+        and(
+          eq(posts.type, 'boost'),
+          inArray(posts.boostOf, boundedPostIds),
+          inArray(posts.oxyUserId, boundedEngagers),
+        ),
+      );
     for (const boost of boosts) {
       if (boost.boostOf && boost.oxyUserId) {
         add(boost.boostOf, boost.oxyUserId);

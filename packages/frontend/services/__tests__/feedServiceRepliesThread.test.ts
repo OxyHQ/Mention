@@ -42,14 +42,22 @@ describe('feedService replies feed', () => {
     const controller = new AbortController();
 
     await feedService.getFeed(
-      { type: 'replies', cursor: 'c-2', limit: 20, filters: { parentPostId: 'post-1', sort: 'top' } },
+      {
+        type: 'replies',
+        cursor: 'c-2',
+        limit: 20,
+        filters: { parentPostId: 'post-1', sort: 'top' },
+      },
       { signal: controller.signal },
     );
 
-    expect(mockAuthenticatedGet).toHaveBeenCalledWith('/feed/replies/post-1', expect.objectContaining({
-      params: { cursor: 'c-2', limit: 20, sort: 'top' },
-      signal: controller.signal,
-    }));
+    expect(mockAuthenticatedGet).toHaveBeenCalledWith(
+      '/feed/replies/post-1',
+      expect.objectContaining({
+        params: { cursor: 'c-2', limit: 20, sort: 'top' },
+        signal: controller.signal,
+      }),
+    );
   });
 
   it('prefers the parent post id when a feed carries both, the order every thread match uses', async () => {
@@ -62,7 +70,10 @@ describe('feedService replies feed', () => {
   });
 
   it('answers an empty page without a request when the feed names no thread', async () => {
-    const page = await feedService.getFeed({ type: 'replies' }, { signal: new AbortController().signal });
+    const page = await feedService.getFeed(
+      { type: 'replies' },
+      { signal: new AbortController().signal },
+    );
 
     expect(page).toEqual({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
     expect(mockAuthenticatedGet).not.toHaveBeenCalled();

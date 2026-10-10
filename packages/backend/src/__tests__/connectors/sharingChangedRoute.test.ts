@@ -115,8 +115,9 @@ describe('POST /federation/sharing-changed', () => {
     expect(res.body).toEqual({ status: 'ok', cleanupQueued: true });
     expect(invalidateFediverseSharing).toHaveBeenCalledWith('local-user-1');
     expect(isFediverseSharingEnabled).toHaveBeenCalledWith('local-user-1');
-    expect(invalidateFediverseSharing.mock.invocationCallOrder[0])
-      .toBeLessThan(isFediverseSharingEnabled.mock.invocationCallOrder[0]);
+    expect(invalidateFediverseSharing.mock.invocationCallOrder[0]).toBeLessThan(
+      isFediverseSharingEnabled.mock.invocationCallOrder[0],
+    );
 
     expect(invalidateWebfingerCache).toHaveBeenCalledWith('nate');
     expect(enqueueSharingCleanup).toHaveBeenCalledWith({

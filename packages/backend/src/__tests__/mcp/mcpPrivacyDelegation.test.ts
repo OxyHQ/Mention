@@ -18,20 +18,23 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => ({
 }));
 
 /** The one Oxy client double behind both the user-scoped and the service clients. */
-const MockOxyClient = vi.hoisted(() => class {
-  readonly session = {
-    setAccessToken: (...args: unknown[]) => mocks.setTokens(...args),
-  };
+const MockOxyClient = vi.hoisted(
+  () =>
+    class {
+      readonly session = {
+        setAccessToken: (...args: unknown[]) => mocks.setTokens(...args),
+      };
 
-  readonly follows = {
-    following: (...args: unknown[]) => mocks.getUserFollowing(...args),
-    followers: (...args: unknown[]) => mocks.getUserFollowers(...args),
-  };
+      readonly follows = {
+        following: (...args: unknown[]) => mocks.getUserFollowing(...args),
+        followers: (...args: unknown[]) => mocks.getUserFollowers(...args),
+      };
 
-  serviceRequest(...args: unknown[]) {
-    return mocks.serviceRequest(...args);
-  }
-});
+      serviceRequest(...args: unknown[]) {
+        return mocks.serviceRequest(...args);
+      }
+    },
+);
 
 vi.mock('@oxy.so/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core')>()),
@@ -43,17 +46,11 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   OxyServer: MockOxyClient,
 }));
 
-import {
-  createOptionalMcpAuth,
-  type OxyAuthRequestWithMcp,
-} from '../../mcp/middleware/mcpAuth';
+import { createOptionalMcpAuth, type OxyAuthRequestWithMcp } from '../../mcp/middleware/mcpAuth';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
-import {
-  getBlockedUserIds,
-  getRestrictedUserIds,
-} from '../../utils/privacyHelpers';
+import { getBlockedUserIds, getRestrictedUserIds } from '../../utils/privacyHelpers';
 
 function buildApp() {
   const app = express();
@@ -69,21 +66,19 @@ function buildApp() {
       const excluded = new Set([...blockedIds, ...restrictedIds]);
       res.json({
         viewerId: mcpRequest.mcp?.activeUserId,
-        visibleAuthorIds: ['blocked-user', 'restricted-user', 'safe-user']
-          .filter((id) => !excluded.has(id)),
+        visibleAuthorIds: ['blocked-user', 'restricted-user', 'safe-user'].filter(
+          (id) => !excluded.has(id),
+        ),
       });
     } catch (error) {
       next(error);
     }
   });
-  app.use((
-    error: Error,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
-    res.status(503).json({ error: error.name });
-  });
+  app.use(
+    (error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      res.status(503).json({ error: error.name });
+    },
+  );
   return app;
 }
 

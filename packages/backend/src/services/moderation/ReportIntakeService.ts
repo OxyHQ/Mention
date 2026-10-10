@@ -176,9 +176,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   }
   const provider = subjectProviderFor(reportedType);
   const deliverable = provider !== undefined;
-  const urgency = provider
-    ? await snapshotUrgency(provider, reportedId, reporter)
-    : undefined;
+  const urgency = provider ? await snapshotUrgency(provider, reportedId, reporter) : undefined;
 
   try {
     return await getDb().transaction(async (tx) => {
@@ -245,11 +243,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
      * fail with 25P02.
      */
     if (!isUniqueViolation(error, 'reports_reporter_reported_key')) throw error;
-    const existing = await findDuplicateReport(
-      reporter,
-      reportedId,
-      reportedType as ReportedType,
-    );
+    const existing = await findDuplicateReport(reporter, reportedId, reportedType as ReportedType);
     // No winner to point at means the constraint fired for something this function
     // did not do. Reporting it as a duplicate would be inventing a cause.
     if (!existing) throw error;

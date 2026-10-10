@@ -223,11 +223,7 @@ export async function enqueueEngagementOutboxEvent(
   input: EnqueueEngagementEventInput,
   tx: Transaction,
 ): Promise<string> {
-  const eventId = engagementOutboxEventId(
-    input.kind,
-    input.relationshipId,
-    input.revision,
-  );
+  const eventId = engagementOutboxEventId(input.kind, input.relationshipId, input.revision);
   const now = new Date();
   await tx
     .insert(engagementOutbox)
@@ -247,9 +243,7 @@ export async function enqueueEngagementOutboxEvent(
       // One instant for both, so the claim's `available_at <= now` gate and its
       // `created_at` ordering describe the same moment.
       availableAt: now,
-      expiresAt: new Date(
-        now.getTime() + ENGAGEMENT_OUTBOX_RETENTION_SECONDS * 1_000,
-      ),
+      expiresAt: new Date(now.getTime() + ENGAGEMENT_OUTBOX_RETENTION_SECONDS * 1_000),
       createdAt: now,
       updatedAt: now,
     })
@@ -289,20 +283,12 @@ export async function claimEngagementOutboxEvent(options: {
     .from(engagementOutbox)
     .where(
       and(
-        options.eventId === undefined
-          ? undefined
-          : eq(engagementOutbox.id, options.eventId),
+        options.eventId === undefined ? undefined : eq(engagementOutbox.id, options.eventId),
         or(
-          and(
-            eq(engagementOutbox.status, 'pending'),
-            lte(engagementOutbox.availableAt, now),
-          ),
+          and(eq(engagementOutbox.status, 'pending'), lte(engagementOutbox.availableAt, now)),
           // A NULL `lease_until` never satisfies `<= now`, which is the same
           // answer Mongo's `$lte` gave for a missing field.
-          and(
-            eq(engagementOutbox.status, 'processing'),
-            lte(engagementOutbox.leaseUntil, now),
-          ),
+          and(eq(engagementOutbox.status, 'processing'), lte(engagementOutbox.leaseUntil, now)),
         ),
       ),
     )
@@ -332,9 +318,7 @@ export async function claimEngagementOutboxEvent(options: {
  * `status <> 'processed'` is total here because the column is NOT NULL — the
  * Mongo `$ne` also matched documents missing the field, and there are none.
  */
-async function hasEarlierUnprocessedRevision(
-  event: EngagementOutboxEvent,
-): Promise<boolean> {
+async function hasEarlierUnprocessedRevision(event: EngagementOutboxEvent): Promise<boolean> {
   const [earlier] = await getDb()
     .select({ id: engagementOutbox.id })
     .from(engagementOutbox)
@@ -463,7 +447,7 @@ export async function markEngagementOutboxEffectDone(
 
 function nextAttemptAt(attempts: number, now: Date): Date {
   const exponent = Math.max(0, Math.min(attempts - 1, 10));
-  const delayMs = Math.min(1_000 * (2 ** exponent), MAX_BACKOFF_MS);
+  const delayMs = Math.min(1_000 * 2 ** exponent, MAX_BACKOFF_MS);
   return new Date(now.getTime() + delayMs);
 }
 
@@ -509,15 +493,10 @@ interface LeaseHeartbeatResult {
   error?: unknown;
 }
 
-function startLeaseHeartbeat(options: {
-  eventId: string;
-  leaseOwner: string;
-  leaseMs: number;
-}): { stop: () => Promise<LeaseHeartbeatResult> } {
-  const renewIntervalMs = Math.max(
-    MIN_LEASE_RENEW_INTERVAL_MS,
-    Math.floor(options.leaseMs / 3),
-  );
+function startLeaseHeartbeat(options: { eventId: string; leaseOwner: string; leaseMs: number }): {
+  stop: () => Promise<LeaseHeartbeatResult>;
+} {
+  const renewIntervalMs = Math.max(MIN_LEASE_RENEW_INTERVAL_MS, Math.floor(options.leaseMs / 3));
   let stopped = false;
   let lost = false;
   let renewalError: unknown;
@@ -525,11 +504,7 @@ function startLeaseHeartbeat(options: {
 
   const renew = (): void => {
     if (stopped || lost || renewalInFlight) return;
-    const renewal = renewEngagementOutboxEvent(
-      options.eventId,
-      options.leaseOwner,
-      options.leaseMs,
-    )
+    const renewal = renewEngagementOutboxEvent(options.eventId, options.leaseOwner, options.leaseMs)
       .then((stillOwner) => {
         if (!stillOwner) {
           lost = true;
@@ -574,10 +549,7 @@ export async function dispatchEngagementOutbox(options: {
   signal?: AbortSignal;
 }): Promise<{ processed: number; failed: number }> {
   const leaseOwner = options.leaseOwner ?? `engagement:${process.pid}:${randomUUID()}`;
-  const batchSize = Math.min(
-    Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE),
-    MAX_BATCH_SIZE,
-  );
+  const batchSize = Math.min(Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE), MAX_BATCH_SIZE);
   const leaseMs = Math.max(MIN_LEASE_MS, options.leaseMs ?? DEFAULT_LEASE_MS);
   let processed = 0;
   let failed = 0;
@@ -613,11 +585,7 @@ export async function dispatchEngagementOutbox(options: {
     let deliveryError: unknown;
     const context: EngagementOutboxHandlerContext = {
       async markEffectDone(effect) {
-        const stillOwner = await markEngagementOutboxEffectDone(
-          event.id,
-          leaseOwner,
-          effect,
-        );
+        const stillOwner = await markEngagementOutboxEffectDone(event.id, leaseOwner, effect);
         if (!stillOwner) {
           throw new Error(`lease lost before recording the ${effect} effect`);
         }
@@ -649,19 +617,12 @@ export async function dispatchEngagementOutbox(options: {
 
     if (deliveryError) {
       failed += 1;
-      const released = await failEngagementOutboxEvent(
-        event,
-        leaseOwner,
-        deliveryError,
-      );
+      const released = await failEngagementOutboxEvent(event, leaseOwner, deliveryError);
       logger.warn('[EngagementOutbox] event delivery failed', {
         eventId: event.id,
         kind: event.kind,
         attempts: event.attempts,
-        error:
-          deliveryError instanceof Error
-            ? deliveryError.message
-            : String(deliveryError),
+        error: deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
       });
       if (!released) {
         logger.warn('[EngagementOutbox] lease lost before failure release', {

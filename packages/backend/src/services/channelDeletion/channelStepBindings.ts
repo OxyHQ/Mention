@@ -37,8 +37,19 @@ import {
   feedReviews,
   userFeedPreferences,
 } from '../../db/schema/feeds';
-import { accountListMembers, accountLists, starterPackMembers, starterPackUses, starterPacks } from '../../db/schema/lists';
-import { contentLabels, labelers, moderationEnforcements, reports } from '../../db/schema/moderation';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPackUses,
+  starterPacks,
+} from '../../db/schema/lists';
+import {
+  contentLabels,
+  labelers,
+  moderationEnforcements,
+  reports,
+} from '../../db/schema/moderation';
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { repairFetchFailures } from '../../db/schema/adminScripts';
 import { lanes, laneMutes } from '../../db/schema/channels';
@@ -122,7 +133,10 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     run: (batch, dryRun) =>
       countOrDelete(
         repairFetchFailures,
-        inArray(repairFetchFailures.postId, batch.rows.map((row) => row.id)),
+        inArray(
+          repairFetchFailures.postId,
+          batch.rows.map((row) => row.id),
+        ),
         dryRun,
       ),
   },
@@ -241,7 +255,10 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: contentLabels,
     where: (targets) =>
-      and(eq(contentLabels.targetType, 'user'), eq(contentLabels.targetId, targets.channelOxyUserId)),
+      and(
+        eq(contentLabels.targetType, 'user'),
+        eq(contentLabels.targetId, targets.channelOxyUserId),
+      ),
   },
   'content_labels.createdBy|channel-account': {
     phase: 'account',

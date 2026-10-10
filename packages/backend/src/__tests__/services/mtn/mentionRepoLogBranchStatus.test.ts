@@ -40,7 +40,12 @@ function chainOwner(): string {
   return id;
 }
 
-function envelope(owner: string, seq: number, collection: string, text: string): SignedRecordEnvelope {
+function envelope(
+  owner: string,
+  seq: number,
+  collection: string,
+  text: string,
+): SignedRecordEnvelope {
   return {
     version: 2,
     type: 'app_record',
@@ -105,8 +110,20 @@ describe('getPublicLogSince', () => {
   it('withholds the private bookmark collection', async () => {
     const owner = chainOwner();
     await insertRow(owner, 0, MENTION_POST_COLLECTION, 'a post', MTN_CHAIN_STATUS.CANONICAL);
-    await insertRow(owner, 1, MENTION_BOOKMARK_COLLECTION, 'a private bookmark', MTN_CHAIN_STATUS.CANONICAL);
-    await insertRow(owner, 2, MENTION_TOMBSTONE_COLLECTION, 'a deletion', MTN_CHAIN_STATUS.CANONICAL);
+    await insertRow(
+      owner,
+      1,
+      MENTION_BOOKMARK_COLLECTION,
+      'a private bookmark',
+      MTN_CHAIN_STATUS.CANONICAL,
+    );
+    await insertRow(
+      owner,
+      2,
+      MENTION_TOMBSTONE_COLLECTION,
+      'a deletion',
+      MTN_CHAIN_STATUS.CANONICAL,
+    );
 
     const log = await getPublicLogSince(owner, -1, 100);
 
@@ -136,7 +153,13 @@ describe('getPublicLogSince', () => {
   it('returns the slice strictly after the cursor, in seq order, capped by the limit', async () => {
     const owner = chainOwner();
     for (let seq = 0; seq < 5; seq += 1) {
-      await insertRow(owner, seq, MENTION_POST_COLLECTION, `post-${seq}`, MTN_CHAIN_STATUS.CANONICAL);
+      await insertRow(
+        owner,
+        seq,
+        MENTION_POST_COLLECTION,
+        `post-${seq}`,
+        MTN_CHAIN_STATUS.CANONICAL,
+      );
     }
 
     await expect(getPublicLogSince(owner, 2, 100)).resolves.toEqual([

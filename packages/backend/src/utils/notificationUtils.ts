@@ -21,10 +21,7 @@ import { loadPostRecord } from '../db/posts/postRepository';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
-import {
-  toPopulatedActor,
-  type NotificationActorProfile,
-} from './notificationActor';
+import { toPopulatedActor, type NotificationActorProfile } from './notificationActor';
 import { mapWithConcurrency } from './concurrency';
 
 /**
@@ -132,7 +129,9 @@ const NOTIFICATION_CONFLICT_TARGET = [
   notifications.entityId,
 ];
 
-function dedupKey(n: Pick<CreateNotificationData, 'recipientId' | 'actorId' | 'type' | 'entityId'>): string {
+function dedupKey(
+  n: Pick<CreateNotificationData, 'recipientId' | 'actorId' | 'type' | 'entityId'>,
+): string {
   return `${n.recipientId}\u0000${n.actorId}\u0000${n.type}\u0000${n.entityId}`;
 }
 
@@ -154,7 +153,10 @@ function dedupKey(n: Pick<CreateNotificationData, 'recipientId' | 'actorId' | 't
  */
 async function writeNotifications(
   items: readonly CreateNotificationData[],
-  { emitEvent = true, throwOnPersistenceError = false }: {
+  {
+    emitEvent = true,
+    throwOnPersistenceError = false,
+  }: {
     emitEvent?: boolean;
     throwOnPersistenceError?: boolean;
   } = {},
@@ -177,9 +179,15 @@ async function writeNotifications(
       const chunk = all.slice(i, i + NOTIFICATION_INSERT_CHUNK);
       const rows = await db
         .insert(notifications)
-        .values(chunk.map(({ recipientId, actorId, type, entityId, entityType }) => (
-          { recipientId, actorId, type, entityId, entityType }
-        )))
+        .values(
+          chunk.map(({ recipientId, actorId, type, entityId, entityType }) => ({
+            recipientId,
+            actorId,
+            type,
+            entityId,
+            entityType,
+          })),
+        )
         .onConflictDoNothing({ target: NOTIFICATION_CONFLICT_TARGET })
         .returning();
       inserted.push(...rows);
@@ -202,7 +210,9 @@ async function writeNotifications(
  * the column's own `$onUpdate`, matching Mongoose's timestamps. A repeat is not
  * news, so it is neither emitted nor pushed.
  */
-async function refreshRepeatedNotifications(repeats: readonly CreateNotificationData[]): Promise<void> {
+async function refreshRepeatedNotifications(
+  repeats: readonly CreateNotificationData[],
+): Promise<void> {
   if (repeats.length === 0) return;
   const groups = new Map<string, { sample: CreateNotificationData; recipients: string[] }>();
   for (const n of repeats) {
@@ -227,7 +237,11 @@ async function refreshRepeatedNotifications(repeats: readonly CreateNotification
   }
 }
 
-const SYSTEM_ACTOR: NotificationActorProfile = { id: 'system', username: 'system', displayName: 'System' };
+const SYSTEM_ACTOR: NotificationActorProfile = {
+  id: 'system',
+  username: 'system',
+  displayName: 'System',
+};
 
 /**
  * The actor and post lookups for ONE fan-out, memoized. Every notification of a
@@ -283,13 +297,15 @@ async function deliverNotifications(
   const io = emitEvent ? getRuntimeSocketServer() : undefined;
   if (io) {
     const notificationsNamespace = io.of('/notifications');
-    await Promise.all(rows.map(async (row) => {
-      const actor = row.actorId ? await lookups.actor(row.actorId) : null;
-      notificationsNamespace.to(`user:${row.recipientId}`).emit('notification', {
-        ...serializeNotification(row),
-        actorId_populated: toPopulatedActor(actor, row.actorId),
-      });
-    }));
+    await Promise.all(
+      rows.map(async (row) => {
+        const actor = row.actorId ? await lookups.actor(row.actorId) : null;
+        notificationsNamespace.to(`user:${row.recipientId}`).emit('notification', {
+          ...serializeNotification(row),
+          actorId_populated: toPopulatedActor(actor, row.actorId),
+        });
+      }),
+    );
   }
 
   try {
@@ -300,7 +316,10 @@ async function deliverNotifications(
       else byType.set(row.type, [row]);
     }
     for (const [type, group] of byType) {
-      const targets = await loadPushTargets(group.map((row) => row.recipientId), type);
+      const targets = await loadPushTargets(
+        group.map((row) => row.recipientId),
+        type,
+      );
       if (targets.size === 0) continue;
       await mapWithConcurrency(
         group.filter((row) => targets.has(row.recipientId)),
@@ -344,7 +363,7 @@ export const createMentionNotifications = async (
   postId: string,
   actorId: string,
   entityType: 'post' | 'reply' = 'post',
-  emitEvent: boolean = true
+  emitEvent: boolean = true,
 ): Promise<void> => {
   try {
     if (!mentionUserIds || mentionUserIds.length === 0) return;
@@ -380,16 +399,19 @@ export const createMentionNotifications = async (
  */
 export const createWelcomeNotification = async (
   userId: string,
-  emitEvent: boolean = true
+  emitEvent: boolean = true,
 ): Promise<void> => {
   try {
-    await createNotification({
-      recipientId: userId,
-      actorId: 'system', // System-generated notification
-      type: 'welcome',
-      entityId: userId,
-      entityType: 'profile',
-    }, emitEvent);
+    await createNotification(
+      {
+        recipientId: userId,
+        actorId: 'system', // System-generated notification
+        type: 'welcome',
+        entityId: userId,
+        entityType: 'profile',
+      },
+      emitEvent,
+    );
   } catch (error) {
     logger.error('[Notifications] Error creating welcome notification:', error);
   }
@@ -408,7 +430,7 @@ export const createWelcomeNotification = async (
  */
 export const createBatchNotifications = async (
   notifications: CreateNotificationData[],
-  emitEvent: boolean = true
+  emitEvent: boolean = true,
 ): Promise<void> => {
   try {
     await writeNotifications(notifications, { emitEvent });

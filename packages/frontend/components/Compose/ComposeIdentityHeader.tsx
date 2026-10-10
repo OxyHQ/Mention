@@ -62,7 +62,7 @@ const ComposeIdentityHeader = memo(function ComposeIdentityHeader({
   // publishing as one swaps which user signs the post rather than decorating the
   // author's own row with a second identity.
   const identity: User | null = publishAs?.account ?? user;
-  const handle = identity ? getNormalizedUserHandle(identity) ?? '' : '';
+  const handle = identity ? (getNormalizedUserHandle(identity) ?? '') : '';
 
   /**
    * Owner + invited collaborators, in byline order, as the published post's own
@@ -82,16 +82,18 @@ const ComposeIdentityHeader = memo(function ComposeIdentityHeader({
         role: 'owner',
         status: 'accepted',
       },
-      ...collaborators.map((collaborator): HydratedAuthor => ({
-        id: collaborator.id,
-        username: collaborator.username,
-        name: { displayName: collaborator.displayName },
-        avatar: collaborator.avatar,
-        role: 'collaborator',
-        // What is true while the post is being written: an invite is sent when
-        // it publishes, and nobody has answered one yet.
-        status: 'pending',
-      })),
+      ...collaborators.map(
+        (collaborator): HydratedAuthor => ({
+          id: collaborator.id,
+          username: collaborator.username,
+          name: { displayName: collaborator.displayName },
+          avatar: collaborator.avatar,
+          role: 'collaborator',
+          // What is true while the post is being written: an invite is sent when
+          // it publishes, and nobody has answered one yet.
+          status: 'pending',
+        }),
+      ),
     ];
   }, [identity, collaborators]);
 

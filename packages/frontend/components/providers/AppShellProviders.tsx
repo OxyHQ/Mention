@@ -13,7 +13,11 @@ import { CommunityNoteProvider } from './CommunityNoteProvider';
  * BottomBar reads — comes from the single `<BloomProvider>` in
  * `app/_layout.tsx`, which sits above this whole tree.
  */
-export const AppShellProviders = memo(function AppShellProviders({ children }: { children: ReactNode }) {
+export const AppShellProviders = memo(function AppShellProviders({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
     <ScreenColorProvider>
       <VideosRailProvider>
@@ -31,9 +35,7 @@ export const AppShellProviders = memo(function AppShellProviders({ children }: {
               <BottomBarVisibilityProvider>
                 {/* One answer for the whole shell to "can a note be written
                     here", so a feed page's rows read it instead of each asking. */}
-                <CommunityNoteProvider>
-                  {children}
-                </CommunityNoteProvider>
+                <CommunityNoteProvider>{children}</CommunityNoteProvider>
               </BottomBarVisibilityProvider>
             </TabPagerProvider>
           </DrawerProvider>

@@ -98,7 +98,7 @@ export interface UpsertProposalResult {
 /** Assemble a row plus its ordered observations into the read shape. */
 function toStoredProposal(
   row: typeof blocklistProposals.$inferSelect,
-  observations: readonly (typeof blocklistProposalObservations.$inferSelect)[]
+  observations: readonly (typeof blocklistProposalObservations.$inferSelect)[],
 ): StoredProposal {
   return {
     domain: row.domain,
@@ -132,7 +132,7 @@ function toStoredProposal(
 async function replaceObservations(
   tx: Transaction,
   proposalId: string,
-  observations: readonly ProposalObservation[]
+  observations: readonly ProposalObservation[],
 ): Promise<void> {
   await tx
     .delete(blocklistProposalObservations)
@@ -147,7 +147,7 @@ async function replaceObservations(
       comment: observation.comment ?? null,
       resolvedFromDigest: observation.resolvedFromDigest,
       position,
-    }))
+    })),
   );
 }
 
@@ -160,7 +160,7 @@ async function replaceObservations(
  * covers the case where no row existed to lock and one appeared.
  */
 export async function upsertOpenProposal(
-  input: UpsertProposalInput
+  input: UpsertProposalInput,
 ): Promise<UpsertProposalResult> {
   return getDb().transaction(async (tx) => {
     const [before] = await tx
@@ -214,7 +214,7 @@ export async function upsertOpenProposal(
 
 /** The current status of each named domain that has a proposal row. */
 export async function statusByDomain(
-  domains: readonly string[]
+  domains: readonly string[],
 ): Promise<Map<string, StoredProposal['status']>> {
   if (domains.length === 0) return new Map();
   const rows = await getDb()
@@ -242,7 +242,7 @@ export async function listOpenProposalDomains(): Promise<string[]> {
  */
 export async function closeOpenProposal(
   domain: string,
-  status: 'adopted' | 'lapsed'
+  status: 'adopted' | 'lapsed',
 ): Promise<void> {
   await getDb()
     .update(blocklistProposals)
@@ -266,8 +266,8 @@ export async function listOpenProposals(): Promise<StoredProposal[]> {
     .where(
       inArray(
         blocklistProposalObservations.proposalId,
-        rows.map((row) => row.id)
-      )
+        rows.map((row) => row.id),
+      ),
     )
     .orderBy(asc(blocklistProposalObservations.position));
 
@@ -308,7 +308,7 @@ export async function findProposalByDomain(domain: string): Promise<StoredPropos
 export async function declineProposalRow(
   domain: string,
   decidedBy: string,
-  reason: string
+  reason: string,
 ): Promise<StoredProposal | null> {
   const [row] = await getDb()
     .update(blocklistProposals)
@@ -321,8 +321,8 @@ export async function declineProposalRow(
     .where(
       and(
         eq(blocklistProposals.domain, domain),
-        inArray(blocklistProposals.status, ['open', 'lapsed'])
-      )
+        inArray(blocklistProposals.status, ['open', 'lapsed']),
+      ),
     )
     .returning();
   if (!row) return null;
@@ -340,9 +340,7 @@ export async function reopenProposalRow(domain: string): Promise<StoredProposal 
   const [row] = await getDb()
     .update(blocklistProposals)
     .set({ status: 'open', decidedAt: null, decidedBy: null, decisionReason: null })
-    .where(
-      and(eq(blocklistProposals.domain, domain), eq(blocklistProposals.status, 'declined'))
-    )
+    .where(and(eq(blocklistProposals.domain, domain), eq(blocklistProposals.status, 'declined')))
     .returning();
   if (!row) return null;
   return findProposalByDomain(row.domain);
@@ -443,7 +441,7 @@ export async function recordProposalRun(input: ProposalRunInput): Promise<void> 
         entries: source.entries,
         detail: source.detail ?? null,
         position,
-      }))
+      })),
     );
   });
 }

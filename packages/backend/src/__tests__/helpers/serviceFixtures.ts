@@ -73,8 +73,9 @@ export async function withDeadlockRetry<T>(operation: () => Promise<T>, attempts
     try {
       return await operation();
     } catch (error) {
-      const code = (error as { code?: string; cause?: { code?: string } }).code
-        ?? (error as { cause?: { code?: string } }).cause?.code;
+      const code =
+        (error as { code?: string; cause?: { code?: string } }).code ??
+        (error as { cause?: { code?: string } }).cause?.code;
       if (code !== '40P01' || attempt >= attempts) throw error;
       await new Promise((resolve) => setTimeout(resolve, 25 * attempt));
     }
@@ -145,7 +146,9 @@ export async function readPost(id: string): Promise<PostRecord | null> {
  * The way to read back rows a CREATE path wrote when the suite never learned
  * their ids — a controller that only returns hydrated DTOs, for instance.
  */
-export async function readScopePosts(scope: ServiceScope): Promise<Array<typeof posts.$inferSelect>> {
+export async function readScopePosts(
+  scope: ServiceScope,
+): Promise<Array<typeof posts.$inferSelect>> {
   return getDb()
     .select()
     .from(posts)
@@ -180,7 +183,10 @@ export async function clearServiceScope(scope: ServiceScope): Promise<void> {
   );
   // The scope's bookmark folders, after every bookmark that could still be
   // filed in one — the bookmark foreign key holds a folder while one does.
-  await getDb().delete(bookmarks).where(like(bookmarks.userId, `${ownerPrefix(scope)}%`));
-  await getDb().delete(bookmarkFolders).where(like(bookmarkFolders.userId, `${ownerPrefix(scope)}%`));
+  await getDb()
+    .delete(bookmarks)
+    .where(like(bookmarks.userId, `${ownerPrefix(scope)}%`));
+  await getDb()
+    .delete(bookmarkFolders)
+    .where(like(bookmarkFolders.userId, `${ownerPrefix(scope)}%`));
 }
-

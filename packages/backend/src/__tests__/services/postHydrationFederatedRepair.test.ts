@@ -47,7 +47,11 @@ vi.mock('../../services/userSummaryCache', () => ({
   invalidate: vi.fn(async () => undefined),
 }));
 
-import { resolveUserSummaries, degradedActorSummary, isFallbackUserSummary } from '../../services/PostHydrationService';
+import {
+  resolveUserSummaries,
+  degradedActorSummary,
+  isFallbackUserSummary,
+} from '../../services/PostHydrationService';
 
 /**
  * This file's own federated author. It must not be an id another suite seeds an
@@ -90,26 +94,45 @@ describe('resolveUserSummaries Oxy public identity authority', () => {
     ['bridge', 'alice@threads.net', 'alice@ap.brid.gy', 'ap.brid.gy'],
     ['ordinary AP', 'alice@mastodon.social', 'alice@mastodon.social', 'mastodon.social'],
     ['unknown projection', null, 'alice@ap.brid.gy', 'ap.brid.gy'],
-  ] as const)('keeps %s unavailable during Oxy outage without publishing transport identity', async (_kind, networkAcct, acct, domain) => {
-    await seedActor(scope, {
-      username: 'alice', uri: `${scope.origin}/users/alice`,
-      acct, domain, networkAcct, oxyUserId: FED_ID,
-      avatarUrl: 'https://ap.brid.gy/transport-avatar.png',
-    });
-    const user = (await resolveUserSummaries([FED_ID])).get(FED_ID)?.user;
-    expect(user?.username).toBe('');
-    expect(user?.name.displayName).toBe('Unknown user');
-    expect(user?.instance).toBeUndefined();
-    expect(user?.federation).toBeUndefined();
-    expect(user?.avatar).toBeNull();
-    expect(JSON.stringify(user)).not.toContain('brid.gy');
-  });
+  ] as const)(
+    'keeps %s unavailable during Oxy outage without publishing transport identity',
+    async (_kind, networkAcct, acct, domain) => {
+      await seedActor(scope, {
+        username: 'alice',
+        uri: `${scope.origin}/users/alice`,
+        acct,
+        domain,
+        networkAcct,
+        oxyUserId: FED_ID,
+        avatarUrl: 'https://ap.brid.gy/transport-avatar.png',
+      });
+      const user = (await resolveUserSummaries([FED_ID])).get(FED_ID)?.user;
+      expect(user?.username).toBe('');
+      expect(user?.name.displayName).toBe('Unknown user');
+      expect(user?.instance).toBeUndefined();
+      expect(user?.federation).toBeUndefined();
+      expect(user?.avatar).toBeNull();
+      expect(JSON.stringify(user)).not.toContain('brid.gy');
+    },
+  );
 
   it('retains an Oxy-issued cached public profile without contacting Oxy', async () => {
-    cachedSummaries.mockResolvedValue(new Map([[FED_ID, { user: {
-      id: FED_ID, username: 'alice@threads.net', name: { displayName: 'Alice' },
-      avatar: null, isFederated: true,
-    } }]]));
+    cachedSummaries.mockResolvedValue(
+      new Map([
+        [
+          FED_ID,
+          {
+            user: {
+              id: FED_ID,
+              username: 'alice@threads.net',
+              name: { displayName: 'Alice' },
+              avatar: null,
+              isFederated: true,
+            },
+          },
+        ],
+      ]),
+    );
     const user = (await resolveUserSummaries([FED_ID])).get(FED_ID)?.user;
     expect(user?.username).toBe('alice@threads.net');
     expect(user?.name.displayName).toBe('Alice');
@@ -119,7 +142,14 @@ describe('resolveUserSummaries Oxy public identity authority', () => {
 
   it('leaves a properly-resolved Oxy user untouched and never queries FederatedActor', async () => {
     getUsersByIds.mockResolvedValue([
-      { id: FED_ID, username: 'kaleidotrope', name: { displayName: 'Kaleidotrope' }, isFederated: true, instance: 'mastodon.online', avatar: null },
+      {
+        id: FED_ID,
+        username: 'kaleidotrope',
+        name: { displayName: 'Kaleidotrope' },
+        isFederated: true,
+        instance: 'mastodon.online',
+        avatar: null,
+      },
     ]);
 
     const resolved = await resolveUserSummaries([FED_ID]);

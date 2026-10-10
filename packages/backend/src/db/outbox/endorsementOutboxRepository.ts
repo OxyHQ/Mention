@@ -41,11 +41,11 @@ export type EndorsementOutboxStatus = (typeof ENDORSEMENT_OUTBOX_STATUSES)[numbe
  * desired-state, so the drain keeps retrying slowly rather than abandoning it.
  */
 const BACKOFF_INTERVALS_MS = [
-  1 * 60 * 1000,        // 1 minute
-  5 * 60 * 1000,        // 5 minutes
-  30 * 60 * 1000,       // 30 minutes
-  2 * 60 * 60 * 1000,   // 2 hours
-  12 * 60 * 60 * 1000,  // 12 hours
+  1 * 60 * 1000, // 1 minute
+  5 * 60 * 1000, // 5 minutes
+  30 * 60 * 1000, // 30 minutes
+  2 * 60 * 60 * 1000, // 2 hours
+  12 * 60 * 60 * 1000, // 12 hours
 ];
 
 /** Largest backoff used once the schedule is exhausted (re-arm, never drop). */
@@ -58,7 +58,7 @@ const MAX_BACKOFF_MS = BACKOFF_INTERVALS_MS[BACKOFF_INTERVALS_MS.length - 1];
  */
 export function getEndorsementNextAttempt(attempts: number): Date {
   const index = Math.min(Math.max(attempts - 1, 0), BACKOFF_INTERVALS_MS.length - 1);
-  const interval = attempts <= 0 ? 0 : BACKOFF_INTERVALS_MS[index] ?? MAX_BACKOFF_MS;
+  const interval = attempts <= 0 ? 0 : (BACKOFF_INTERVALS_MS[index] ?? MAX_BACKOFF_MS);
   return new Date(Date.now() + interval);
 }
 

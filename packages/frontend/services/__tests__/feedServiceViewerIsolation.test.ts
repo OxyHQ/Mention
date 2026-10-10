@@ -43,10 +43,7 @@ jest.mock('@/utils/apiError', () => ({
 }));
 
 // Jest must install the transport/auth mocks before this singleton is loaded.
-import {
-  feedService,
-  setFeedViewerRequestScope,
-} from '../feedService';
+import { feedService, setFeedViewerRequestScope } from '../feedService';
 
 function viewerPost(viewerId: string, isSaved: boolean): HydratedPost {
   return {
@@ -58,13 +55,15 @@ function viewerPost(viewerId: string, isSaved: boolean): HydratedPost {
       username: 'alice',
       name: { displayName: 'Alice' },
     },
-    authors: [{
-      id: 'author-1',
-      username: 'alice',
-      name: { displayName: 'Alice' },
-      role: 'owner',
-      status: 'accepted',
-    }],
+    authors: [
+      {
+        id: 'author-1',
+        username: 'alice',
+        name: { displayName: 'Alice' },
+        role: 'owner',
+        status: 'accepted',
+      },
+    ],
     engagement: {
       likes: 0,
       downvotes: 0,
@@ -127,22 +126,16 @@ describe('feedService viewer request isolation', () => {
     // session token, so viewer generation—not token inequality—must isolate A/B.
     mockGetAccessToken.mockReturnValue('shared-session-token');
     mockAuthenticatedGet.mockImplementation(() =>
-      activeViewer === 'viewer-a'
-        ? pendingA.promise
-        : Promise.resolve({ data: responseB }),
+      activeViewer === 'viewer-a' ? pendingA.promise : Promise.resolve({ data: responseB }),
     );
 
     setFeedViewerRequestScope('viewer-a');
-    const requestA = feedService.getMtnFeed(
-      'author|profile-owner|posts' as never,
-    );
+    const requestA = feedService.getMtnFeed('author|profile-owner|posts' as never);
     expect(mockAuthenticatedGet).toHaveBeenCalledTimes(1);
 
     activeViewer = 'viewer-b';
     setFeedViewerRequestScope('viewer-b');
-    const receivedByB = await feedService.getMtnFeed(
-      'author|profile-owner|posts' as never,
-    );
+    const receivedByB = await feedService.getMtnFeed('author|profile-owner|posts' as never);
 
     expect(mockAuthenticatedGet).toHaveBeenCalledTimes(2);
     expect(receivedByB).toEqual(responseB);
@@ -161,11 +154,7 @@ describe('feedService viewer request isolation', () => {
     });
     setFeedViewerRequestScope('viewer-a');
 
-    await feedService.getUserFeed(
-      'profile-owner',
-      { type: 'posts', limit: 20 },
-      { signal },
-    );
+    await feedService.getUserFeed('profile-owner', { type: 'posts', limit: 20 }, { signal });
 
     expect(mockAuthenticatedGet).toHaveBeenCalledWith(
       '/feed/mtn',

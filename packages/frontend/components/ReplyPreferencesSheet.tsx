@@ -10,33 +10,34 @@ import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
 import { useThreadPreferencesStore } from '@/hooks/useThreadPreferences';
 
 export default function ReplyPreferencesSheet() {
-    const { t } = useTranslation();
-    const treeView = useThreadPreferencesStore((state) => state.treeView);
-    const setTreeView = useThreadPreferencesStore((state) => state.setTreeView);
+  const { t } = useTranslation();
+  const treeView = useThreadPreferencesStore((state) => state.treeView);
+  const setTreeView = useThreadPreferencesStore((state) => state.setTreeView);
 
-    return (
-        <ScrollView
-            contentContainerClassName="px-4 pt-2 pb-8"
-            showsVerticalScrollIndicator={false}
-        >
-            <SettingsListGroup title={t('replyPreferences.showRepliesAs', { defaultValue: 'Show replies as' })}>
-                <SettingsListItem
-                    icon={<RowIcon icon={RiListUnordered} />}
-                    title={t('replyPreferences.linear', { defaultValue: 'Linear' })}
-                    rightElement={<RadioIndicator selected={!treeView} />}
-                    showChevron={false}
-                    onPress={() => setTreeView(false)}
-                />
-                <SettingsListItem
-                    icon={<RowIcon icon={RiNodeTree} />}
-                    title={t('replyPreferences.threaded', { defaultValue: 'Threaded' })}
-                    rightElement={<RadioIndicator selected={treeView} />}
-                    showChevron={false}
-                    onPress={() => setTreeView(true)}
-                />
-            </SettingsListGroup>
+  return (
+    <ScrollView contentContainerClassName="px-4 pt-2 pb-8" showsVerticalScrollIndicator={false}>
+      <SettingsListGroup
+        title={t('replyPreferences.showRepliesAs', { defaultValue: 'Show replies as' })}
+      >
+        <SettingsListItem
+          icon={<RowIcon icon={RiListUnordered} />}
+          title={t('replyPreferences.linear', { defaultValue: 'Linear' })}
+          rightElement={<RadioIndicator selected={!treeView} />}
+          showChevron={false}
+          onPress={() => setTreeView(false)}
+        />
+        <SettingsListItem
+          icon={<RowIcon icon={RiNodeTree} />}
+          title={t('replyPreferences.threaded', { defaultValue: 'Threaded' })}
+          rightElement={<RadioIndicator selected={treeView} />}
+          showChevron={false}
+          onPress={() => setTreeView(true)}
+        />
+      </SettingsListGroup>
 
-            <ThreadSortGroup title={t('replyPreferences.replySorting', { defaultValue: 'Reply sorting' })} />
-        </ScrollView>
-    );
+      <ThreadSortGroup
+        title={t('replyPreferences.replySorting', { defaultValue: 'Reply sorting' })}
+      />
+    </ScrollView>
+  );
 }

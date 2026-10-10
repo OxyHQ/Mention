@@ -154,7 +154,10 @@ describe('each arm of the "carries media" disjunction', () => {
       },
     });
     await create({
-      content: { variants: [{ source: 'author', text: 'a poll' }], attachments: [{ type: 'poll' }] },
+      content: {
+        variants: [{ source: 'author', text: 'a poll' }],
+        attachments: [{ type: 'poll' }],
+      },
     });
 
     expect(await admitted()).toEqual([]);
@@ -179,7 +182,10 @@ describe('the media predicate as a whole', () => {
     });
 
     const textOnly = await create();
-    const followersOnly = await create({ type: PostType.IMAGE, visibility: PostVisibility.FOLLOWERS_ONLY });
+    const followersOnly = await create({
+      type: PostType.IMAGE,
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+    });
     const draft = await create({ type: PostType.IMAGE, status: 'draft' });
     const restricted = await create({ type: PostType.IMAGE, status: 'restricted' });
 

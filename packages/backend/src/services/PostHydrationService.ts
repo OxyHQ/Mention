@@ -1,4 +1,20 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, ClarityDocument, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
+import {
+  FeedPostSlice,
+  FeedSliceItem,
+  HydratedPost,
+  HydratedPostSummary,
+  HydratedBoostContext,
+  HydratedAuthor,
+  PostUser,
+  PostAttachmentBundle,
+  PostEngagementSummary,
+  ClarityDocument,
+  PostPermissions,
+  PostReplyContext,
+  PostViewerState,
+  PostVisibility,
+  PostAuthorshipEntry,
+} from '@mention/shared-types';
 import type { CrosspostProvenance, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import {
   loadCrosspostVariants,
@@ -46,7 +62,11 @@ import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPr
 import type { User as OxyUser } from '@oxy.so/core';
 import { getNormalizedUserHandle, getUserLanguages } from '@oxy.so/core';
 import { assignThreadState } from './ThreadSlicingService';
-import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
+import {
+  mget as mgetUserSummaries,
+  mset as msetUserSummaries,
+  CachedUserSummary,
+} from './userSummaryCache';
 import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';
 import {
   collectAuthorshipUserIds,
@@ -66,7 +86,10 @@ import {
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
 import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
-import { findPostLinkPreviews, type StoredLinkPreview } from '../db/posts/postLinkPreviewRepository';
+import {
+  findPostLinkPreviews,
+  type StoredLinkPreview,
+} from '../db/posts/postLinkPreviewRepository';
 import { linkPreviewKey } from '../connectors/activitypub/apLinkPreview';
 
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
@@ -406,7 +429,9 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
     federation: federation
       ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }
       : undefined,
-    instance: isFederated ? (userData.instance || federation?.domain) : (userData.instance || undefined),
+    instance: isFederated
+      ? userData.instance || federation?.domain
+      : userData.instance || undefined,
   };
 
   const followerCount = userData._count?.followers;
@@ -419,12 +444,14 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   // drop on the floor, because it names its fields one by one. Neither belongs on
   // `PostUser` — same reasoning as `followerCount` and `languages`: they describe
   // the ACCOUNT for ranking, not the author of a post for a renderer.
-  const accountCreatedAt = typeof userData.createdAt === 'string' && userData.createdAt.length > 0
-    ? userData.createdAt
-    : undefined;
-  const reputationTier = typeof (userData as { reputationTier?: unknown }).reputationTier === 'string'
-    ? (userData as { reputationTier?: string }).reputationTier
-    : undefined;
+  const accountCreatedAt =
+    typeof userData.createdAt === 'string' && userData.createdAt.length > 0
+      ? userData.createdAt
+      : undefined;
+  const reputationTier =
+    typeof (userData as { reputationTier?: unknown }).reputationTier === 'string'
+      ? (userData as { reputationTier?: string }).reputationTier
+      : undefined;
   return {
     user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
@@ -465,7 +492,9 @@ export function isFallbackUserSummary(user: PostUser): boolean {
  * never throws, and an author with no score is simply left without the field,
  * which the signal reads as exactly neutral. Mutates `freshlyResolved` in place.
  */
-async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSummary>): Promise<void> {
+async function applyStarterPackScores(
+  freshlyResolved: Map<string, CachedUserSummary>,
+): Promise<void> {
   if (freshlyResolved.size === 0) return;
 
   const scores = await computeStarterPackScores(
@@ -535,9 +564,7 @@ function releaseOxyUserResolutionPermit(): void {
   activeOxyUserResolutionCalls = Math.max(0, activeOxyUserResolutionCalls - 1);
 }
 
-async function acquireOxyUserResolutionPermit(
-  deadlineAt: number,
-): Promise<() => void> {
+async function acquireOxyUserResolutionPermit(deadlineAt: number): Promise<() => void> {
   if (Date.now() >= deadlineAt) {
     throw new OxyUserResolutionDeadlineError();
   }
@@ -575,11 +602,14 @@ async function acquireOxyUserResolutionPermit(
         reject(new OxyUserResolutionDeadlineError());
       },
     };
-    timeout = setTimeout(() => {
-      const index = oxyUserResolutionWaiters.indexOf(waiter);
-      if (index >= 0) oxyUserResolutionWaiters.splice(index, 1);
-      waiter.cancel();
-    }, Math.max(0, remainingMs));
+    timeout = setTimeout(
+      () => {
+        const index = oxyUserResolutionWaiters.indexOf(waiter);
+        if (index >= 0) oxyUserResolutionWaiters.splice(index, 1);
+        waiter.cancel();
+      },
+      Math.max(0, remainingMs),
+    );
     timeout.unref?.();
     oxyUserResolutionWaiters.push(waiter);
   });
@@ -607,15 +637,12 @@ async function runWithConcurrencyLimit<T>(
   worker: (value: T) => Promise<void>,
 ): Promise<void> {
   let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, values.length) },
-    async () => {
-      while (nextIndex < values.length) {
-        const value = values[nextIndex++];
-        await worker(value);
-      }
-    },
-  );
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const value = values[nextIndex++];
+      await worker(value);
+    }
+  });
   await Promise.all(workers);
 }
 
@@ -635,8 +662,14 @@ async function resolveOxyUserSummaryMisses(
     for (const user of Array.isArray(users) ? users : []) {
       const id = String((user as { id?: unknown }).id ?? '');
       const aliases = (user as unknown as { redirectedUserIds?: unknown }).redirectedUserIds;
-      const keys = [id, ...(Array.isArray(aliases) ? aliases.filter((alias): alias is string => typeof alias === 'string') : [])];
-      for (const key of keys) if (key && requestedIds.has(key)) freshlyResolved.set(key, toCachedUser(id, user));
+      const keys = [
+        id,
+        ...(Array.isArray(aliases)
+          ? aliases.filter((alias): alias is string => typeof alias === 'string')
+          : []),
+      ];
+      for (const key of keys)
+        if (key && requestedIds.has(key)) freshlyResolved.set(key, toCachedUser(id, user));
     }
   } catch (error) {
     bulkFailure = error;
@@ -647,30 +680,26 @@ async function resolveOxyUserSummaryMisses(
   let deadlineExceeded = bulkFailure instanceof OxyUserResolutionDeadlineError;
 
   if (unresolved.length > 0 && Date.now() < deadlineAt) {
-    await runWithConcurrencyLimit(
-      unresolved,
-      OXY_USER_FALLBACK_CONCURRENCY,
-      async (userId) => {
-        if (Date.now() >= deadlineAt) {
-          deadlineExceeded = true;
-          perIdFailures += 1;
-          return;
-        }
+    await runWithConcurrencyLimit(unresolved, OXY_USER_FALLBACK_CONCURRENCY, async (userId) => {
+      if (Date.now() >= deadlineAt) {
+        deadlineExceeded = true;
+        perIdFailures += 1;
+        return;
+      }
 
-        try {
-          const userData = await runBoundedOxyUserResolutionCall(
-            () => getRuntimeOxyClient().users.get(userId),
-            deadlineAt,
-          );
-          freshlyResolved.set(userId, toCachedUser(userId, userData));
-        } catch (error) {
-          if (error instanceof OxyUserResolutionDeadlineError) {
-            deadlineExceeded = true;
-          }
-          perIdFailures += 1;
+      try {
+        const userData = await runBoundedOxyUserResolutionCall(
+          () => getRuntimeOxyClient().users.get(userId),
+          deadlineAt,
+        );
+        freshlyResolved.set(userId, toCachedUser(userId, userData));
+      } catch (error) {
+        if (error instanceof OxyUserResolutionDeadlineError) {
+          deadlineExceeded = true;
         }
-      },
-    );
+        perIdFailures += 1;
+      }
+    });
   } else if (unresolved.length > 0) {
     deadlineExceeded = true;
     perIdFailures = unresolved.length;
@@ -711,7 +740,9 @@ async function resolveOxyUserSummaryMisses(
  * (and are NOT cached, so they re-resolve next time). Shared by hydration
  * ({@link PostHydrationService.buildUserMap}) and the ranking authority signal.
  */
-export async function resolveUserSummaries(userIds: string[]): Promise<Map<string, CachedUserSummary>> {
+export async function resolveUserSummaries(
+  userIds: string[],
+): Promise<Map<string, CachedUserSummary>> {
   const resolved = new Map<string, CachedUserSummary>();
   const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
   if (uniqueUserIds.length === 0) {
@@ -807,15 +838,18 @@ export async function resolveOrphanFederatedAuthors(
   }
 
   const summaries = await resolveUserSummaries(
-    [...actorByUri.values()].flatMap((actor) => actor.oxyUserId ? [actor.oxyUserId] : []),
+    [...actorByUri.values()].flatMap((actor) => (actor.oxyUserId ? [actor.oxyUserId] : [])),
   );
   for (const { postId, federation } of orphans) {
     const actorUri = federation.actorUri ?? derivedByPost.get(postId);
     const actor = actorUri ? actorByUri.get(actorUri) : undefined;
     const summary = actor?.oxyUserId ? summaries.get(actor.oxyUserId)?.user : undefined;
-    result.set(postId, summary && !isFallbackUserSummary(summary)
-      ? summary
-      : { ...degradedActorSummary(actor?.oxyUserId || postId), isFederated: true });
+    result.set(
+      postId,
+      summary && !isFallbackUserSummary(summary)
+        ? summary
+        : { ...degradedActorSummary(actor?.oxyUserId || postId), isFederated: true },
+    );
   }
 
   return result;
@@ -932,10 +966,7 @@ function viewerOwnsPost(
  *    unrestricted account is readable without any of this — which is every
  *    channel post on every feed, and why no feed pays for this.
  */
-function mayNeedCurrentChannelAuthority(
-  post: RawPost,
-  viewerContext: ViewerContext,
-): boolean {
+function mayNeedCurrentChannelAuthority(post: RawPost, viewerContext: ViewerContext): boolean {
   if (!post?.writtenByOxyUserId) return false;
   const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
   if (!authorId || authorId === viewerContext.viewerId) return false;
@@ -981,7 +1012,12 @@ export class PostHydrationService {
     const viewerContext = await this.buildViewerContext(rawPosts, options.viewerId, options);
 
     const initialPosts = rawPosts
-      .map((p): RawPost => (typeof (p as { toObject?: () => RawPost }).toObject === 'function' ? (p as { toObject: () => RawPost }).toObject() : p as RawPost))
+      .map(
+        (p): RawPost =>
+          typeof (p as { toObject?: () => RawPost }).toObject === 'function'
+            ? (p as { toObject: () => RawPost }).toObject()
+            : (p as RawPost),
+      )
       .filter((post) => {
         if (!post) return false;
         const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
@@ -1023,7 +1059,13 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds, signingChannelIds },
+      {
+        userMap,
+        recentReplierMap,
+        replyParentAuthorIdByPostId,
+        selfContinuationPostIds,
+        signingChannelIds,
+      },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
@@ -1116,8 +1158,8 @@ export class PostHydrationService {
           crosspostMap,
           importMap,
           signingChannelIds,
-        })
-      )
+        }),
+      ),
     );
     for (const summary of summaries) {
       if (summary) {
@@ -1183,7 +1225,7 @@ export class PostHydrationService {
    */
   async hydrateSlices(
     slices: FeedPostSlice[],
-    options: HydrationOptions = {}
+    options: HydrationOptions = {},
   ): Promise<FeedPostSlice[]> {
     if (slices.length === 0) return [];
 
@@ -1194,7 +1236,8 @@ export class PostHydrationService {
     for (let si = 0; si < slices.length; si++) {
       for (let ii = 0; ii < slices[si].items.length; ii++) {
         const rawPost = slices[si].items[ii].post as unknown as RawPost;
-        const postId = (rawPost?.id as string | undefined) || (rawPost?._id ? String(rawPost._id) : '') || '';
+        const postId =
+          (rawPost?.id as string | undefined) || (rawPost?._id ? String(rawPost._id) : '') || '';
         if (!postId) continue;
 
         allRawPosts.push(rawPost);
@@ -1243,7 +1286,8 @@ export class PostHydrationService {
       const hydratedItems: FeedSliceItem[] = [];
       for (const item of slice.items) {
         const itemPost = item.post as unknown as RawPost;
-        const postId = (itemPost?.id as string | undefined) || (itemPost?._id ? String(itemPost._id) : '') || '';
+        const postId =
+          (itemPost?.id as string | undefined) || (itemPost?._id ? String(itemPost._id) : '') || '';
         const hydrated = hydratedMap.get(postId);
         if (hydrated) {
           hydratedItems.push({
@@ -1259,9 +1303,10 @@ export class PostHydrationService {
         const recalculated = assignThreadState(hydratedItems);
 
         // Recompute slice key only if items were dropped during hydration
-        const sliceKey = hydratedItems.length === slice.items.length
-          ? slice._sliceKey
-          : recalculated.map((i) => i.post.id).join('+');
+        const sliceKey =
+          hydratedItems.length === slice.items.length
+            ? slice._sliceKey
+            : recalculated.map((i) => i.post.id).join('+');
 
         // The reason SURVIVES an ACL-dropped parent. It used to be stripped,
         // because it carried `parentAuthor` and would then have named the author
@@ -1316,7 +1361,11 @@ export class PostHydrationService {
     return candidates;
   }
 
-  private async buildViewerContext(posts: object[], viewerId?: string, options?: HydrationOptions): Promise<ExtendedViewerContext> {
+  private async buildViewerContext(
+    posts: object[],
+    viewerId?: string,
+    options?: HydrationOptions,
+  ): Promise<ExtendedViewerContext> {
     const context: ExtendedViewerContext = {
       viewerId,
       languageCandidates: [],
@@ -1336,7 +1385,12 @@ export class PostHydrationService {
 
     // Collect unique author IDs for profile visibility check
     const authorIds = Array.from(
-      new Set(posts.map((p) => (p as RawPost)?.oxyUserId).filter(Boolean).map((id) => String(id))),
+      new Set(
+        posts
+          .map((p) => (p as RawPost)?.oxyUserId)
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
     );
 
     const client = options?.oxyClient;
@@ -1371,7 +1425,10 @@ export class PostHydrationService {
               const authorId = row.oxyUserId;
 
               // Track private profiles
-              if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
+              if (
+                row.profileVisibility === 'private' ||
+                row.profileVisibility === 'followers_only'
+              ) {
                 context.privateProfileIds.add(authorId);
               }
 
@@ -1405,9 +1462,9 @@ export class PostHydrationService {
         const [blockedIds, restrictedIds] = threadedPrivacy
           ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
           : await Promise.all([
-            getBlockedUserIds(client, viewerId),
-            getRestrictedUserIds(client, viewerId),
-          ]);
+              getBlockedUserIds(client, viewerId),
+              getRestrictedUserIds(client, viewerId),
+            ]);
 
         blockedIds.forEach((id) => context.blockedIds.add(String(id)));
         restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
@@ -1705,7 +1762,10 @@ export class PostHydrationService {
       .where(inArray(userSettings.oxyUserId, oxyUserIds));
   }
 
-  private async populateViewerInteractions(postIds: string[], viewerContext: ViewerContext): Promise<void> {
+  private async populateViewerInteractions(
+    postIds: string[],
+    viewerContext: ViewerContext,
+  ): Promise<void> {
     const viewerId = viewerContext.viewerId;
     if (!viewerId || postIds.length === 0) {
       return;
@@ -1744,7 +1804,9 @@ export class PostHydrationService {
     }
   }
 
-  private async buildPollMap(nodes: HydratedGraphNode[]): Promise<Map<string, Record<string, unknown>>> {
+  private async buildPollMap(
+    nodes: HydratedGraphNode[],
+  ): Promise<Map<string, Record<string, unknown>>> {
     const pollIds = Array.from(
       new Set(
         nodes
@@ -1777,7 +1839,11 @@ export class PostHydrationService {
           .where(inArray(pollOptions.pollId, pollIds))
           .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
         db
-          .select({ pollId: pollVotes.pollId, optionId: pollVotes.optionId, userId: pollVotes.userId })
+          .select({
+            pollId: pollVotes.pollId,
+            optionId: pollVotes.optionId,
+            userId: pollVotes.userId,
+          })
           .from(pollVotes)
           .where(inArray(pollVotes.pollId, pollIds)),
       ]);
@@ -1863,7 +1929,9 @@ export class PostHydrationService {
    * Fail-open: provenance is decoration, so a failed read renders the page
    * without it rather than failing it.
    */
-  private async buildImportMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostImportHydration>> {
+  private async buildImportMap(
+    nodes: HydratedGraphNode[],
+  ): Promise<Map<string, PostImportHydration>> {
     const candidateIds = nodes
       .filter(({ post }) => post && post.oxyUserId && !post.federation?.activityId)
       .map(({ post }) => this.resolveId(post))
@@ -2108,10 +2176,15 @@ export class PostHydrationService {
     // Clarity has no document for — pending, or given up on — so the reader sees
     // the author's server's card instead of none. Read only for those posts, and
     // only ever applied to the post that carried it.
-    const uncovered = [...postToUrls].filter(([, urls]) => urls.some((url) => !resolved.documents.has(url)));
-    const remoteCards = uncovered.length > 0
-      ? await findPostLinkPreviews(uncovered.map(([postId]) => postId)).catch(() => new Map<string, StoredLinkPreview[]>())
-      : new Map<string, StoredLinkPreview[]>();
+    const uncovered = [...postToUrls].filter(([, urls]) =>
+      urls.some((url) => !resolved.documents.has(url)),
+    );
+    const remoteCards =
+      uncovered.length > 0
+        ? await findPostLinkPreviews(uncovered.map(([postId]) => postId)).catch(
+            () => new Map<string, StoredLinkPreview[]>(),
+          )
+        : new Map<string, StoredLinkPreview[]>();
 
     for (const [postId, urls] of postToUrls) {
       const cards = new Map<string, StoredLinkPreview>();
@@ -2148,7 +2221,12 @@ export class PostHydrationService {
     if (cached && cached.size > 0) {
       // Ensure all authors in current nodes are covered (some may be from depth>0 fetches)
       const authorIds = Array.from(
-        new Set(nodes.map(({ post }) => post?.oxyUserId).filter(Boolean).map((id) => String(id))),
+        new Set(
+          nodes
+            .map(({ post }) => post?.oxyUserId)
+            .filter(Boolean)
+            .map((id) => String(id)),
+        ),
       );
       const missingIds = authorIds.filter((id) => !cached.has(id));
       if (missingIds.length === 0) {
@@ -2173,7 +2251,12 @@ export class PostHydrationService {
 
     // Fallback: no cache available, fetch all
     const authorIds = Array.from(
-      new Set(nodes.map(({ post }) => post?.oxyUserId).filter(Boolean).map((id) => String(id))),
+      new Set(
+        nodes
+          .map(({ post }) => post?.oxyUserId)
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
     );
 
     const privacyMap = new Map<string, typeof DEFAULT_PRIVACY>();
@@ -2490,7 +2573,25 @@ export class PostHydrationService {
     /** Channel accounts in this page whose `signPosts` is on — see {@link buildSigningChannelIds}. */
     signingChannelIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, crosspostMap, importMap, signingChannelIds } = params;
+    const {
+      post,
+      viewerContext,
+      pollMap,
+      userMap,
+      mentionCache,
+      linkPreviewMap,
+      authorPrivacyMap,
+      recentReplierMap,
+      orphanAuthorMap,
+      resolvedMap,
+      quoteCountMap,
+      replyParentAuthorIdByPostId,
+      selfContinuationPostIds,
+      laneMap,
+      crosspostMap,
+      importMap,
+      signingChannelIds,
+    } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2583,9 +2684,10 @@ export class PostHydrationService {
     const baseContent: StoredPostContent = post?.content ?? {};
     const resolved = resolvedMap.get(postId) ?? resolveVariant(baseContent);
     const extendedContext = viewerContext as ExtendedViewerContext;
-    const postMentions: string[] = Array.isArray(post.mentions) && post.mentions.length > 0
-      ? post.mentions.filter((mention): mention is string => typeof mention === 'string')
-      : [];
+    const postMentions: string[] =
+      Array.isArray(post.mentions) && post.mentions.length > 0
+        ? post.mentions.filter((mention): mention is string => typeof mention === 'string')
+        : [];
     const inlineVariants = await this.buildInlineVariants(
       baseContent,
       resolved.tag,
@@ -2605,20 +2707,20 @@ export class PostHydrationService {
       post,
       authorPrivacy,
       replierAvatars,
-      quoteCountMap ? quoteCountMap.get(postId) ?? 0 : undefined,
+      quoteCountMap ? (quoteCountMap.get(postId) ?? 0) : undefined,
     );
 
     // Only include essential metadata for feed performance
-    const includeFullMetadata = (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
+    const includeFullMetadata =
+      (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
     // Guarded rather than converted inline like `createdAt`: this field is
     // optional, so an unparseable value is reachable, and `toISOString()` throws
     // on one — which would fail the whole hydration, not just this field.
     const scheduledAt = post.scheduledFor
       ? new Date(post.scheduledFor as string | number | Date)
       : null;
-    const scheduledFor = scheduledAt && !Number.isNaN(scheduledAt.getTime())
-      ? scheduledAt.toISOString()
-      : undefined;
+    const scheduledFor =
+      scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt.toISOString() : undefined;
     // The correction marker. Both halves are REQUIRED to emit it: a count with no
     // timestamp could not say when the post changed, and the summary's whole job
     // is to be openable. Guarded like `scheduledFor` above, and for the same
@@ -2627,15 +2729,18 @@ export class PostHydrationService {
     const correctedAt = post.lastCorrectedAt
       ? new Date(post.lastCorrectedAt as string | number | Date)
       : null;
-    const corrections = typeof post.correctionCount === 'number'
-      && post.correctionCount > 0
-      && correctedAt
-      && !Number.isNaN(correctedAt.getTime())
-      ? { count: post.correctionCount, lastCorrectedAt: correctedAt.toISOString() }
-      : undefined;
+    const corrections =
+      typeof post.correctionCount === 'number' &&
+      post.correctionCount > 0 &&
+      correctedAt &&
+      !Number.isNaN(correctedAt.getTime())
+        ? { count: post.correctionCount, lastCorrectedAt: correctedAt.toISOString() }
+        : undefined;
     const metadata = {
       visibility: (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility,
-      replyPermission: post.replyPermission as import('@mention/shared-types').ReplyPermission[] | undefined,
+      replyPermission: post.replyPermission as
+        | import('@mention/shared-types').ReplyPermission[]
+        | undefined,
       reviewReplies: Boolean(post.reviewReplies),
       quotesDisabled: Boolean(post.quotesDisabled),
       isPinned: Boolean(post.metadata?.isPinned),
@@ -2654,10 +2759,20 @@ export class PostHydrationService {
       language: post.language || undefined,
       languages: post.postClassification?.languages ?? undefined,
       // Only include mentions/hashtags if needed (can be large arrays)
-      mentions: includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions.filter((m): m is string => typeof m === 'string') : undefined,
-      hashtags: includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0 ? post.hashtags : undefined,
-      createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),
-      updatedAt: new Date((post.updatedAt || post.createdAt || Date.now()) as string | number | Date).toISOString(),
+      mentions:
+        includeFullMetadata && Array.isArray(post.mentions) && post.mentions.length > 0
+          ? post.mentions.filter((m): m is string => typeof m === 'string')
+          : undefined,
+      hashtags:
+        includeFullMetadata && Array.isArray(post.hashtags) && post.hashtags.length > 0
+          ? post.hashtags
+          : undefined,
+      createdAt: new Date(
+        (post.createdAt || post.date || Date.now()) as string | number | Date,
+      ).toISOString(),
+      updatedAt: new Date(
+        (post.updatedAt || post.createdAt || Date.now()) as string | number | Date,
+      ).toISOString(),
       corrections,
       status: post.status as 'draft' | 'published' | 'scheduled' | undefined,
       // Only a scheduled post carries one, and the ACL above already dropped
@@ -2717,7 +2832,9 @@ export class PostHydrationService {
       // holds a single member: one network is not provenance, it is the post.
       ...(buildCrosspostProvenance(crosspostMap.get(postId)) ?? {}),
       // "Originally posted on Mastodon" — only for a post that was imported.
-      ...(imported ? { importedFrom: { platform: imported.platform, sourceUrl: imported.sourceUrl } } : {}),
+      ...(imported
+        ? { importedFrom: { platform: imported.platform, sourceUrl: imported.sourceUrl } }
+        : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —
@@ -2737,7 +2854,9 @@ export class PostHydrationService {
    * (accessibility description). URL resolution is applied separately via
    * {@link resolveMediaItems}, which passes `alt` through unchanged.
    */
-  private normalizeMediaItems(rawMedia: unknown): import('@mention/shared-types').MediaItem[] | undefined {
+  private normalizeMediaItems(
+    rawMedia: unknown,
+  ): import('@mention/shared-types').MediaItem[] | undefined {
     if (!Array.isArray(rawMedia)) {
       return undefined;
     }
@@ -2753,7 +2872,10 @@ export class PostHydrationService {
             const persisted = readPersistedMediaFields(obj);
             return {
               id: String(obj.id),
-              type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image',
+              type:
+                obj.type === 'video' || obj.type === 'gif'
+                  ? (obj.type as 'video' | 'gif')
+                  : 'image',
               ...persisted,
             };
           }
@@ -2807,7 +2929,9 @@ export class PostHydrationService {
     for (const variant of switchable) {
       const rendition = resolveVariant(content, variant.tag);
       const overridesMedia = variant.media !== undefined || variant.alt !== undefined;
-      const normalizedMedia = overridesMedia ? this.normalizeMediaItems(rendition.media) : undefined;
+      const normalizedMedia = overridesMedia
+        ? this.normalizeMediaItems(rendition.media)
+        : undefined;
       const article = variant.article && rendition.article;
 
       inline.push({
@@ -2918,10 +3042,12 @@ export class PostHydrationService {
     }
 
     if (Array.isArray(content.sources) && content.sources.length > 0) {
-      attachments.sources = (content.sources as Array<{ url: string; title?: string }>).map((source: { url: string; title?: string }) => ({
-        url: source.url,
-        title: source.title,
-      }));
+      attachments.sources = (content.sources as Array<{ url: string; title?: string }>).map(
+        (source: { url: string; title?: string }) => ({
+          url: source.url,
+          title: source.title,
+        }),
+      );
     }
 
     if (content.location?.coordinates?.length === 2) {
@@ -3014,7 +3140,8 @@ export class PostHydrationService {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     const isOwner =
       viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
-    const isCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
+    const isCollaborator =
+      viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
 
     return {
       isOwner,
@@ -3039,7 +3166,8 @@ export class PostHydrationService {
     // menu and the permission flags beside it would disagree about one post.
     const isOwner =
       viewerEntry?.role === 'owner' || canManagePostWithoutLookup(post, viewerContext.viewerId);
-    const isAcceptedCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
+    const isAcceptedCollaborator =
+      viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
     const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 
     return {
@@ -3053,7 +3181,11 @@ export class PostHydrationService {
     };
   }
 
-  private computeReplyPermission(post: RawPost, authorId: string, viewerContext: ViewerContext): boolean {
+  private computeReplyPermission(
+    post: RawPost,
+    authorId: string,
+    viewerContext: ViewerContext,
+  ): boolean {
     const viewerId = viewerContext.viewerId;
     if (!viewerId) return false;
     if (viewerId === authorId) return true;
@@ -3072,17 +3204,30 @@ export class PostHydrationService {
           if (viewerContext.followedBy.has(authorId)) return true;
           break;
         case 'mentioned':
-          if (Array.isArray(post?.mentions) && post.mentions.some((mention: unknown) => {
-            const mentionId = typeof mention === 'string' ? mention : typeof mention === 'object' && mention ? String((mention as Record<string, unknown>).id || (mention as Record<string, unknown>)._id || (mention as Record<string, unknown>).oxyUserId || '') : '';
-            return mentionId && String(mentionId) === viewerId;
-          })) return true;
+          if (
+            Array.isArray(post?.mentions) &&
+            post.mentions.some((mention: unknown) => {
+              const mentionId =
+                typeof mention === 'string'
+                  ? mention
+                  : typeof mention === 'object' && mention
+                    ? String(
+                        (mention as Record<string, unknown>).id ||
+                          (mention as Record<string, unknown>)._id ||
+                          (mention as Record<string, unknown>).oxyUserId ||
+                          '',
+                      )
+                    : '';
+              return mentionId && String(mentionId) === viewerId;
+            })
+          )
+            return true;
           break;
       }
     }
 
     return false;
   }
-
 
   /**
    * Posts-that-quote counts for the whole hydrated graph in ONE indexed
@@ -3125,9 +3270,8 @@ export class PostHydrationService {
       saves: authorPrivacy.hideSaveCounts ? null : savesCount,
       // Absent unless the caller asked for quote counts. Hidden by the same
       // author control as boosts — a quote is a share of the post.
-      quotes: quotesCount === undefined
-        ? undefined
-        : authorPrivacy.hideShareCounts ? null : quotesCount,
+      quotes:
+        quotesCount === undefined ? undefined : authorPrivacy.hideShareCounts ? null : quotesCount,
       views: viewsCount > 0 ? viewsCount : null,
       impressions: null,
       recentReplierAvatars: recentReplierAvatars?.length ? recentReplierAvatars : undefined,
@@ -3144,8 +3288,8 @@ export class PostHydrationService {
     const boostOf = post?.boostOf ? String(post.boostOf) : undefined;
     const quoteOf = post?.quoteOf ? String(post.quoteOf) : undefined;
 
-    const quotedPost = quoteOf ? summaryMap.get(quoteOf) ?? null : null;
-    const boostOriginal = boostOf ? summaryMap.get(boostOf) ?? null : null;
+    const quotedPost = quoteOf ? (summaryMap.get(quoteOf) ?? null) : null;
+    const boostOriginal = boostOf ? (summaryMap.get(boostOf) ?? null) : null;
 
     let originalPost: HydratedPostSummary | null = null;
     if (boostOf) {

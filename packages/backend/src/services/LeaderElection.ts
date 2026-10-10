@@ -110,8 +110,8 @@ export class LeaderElection {
     const redisReadyAtBoot = getRedisClient().isReady;
     if (!redisReadyAtBoot) {
       logger.warn(
-        '[LeaderElection] Redis unavailable at boot — singleton schedulers are paused '
-          + 'until a distributed lease can be acquired',
+        '[LeaderElection] Redis unavailable at boot — singleton schedulers are paused ' +
+          'until a distributed lease can be acquired',
       );
     }
     // The lease command itself is the availability probe. Avoid a redundant

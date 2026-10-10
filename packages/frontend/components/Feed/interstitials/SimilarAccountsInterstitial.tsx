@@ -19,10 +19,7 @@ import {
   selectInterstitialWindow,
   shouldRenderInterstitial,
 } from './interstitialLayout';
-import {
-  useInterstitialReporter,
-  type InterstitialCardProps,
-} from './interstitialTelemetry';
+import { useInterstitialReporter, type InterstitialCardProps } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -81,8 +78,7 @@ export function SimilarAccountsInterstitial({
   // until it resolves the band falls back to the app-wide discovery surface rather
   // than render a link to `/@undefined`.
   const subject = useUserById(subjectId);
-  const seeMoreHref: Href =
-    profileHrefForUser(subject, 'who-may-know') ?? '/explore/who-to-follow';
+  const seeMoreHref: Href = profileHrefForUser(subject, 'who-may-know') ?? '/explore/who-to-follow';
 
   // An id-less actor cannot be keyed, followed or opened; and nobody is "similar
   // to" themselves. Applied on READ, not in the fetch, because the cache entry is

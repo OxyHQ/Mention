@@ -22,9 +22,8 @@ describe('buildMenuGroups', () => {
   // call site used to remember (or forget) to close the menu itself.
   it('closes the menu BEFORE running the action', () => {
     const order: string[] = [];
-    const groups = buildMenuGroups(
-      [[action('Report', () => order.push('action'))]],
-      () => order.push('close'),
+    const groups = buildMenuGroups([[action('Report', () => order.push('action'))]], () =>
+      order.push('close'),
     );
 
     groups[0][0].onPress();
@@ -44,7 +43,12 @@ describe('buildMenuGroups', () => {
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === '.expo' || entry === 'dist' || entry.startsWith('.')) {
+    if (
+      entry === 'node_modules' ||
+      entry === '.expo' ||
+      entry === 'dist' ||
+      entry.startsWith('.')
+    ) {
       continue;
     }
     const full = join(dir, entry);

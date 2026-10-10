@@ -173,7 +173,10 @@ class JobApplicationsController {
 
       const statusParam = queryString(req.query.status);
       if (statusParam !== undefined && !APPLICATION_STATUS_VALUES.includes(statusParam)) {
-        return validationError(res, `status must be one of: ${APPLICATION_STATUS_VALUES.join(', ')}`);
+        return validationError(
+          res,
+          `status must be one of: ${APPLICATION_STATUS_VALUES.join(', ')}`,
+        );
       }
 
       const result = await listApplicationsByJob(jobId, {
@@ -240,7 +243,11 @@ class JobApplicationsController {
         return validationError(res, parsed.error.issues[0]?.message ?? 'Invalid request body');
       }
 
-      const note = await addApplicationNote({ applicationId, authorOxyUserId: userId, note: parsed.data.note });
+      const note = await addApplicationNote({
+        applicationId,
+        authorOxyUserId: userId,
+        note: parsed.data.note,
+      });
       res.status(201).json({ note });
     } catch (error) {
       logger.error('[JobApplications] Error in addNote:', error);
@@ -290,7 +297,9 @@ class JobApplicationsController {
       const application = await getApplicationRowById(applicationId);
       if (!application || application.jobId !== jobId) return applicationNotFound(res);
       if (application.applicantOxyUserId !== userId) {
-        return res.status(403).json({ error: 'Forbidden', message: 'You may only withdraw your own application' });
+        return res
+          .status(403)
+          .json({ error: 'Forbidden', message: 'You may only withdraw your own application' });
       }
 
       const updated = await withdrawApplication(applicationId);

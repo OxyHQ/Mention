@@ -151,7 +151,7 @@ async function collectPackMemberDids(listUri: string): Promise<string[]> {
         cursor,
       });
     } catch (err) {
-    logger.debug('[atproto] getList failed', err);
+      logger.debug('[atproto] getList failed', err);
       break;
     }
 
@@ -279,13 +279,10 @@ export async function syncActorStarterPacks(did: string, ownerOxyUserId: string)
   }
   let didsToResolve = uniqueDids;
   if (uniqueDids.length > MAX_MEMBERS_RESOLVED_PER_ACTOR) {
-    logger.warn(
-      '[atproto] starter-pack members exceed the per-actor resolve cap',
-      {
-        memberCount: uniqueDids.length,
-        maxMembers: MAX_MEMBERS_RESOLVED_PER_ACTOR,
-      },
-    );
+    logger.warn('[atproto] starter-pack members exceed the per-actor resolve cap', {
+      memberCount: uniqueDids.length,
+      maxMembers: MAX_MEMBERS_RESOLVED_PER_ACTOR,
+    });
     didsToResolve = uniqueDids.slice(0, MAX_MEMBERS_RESOLVED_PER_ACTOR);
   }
   const oxyIdByDid = await resolveMemberOxyIds(didsToResolve);

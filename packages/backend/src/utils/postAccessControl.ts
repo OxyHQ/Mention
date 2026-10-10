@@ -6,9 +6,7 @@ export type ShareTargetPost = {
   quotesDisabled?: boolean;
 };
 
-export type ShareValidationResult =
-  | { ok: true }
-  | { ok: false; status: number; message: string };
+export type ShareValidationResult = { ok: true } | { ok: false; status: number; message: string };
 
 export type ShareValidationOptions = {
   action: 'boost' | 'quote';

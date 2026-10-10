@@ -90,10 +90,7 @@ import {
   mentionUserNodes,
 } from '../../../db/schema/mtn';
 import { uuidv7 } from '@oxy.so/db';
-import {
-  MTN_CHAIN_STATUS,
-  MentionRecordStoreImpl,
-} from '../../../services/mtn/MentionRecordStore';
+import { MTN_CHAIN_STATUS, MentionRecordStoreImpl } from '../../../services/mtn/MentionRecordStore';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { ingestFromNode } from '../../../services/mtn/MentionNodeSyncService';
 
@@ -197,9 +194,7 @@ async function stageRecords(owner: string, records: readonly StagedRecord[]): Pr
         publicKey: PUBLIC_KEY,
         verified: true,
         chainStatus: MTN_CHAIN_STATUS.CANONICAL,
-        ...(legacy
-          ? {}
-          : { recordId: record.recordId, nsid: COLLECTION, rkey: RKEY }),
+        ...(legacy ? {} : { recordId: record.recordId, nsid: COLLECTION, rkey: RKEY }),
       });
     }
   });
@@ -307,9 +302,9 @@ describe('latestIssuedAtForKey — the frontier is the maximum, not a proxy for 
       { id: uuidv7(), recordId: R('current'), issuedAt: BASE_ISSUED_AT + 9_000 },
     ]);
 
-    await expect(
-      store.latestIssuedAtForKey(buildUserDid(owner), envelopeV2(owner)),
-    ).resolves.toBe(BASE_ISSUED_AT + 9_000);
+    await expect(store.latestIssuedAtForKey(buildUserDid(owner), envelopeV2(owner))).resolves.toBe(
+      BASE_ISSUED_AT + 9_000,
+    );
   });
 
   it('reports the highest issuedAt of a v1 singleton, which is scoped by type', async () => {
@@ -396,7 +391,11 @@ describe('node ingest — LWW compares against the incumbent that is really curr
       { id: uuidv7(), recordId: R('inc-live'), issuedAt: BASE_ISSUED_AT + 9_000 },
     ]);
 
-    const incoming = { ...envelopeV2(owner, { issuedAt: BASE_ISSUED_AT + 5_000 }), seq: 1, prev: null };
+    const incoming = {
+      ...envelopeV2(owner, { issuedAt: BASE_ISSUED_AT + 5_000 }),
+      seq: 1,
+      prev: null,
+    };
     await seedNode(owner);
     mockHead.mockResolvedValue({ seq: 1, headRecordId: 'h', recordCount: 2 });
     mockLog.mockResolvedValue({ records: [incoming], count: 1, head: null });

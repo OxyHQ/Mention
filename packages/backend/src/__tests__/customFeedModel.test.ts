@@ -57,8 +57,22 @@ describe('the composable definition', () => {
   it('round-trips modules with their params and weights, in order', async () => {
     const feedId = await seedFeed({ definitionMode: 'ranked', icon: 'sparkles' });
     await db.insert(customFeedDefinitionModules).values([
-      { feedId, kind: 'source', position: 0, module: 'accounts', enabled: true, params: { authorIds: ['a1', 'a2'] } },
-      { feedId, kind: 'source', position: 1, module: 'keywords', enabled: true, params: { keywords: ['comic'], hashtags: ['comics'] } },
+      {
+        feedId,
+        kind: 'source',
+        position: 0,
+        module: 'accounts',
+        enabled: true,
+        params: { authorIds: ['a1', 'a2'] },
+      },
+      {
+        feedId,
+        kind: 'source',
+        position: 1,
+        module: 'keywords',
+        enabled: true,
+        params: { keywords: ['comic'], hashtags: ['comics'] },
+      },
       { feedId, kind: 'signal', position: 0, module: 'engagement', enabled: true, weight: 2 },
       { feedId, kind: 'filter', position: 0, module: 'noReplies', enabled: true },
     ]);

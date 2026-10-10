@@ -42,7 +42,9 @@ describe('fetchWithRecencyFallback', () => {
     expect(result).toEqual([1, 2, 3]);
     expect(run).toHaveBeenCalledTimes(2);
     const secondCutoff = run.mock.calls[1][0];
-    expect(Math.abs((secondCutoff as Date).getTime() - (Date.now() - THIRTY_DAYS))).toBeLessThan(5000);
+    expect(Math.abs((secondCutoff as Date).getTime() - (Date.now() - THIRTY_DAYS))).toBeLessThan(
+      5000,
+    );
   });
 
   it('falls back to an unbounded scan (never-blank) when every window underfills', async () => {

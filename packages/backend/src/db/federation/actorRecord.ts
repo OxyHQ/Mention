@@ -180,7 +180,9 @@ export type EngineFederatedActorRecord = FederatedActorRecord & { _id: string };
  * grep-able to a single function rather than spread across three adapters.
  */
 export function withEngineId(record: FederatedActorRecord): EngineFederatedActorRecord;
-export function withEngineId(record: FederatedActorRecord | null): EngineFederatedActorRecord | null;
+export function withEngineId(
+  record: FederatedActorRecord | null,
+): EngineFederatedActorRecord | null;
 export function withEngineId(
   record: FederatedActorRecord | null,
 ): EngineFederatedActorRecord | null {

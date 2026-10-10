@@ -26,9 +26,7 @@ import {
 
 describe('validateHttpUrl', () => {
   it('accepts https URLs', () => {
-    expect(validateHttpUrl('https://example.com/path?q=1')).toBe(
-      'https://example.com/path?q=1',
-    );
+    expect(validateHttpUrl('https://example.com/path?q=1')).toBe('https://example.com/path?q=1');
   });
 
   it('accepts http URLs', () => {
@@ -67,9 +65,7 @@ describe('validateIsoDate', () => {
   });
 
   it('accepts ISO-8601 with offset', () => {
-    expect(validateIsoDate('2026-06-15T12:30:00+02:00')).toBe(
-      '2026-06-15T10:30:00.000Z',
-    );
+    expect(validateIsoDate('2026-06-15T12:30:00+02:00')).toBe('2026-06-15T10:30:00.000Z');
   });
 
   it('rejects garbage', () => {
@@ -135,9 +131,7 @@ describe('parseComposeIntent — mediaUrl', () => {
   });
 
   it('drops data: media URLs', () => {
-    expect(
-      parseComposeIntent({ mediaUrl: 'data:image/png;base64,AAAA' }),
-    ).toEqual({});
+    expect(parseComposeIntent({ mediaUrl: 'data:image/png;base64,AAAA' })).toEqual({});
   });
 
   it('takes the first when mediaUrl is an array (max 1)', () => {
@@ -210,9 +204,9 @@ describe('parseComposeIntent — thread', () => {
 
 describe('parseComposeIntent — hashtags', () => {
   it('lowercases, dedupes, splits on commas', () => {
-    expect(
-      parseComposeIntent({ hashtags: 'Tech, NEWS, tech, foo' }),
-    ).toEqual({ hashtags: ['tech', 'news', 'foo'] });
+    expect(parseComposeIntent({ hashtags: 'Tech, NEWS, tech, foo' })).toEqual({
+      hashtags: ['tech', 'news', 'foo'],
+    });
   });
 
   it('strips leading #', () => {
@@ -228,9 +222,7 @@ describe('parseComposeIntent — hashtags', () => {
   });
 
   it('drops empty / invalid entries', () => {
-    expect(
-      parseComposeIntent({ hashtags: ', , 🤖, hello, ' }),
-    ).toEqual({ hashtags: ['hello'] });
+    expect(parseComposeIntent({ hashtags: ', , 🤖, hello, ' })).toEqual({ hashtags: ['hello'] });
   });
 });
 
@@ -240,9 +232,9 @@ describe('parseComposeIntent — via and mentions', () => {
   });
 
   it('parses comma-separated mentions', () => {
-    expect(
-      parseComposeIntent({ mentions: '@alice, bob, @carol' }),
-    ).toEqual({ mentions: ['alice', 'bob', 'carol'] });
+    expect(parseComposeIntent({ mentions: '@alice, bob, @carol' })).toEqual({
+      mentions: ['alice', 'bob', 'carol'],
+    });
   });
 
   it('clamps mentions to MAX_MENTIONS', () => {
@@ -258,9 +250,7 @@ describe('parseComposeIntent — via and mentions', () => {
 
 describe('parseComposeIntent — poll', () => {
   it('parses pipe-separated options', () => {
-    expect(
-      parseComposeIntent({ pollOptions: 'Yes|No|Maybe' }),
-    ).toEqual({
+    expect(parseComposeIntent({ pollOptions: 'Yes|No|Maybe' })).toEqual({
       poll: { options: ['Yes', 'No', 'Maybe'], durationDays: POLL_DURATION_DEFAULT_DAYS },
     });
   });
@@ -276,25 +266,19 @@ describe('parseComposeIntent — poll', () => {
   });
 
   it('uses custom duration when valid', () => {
-    expect(
-      parseComposeIntent({ pollOptions: 'a|b', pollDurationDays: '3' }),
-    ).toEqual({
+    expect(parseComposeIntent({ pollOptions: 'a|b', pollDurationDays: '3' })).toEqual({
       poll: { options: ['a', 'b'], durationDays: 3 },
     });
   });
 
   it('ignores out-of-range duration', () => {
-    expect(
-      parseComposeIntent({ pollOptions: 'a|b', pollDurationDays: '99' }),
-    ).toEqual({
+    expect(parseComposeIntent({ pollOptions: 'a|b', pollDurationDays: '99' })).toEqual({
       poll: { options: ['a', 'b'], durationDays: POLL_DURATION_DEFAULT_DAYS },
     });
   });
 
   it('trims pipe-split entries and drops empties', () => {
-    expect(
-      parseComposeIntent({ pollOptions: ' Yes | | No | ' }),
-    ).toEqual({
+    expect(parseComposeIntent({ pollOptions: ' Yes | | No | ' })).toEqual({
       poll: { options: ['Yes', 'No'], durationDays: POLL_DURATION_DEFAULT_DAYS },
     });
   });
@@ -302,9 +286,9 @@ describe('parseComposeIntent — poll', () => {
 
 describe('parseComposeIntent — article', () => {
   it('parses title and body', () => {
-    expect(
-      parseComposeIntent({ articleTitle: 'Hello', articleBody: 'World' }),
-    ).toEqual({ article: { title: 'Hello', body: 'World' } });
+    expect(parseComposeIntent({ articleTitle: 'Hello', articleBody: 'World' })).toEqual({
+      article: { title: 'Hello', body: 'World' },
+    });
   });
 
   it('parses partial article (title only)', () => {
@@ -334,17 +318,15 @@ describe('parseComposeIntent — event', () => {
   });
 
   it('drops invalid date but keeps name', () => {
-    expect(
-      parseComposeIntent({ eventName: 'Meetup', eventDate: 'tomorrow' }),
-    ).toEqual({ event: { name: 'Meetup' } });
+    expect(parseComposeIntent({ eventName: 'Meetup', eventDate: 'tomorrow' })).toEqual({
+      event: { name: 'Meetup' },
+    });
   });
 });
 
 describe('parseComposeIntent — location', () => {
   it('accepts valid coords', () => {
-    expect(
-      parseComposeIntent({ lat: '41.38', lng: '2.18', address: 'Barcelona' }),
-    ).toEqual({
+    expect(parseComposeIntent({ lat: '41.38', lng: '2.18', address: 'Barcelona' })).toEqual({
       location: { latitude: 41.38, longitude: 2.18, address: 'Barcelona' },
     });
   });
@@ -361,15 +343,15 @@ describe('parseComposeIntent — location', () => {
 
 describe('parseComposeIntent — sources', () => {
   it('parses comma-separated http(s) URLs', () => {
-    expect(
-      parseComposeIntent({ sources: 'https://a.com, https://b.com' }),
-    ).toEqual({ sources: ['https://a.com/', 'https://b.com/'] });
+    expect(parseComposeIntent({ sources: 'https://a.com, https://b.com' })).toEqual({
+      sources: ['https://a.com/', 'https://b.com/'],
+    });
   });
 
   it('drops invalid URLs but keeps valid ones', () => {
-    expect(
-      parseComposeIntent({ sources: 'https://a.com, javascript:x, https://b.com' }),
-    ).toEqual({ sources: ['https://a.com/', 'https://b.com/'] });
+    expect(parseComposeIntent({ sources: 'https://a.com, javascript:x, https://b.com' })).toEqual({
+      sources: ['https://a.com/', 'https://b.com/'],
+    });
   });
 
   it('clamps to MAX_SOURCES', () => {
@@ -512,9 +494,7 @@ describe('buildComposeText', () => {
       hashtags: 'foo,bar',
       via: 'mention',
     });
-    expect(buildComposeText(intent)).toBe(
-      'Hello https://example.com/ #foo #bar via @mention',
-    );
+    expect(buildComposeText(intent)).toBe('Hello https://example.com/ #foo #bar via @mention');
   });
 
   it('prepends mentions before text', () => {

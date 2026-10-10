@@ -77,8 +77,9 @@ function renderSheetContent(content: unknown) {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-    .IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 describe('useScheduleManager', () => {
@@ -129,7 +130,9 @@ describe('useScheduleManager sheet actions', () => {
 
     act(() => harness.api.handleScheduleSelect(new Date(Date.now() + 60_000)));
 
-    expect(harness.toast).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'), { type: 'success' });
+    expect(harness.toast).toHaveBeenCalledWith(expect.stringContaining('Scheduled for'), {
+      type: 'success',
+    });
     expect(harness.openBottomSheet).toHaveBeenLastCalledWith(false);
 
     act(() => harness.tree.unmount());

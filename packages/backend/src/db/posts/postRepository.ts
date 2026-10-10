@@ -346,36 +346,50 @@ async function loadChildRows(
   // The variant-owned tables key on the VARIANT, so they can only be read once
   // the variant ids are known. Grouped back onto the post by that mapping.
   const variantIds = variantRows.map((row) => row.id);
-  const [variantMediaRows, variantAltRows] = variantIds.length === 0
-    ? [[] as VariantMediaRow[], [] as Array<typeof postVariantAltTexts.$inferSelect>]
-    : await Promise.all([
-      db
-        .select()
-        .from(postVariantMedia)
-        .where(inArray(postVariantMedia.variantId, variantIds))
-        .orderBy(asc(postVariantMedia.position)),
-      db
-        .select()
-        .from(postVariantAltTexts)
-        .where(inArray(postVariantAltTexts.variantId, variantIds))
-        .orderBy(asc(postVariantAltTexts.mediaId)),
-    ]);
+  const [variantMediaRows, variantAltRows] =
+    variantIds.length === 0
+      ? [[] as VariantMediaRow[], [] as Array<typeof postVariantAltTexts.$inferSelect>]
+      : await Promise.all([
+          db
+            .select()
+            .from(postVariantMedia)
+            .where(inArray(postVariantMedia.variantId, variantIds))
+            .orderBy(asc(postVariantMedia.position)),
+          db
+            .select()
+            .from(postVariantAltTexts)
+            .where(inArray(postVariantAltTexts.variantId, variantIds))
+            .orderBy(asc(postVariantAltTexts.mediaId)),
+        ]);
 
   return {
     authorships: groupBy(
       authorshipRows,
       (row) => row.postId,
-      (row): PostAuthorshipEntry => compact({
-        oxyUserId: row.oxyUserId,
-        role: row.role,
-        status: row.status,
-        invitedAt: row.invitedAt?.toISOString(),
-        respondedAt: row.respondedAt?.toISOString(),
-      }),
+      (row): PostAuthorshipEntry =>
+        compact({
+          oxyUserId: row.oxyUserId,
+          role: row.role,
+          status: row.status,
+          invitedAt: row.invitedAt?.toISOString(),
+          respondedAt: row.respondedAt?.toISOString(),
+        }),
     ),
-    variants: groupBy(variantRows, (row) => row.postId, (row) => row),
-    media: groupBy(mediaRows, (row) => row.postId, (row) => row),
-    variantMedia: groupBy(variantMediaRows, (row) => row.variantId, (row) => row),
+    variants: groupBy(
+      variantRows,
+      (row) => row.postId,
+      (row) => row,
+    ),
+    media: groupBy(
+      mediaRows,
+      (row) => row.postId,
+      (row) => row,
+    ),
+    variantMedia: groupBy(
+      variantMediaRows,
+      (row) => row.variantId,
+      (row) => row,
+    ),
     variantAltTexts: groupBy(
       variantAltRows,
       (row) => row.variantId,
@@ -384,27 +398,33 @@ async function loadChildRows(
     attachments: groupBy(
       attachmentRows,
       (row) => row.postId,
-      (row): PostAttachmentDescriptor => compact({
-        type: row.type,
-        id: optional(row.attachmentId),
-        mediaType: optional(row.mediaType),
-      }),
+      (row): PostAttachmentDescriptor =>
+        compact({
+          type: row.type,
+          id: optional(row.attachmentId),
+          mediaType: optional(row.mediaType),
+        }),
     ),
     sources: groupBy(
       sourceRows,
       (row) => row.postId,
       (row): PostSourceLink => compact({ url: row.url, title: optional(row.title) }),
     ),
-    mentions: groupBy(mentionRows, (row) => row.postId, (row) => row.oxyUserId),
+    mentions: groupBy(
+      mentionRows,
+      (row) => row.postId,
+      (row) => row.oxyUserId,
+    ),
     topicRefs: groupBy(
       topicRefRows,
       (row) => row.postId,
-      (row) => compact({
-        name: row.name,
-        topicId: optional(row.topicId),
-        relevance: optional(row.relevance),
-        type: optional(row.type),
-      }),
+      (row) =>
+        compact({
+          name: row.name,
+          topicId: optional(row.topicId),
+          relevance: optional(row.relevance),
+          type: optional(row.type),
+        }),
     ),
   };
 }
@@ -417,25 +437,25 @@ function assembleVariants(
   return variantRows.map((row) => {
     const overrideMedia = children.variantMedia.get(row.id);
     const altRows = children.variantAltTexts.get(row.id);
-    const alt = altRows && altRows.length > 0
-      ? Object.fromEntries(altRows.map((entry) => [entry.mediaId, entry.description]))
-      : undefined;
-    const article = row.articleTitle !== null || row.articleBody !== null || row.articleExcerpt !== null
-      ? compact({
-        title: optional(row.articleTitle),
-        body: optional(row.articleBody),
-        excerpt: optional(row.articleExcerpt),
-      })
-      : undefined;
+    const alt =
+      altRows && altRows.length > 0
+        ? Object.fromEntries(altRows.map((entry) => [entry.mediaId, entry.description]))
+        : undefined;
+    const article =
+      row.articleTitle !== null || row.articleBody !== null || row.articleExcerpt !== null
+        ? compact({
+            title: optional(row.articleTitle),
+            body: optional(row.articleBody),
+            excerpt: optional(row.articleExcerpt),
+          })
+        : undefined;
 
     return compact<PostContentVariant>({
       tag: optional(row.tag),
       source: row.source,
       text: row.body,
       alt,
-      media: overrideMedia && overrideMedia.length > 0
-        ? overrideMedia.map(toMediaItem)
-        : undefined,
+      media: overrideMedia && overrideMedia.length > 0 ? overrideMedia.map(toMediaItem) : undefined,
       article,
       createdAt: row.variantCreatedAt?.toISOString(),
     });
@@ -449,58 +469,66 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
   const attachments = children.attachments.get(row.id) ?? [];
   const sources = children.sources.get(row.id) ?? [];
 
-  const article = row.contentArticleId !== null
-    || row.contentArticleTitle !== null
-    || row.contentArticleExcerpt !== null
-    ? compact({
-      articleId: optional(row.contentArticleId),
-      title: optional(row.contentArticleTitle),
-      excerpt: optional(row.contentArticleExcerpt),
-    })
-    : undefined;
+  const article =
+    row.contentArticleId !== null ||
+    row.contentArticleTitle !== null ||
+    row.contentArticleExcerpt !== null
+      ? compact({
+          articleId: optional(row.contentArticleId),
+          title: optional(row.contentArticleTitle),
+          excerpt: optional(row.contentArticleExcerpt),
+        })
+      : undefined;
 
-  const event = row.contentEventName !== null && row.contentEventDate !== null
-    ? compact({
-      eventId: optional(row.contentEventId),
-      name: row.contentEventName,
-      date: row.contentEventDate.toISOString(),
-      location: optional(row.contentEventLocation),
-      description: optional(row.contentEventDescription),
-    })
-    : undefined;
+  const event =
+    row.contentEventName !== null && row.contentEventDate !== null
+      ? compact({
+          eventId: optional(row.contentEventId),
+          name: row.contentEventName,
+          date: row.contentEventDate.toISOString(),
+          location: optional(row.contentEventLocation),
+          description: optional(row.contentEventDescription),
+        })
+      : undefined;
 
-  const room = row.contentRoomId !== null && row.contentRoomTitle !== null
-    ? compact({
-      roomId: row.contentRoomId,
-      title: row.contentRoomTitle,
-      status: optional(row.contentRoomStatus),
-      topic: optional(row.contentRoomTopic),
-      host: optional(row.contentRoomHost),
-    })
-    : undefined;
+  const room =
+    row.contentRoomId !== null && row.contentRoomTitle !== null
+      ? compact({
+          roomId: row.contentRoomId,
+          title: row.contentRoomTitle,
+          status: optional(row.contentRoomStatus),
+          topic: optional(row.contentRoomTopic),
+          host: optional(row.contentRoomHost),
+        })
+      : undefined;
 
-  const podcast = row.contentPodcastSyraId !== null
-    && row.contentPodcastTitle !== null
-    && row.contentPodcastShowUrl !== null
-    ? compact({
-      syraPodcastId: row.contentPodcastSyraId,
-      title: row.contentPodcastTitle,
-      author: optional(row.contentPodcastAuthor),
-      artworkUrl: optional(row.contentPodcastArtworkUrl),
-      showUrl: row.contentPodcastShowUrl,
-    })
-    : undefined;
+  const podcast =
+    row.contentPodcastSyraId !== null &&
+    row.contentPodcastTitle !== null &&
+    row.contentPodcastShowUrl !== null
+      ? compact({
+          syraPodcastId: row.contentPodcastSyraId,
+          title: row.contentPodcastTitle,
+          author: optional(row.contentPodcastAuthor),
+          artworkUrl: optional(row.contentPodcastArtworkUrl),
+          showUrl: row.contentPodcastShowUrl,
+        })
+      : undefined;
 
   // GeoJSON, rebuilt from the NAMED coordinate columns in `[longitude, latitude]`
   // order. The generated `content_geo` point is the same fact and is never read
   // back for the DTO — one representation on the wire, one in the index.
-  const location = row.contentLocationLatitude !== null && row.contentLocationLongitude !== null
-    ? compact({
-      type: 'Point' as const,
-      coordinates: [row.contentLocationLongitude, row.contentLocationLatitude] as [number, number],
-      address: optional(row.contentLocationAddress),
-    })
-    : undefined;
+  const location =
+    row.contentLocationLatitude !== null && row.contentLocationLongitude !== null
+      ? compact({
+          type: 'Point' as const,
+          coordinates: [row.contentLocationLongitude, row.contentLocationLatitude] as [
+            number,
+            number,
+          ],
+          address: optional(row.contentLocationAddress),
+        })
+      : undefined;
 
   return compact<StoredPostContent>({
     variants: variantRows.length > 0 ? assembleVariants(variantRows, children) : undefined,
@@ -519,12 +547,12 @@ function assembleContent(row: PostRow, children: PostChildRows): StoredPostConte
 /** Rebuild `federation`, or `undefined` for a native post. */
 function assembleFederation(row: PostRow): PostRecordFederation | undefined {
   if (
-    row.federationActivityId === null
-    && row.federationActorUri === null
-    && row.federationInReplyTo === null
-    && row.federationUrl === null
-    && row.federationSensitive === null
-    && row.federationSpoilerText === null
+    row.federationActivityId === null &&
+    row.federationActorUri === null &&
+    row.federationInReplyTo === null &&
+    row.federationUrl === null &&
+    row.federationSensitive === null &&
+    row.federationSpoilerText === null
   ) {
     return undefined;
   }
@@ -629,13 +657,14 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
       classifiedAt: optional(row.classificationClassifiedAt),
     }),
 
-    location: row.locationLatitude !== null && row.locationLongitude !== null
-      ? compact({
-        type: 'Point' as const,
-        coordinates: [row.locationLongitude, row.locationLatitude] as [number, number],
-        address: optional(row.locationAddress),
-      })
-      : undefined,
+    location:
+      row.locationLatitude !== null && row.locationLongitude !== null
+        ? compact({
+            type: 'Point' as const,
+            coordinates: [row.locationLongitude, row.locationLatitude] as [number, number],
+            address: optional(row.locationAddress),
+          })
+        : undefined,
 
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -654,7 +683,10 @@ export async function assemblePostRecords(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord[]> {
   if (rows.length === 0) return [];
-  const children = await loadChildRows(db, rows.map((row) => row.id));
+  const children = await loadChildRows(
+    db,
+    rows.map((row) => row.id),
+  );
   return rows.map((row) => assembleRecord(row, children));
 }
 
@@ -716,7 +748,10 @@ export async function loadPostRecords(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord[]> {
   if (postIds.length === 0) return [];
-  const rows = await db.select().from(posts).where(inArray(posts.id, [...postIds]));
+  const rows = await db
+    .select()
+    .from(posts)
+    .where(inArray(posts.id, [...postIds]));
   const records = await assemblePostRecords(rows, db);
   const byId = new Map(records.map((record) => [record.id, record]));
   return postIds.flatMap((id) => {
@@ -782,11 +817,13 @@ export async function claimUnpublishedPost(
       status: 'published',
       ...(from === 'draft' ? { createdAt: new Date() } : {}),
     })
-    .where(and(
-      eq(posts.id, postId),
-      eq(posts.status, from),
-      ...(ownerId ? [eq(posts.oxyUserId, ownerId)] : []),
-    ))
+    .where(
+      and(
+        eq(posts.id, postId),
+        eq(posts.status, from),
+        ...(ownerId ? [eq(posts.oxyUserId, ownerId)] : []),
+      ),
+    )
     .returning({ id: posts.id });
   if (!claimed) return null;
   await invalidatePostDetailCache(postId);
@@ -806,7 +843,11 @@ export async function findPostRecords(
   options: { orderBy: SQL[]; limit?: number; offset?: number },
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord[]> {
-  const base = db.select().from(posts).where(where).orderBy(...options.orderBy);
+  const base = db
+    .select()
+    .from(posts)
+    .where(where)
+    .orderBy(...options.orderBy);
   const limited = options.limit === undefined ? base : base.limit(options.limit);
   const rows = await (options.offset === undefined ? limited : limited.offset(options.offset));
   return assemblePostRecords(rows, db);
@@ -989,7 +1030,10 @@ function postCreatedAtSql(postId: string): SQL {
 export type GoneMediaPolicy = 'remote-url' | 'refuse';
 
 /** Swap tombstoned Oxy ids back to their remote URLs; drop an item that has none. */
-function withoutGoneMedia(content: StoredPostContent, gone: ReadonlySet<string>): StoredPostContent {
+function withoutGoneMedia(
+  content: StoredPostContent,
+  gone: ReadonlySet<string>,
+): StoredPostContent {
   const replaced = new Map<string, string | null>();
   const swap = (items: MediaItem[] | undefined): MediaItem[] | undefined => {
     if (!items) return items;
@@ -1003,18 +1047,22 @@ function withoutGoneMedia(content: StoredPostContent, gone: ReadonlySet<string>)
     });
   };
   const media = swap(content.media);
-  const swappedVariants = content.variants?.map((variant) => (variant.media ? { ...variant, media: swap(variant.media) } : variant));
+  const swappedVariants = content.variants?.map((variant) =>
+    variant.media ? { ...variant, media: swap(variant.media) } : variant,
+  );
   // A variant's alt texts are keyed by media id (`post_variant_alt_texts.media_id`)
   // and may describe the post's own media as well as the variant's: remap them
   // with the SAME ids, once every item has been swapped, or the description is
   // stored under an id no item carries any more (lost).
   const variants = swappedVariants?.map((variant) => {
     if (!variant.alt) return variant;
-    const alt = Object.fromEntries(Object.entries(variant.alt).flatMap(([mediaId, description]) => {
-      if (!replaced.has(mediaId)) return [[mediaId, description]];
-      const remote = replaced.get(mediaId);
-      return remote ? [[remote, description]] : [];
-    }));
+    const alt = Object.fromEntries(
+      Object.entries(variant.alt).flatMap(([mediaId, description]) => {
+        if (!replaced.has(mediaId)) return [[mediaId, description]];
+        const remote = replaced.get(mediaId);
+        return remote ? [[remote, description]] : [];
+      }),
+    );
     return { ...variant, alt };
   });
   const attachments = content.attachments?.flatMap((attachment) => {
@@ -1063,10 +1111,13 @@ async function insertChildRows(
   // (`db/federation/mediaDeletionRepository.ts`). A tombstoned id is either
   // swapped back to the item's stable remote URL or refused — see
   // {@link GoneMediaPolicy}.
-  const gone = await findGoneFederatedMedia(tx, [
-    ...(requestedContent.media ?? []),
-    ...(requestedContent.variants ?? []).flatMap((variant) => variant.media ?? []),
-  ].map((item) => item.id));
+  const gone = await findGoneFederatedMedia(
+    tx,
+    [
+      ...(requestedContent.media ?? []),
+      ...(requestedContent.variants ?? []).flatMap((variant) => variant.media ?? []),
+    ].map((item) => item.id),
+  );
   if (gone.size > 0 && goneMedia === 'refuse') throw new FederatedMediaGoneError([...gone]);
   const content = gone.size > 0 ? withoutGoneMedia(requestedContent, gone) : requestedContent;
 
@@ -1158,9 +1209,9 @@ async function insertChildRows(
   // same id twice.
   const uniqueMentions = [...new Set(mentions)];
   if (uniqueMentions.length > 0) {
-    await tx.insert(postMentions).values(
-      uniqueMentions.map((oxyUserId) => ({ postId, oxyUserId })),
-    );
+    await tx
+      .insert(postMentions)
+      .values(uniqueMentions.map((oxyUserId) => ({ postId, oxyUserId })));
   }
 
   if (topicRefs && topicRefs.length > 0) {
@@ -1274,7 +1325,9 @@ export async function insertPostRecords(
       ? { status: 'fulfilled', value: record }
       : {
           status: 'rejected',
-          reason: new Error(`insertPostRecords: post ${result.value} was not readable after insert`),
+          reason: new Error(
+            `insertPostRecords: post ${result.value} was not readable after insert`,
+          ),
         };
   });
 }
@@ -1284,10 +1337,7 @@ export async function insertPostRecords(
  * shared half of {@link insertPostRecord} and {@link insertPostRecords}, which
  * differ only in how they read the result back.
  */
-async function writePostRecord(
-  input: PostRecordInput,
-  db: DatabaseOrTransaction,
-): Promise<string> {
+async function writePostRecord(input: PostRecordInput, db: DatabaseOrTransaction): Promise<string> {
   const id = input.id ?? uuidv7();
 
   const insert = toPostInsert(input, id);
@@ -1427,10 +1477,10 @@ export async function updatePostRecord(
       : patch.location === null
         ? { locationLongitude: null, locationLatitude: null, locationAddress: null }
         : {
-          locationLongitude: patch.location.coordinates[0],
-          locationLatitude: patch.location.coordinates[1],
-          locationAddress: patch.location.address ?? null,
-        }),
+            locationLongitude: patch.location.coordinates[0],
+            locationLatitude: patch.location.coordinates[1],
+            locationAddress: patch.location.address ?? null,
+          }),
   });
 
   // The child table is written FIRST and unconditionally on presence, because
@@ -1458,11 +1508,17 @@ export async function updatePostAndContent(
   mentions: readonly string[],
   expectedUnpublishedStatus?: 'draft' | 'scheduled',
 ): Promise<boolean> {
-  const written = await getDb().transaction(async tx => {
+  const written = await getDb().transaction(async (tx) => {
     await lockPostContent(tx, postId);
-    const [current] = await tx.select({ status: posts.status }).from(posts)
-      .where(eq(posts.id, postId)).for('update');
-    if (!current || (expectedUnpublishedStatus !== undefined && current.status !== expectedUnpublishedStatus)) {
+    const [current] = await tx
+      .select({ status: posts.status })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .for('update');
+    if (
+      !current ||
+      (expectedUnpublishedStatus !== undefined && current.status !== expectedUnpublishedStatus)
+    ) {
       return false;
     }
     await updatePostRecord(postId, patch, tx);
@@ -1584,8 +1640,8 @@ export async function bumpPostCounters(
       : {}),
     ...(delta.federatedBoosts
       ? {
-        statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedBoostsCount} + ${delta.federatedBoosts})`,
-      }
+          statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedBoostsCount} + ${delta.federatedBoosts})`,
+        }
       : {}),
     ...(delta.views
       ? { statsViewsCount: sql`greatest(0, ${posts.statsViewsCount} + ${delta.views})` }
@@ -1716,7 +1772,10 @@ export async function replacePostContent(
     // alone: an edit must never revoke a collaborator's entry.
     await insertChildRows(tx, postId, content, [], mentions, undefined);
     const after = await federatedMediaIdsOfPost(tx, postId);
-    await enqueueFederatedMediaDeletions([...before].filter((id) => !after.has(id)), tx);
+    await enqueueFederatedMediaDeletions(
+      [...before].filter((id) => !after.has(id)),
+      tx,
+    );
   };
 
   if ('transaction' in db) {
@@ -1793,9 +1852,13 @@ export async function storeMachineVariant(
     }
 
     const renditions = current.content.variants ?? [];
-    const authored = renditions.find((entry) => entry.source === 'author' && entry.tag === variant.tag);
+    const authored = renditions.find(
+      (entry) => entry.source === 'author' && entry.tag === variant.tag,
+    );
     if (authored) return { kind: 'existing', variant: authored };
-    const cached = renditions.find((entry) => entry.source === 'machine' && entry.tag === variant.tag);
+    const cached = renditions.find(
+      (entry) => entry.source === 'machine' && entry.tag === variant.tag,
+    );
     if (cached && !options.force) return { kind: 'existing', variant: cached };
 
     const existing = await tx
@@ -1856,9 +1919,10 @@ export async function storeMachineVariant(
       tag: variant.tag,
       source: 'machine' as const,
       text: variant.text,
-      alt: altRows.length > 0
-        ? Object.fromEntries(altRows.map((row) => [row.mediaId, row.description]))
-        : undefined,
+      alt:
+        altRows.length > 0
+          ? Object.fromEntries(altRows.map((row) => [row.mediaId, row.description]))
+          : undefined,
       article: variant.article,
       createdAt: variant.createdAt,
     });
@@ -1940,7 +2004,10 @@ export async function linkReplyToParent(
       .where(where)
       .for('update');
     if (!current) return false;
-    await tx.update(posts).set({ parentPostId: link.parentPostId, threadId: link.threadId }).where(where);
+    await tx
+      .update(posts)
+      .set({ parentPostId: link.parentPostId, threadId: link.threadId })
+      .where(where);
     if (current.isReply && current.parentPostId !== link.parentPostId) {
       if (current.parentPostId) await bumpPostCounters(current.parentPostId, { comments: -1 }, tx);
       await bumpPostCounters(link.parentPostId, { comments: 1 }, tx);

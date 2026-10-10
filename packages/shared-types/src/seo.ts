@@ -20,7 +20,11 @@ export interface SiteIdentity {
   logoUrl?: string;
 }
 
-export function siteStructuredData({ origin, name, logoUrl }: SiteIdentity): Record<string, unknown> {
+export function siteStructuredData({
+  origin,
+  name,
+  logoUrl,
+}: SiteIdentity): Record<string, unknown> {
   const url = `${origin}/`;
   const organizationId = `${origin}/#organization`;
   return {
@@ -33,7 +37,12 @@ export function siteStructuredData({ origin, name, logoUrl }: SiteIdentity): Rec
         url,
         logo: logoUrl
           ? { '@type': 'ImageObject', url: logoUrl }
-          : { '@type': 'ImageObject', url: `${origin}/icons/mention-512.png`, width: 512, height: 512 },
+          : {
+              '@type': 'ImageObject',
+              url: `${origin}/icons/mention-512.png`,
+              width: 512,
+              height: 512,
+            },
       },
       {
         '@type': 'WebSite',

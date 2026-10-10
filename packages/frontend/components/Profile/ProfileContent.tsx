@@ -117,9 +117,7 @@ export const ProfileContent = memo(function ProfileContent({
                 className="text-foreground"
                 style={{ fontSize: 14, flex: 1 }}
               />
-              {field.verifiedAt && (
-                <RiCheckboxCircleFill width={14} fill="#2ecc71" />
-              )}
+              {field.verifiedAt && <RiCheckboxCircleFill width={14} fill="#2ecc71" />}
             </View>
           ))}
         </View>

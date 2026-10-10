@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { crowdsourceWebhooks } from '@crowdsource.you/core/express';
 import { config } from '../config';
-import { recordDecisionEvent, recordIgnoredEvent } from '../services/moderation/ModerationInboundService';
+import {
+  recordDecisionEvent,
+  recordIgnoredEvent,
+} from '../services/moderation/ModerationInboundService';
 import { moderationProcessedEventStore } from '../services/moderation/moderationEventStore';
 import { invalidateShownNote } from '../services/communityNotes/CommunityNotesService';
 import { logger } from '../utils/logger';

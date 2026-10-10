@@ -21,10 +21,11 @@ export function useCreateMentionSearchCache(): MentionSearchCache {
   // (blocks), and an account switch must not answer from the last one's cache.
   // biome-ignore lint/correctness/useExhaustiveDependencies: viewerId is a deliberate cache key the factory does not read.
   return useMemo(
-    () => createMentionSearchCache(async (query) => {
-      const { data } = await oxyServices.users.search(query, { limit: 10 });
-      return toMentionUsers(data);
-    }),
+    () =>
+      createMentionSearchCache(async (query) => {
+        const { data } = await oxyServices.users.search(query, { limit: 10 });
+        return toMentionUsers(data);
+      }),
     [oxyServices, viewerId],
   );
 }

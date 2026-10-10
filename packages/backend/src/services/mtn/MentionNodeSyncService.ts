@@ -74,14 +74,8 @@
 import { canonicalize, computeRecordId, signMessage } from '@oxy.so/protocol';
 import { NodeClient, type NodeFetch } from '@oxy.so/protocol/node';
 import { safeFetch } from '@oxy.so/core/server';
-import {
-  signedRecordEnvelopeSchema,
-  type SignedRecordEnvelope,
-} from '@oxy.so/contracts';
-import {
-  MENTION_POST_COLLECTION,
-  mentionPostRecordSchema,
-} from '@mention/shared-types';
+import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
+import { MENTION_POST_COLLECTION, mentionPostRecordSchema } from '@mention/shared-types';
 import {
   findIngestTarget,
   findNodeEndpoint,
@@ -102,10 +96,7 @@ import { verifyAndStoreRecord } from './MentionRecordService';
 import { projectRecord } from './PostMaterializer';
 import { mirrorNodeBlobsForRecord, type NodeBlobFetcher } from './mtnNodeBlobMirror';
 import { parseUserDid } from './mentionDid';
-import {
-  getMentionCustodialPrivateKey,
-  getMentionCustodialPublicKey,
-} from './mentionRecordEnv';
+import { getMentionCustodialPrivateKey, getMentionCustodialPublicKey } from './mentionRecordEnv';
 import {
   MENTION_NODE_INGEST_BATCH,
   MENTION_NODE_INGEST_MAX_ITERATIONS,
@@ -167,13 +158,19 @@ function makeNodeClient(endpoint: string): NodeClient {
  * to the witness ledger (idempotent per recordId). Non-fatal and never throws: a
  * missing custodial key skips witnessing (warned once); a duplicate is a no-op.
  */
-async function witnessRecord(oxyUserId: string, recordId: string, ingestedAt: number): Promise<void> {
+async function witnessRecord(
+  oxyUserId: string,
+  recordId: string,
+  ingestedAt: number,
+): Promise<void> {
   const privateKey = getMentionCustodialPrivateKey();
   const publicKey = getMentionCustodialPublicKey();
   if (!privateKey || !publicKey) {
     if (!warnedMissingCustodialKey) {
       warnedMissingCustodialKey = true;
-      logger.warn('MentionNodeSync: ingest counter-signing skipped — Mention custodial key not configured');
+      logger.warn(
+        'MentionNodeSync: ingest counter-signing skipped — Mention custodial key not configured',
+      );
     }
     return;
   }
@@ -201,7 +198,10 @@ async function witnessRecord(oxyUserId: string, recordId: string, ingestedAt: nu
  * resolvable on the first projection. A non-post record, a record without an
  * embed, or any mirror failure is a clean no-op (the mirror itself never throws).
  */
-async function mirrorBlobs(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetcher): Promise<void> {
+async function mirrorBlobs(
+  envelope: SignedRecordEnvelope,
+  getBlob: NodeBlobFetcher,
+): Promise<void> {
   if (envelope.collection !== MENTION_POST_COLLECTION) return;
   const parsed = mentionPostRecordSchema.safeParse(envelope.record);
   if (!parsed.success || !parsed.data.embed) return;
@@ -219,7 +219,10 @@ async function mirrorBlobs(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetc
  * blobs, the node bytes are mirrored into Oxy S3 FIRST (see {@link mirrorBlobs})
  * so the post's media resolves on this projection.
  */
-async function materialize(envelope: SignedRecordEnvelope, getBlob: NodeBlobFetcher): Promise<void> {
+async function materialize(
+  envelope: SignedRecordEnvelope,
+  getBlob: NodeBlobFetcher,
+): Promise<void> {
   try {
     await mirrorBlobs(envelope, getBlob);
     const result = await projectRecord(envelope);
@@ -303,21 +306,27 @@ function incomingWinsLww(
  * on the duplicate check so an unrelated future index cannot be mistaken for
  * "already stored".
  */
-async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, recordId: string): Promise<boolean> {
+async function storeForkMirror(
+  env: SignedRecordEnvelope,
+  oxyUserId: string,
+  recordId: string,
+): Promise<boolean> {
   try {
-    await getDb().insert(mentionSignedRecords).values({
-      subjectDid: env.subject,
-      oxyUserId,
-      type: env.type,
-      envelope: env,
-      publicKey: env.publicKey,
-      verified: true,
-      chainStatus: MTN_CHAIN_STATUS.CONFLICT,
-      // No `seq`/`prev` — intentionally off the linear chain (fork archive).
-      recordId,
-      nsid: env.version === 2 ? env.collection : null,
-      rkey: env.version === 2 ? env.rkey : null,
-    });
+    await getDb()
+      .insert(mentionSignedRecords)
+      .values({
+        subjectDid: env.subject,
+        oxyUserId,
+        type: env.type,
+        envelope: env,
+        publicKey: env.publicKey,
+        verified: true,
+        chainStatus: MTN_CHAIN_STATUS.CONFLICT,
+        // No `seq`/`prev` — intentionally off the linear chain (fork archive).
+        recordId,
+        nsid: env.version === 2 ? env.collection : null,
+        rkey: env.version === 2 ? env.rkey : null,
+      });
     return true;
   } catch (err) {
     if (isUniqueViolation(err, 'mention_signed_records_record_id_key')) {
@@ -457,7 +466,11 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
 
     let stopReason: string | null = null;
 
-    for (let iteration = 0; iteration < MENTION_NODE_INGEST_MAX_ITERATIONS && !stopReason; iteration += 1) {
+    for (
+      let iteration = 0;
+      iteration < MENTION_NODE_INGEST_MAX_ITERATIONS && !stopReason;
+      iteration += 1
+    ) {
       let page: unknown[];
       try {
         const { records } = await client.log(cursor, MENTION_NODE_INGEST_BATCH);
@@ -466,9 +479,12 @@ export async function ingestFromNode(oxyUserId: string): Promise<void> {
         // TypeError that aborts the sweep. Stop this run cleanly at the last good
         // cursor; the next scheduled run retries.
         if (!Array.isArray(records)) {
-          logger.warn('MentionNodeSync: node log response had no records array; treating as empty', {
-            oxyUserId,
-          });
+          logger.warn(
+            'MentionNodeSync: node log response had no records array; treating as empty',
+            {
+              oxyUserId,
+            },
+          );
           break;
         }
         page = records;

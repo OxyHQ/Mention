@@ -236,8 +236,10 @@ describe('the first batch takes the ordinary path — measured, then swept or he
     expect(await stateOf('new.example')).toBe('purged');
     // Already handled, so it is not swept a second time.
     expect(await stateOf('a.example')).toBe('purged');
-    expect(purge.calls.slice(callsAfterFirst).map((call) => call.domains))
-      .toEqual([['new.example'], ['new.example']]);
+    expect(purge.calls.slice(callsAfterFirst).map((call) => call.domains)).toEqual([
+      ['new.example'],
+      ['new.example'],
+    ]);
   });
 });
 

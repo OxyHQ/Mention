@@ -90,16 +90,20 @@ export async function stripRenderedQuoteMarkers(
         variantId: postContentVariants.id,
         body: postContentVariants.body,
         quotedUrl: sql<string | null>`quoted.federation_url`.as('quoted_url'),
-        quotedActivityId: sql<string | null>`quoted.federation_activity_id`.as('quoted_activity_id'),
+        quotedActivityId: sql<string | null>`quoted.federation_activity_id`.as(
+          'quoted_activity_id',
+        ),
       })
       .from(postContentVariants)
       .innerJoin(posts, eq(posts.id, postContentVariants.postId))
       .innerJoin(sql`posts as quoted`, sql`quoted.id = ${posts.quoteOf}`)
-      .where(and(
-        isNotNull(posts.quoteOf),
-        isNotNull(posts.federationActivityId),
-        sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
-      ))
+      .where(
+        and(
+          isNotNull(posts.quoteOf),
+          isNotNull(posts.federationActivityId),
+          sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
+        ),
+      )
       .limit(MAX),
   );
 
@@ -123,10 +127,7 @@ export async function stripRenderedQuoteMarkers(
     const updated = await db
       .update(postContentVariants)
       .set({ body: cleaned })
-      .where(and(
-        eq(postContentVariants.id, row.variantId),
-        eq(postContentVariants.body, row.body),
-      ))
+      .where(and(eq(postContentVariants.id, row.variantId), eq(postContentVariants.body, row.body)))
       .returning({ id: postContentVariants.id });
     written += updated.length;
   }

@@ -147,8 +147,10 @@ async function createVariant(input: VariantInput): Promise<string> {
   return record.id;
 }
 
-const PHOTO_A = 'https://scontent.cdninstagram.com/v/t51.2885-15/489123456789012_n.jpg?stp=dst&_nc_cat=1';
-const PHOTO_A_ON_THREADS = 'https://scontent-lhr.xx.fbcdn.net/v/t51.2885-15/489123456789012_n.jpg?oh=00_A&oe=1';
+const PHOTO_A =
+  'https://scontent.cdninstagram.com/v/t51.2885-15/489123456789012_n.jpg?stp=dst&_nc_cat=1';
+const PHOTO_A_ON_THREADS =
+  'https://scontent-lhr.xx.fbcdn.net/v/t51.2885-15/489123456789012_n.jpg?oh=00_A&oe=1';
 const PHOTO_B = 'https://scontent.cdninstagram.com/v/t51.2885-15/222999888777666_n.jpg';
 
 const NOW = new Date('2026-09-11T12:00:00.000Z');
@@ -175,8 +177,16 @@ beforeAll(async () => {
 beforeEach(async () => {
   mocks.lookupOxyIdentities.mockReset();
   mocks.lookupOxyIdentities.mockResolvedValue([
-    { identifier: IG_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }] },
-    { identifier: THREADS_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }] },
+    {
+      identifier: IG_ACTOR,
+      userId: PERSON,
+      externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }],
+    },
+    {
+      identifier: THREADS_ACTOR,
+      userId: PERSON,
+      externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }],
+    },
   ]);
   await seedActor(IG_ACTOR, IG_HANDLE, 'kilogram.makeup', `${IG_HANDLE}@instagram.com`);
   await seedActor(THREADS_ACTOR, IG_HANDLE, 'threads.net');
@@ -231,7 +241,10 @@ describe('what collapses', () => {
     expect(decision.reason).toBe('shared-media-id');
 
     // Both objects are STILL STORED and both are still addressable.
-    const stored = await db.select({ id: posts.id }).from(posts).where(inArray(posts.id, [instagram, threads]));
+    const stored = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(inArray(posts.id, [instagram, threads]));
     expect(stored).toHaveLength(2);
     // Exactly one of them renders.
     expect(await visibleIds()).toHaveLength(1);
@@ -287,16 +300,24 @@ describe('what collapses', () => {
   it('prefers the declared original over an earlier richer copy and preserves it on re-evaluation', async () => {
     const originalUrl = 'https://www.instagram.com/p/declared-original/';
     const instagram = await createVariant({
-      actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: originalUrl,
+      actorUri: IG_ACTOR,
+      text: 'original',
+      createdAt: NOW,
+      federationUrl: originalUrl,
     });
     const threads = await createVariant({
-      actorUri: THREADS_ACTOR, text: 'copy',
-      createdAt: new Date(NOW.getTime() - 60_000), media: MEDIA_ON_THREADS,
+      actorUri: THREADS_ACTOR,
+      text: 'copy',
+      createdAt: new Date(NOW.getTime() - 60_000),
+      media: MEDIA_ON_THREADS,
     });
 
-    expect(await detectCrosspostEquivalence({
-      postId: threads, declaredOriginalUrls: [originalUrl],
-    })).toMatchObject({ outcome: 'clustered', reason: 'declared' });
+    expect(
+      await detectCrosspostEquivalence({
+        postId: threads,
+        declaredOriginalUrls: [originalUrl],
+      }),
+    ).toMatchObject({ outcome: 'clustered', reason: 'declared' });
     expect(await visibleIds()).toEqual([instagram]);
 
     await reevaluateClusterForPost(threads);
@@ -305,14 +326,24 @@ describe('what collapses', () => {
   });
 
   it('uses the exact source URL as media evidence when no stable Meta asset id exists', async () => {
-    const media = [{ remoteUrl: 'https://media.example.com/photo.jpg?asset=one', width: 1080, height: 1350, sizeBytes: 204800 }];
+    const media = [
+      {
+        remoteUrl: 'https://media.example.com/photo.jpg?asset=one',
+        width: 1080,
+        height: 1350,
+        sizeBytes: 204800,
+      },
+    ];
     await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media });
     const threads = await createVariant({
-      actorUri: THREADS_ACTOR, text: 'same words',
-      createdAt: new Date(NOW.getTime() + 60_000), media,
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media,
     });
     expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
-      outcome: 'clustered', reason: 'fingerprint',
+      outcome: 'clustered',
+      reason: 'fingerprint',
     });
   });
 });
@@ -323,14 +354,27 @@ describe('what must never collapse', () => {
     for (let index = 0; index < 2; index += 1) {
       const createdAt = new Date(NOW.getTime() + index * 86_400_000);
       await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt, media: MEDIA });
-      const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same words', createdAt, media: MEDIA_ON_THREADS });
-      expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'clustered' });
+      const threads = await createVariant({
+        actorUri: THREADS_ACTOR,
+        text: 'same words',
+        createdAt,
+        media: MEDIA_ON_THREADS,
+      });
+      expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+        outcome: 'clustered',
+      });
       clustered.push(threads);
     }
     const oldest = (await findClusterByPostId(clustered[0]))!;
     const next = (await findClusterByPostId(clustered[1]))!;
-    await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date(0) }).where(eq(postEquivalenceClusters.id, oldest.id));
-    await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date(1) }).where(eq(postEquivalenceClusters.id, next.id));
+    await getDb()
+      .update(postEquivalenceClusters)
+      .set({ updatedAt: new Date(0) })
+      .where(eq(postEquivalenceClusters.id, oldest.id));
+    await getDb()
+      .update(postEquivalenceClusters)
+      .set({ updatedAt: new Date(1) })
+      .where(eq(postEquivalenceClusters.id, next.id));
     expect(await recheckCrosspostClusters(1)).toBe(1);
     mocks.lookupOxyIdentities.mockResolvedValue([]);
     expect(await recheckCrosspostClusters(1)).toBe(1);
@@ -342,12 +386,27 @@ describe('what must never collapse', () => {
 
   it('refuses stale matching cached author ids after Oxy revokes the identity proof', async () => {
     await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
-    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA_ON_THREADS });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: NOW,
+      media: MEDIA_ON_THREADS,
+    });
     mocks.lookupOxyIdentities.mockResolvedValue([
-      { identifier: IG_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }] },
-      { identifier: THREADS_ACTOR, userId: OTHER_PERSON, externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }] },
+      {
+        identifier: IG_ACTOR,
+        userId: PERSON,
+        externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }],
+      },
+      {
+        identifier: THREADS_ACTOR,
+        userId: OTHER_PERSON,
+        externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }],
+      },
     ]);
-    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'refused',
+    });
     expect(await visibleIds()).toHaveLength(2);
   });
   it('refuses reconciliation across different Oxy people even with a declared original', async () => {
@@ -403,7 +462,12 @@ describe('what must never collapse', () => {
   });
 
   it('refuses the same author repeating themselves outside the window', async () => {
-    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'good morning', createdAt: NOW, media: MEDIA });
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'good morning',
+      createdAt: NOW,
+      media: MEDIA,
+    });
     const later = await createVariant({
       actorUri: THREADS_ACTOR,
       text: 'good morning',
@@ -420,14 +484,20 @@ describe('what must never collapse', () => {
 
   it('refuses carousels that reuse an asset a different number of times', async () => {
     await createVariant({
-      actorUri: IG_ACTOR, text: 'same words', createdAt: NOW,
+      actorUri: IG_ACTOR,
+      text: 'same words',
+      createdAt: NOW,
       media: [...MEDIA, { remoteUrl: PHOTO_B, width: 1080, height: 1350, sizeBytes: 204800 }],
     });
     const threads = await createVariant({
-      actorUri: THREADS_ACTOR, text: 'same words',
-      createdAt: new Date(NOW.getTime() + 60_000), media: [...MEDIA_ON_THREADS, ...MEDIA_ON_THREADS],
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: [...MEDIA_ON_THREADS, ...MEDIA_ON_THREADS],
     });
-    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'refused',
+    });
     expect(await visibleIds()).toHaveLength(2);
   });
 
@@ -469,35 +539,62 @@ describe('what must never collapse', () => {
 
   it.each([
     ['different assets with equal dimensions and byte size', PHOTO_B],
-    ['an unrelated origin reusing a Meta filename', 'https://media.example.com/489123456789012_n.jpg'],
+    [
+      'an unrelated origin reusing a Meta filename',
+      'https://media.example.com/489123456789012_n.jpg',
+    ],
   ])('refuses %s', async (_scenario, remoteUrl) => {
     await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
     const threads = await createVariant({
-      actorUri: THREADS_ACTOR, text: 'same words',
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
       createdAt: new Date(NOW.getTime() + 60_000),
       media: [{ remoteUrl, width: 1080, height: 1350, sizeBytes: 204800 }],
     });
-    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'refused',
+    });
     expect(await visibleIds()).toHaveLength(2);
   });
 
   it('does not treat a caption mentioning another post as a canonical declaration', async () => {
     const originalUrl = 'https://www.instagram.com/p/mentioned-post/';
-    await createVariant({ actorUri: IG_ACTOR, text: '', createdAt: NOW, federationUrl: originalUrl, media: MEDIA });
+    await createVariant({
+      actorUri: IG_ACTOR,
+      text: '',
+      createdAt: NOW,
+      federationUrl: originalUrl,
+      media: MEDIA,
+    });
     const threads = await createVariant({
-      actorUri: THREADS_ACTOR, text: `I changed my mind about ${originalUrl}`,
+      actorUri: THREADS_ACTOR,
+      text: `I changed my mind about ${originalUrl}`,
       createdAt: new Date(NOW.getTime() + 60_000),
     });
-    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'refused',
+    });
     expect(await visibleIds()).toHaveLength(2);
   });
 
   it('preserves resource-selecting query parameters in declared-original URLs', async () => {
-    await createVariant({ actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: 'https://www.instagram.com/post?id=one' });
-    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'different', createdAt: NOW });
-    expect(await detectCrosspostEquivalence({
-      postId: threads, declaredOriginalUrls: ['https://www.instagram.com/post?id=two'],
-    })).toMatchObject({ outcome: 'refused' });
+    await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'original',
+      createdAt: NOW,
+      federationUrl: 'https://www.instagram.com/post?id=one',
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'different',
+      createdAt: NOW,
+    });
+    expect(
+      await detectCrosspostEquivalence({
+        postId: threads,
+        declaredOriginalUrls: ['https://www.instagram.com/post?id=two'],
+      }),
+    ).toMatchObject({ outcome: 'refused' });
     expect(await visibleIds()).toHaveLength(2);
   });
 
@@ -517,11 +614,25 @@ describe('what must never collapse', () => {
 
 describe('a cluster that has stopped being true', () => {
   it('restores an image-only source when its sibling edit adds unique text', async () => {
-    const instagram = await createVariant({ actorUri: IG_ACTOR, text: '', createdAt: NOW, media: MEDIA });
-    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: '', createdAt: NOW, media: MEDIA_ON_THREADS });
-    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'clustered' });
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: '',
+      createdAt: NOW,
+      media: MEDIA,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: '',
+      createdAt: NOW,
+      media: MEDIA_ON_THREADS,
+    });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'clustered',
+    });
     await db.update(posts).set({ isEdited: true }).where(eq(posts.id, threads));
-    await db.update(postContentVariants).set({ body: 'A new paragraph unique to this version.' })
+    await db
+      .update(postContentVariants)
+      .set({ body: 'A new paragraph unique to this version.' })
       .where(and(eq(postContentVariants.postId, threads), eq(postContentVariants.position, 0)));
     await reevaluateClusterForPost(threads);
     expect(await visibleIds()).toEqual([instagram, threads].sort());
@@ -529,12 +640,24 @@ describe('a cluster that has stopped being true', () => {
 
   it('does not retain a stored original declaration after a material edit', async () => {
     const originalUrl = 'https://www.instagram.com/p/edited-declaration/';
-    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: originalUrl });
-    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'original', createdAt: NOW });
-    expect(await detectCrosspostEquivalence({ postId: threads, declaredOriginalUrls: [originalUrl] }))
-      .toMatchObject({ outcome: 'clustered', reason: 'declared' });
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'original',
+      createdAt: NOW,
+      federationUrl: originalUrl,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'original',
+      createdAt: NOW,
+    });
+    expect(
+      await detectCrosspostEquivalence({ postId: threads, declaredOriginalUrls: [originalUrl] }),
+    ).toMatchObject({ outcome: 'clustered', reason: 'declared' });
     await db.update(posts).set({ isEdited: true }).where(eq(posts.id, threads));
-    await db.update(postContentVariants).set({ body: 'a different piece of writing' })
+    await db
+      .update(postContentVariants)
+      .set({ body: 'a different piece of writing' })
       .where(and(eq(postContentVariants.postId, threads), eq(postContentVariants.position, 0)));
 
     await reevaluateClusterForPost(threads);
@@ -564,10 +687,7 @@ describe('a cluster that has stopped being true', () => {
     const { threads } = await collapsedPair();
 
     // The Threads copy grows text the Instagram caption never had.
-    await db
-      .update(posts)
-      .set({ isEdited: true })
-      .where(eq(posts.id, threads));
+    await db.update(posts).set({ isEdited: true }).where(eq(posts.id, threads));
     // The body lives in the variants table; the edit path rewrites it there.
     // Written directly rather than through the whole Update handler, so what is
     // under test is the re-evaluation and not the ingest.
@@ -686,7 +806,8 @@ describe('provenance for the rendered card', () => {
     });
     await detectCrosspostEquivalence({ postId: threads });
 
-    const domains = (await loadCrosspostVariants([instagram])).get(instagram)!
+    const domains = (await loadCrosspostVariants([instagram]))
+      .get(instagram)!
       .map((variant) => variant.networkDomain);
     // The Instagram copy reached us through `kilogram.makeup`. A reader must
     // never be told that is the network it came from.
@@ -778,11 +899,20 @@ describe('sharedMediaIdentifier', () => {
   });
 });
 
-
 describe('strict administrative error handling', () => {
   async function pair() {
-    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'same source post', createdAt: NOW, media: MEDIA });
-    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same source post', createdAt: NOW, media: MEDIA_ON_THREADS });
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'same source post',
+      createdAt: NOW,
+      media: MEDIA,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same source post',
+      createdAt: NOW,
+      media: MEDIA_ON_THREADS,
+    });
     return { instagram, threads };
   }
 
@@ -790,10 +920,15 @@ describe('strict administrative error handling', () => {
     const { threads } = await pair();
     const before = await db.select().from(posts).where(inArray(posts.id, created));
     mocks.lookupOxyIdentities.mockRejectedValue(new Error('authority unavailable'));
-    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('authority unavailable');
+    await expect(
+      detectCrosspostEquivalence({ postId: threads }, { failOnError: true }),
+    ).rejects.toThrow('authority unavailable');
     expect(await findClusterByPostId(threads)).toBeNull();
     expect(await db.select().from(posts).where(inArray(posts.id, created))).toEqual(before);
-    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ outcome: 'refused', reason: 'no-sufficient-evidence' });
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({
+      outcome: 'refused',
+      reason: 'no-sufficient-evidence',
+    });
   });
 
   it('rejects unavailable authority before splitting an existing cluster; live reevaluation still reveals it', async () => {
@@ -802,7 +937,9 @@ describe('strict administrative error handling', () => {
     const before = await findClusterByPostId(threads);
     const beforePosts = await db.select().from(posts).where(inArray(posts.id, created));
     mocks.lookupOxyIdentities.mockRejectedValue(new Error('authority unavailable'));
-    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('authority unavailable');
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow(
+      'authority unavailable',
+    );
     expect(await findClusterByPostId(threads)).toEqual(before);
     expect(await db.select().from(posts).where(inArray(posts.id, created))).toEqual(beforePosts);
     await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
@@ -811,32 +948,61 @@ describe('strict administrative error handling', () => {
 
   it('surfaces failed candidate/cluster reads only for strict callers', async () => {
     const { threads } = await pair();
-    const fault = () => { throw new Error('database read unavailable'); };
+    const fault = () => {
+      throw new Error('database read unavailable');
+    };
     vi.spyOn(db, 'select').mockImplementationOnce(fault);
-    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('database read unavailable');
+    await expect(
+      detectCrosspostEquivalence({ postId: threads }, { failOnError: true }),
+    ).rejects.toThrow('database read unavailable');
     vi.spyOn(db, 'select').mockImplementationOnce(fault);
-    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ outcome: 'not-applicable', reason: 'detection-failed' });
-    vi.spyOn(equivalenceRepository, 'findClusterByPostId').mockRejectedValue(new Error('cluster read unavailable'));
-    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('cluster read unavailable');
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({
+      outcome: 'not-applicable',
+      reason: 'detection-failed',
+    });
+    vi.spyOn(equivalenceRepository, 'findClusterByPostId').mockRejectedValue(
+      new Error('cluster read unavailable'),
+    );
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow(
+      'cluster read unavailable',
+    );
     await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
   });
 
   it('surfaces cluster creation and reevaluation write failures only for strict callers', async () => {
     const { threads } = await pair();
-    const create = vi.spyOn(equivalenceRepository, 'createCluster').mockRejectedValue(new Error('cluster write unavailable'));
-    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('cluster write unavailable');
-    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ reason: 'detection-failed' });
+    const create = vi
+      .spyOn(equivalenceRepository, 'createCluster')
+      .mockRejectedValue(new Error('cluster write unavailable'));
+    await expect(
+      detectCrosspostEquivalence({ postId: threads }, { failOnError: true }),
+    ).rejects.toThrow('cluster write unavailable');
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({
+      reason: 'detection-failed',
+    });
     expect(await findClusterByPostId(threads)).toBeNull();
     create.mockRestore();
     expect((await detectCrosspostEquivalence({ postId: threads })).outcome).toBe('clustered');
-    vi.spyOn(equivalenceRepository, 'setPreferredMember').mockRejectedValue(new Error('reevaluation write unavailable'));
-    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('reevaluation write unavailable');
+    vi.spyOn(equivalenceRepository, 'setPreferredMember').mockRejectedValue(
+      new Error('reevaluation write unavailable'),
+    );
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow(
+      'reevaluation write unavailable',
+    );
     await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
   });
 
   it('keeps legitimate negative decisions available in strict mode', async () => {
-    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'no counterpart', createdAt: NOW });
-    await expect(detectCrosspostEquivalence({ postId: instagram }, { failOnError: true })).resolves.toMatchObject({ outcome: 'refused', reason: 'no-sibling-in-window' });
-    await expect(detectCrosspostEquivalence({ postId: 'missing-post' }, { failOnError: true })).resolves.toMatchObject({ outcome: 'not-applicable', reason: 'post-not-eligible' });
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'no counterpart',
+      createdAt: NOW,
+    });
+    await expect(
+      detectCrosspostEquivalence({ postId: instagram }, { failOnError: true }),
+    ).resolves.toMatchObject({ outcome: 'refused', reason: 'no-sibling-in-window' });
+    await expect(
+      detectCrosspostEquivalence({ postId: 'missing-post' }, { failOnError: true }),
+    ).resolves.toMatchObject({ outcome: 'not-applicable', reason: 'post-not-eligible' });
   });
 });

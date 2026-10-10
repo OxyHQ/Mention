@@ -106,7 +106,7 @@ describe('the sweep registry', () => {
 
   it('gives every entry a reason', () => {
     const missing = EXPIRY_SWEEP_TARGETS.filter((target) => target.reason.trim().length < 40).map(
-      (target) => getTableName(target.table)
+      (target) => getTableName(target.table),
     );
     expect(missing).toEqual([]);
   });
@@ -124,7 +124,7 @@ describe('the sweep registry', () => {
     const indexed = new Set(rows.map((row) => `${row.table_name}.${row.column_name}`));
 
     const unindexed = EXPIRY_SWEEP_TARGETS.map(
-      (target) => `${getTableName(target.table)}.${sqlColumnName(target.column)}`
+      (target) => `${getTableName(target.table)}.${sqlColumnName(target.column)}`,
     ).filter((label) => !indexed.has(label));
 
     // Without a LEADING btree on the swept column the delete predicate is a
@@ -163,7 +163,7 @@ describe('sweepExpiredRows', () => {
 
   it('deletes rows past the retention window and keeps the rest', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (entry) => getTableName(entry.table) === 'notifications'
+      (entry) => getTableName(entry.table) === 'notifications',
     );
     if (!target) throw new Error('notifications is not a sweep target');
 
@@ -177,14 +177,14 @@ describe('sweepExpiredRows', () => {
     expect(result.deleted).toBeGreaterThanOrEqual(1);
 
     const remaining = await db.execute<{ id: string }>(
-      sql`select id from notifications where id in (${expiredId}, ${liveId})`
+      sql`select id from notifications where id in (${expiredId}, ${liveId})`,
     );
     expect(remaining.map((row) => row.id)).toEqual([liveId]);
   });
 
   it('reports `truncated` when the batch ceiling is reached', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (entry) => getTableName(entry.table) === 'notifications'
+      (entry) => getTableName(entry.table) === 'notifications',
     );
     if (!target) throw new Error('notifications is not a sweep target');
 
@@ -202,7 +202,7 @@ describe('sweepExpiredRows', () => {
 
   it('deletes nothing when no row is past its deadline', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (entry) => getTableName(entry.table) === 'notifications'
+      (entry) => getTableName(entry.table) === 'notifications',
     );
     if (!target) throw new Error('notifications is not a sweep target');
 
@@ -256,7 +256,7 @@ describe('sweepProcessedEngagementOutbox', () => {
 
   async function insertEvent(
     status: 'pending' | 'processing' | 'processed',
-    expiresAt: Date
+    expiresAt: Date,
   ): Promise<string> {
     const id = `outbox-sweep-${status}-${expiresAt.getTime()}-${Math.random().toString(16).slice(2)}`;
     await db.insert(engagementOutbox).values({
@@ -289,7 +289,7 @@ describe('sweepProcessedEngagementOutbox', () => {
       .from(engagementOutbox)
       .where(inArray(engagementOutbox.id, outboxIds));
     expect(remaining.map((row) => row.id).sort()).toEqual(
-      [expiredPending, expiredProcessing, liveProcessed].sort()
+      [expiredPending, expiredProcessing, liveProcessed].sort(),
     );
     expect(remaining.map((row) => row.id)).not.toContain(expiredProcessed);
   });

@@ -110,18 +110,25 @@ beforeEach(() => {
   engine = new FeedEngine(registry);
 });
 
-function idsOf(response: { slices: Array<{ items: Array<{ post: { id?: string } }> }>; items: Array<{ id?: string }> }): string[] {
-  const fromSlices = response.slices.flatMap((slice) => slice.items.map((item) => item.post.id ?? ''));
+function idsOf(response: {
+  slices: Array<{ items: Array<{ post: { id?: string } }> }>;
+  items: Array<{ id?: string }>;
+}): string[] {
+  const fromSlices = response.slices.flatMap((slice) =>
+    slice.items.map((item) => item.post.id ?? ''),
+  );
   return fromSlices.length > 0 ? fromSlices : response.items.map((item) => item.id ?? '');
 }
 
 describe('gatherPool — muted lanes', () => {
   it('drops posts in a muted lane and keeps everything else', async () => {
-    registry.register(sourceReturning('src', [
-      makePost(1, { laneId: MUTED_LANE }),
-      makePost(2, { laneId: OTHER_LANE }),
-      makePost(3),
-    ]));
+    registry.register(
+      sourceReturning('src', [
+        makePost(1, { laneId: MUTED_LANE }),
+        makePost(2, { laneId: OTHER_LANE }),
+        makePost(3),
+      ]),
+    );
 
     const response = await engine.run(
       CHRONO,
@@ -147,10 +154,9 @@ describe('gatherPool — muted lanes', () => {
     // the profile — the surface lanes are most visible on.
     expect(authorDefinition('author-1', 'posts').filters).toEqual([]);
 
-    registry.register(sourceReturning('authored', [
-      makePost(1, { laneId: MUTED_LANE }),
-      makePost(2),
-    ]));
+    registry.register(
+      sourceReturning('authored', [makePost(1, { laneId: MUTED_LANE }), makePost(2)]),
+    );
 
     const response = await engine.run(
       authorDefinition('author-1', 'posts'),
@@ -179,10 +185,9 @@ describe('runPopularFallback — muted lanes', () => {
   it('drops muted posts on the one path that never passes through gatherPool', async () => {
     // An empty ranked pool with `neverBlank` routes straight into the fallback.
     registry.register(sourceReturning('src', []));
-    registry.register(sourceReturning('popular', [
-      makePost(1, { laneId: MUTED_LANE }),
-      makePost(2),
-    ]));
+    registry.register(
+      sourceReturning('popular', [makePost(1, { laneId: MUTED_LANE }), makePost(2)]),
+    );
 
     const response = await engine.run(
       RANKED_WITH_FALLBACK,
@@ -196,11 +201,13 @@ describe('runPopularFallback — muted lanes', () => {
   it('reads hasMore from the SOURCE, not from what survived the mute', async () => {
     registry.register(sourceReturning('src', []));
     // limit 2, three candidates ⇒ the source genuinely has more.
-    registry.register(sourceReturning('popular', [
-      makePost(1, { laneId: MUTED_LANE }),
-      makePost(2, { laneId: MUTED_LANE }),
-      makePost(3),
-    ]));
+    registry.register(
+      sourceReturning('popular', [
+        makePost(1, { laneId: MUTED_LANE }),
+        makePost(2, { laneId: MUTED_LANE }),
+        makePost(3),
+      ]),
+    );
 
     const response = await engine.run(
       RANKED_WITH_FALLBACK,

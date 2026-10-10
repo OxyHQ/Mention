@@ -4,9 +4,7 @@ export function stripMentionHandle(handle: string): string {
   return handle.replace(/^@+/, '').trim();
 }
 
-async function resolveOneHandle(
-  username: string,
-): Promise<{ handle: string; oxyUserId: string }> {
+async function resolveOneHandle(username: string): Promise<{ handle: string; oxyUserId: string }> {
   if (username.includes('@')) {
     throw new Error('Federated handles cannot be collaborators');
   }

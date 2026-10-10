@@ -35,7 +35,12 @@ import {
   insertDelivery,
   markDeliveriesMigrated,
 } from '../../db/federation/deliveryQueueRepository';
-import { clearFederationScope, federationScope, readActor, seedActor } from '../helpers/federationFixtures';
+import {
+  clearFederationScope,
+  federationScope,
+  readActor,
+  seedActor,
+} from '../helpers/federationFixtures';
 import { getDb } from '../../db/postgres';
 import { federationDeliveryQueue } from '../../db/schema/federation';
 import { eq, like } from 'drizzle-orm';
@@ -99,9 +104,7 @@ describe('findOutboxBackfillCandidates — the never-backfilled actor', () => {
       outboxBackfillOutboxUrl: null,
     });
 
-    expect(await ownCandidates(new Date())).toEqual([
-      `${scope.origin}/users/halfrecorded`,
-    ]);
+    expect(await ownCandidates(new Date())).toEqual([`${scope.origin}/users/halfrecorded`]);
   });
 
   it('selects an actor whose remote MOVED its outbox, and skips a finished one', async () => {
@@ -281,7 +284,11 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
 
   it('stores a reported 0 as 0 and an unknown (null) count as NULL', async () => {
     const uri = `${scope.origin}/users/counts-known`;
-    await upsertActor(uri, { ...base(uri), followersCount: null, followingCount: 0, postsCount: 5 }, []);
+    await upsertActor(
+      uri,
+      { ...base(uri), followersCount: null, followingCount: 0, postsCount: 5 },
+      [],
+    );
 
     const row = await readActor(uri);
     expect(row?.followersCount).toBeNull();
@@ -301,7 +308,11 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
 
   it('keeps the last known count when a refresh could not read it', async () => {
     const uri = `${scope.origin}/users/counts-kept`;
-    await upsertActor(uri, { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 }, []);
+    await upsertActor(
+      uri,
+      { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 },
+      [],
+    );
     // The refresh's followers read timed out (key absent); following was read.
     await upsertActor(uri, { ...base(uri), followingCount: 345, postsCount: 21 }, []);
 
@@ -313,8 +324,16 @@ describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126
 
   it('clears a known count when the remote definitively withholds it', async () => {
     const uri = `${scope.origin}/users/counts-hidden`;
-    await upsertActor(uri, { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 }, []);
-    await upsertActor(uri, { ...base(uri), followersCount: null, followingCount: 344, postsCount: 20 }, []);
+    await upsertActor(
+      uri,
+      { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 },
+      [],
+    );
+    await upsertActor(
+      uri,
+      { ...base(uri), followersCount: null, followingCount: 344, postsCount: 20 },
+      [],
+    );
 
     expect((await readActor(uri))?.followersCount).toBeNull();
   });

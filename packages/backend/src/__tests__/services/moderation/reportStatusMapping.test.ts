@@ -21,17 +21,20 @@ describe('report status mapping', () => {
     expect(legacyStatusForOutcome('no_violation')).toBe('dismissed');
   });
 
-  it.each(['insufficient_context', 'inconclusive', 'content_unavailable', 'duplicate', 'escalated'])(
-    'maps %s to reviewed, never to dismissed',
-    (outcome) => {
-      /**
-       * A jury engaged and produced no verdict. `dismissed` would read as "nothing was
-       * wrong" — turning "we could not tell" into innocence, which is the collapse the
-       * invariants forbid.
-       */
-      expect(legacyStatusForOutcome(outcome)).toBe('reviewed');
-    },
-  );
+  it.each([
+    'insufficient_context',
+    'inconclusive',
+    'content_unavailable',
+    'duplicate',
+    'escalated',
+  ])('maps %s to reviewed, never to dismissed', (outcome) => {
+    /**
+     * A jury engaged and produced no verdict. `dismissed` would read as "nothing was
+     * wrong" — turning "we could not tell" into innocence, which is the collapse the
+     * invariants forbid.
+     */
+    expect(legacyStatusForOutcome(outcome)).toBe('reviewed');
+  });
 
   it('maps an outcome this version has never seen to reviewed', () => {
     // §10.11: a newer CrowdSource must not be able to silently produce a verdict here.

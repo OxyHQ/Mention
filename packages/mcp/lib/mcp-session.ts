@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from 'node:crypto';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * The `Mcp-Session-Id` of a stateless Streamable HTTP server.
@@ -43,11 +43,11 @@ export function resolveMcpSession(
   if (!presented) {
     return {
       ok: false,
-      message: "Bad Request: Mcp-Session-Id header is required. Send an initialize request first.",
+      message: 'Bad Request: Mcp-Session-Id header is required. Send an initialize request first.',
     };
   }
   if (!SESSION_ID_PATTERN.test(presented)) {
-    return { ok: false, message: "Bad Request: Invalid Mcp-Session-Id header." };
+    return { ok: false, message: 'Bad Request: Invalid Mcp-Session-Id header.' };
   }
   return { ok: true, id: presented, issued: false };
 }

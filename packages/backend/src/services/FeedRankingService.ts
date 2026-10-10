@@ -187,8 +187,7 @@ export class FeedRankingService {
     }
 
     const optIn: OptInSignalContext = { enabledSignals };
-    const postIds = (): string[] =>
-      posts.map((p) => p?.id ?? '').filter((id) => id.length > 0);
+    const postIds = (): string[] => posts.map((p) => p?.id ?? '').filter((id) => id.length > 0);
 
     if (enabledSignals.has('verifiedBoost')) {
       optIn.authorVerified = authorVerified;
@@ -216,27 +215,33 @@ export class FeedRankingService {
     const loads: Promise<void>[] = [];
 
     if (enabledSignals.has('dwellTime')) {
-      loads.push((async () => {
-        const { getDwellAverages } = await import('./dwellAggregate.js');
-        optIn.dwellAverages = await getDwellAverages(postIds());
-      })());
+      loads.push(
+        (async () => {
+          const { getDwellAverages } = await import('./dwellAggregate.js');
+          optIn.dwellAverages = await getDwellAverages(postIds());
+        })(),
+      );
     }
 
     if (enabledSignals.has('socialProof')) {
       const engagerIds = Array.from(new Set([...(followingIds ?? []), ...(mutualIds ?? [])]));
       if (engagerIds.length > 0) {
-        loads.push((async () => {
-          const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
-          optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
-        })());
+        loads.push(
+          (async () => {
+            const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
+            optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
+          })(),
+        );
       }
     }
 
     if (enabledSignals.has('noveltyBoost') && userId) {
-      loads.push((async () => {
-        const { getRecentTopics } = await import('./viewerRecentTopics.js');
-        optIn.viewerRecentTopics = await getRecentTopics(userId);
-      })());
+      loads.push(
+        (async () => {
+          const { getRecentTopics } = await import('./viewerRecentTopics.js');
+          optIn.viewerRecentTopics = await getRecentTopics(userId);
+        })(),
+      );
     }
 
     await Promise.all(loads);
@@ -287,17 +292,26 @@ export class FeedRankingService {
   }
 
   /** `verifiedBoost` — small lift for verified authors. */
-  public calculateVerifiedBoost(post: RankablePost, authorVerified: Map<string, boolean> | undefined): number {
+  public calculateVerifiedBoost(
+    post: RankablePost,
+    authorVerified: Map<string, boolean> | undefined,
+  ): number {
     return verifiedBoost(post, authorVerified);
   }
 
   /** `trustTierBoost` — small lift by the author's Oxy account standing. */
-  public calculateTrustTierBoost(post: RankablePost, authorTrustTiers: Map<string, string> | undefined): number {
+  public calculateTrustTierBoost(
+    post: RankablePost,
+    authorTrustTiers: Map<string, string> | undefined,
+  ): number {
     return trustTierBoost(post, authorTrustTiers);
   }
 
   /** `dwellTime` — favor high-dwell posts. */
-  public calculateDwellTimeBoost(post: RankablePost, dwellAverages: Map<string, number> | undefined): number {
+  public calculateDwellTimeBoost(
+    post: RankablePost,
+    dwellAverages: Map<string, number> | undefined,
+  ): number {
     return dwellTimeBoost(post, dwellAverages);
   }
 
@@ -319,7 +333,10 @@ export class FeedRankingService {
   }
 
   /** `noveltyBoost` — exploration lift for novel-topic posts. */
-  public calculateNoveltyBoost(post: RankablePost, viewerRecentTopics: Set<string> | undefined): number {
+  public calculateNoveltyBoost(
+    post: RankablePost,
+    viewerRecentTopics: Set<string> | undefined,
+  ): number {
     return noveltyBoost(post, viewerRecentTopics);
   }
 
@@ -329,7 +346,10 @@ export class FeedRankingService {
   }
 
   /** `languageMismatchPenalty` — soft downrank of off-language discovery posts. */
-  public calculateLanguageMismatchPenalty(post: RankablePost, viewerBaseLanguages: string[] | undefined): number {
+  public calculateLanguageMismatchPenalty(
+    post: RankablePost,
+    viewerBaseLanguages: string[] | undefined,
+  ): number {
     return languageMismatchPenalty(post, viewerBaseLanguages);
   }
 
@@ -417,8 +437,10 @@ export class FeedRankingService {
     }
 
     // Use user settings or defaults
-    const sameAuthorPenalty = diversitySettings?.sameAuthorPenalty ?? this.R.diversity.sameAuthorPenalty;
-    const sameTopicPenalty = diversitySettings?.sameTopicPenalty ?? this.R.diversity.sameTopicPenalty;
+    const sameAuthorPenalty =
+      diversitySettings?.sameAuthorPenalty ?? this.R.diversity.sameAuthorPenalty;
+    const sameTopicPenalty =
+      diversitySettings?.sameTopicPenalty ?? this.R.diversity.sameTopicPenalty;
 
     let penalty = 1.0;
 
@@ -430,7 +452,7 @@ export class FeedRankingService {
     // Penalize if same topics appeared recently
     if (post.hashtags && post.hashtags.length > 0) {
       const recentTopicMatches = post.hashtags.filter((tag: string) =>
-        recentTopicsSet.has(tag.toLowerCase())
+        recentTopicsSet.has(tag.toLowerCase()),
       );
 
       if (recentTopicMatches.length > 0) {
@@ -509,7 +531,7 @@ export class FeedRankingService {
        * safe to pass.
        */
       authorSummaries?: ReadonlyMap<string, CachedUserSummary>;
-    } = {}
+    } = {},
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
 
@@ -612,14 +634,16 @@ export class FeedRankingService {
         return {
           post,
           quickScore: engagementScoreValue * recencyBoost,
-          originalIndex: index
+          originalIndex: index,
         };
       });
 
       // Sort by quick score and take top K
       quickScores.sort((a, b) => b.quickScore - a.quickScore);
-      postsToRank = quickScores.slice(0, this.TOP_K_FOR_APPROXIMATE).map(item => item.post);
-      logger.debug(`Reduced candidate set from ${posts.length} to ${postsToRank.length} posts for full ranking`);
+      postsToRank = quickScores.slice(0, this.TOP_K_FOR_APPROXIMATE).map((item) => item.post);
+      logger.debug(
+        `Reduced candidate set from ${posts.length} to ${postsToRank.length} posts for full ranking`,
+      );
     }
 
     // Calculate base scores for all posts in parallel (without diversity)
@@ -638,7 +662,7 @@ export class FeedRankingService {
           ...optInContext,
         });
         return { post, score, originalIndex };
-      })
+      }),
     );
 
     // Apply diversity penalty sequentially — each post's penalty depends on previously seen authors/topics
@@ -653,27 +677,30 @@ export class FeedRankingService {
     // waits on the database for a refinement it can do without. Empty until the
     // first refresh lands, which costs that page nothing but the penalty.
     const storyIndex = getStoryIndex();
-    const safe = (v: number, fallback: number = 1) => Number.isFinite(v) ? v : fallback;
+    const safe = (v: number, fallback: number = 1) => (Number.isFinite(v) ? v : fallback);
 
     const postsWithScores = postsWithBaseScores.map((item) => {
       // For thread children by the same author, skip diversity penalty
       // if the thread root was already counted (they'll appear in the same slice)
-      const threadKey = item.post.threadId && item.post.oxyUserId
-        ? `${item.post.threadId}:${item.post.oxyUserId}`
-        : null;
+      const threadKey =
+        item.post.threadId && item.post.oxyUserId
+          ? `${item.post.threadId}:${item.post.oxyUserId}`
+          : null;
       const isAlreadyPenalizedThread = threadKey && penalizedThreadIds.has(threadKey);
 
       const story = storyOf(item.post.postClassification?.trendTerms, storyIndex);
       const diversityPenalty = isAlreadyPenalizedThread
         ? 1.0 // Skip penalty — this post will be grouped with its thread root
-        : safe(this.calculateDiversityPenalty(
-            item.post,
-            recentAuthorsSet,
-            recentTopicsSet,
-            recentStories,
-            story,
-            context.feedSettings?.diversity
-          ));
+        : safe(
+            this.calculateDiversityPenalty(
+              item.post,
+              recentAuthorsSet,
+              recentTopicsSet,
+              recentStories,
+              story,
+              context.feedSettings?.diversity,
+            ),
+          );
 
       // Track this post's author/topics for subsequent posts
       if (item.post.oxyUserId && !isAlreadyPenalizedThread) {
@@ -720,7 +747,7 @@ export class FeedRankingService {
     metrics.setGauge('feed_ranking_posts_processed', posts.length);
 
     // Return ranked posts with scores attached
-    return postsWithScores.map(item => item.post);
+    return postsWithScores.map((item) => item.post);
   }
 }
 

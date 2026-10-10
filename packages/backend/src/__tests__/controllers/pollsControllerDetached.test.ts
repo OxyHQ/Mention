@@ -306,7 +306,7 @@ describe('createPoll', () => {
     expect(captured.status).toBe(404);
   });
 
-  it('refuses to attach a poll to someone else\'s post', async () => {
+  it("refuses to attach a poll to someone else's post", async () => {
     const owner = `author-${randomUUID()}`;
     const postId = await seedPost(owner);
     const { createPoll } = pollsController;
@@ -319,7 +319,10 @@ describe('createPoll', () => {
 
   it.each([
     ['a blank option', { question: 'Q', options: ['a', ''], postId: 'temp_x' }],
-    ['an uncastable endsAt', { question: 'Q', options: ['a', 'b'], postId: 'temp_x', endsAt: 'soon' }],
+    [
+      'an uncastable endsAt',
+      { question: 'Q', options: ['a', 'b'], postId: 'temp_x', endsAt: 'soon' },
+    ],
     ['a missing postId', { question: 'Q', options: ['a', 'b'] }],
   ])('answers 400 for %s', async (_label, body) => {
     /**
@@ -475,7 +478,10 @@ describe('updatePollPostId', () => {
     const body = captured.body as { data: Record<string, unknown> };
     expect(body.data.postId).toBe(postId);
 
-    const [row] = await db.select({ postId: polls.postId }).from(polls).where(eq(polls.id, poll.id));
+    const [row] = await db
+      .select({ postId: polls.postId })
+      .from(polls)
+      .where(eq(polls.id, poll.id));
     expect(row.postId).toBe(postId);
     const [post] = await db
       .select({ contentPollId: posts.contentPollId })

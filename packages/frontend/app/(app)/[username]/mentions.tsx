@@ -3,6 +3,6 @@ import ProfileScreen from '@/components/ProfileScreen';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 export default function ProfileMentionsRoute() {
-    const username = useRoutedProfileUsername();
-    return <ProfileScreen username={username} tab="mentions" />;
+  const username = useRoutedProfileUsername();
+  return <ProfileScreen username={username} tab="mentions" />;
 }

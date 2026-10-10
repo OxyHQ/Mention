@@ -135,7 +135,7 @@ beforeEach(() => {
 });
 
 describe('createThread — author language renditions', () => {
-  it('stores every entry\'s renditions, and takes the body from the primary one', async () => {
+  it("stores every entry's renditions, and takes the body from the primary one", async () => {
     const req = buildRequest({
       mode: 'thread',
       posts: [

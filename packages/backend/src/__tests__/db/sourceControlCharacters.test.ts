@@ -71,7 +71,7 @@ describe('source files', () => {
         offenders.push(
           `${file.slice(SOURCE_ROOT.length + 1)}:${index + 1} contains U+` +
             `${codePoint.toString(16).toUpperCase().padStart(4, '0')} — write the ` +
-            'escape instead of the raw character'
+            'escape instead of the raw character',
         );
       }
     }

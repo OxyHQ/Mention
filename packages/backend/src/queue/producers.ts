@@ -91,8 +91,7 @@ export async function enqueueDelivery(data: DeliveryJobData): Promise<boolean> {
   const queue = getDeliveryQueue();
   if (!queue) return false;
 
-  const activityId =
-    typeof data.activityJson.id === 'string' ? data.activityJson.id : undefined;
+  const activityId = typeof data.activityJson.id === 'string' ? data.activityJson.id : undefined;
   // Without a stable activity id we cannot safely dedupe; fall back to letting
   // BullMQ assign a fresh id (every enqueue is a distinct delivery attempt).
   const jobId = activityId
@@ -147,7 +146,9 @@ export async function enqueueSharingCleanup(data: SharingCleanupJobData): Promis
 }
 
 /** Enqueue a post media-metadata enrich retry. Dedupes on postId. */
-export async function enqueueMediaMetadataEnrich(data: MediaMetadataEnrichJobData): Promise<boolean> {
+export async function enqueueMediaMetadataEnrich(
+  data: MediaMetadataEnrichJobData,
+): Promise<boolean> {
   const queue = getMediaMetadataEnrichQueue();
   if (!queue) return false;
 

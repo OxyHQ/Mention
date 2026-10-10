@@ -105,7 +105,9 @@ describe('lanesService', () => {
       name: 'dev',
       displayMode: 'tab',
     });
-    expect(mockAuthenticated.patch).toHaveBeenCalledWith('/posts/post-1/lane', { laneId: 'lane-1' });
+    expect(mockAuthenticated.patch).toHaveBeenCalledWith('/posts/post-1/lane', {
+      laneId: 'lane-1',
+    });
   });
 
   it('sends an explicit null to take a post off every lane, and reads null back', async () => {

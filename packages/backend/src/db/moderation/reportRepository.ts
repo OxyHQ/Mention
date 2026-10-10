@@ -324,9 +324,7 @@ export async function countReportsAwaitingDecision(
 }
 
 /** How many reports were stored with no route to review at all. */
-export async function countLocalOnlyReports(
-  db: DatabaseOrTransaction = getDb(),
-): Promise<number> {
+export async function countLocalOnlyReports(db: DatabaseOrTransaction = getDb()): Promise<number> {
   const [row] = await db
     .select({ total: count() })
     .from(reports)

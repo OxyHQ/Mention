@@ -84,7 +84,7 @@ describe('excludedDisplayModesForTab', () => {
 });
 
 describe('loadExcludedLaneIds', () => {
-  it('returns exactly the publisher\'s lanes in the requested modes', async () => {
+  it("returns exactly the publisher's lanes in the requested modes", async () => {
     const tabbed = await lane('tab');
     const hidden = await lane('hidden');
     // Present and NOT returned, which is what makes the case non-vacuous: a
@@ -98,7 +98,7 @@ describe('loadExcludedLaneIds', () => {
     expect(hiddenOnly).toEqual([hidden]);
   });
 
-  it('scopes by OWNER, so one publisher\'s lane never curates another\'s profile', async () => {
+  it("scopes by OWNER, so one publisher's lane never curates another's profile", async () => {
     // A channel account is just another publisher — there is no owner TYPE left
     // to conflate, so the whole of the scoping is this one id comparison.
     const channelLane = await lane('hidden', CHANNEL_ACCOUNT);
@@ -132,7 +132,7 @@ describe('ownerHasProfileAffectingLane', () => {
     await expect(ownerHasProfileAffectingLane(OWNER)).resolves.toBe(true);
   });
 
-  it('answers false when the author\'s only lane is `mixed`', async () => {
+  it("answers false when the author's only lane is `mixed`", async () => {
     // `mixed` is on the main tab, so it affects no profile surface — the exact
     // distinction the probe exists to draw.
     await lane('mixed');
@@ -155,7 +155,7 @@ describe('ownerHasProfileAffectingLane', () => {
     await expect(ownerHasProfileAffectingLane(OWNER)).resolves.toBe(false);
   });
 
-  it('does not confuse one publisher\'s lanes with another\'s', async () => {
+  it("does not confuse one publisher's lanes with another's", async () => {
     await lane('hidden', 'lanevis-somebody-else');
     await expect(ownerHasProfileAffectingLane(OWNER)).resolves.toBe(false);
     // The other publisher's lane is really there — without this the case above

@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  Text,
+  Platform,
+  type StyleProp,
+  type ViewStyle,
+  type GestureResponderEvent,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { VideoView, type VideoViewHandle } from '@oxy.so/bloom/video-view';
@@ -298,9 +307,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // A borrowed player's `timeUpdate` cadence is only ever raised here, never
   // lowered: the surface it is shared with (the reel) may be drawing a bar.
   useEffect(() => {
-    configurePlayer(player, tracksTime
-      ? { loop: gif ? true : loop, timeUpdateEventInterval: TIME_UPDATE_INTERVAL }
-      : { loop: gif ? true : loop });
+    configurePlayer(
+      player,
+      tracksTime
+        ? { loop: gif ? true : loop, timeUpdateEventInterval: TIME_UPDATE_INTERVAL }
+        : { loop: gif ? true : loop },
+    );
   }, [player, gif, loop, tracksTime]);
 
   const scheduleHideControls = useCallback(() => {
@@ -364,14 +376,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (loadedDuration > 0) {
       setDuration(loadedDuration);
     }
-    const track = availableVideoTracks?.find(
-      (t) => t.size?.width > 0 && t.size?.height > 0,
-    );
+    const track = availableVideoTracks?.find((t) => t.size?.width > 0 && t.size?.height > 0);
     if (track) {
       reportAspectRatio(track.size.width, track.size.height);
     }
   });
-
 
   // Web only: this player's own IntersectionObserver is its visibility source. It
   // reports BOTH the viewport center-Y (which contests the single audible slot)
@@ -504,7 +513,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       scheduleHideControls();
     },
-    [player, duration, scheduleHideControls]
+    [player, duration, scheduleHideControls],
   );
 
   // The slot Bloom paints the shared node through. `style` is SPREAD because a
@@ -516,15 +525,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
       <VideoView
         ref={videoViewRef}
-                // `null` is forwarded verbatim — it is the instruction to unbind
-                // this element, and expo-video answers it by emptying the source
-                // without an event, which is what stops an outgoing surface
-                // pausing the one that just landed. Anything else is OUR player:
-                // Bloom never makes one, it hands back what it was given, and
-                // that is the object this component already holds, fully typed.
-                // Narrowed rather than cast, because `VideoPlayerLike` is
-                // deliberately smaller than expo-video's `VideoPlayer`.
-                player={slotPlayer === null ? null : player}
+        // `null` is forwarded verbatim — it is the instruction to unbind
+        // this element, and expo-video answers it by emptying the source
+        // without an event, which is what stops an outgoing surface
+        // pausing the one that just landed. Anything else is OUR player:
+        // Bloom never makes one, it hands back what it was given, and
+        // that is the object this component already holds, fully typed.
+        // Narrowed rather than cast, because `VideoPlayerLike` is
+        // deliberately smaller than expo-video's `VideoPlayer`.
+        player={slotPlayer === null ? null : player}
         style={slotStyle}
         contentFit={slotFit}
         nativeControls={false}
@@ -580,86 +589,73 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       )}
 
-      {!gif && (isPreviewMode ? (
-        <>
-          {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
-          <Pressable style={styles.tapArea} onPress={onPress} />
+      {!gif &&
+        (isPreviewMode ? (
+          <>
+            {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
+            <Pressable style={styles.tapArea} onPress={onPress} />
 
-          {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
-          <Pressable
-            onPress={handlePreviewMuteToggle}
-            hitSlop={HIT_SLOP_MD}
-            style={styles.previewMuteButton}
-          >
-            <View style={styles.previewMuteButtonInner}>
-              <MuteIcon width={18} height={18} fill="white" />
-            </View>
-          </Pressable>
-        </>
-      ) : (
-      /* Tap area to toggle controls */
-      <Pressable style={styles.tapArea} onPress={handleTap}>
-        {showControls && (
-          <View style={styles.controlsOverlay}>
-            {/* Play/Pause center button */}
-            <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
+            {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
+            <Pressable
+              onPress={handlePreviewMuteToggle}
+              hitSlop={HIT_SLOP_MD}
+              style={styles.previewMuteButton}
+            >
+              <View style={styles.previewMuteButtonInner}>
+                <MuteIcon width={18} height={18} fill="white" />
+              </View>
+            </Pressable>
+          </>
+        ) : (
+          /* Tap area to toggle controls */
+          <Pressable style={styles.tapArea} onPress={handleTap}>
+            {showControls && (
+              <View style={styles.controlsOverlay}>
+                {/* Play/Pause center button */}
+                <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
 
-            {/* Bottom bar: progress + time + buttons */}
-            <View style={styles.bottomBar}>
-              {/* Time display */}
-              <Text style={styles.timeText}>
-                {formatDuration(currentTime)}
-              </Text>
+                {/* Bottom bar: progress + time + buttons */}
+                <View style={styles.bottomBar}>
+                  {/* Time display */}
+                  <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
 
-              {/* Progress bar */}
-              <Pressable
-                ref={progressBarRef}
-                style={styles.progressBarContainer}
-                onPress={handleProgressBarPress}
-              >
-                <View style={styles.progressBarTrack}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${progress * 100}%` },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.progressBarThumb,
-                      { left: `${progress * 100}%` },
-                    ]}
-                  />
+                  {/* Progress bar */}
+                  <Pressable
+                    ref={progressBarRef}
+                    style={styles.progressBarContainer}
+                    onPress={handleProgressBarPress}
+                  >
+                    <View style={styles.progressBarTrack}>
+                      <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
+                      <View style={[styles.progressBarThumb, { left: `${progress * 100}%` }]} />
+                    </View>
+                  </Pressable>
+
+                  {/* Duration */}
+                  <Text style={styles.timeText}>{formatDuration(duration)}</Text>
+
+                  {/* Mute button */}
+                  <Pressable
+                    onPress={handleMuteToggle}
+                    hitSlop={HIT_SLOP_MD}
+                    style={styles.controlButton}
+                  >
+                    <MuteIcon size="md" fill="white" />
+                  </Pressable>
+
+                  {/* Fullscreen button */}
+                  <Pressable
+                    onPress={handleFullscreen}
+                    hitSlop={HIT_SLOP_MD}
+                    style={styles.controlButton}
+                  >
+                    <RiExpandDiagonalSLine size="md" fill="white" />
+                  </Pressable>
                 </View>
-              </Pressable>
-
-              {/* Duration */}
-              <Text style={styles.timeText}>
-                {formatDuration(duration)}
-              </Text>
-
-              {/* Mute button */}
-              <Pressable
-                onPress={handleMuteToggle}
-                hitSlop={HIT_SLOP_MD}
-                style={styles.controlButton}
-              >
-                <MuteIcon size="md" fill="white" />
-              </Pressable>
-
-              {/* Fullscreen button */}
-              <Pressable
-                onPress={handleFullscreen}
-                hitSlop={HIT_SLOP_MD}
-                style={styles.controlButton}
-              >
-                <RiExpandDiagonalSLine size="md" fill="white" />
-              </Pressable>
-            </View>
-          </View>
-        )}
-      </Pressable>
-      ))}
+              </View>
+            )}
+          </Pressable>
+        ))}
     </View>
   );
 };
@@ -750,9 +746,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: 'white',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.4)' }
-      : { elevation: 2 }),
+    ...(Platform.OS === 'web' ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.4)' } : { elevation: 2 }),
   },
   controlButton: {
     padding: 4,

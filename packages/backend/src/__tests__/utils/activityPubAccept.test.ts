@@ -6,7 +6,9 @@ describe('isActivityPubAccept', () => {
     expect(isActivityPubAccept('application/activity+json')).toBe(true);
     expect(isActivityPubAccept('Application/Activity+Json')).toBe(true);
     expect(isActivityPubAccept('application/ld+json')).toBe(true);
-    expect(isActivityPubAccept('application/ld+json; profile="https://www.w3.org/ns/activitystreams"')).toBe(true);
+    expect(
+      isActivityPubAccept('application/ld+json; profile="https://www.w3.org/ns/activitystreams"'),
+    ).toBe(true);
     expect(isActivityPubAccept('text/html, application/ld+json;q=0.9')).toBe(true);
   });
 

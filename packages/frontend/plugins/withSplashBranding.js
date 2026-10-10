@@ -53,13 +53,7 @@
  * @see https://developer.android.com/develop/ui/views/launch/splash-screen#set-theme
  */
 
-const {
-  withDangerousMod,
-  withMod,
-  AndroidConfig,
-  IOSConfig,
-  XML,
-} = require('expo/config-plugins');
+const { withDangerousMod, withMod, AndroidConfig, IOSConfig, XML } = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -96,7 +90,7 @@ function resolveOptions(options) {
     throw new Error(
       'withSplashBranding: `image` option is required (project-relative path ' +
         'to the ANDROID branding PNG, authored at the OS branding container ' +
-        "aspect 2.5:1 — Oxy symbol centered in transparent padding).",
+        'aspect 2.5:1 — Oxy symbol centered in transparent padding).',
     );
   }
   // iOS uses the tight square symbol (scaleAspectFit, no container stretch);
@@ -124,10 +118,9 @@ function addAndroidBrandingStyleItem(config) {
     platform: 'android',
     mod: 'finalized',
     action: async (config) => {
-      const stylesPath =
-        await AndroidConfig.Styles.getProjectStylesXMLPathAsync(
-          config.modRequest.projectRoot,
-        );
+      const stylesPath = await AndroidConfig.Styles.getProjectStylesXMLPathAsync(
+        config.modRequest.projectRoot,
+      );
       const styles = await AndroidConfig.Resources.readResourcesXMLAsync({
         path: stylesPath,
       });
@@ -170,20 +163,16 @@ function copyAndroidBrandingDrawable(config, options) {
     async (config) => {
       const src = path.resolve(config.modRequest.projectRoot, options.image);
       // Full container size at xxxhdpi: intrinsic dp = px / 4 = 200 × 80 dp.
-      const targetWidth =
-        ANDROID_BRANDING_CONTAINER_WIDTH_DP * ANDROID_XXXHDPI_SCALE;
-      const targetHeight =
-        ANDROID_BRANDING_CONTAINER_HEIGHT_DP * ANDROID_XXXHDPI_SCALE;
+      const targetWidth = ANDROID_BRANDING_CONTAINER_WIDTH_DP * ANDROID_XXXHDPI_SCALE;
+      const targetHeight = ANDROID_BRANDING_CONTAINER_HEIGHT_DP * ANDROID_XXXHDPI_SCALE;
       // `resizeMode: 'cover'` would crop; the source is already authored at the
       // container's 2.5:1 aspect, so 'contain' fits it exactly with no letterbox
       // and no aspect change. (A guard below fails loudly if the source aspect
       // drifts, since a mismatched source WOULD distort under the OS fill.)
-      const { width: srcWidth, height: srcHeight } =
-        await ImageUtils.getPngInfo(src);
+      const { width: srcWidth, height: srcHeight } = await ImageUtils.getPngInfo(src);
       const srcAspect = srcWidth / srcHeight;
       const containerAspect =
-        ANDROID_BRANDING_CONTAINER_WIDTH_DP /
-        ANDROID_BRANDING_CONTAINER_HEIGHT_DP;
+        ANDROID_BRANDING_CONTAINER_WIDTH_DP / ANDROID_BRANDING_CONTAINER_HEIGHT_DP;
       if (Math.abs(srcAspect - containerAspect) > 0.02) {
         throw new Error(
           `withSplashBranding: Android branding source aspect ${srcAspect.toFixed(
@@ -209,10 +198,7 @@ function copyAndroidBrandingDrawable(config, options) {
         `app/src/main/res/${ANDROID_BRANDING_DENSITY_DIR}`,
       );
       await fs.promises.mkdir(drawableDir, { recursive: true });
-      await fs.promises.writeFile(
-        path.join(drawableDir, `${ANDROID_DRAWABLE_NAME}.png`),
-        source,
-      );
+      await fs.promises.writeFile(path.join(drawableDir, `${ANDROID_DRAWABLE_NAME}.png`), source);
       // Remove any drawable emitted by a previous version of this plugin at a
       // different density bucket so an incremental (non-clean) prebuild can't
       // leave two `splashscreen_branding` drawables and pick the stale one.
@@ -305,9 +291,9 @@ function applyBrandingToStoryboardXml(xml, options) {
   view.constraints = view.constraints || [{}];
   view.constraints[0] = view.constraints[0] || {};
   const branded = new Set([centerX.$.id, bottom.$.id]);
-  view.constraints[0].constraint = (
-    view.constraints[0].constraint || []
-  ).filter((c) => !(c.$ && branded.has(c.$.id)));
+  view.constraints[0].constraint = (view.constraints[0].constraint || []).filter(
+    (c) => !(c.$ && branded.has(c.$.id)),
+  );
   view.constraints[0].constraint.push(centerX, bottom);
 
   // Resource entry so the storyboard can reference the named image. The
@@ -316,9 +302,9 @@ function applyBrandingToStoryboardXml(xml, options) {
   // is derived from the cropped symbol aspect by addIosBrandingAsset.
   xml.document.resources = xml.document.resources || [{}];
   xml.document.resources[0] = xml.document.resources[0] || {};
-  xml.document.resources[0].image = (
-    xml.document.resources[0].image || []
-  ).filter((img) => !(img.$ && img.$.name === IOS_IMAGE_NAME));
+  xml.document.resources[0].image = (xml.document.resources[0].image || []).filter(
+    (img) => !(img.$ && img.$.name === IOS_IMAGE_NAME),
+  );
   xml.document.resources[0].image.push({
     $: {
       name: IOS_IMAGE_NAME,
@@ -343,11 +329,7 @@ function addIosBrandingToStoryboard(config, options) {
     action: async (config) => {
       const { platformProjectRoot, projectName } = config.modRequest;
       // Matches expo-splash-screen's STORYBOARD_FILE_PATH resolution.
-      const storyboardPath = path.join(
-        platformProjectRoot,
-        projectName,
-        'SplashScreen.storyboard',
-      );
+      const storyboardPath = path.join(platformProjectRoot, projectName, 'SplashScreen.storyboard');
       const contents = await fs.promises.readFile(storyboardPath, 'utf8');
       const xml = await new Parser().parseStringPromise(contents);
       applyBrandingToStoryboardXml(xml, options);
@@ -375,10 +357,7 @@ function addIosBrandingAsset(config, options) {
   return withDangerousMod(config, [
     'ios',
     async (config) => {
-      const src = path.resolve(
-        config.modRequest.projectRoot,
-        options.iosImage,
-      );
+      const src = path.resolve(config.modRequest.projectRoot, options.iosImage);
       const sourceRoot = IOSConfig.Paths.getSourceRoot(config.modRequest.projectRoot);
       const imagesetDir = path.join(sourceRoot, IOS_IMAGESET);
       await fs.promises.rm(imagesetDir, { force: true, recursive: true });
@@ -388,9 +367,7 @@ function addIosBrandingAsset(config, options) {
       // non-square size if the symbol isn't square (keeps design-time layout
       // honest; runtime uses scaleAspectFit so it never stretches regardless).
       const { width: symW, height: symH } = await ImageUtils.getPngInfo(src);
-      options.iosImageHeight = Math.round(
-        (Math.round(options.imageWidth) * symH) / symW,
-      );
+      options.iosImageHeight = Math.round((Math.round(options.imageWidth) * symH) / symW);
 
       const scales = [
         { file: 'image.png', scale: '1x' },
@@ -398,9 +375,7 @@ function addIosBrandingAsset(config, options) {
         { file: 'image@3x.png', scale: '3x' },
       ];
       await Promise.all(
-        scales.map(({ file }) =>
-          fs.promises.copyFile(src, path.join(imagesetDir, file)),
-        ),
+        scales.map(({ file }) => fs.promises.copyFile(src, path.join(imagesetDir, file))),
       );
       await fs.promises.writeFile(
         path.join(imagesetDir, 'Contents.json'),

@@ -13,10 +13,7 @@ import type { SQLiteBindValue } from 'expo-sqlite';
 
 export interface SQLiteDb {
   execSync(sql: string): void;
-  runSync(
-    sql: string,
-    ...params: SQLiteBindValue[]
-  ): { changes: number; lastInsertRowId: number };
+  runSync(sql: string, ...params: SQLiteBindValue[]): { changes: number; lastInsertRowId: number };
   getFirstSync<T>(sql: string, ...params: SQLiteBindValue[]): T | null;
   getAllSync<T>(sql: string, ...params: SQLiteBindValue[]): T[];
   closeSync(): void;

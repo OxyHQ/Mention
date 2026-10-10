@@ -7,11 +7,13 @@ import { metrics } from '../utils/metrics';
 describe('internal metrics route', () => {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(createInternalMetricsRouter({
-    enabled: true,
-    token: 'test-metrics-secret',
-    allowedIps: [],
-  }));
+  app.use(
+    createInternalMetricsRouter({
+      enabled: true,
+      token: 'test-metrics-secret',
+      allowedIps: [],
+    }),
+  );
 
   beforeEach(() => {
     metrics.reset();
@@ -19,10 +21,7 @@ describe('internal metrics route', () => {
 
   it('hides the endpoint without a valid bearer token', async () => {
     await request(app).get('/internal/metrics').expect(404);
-    await request(app)
-      .get('/internal/metrics')
-      .set('authorization', 'Bearer wrong')
-      .expect(404);
+    await request(app).get('/internal/metrics').set('authorization', 'Bearer wrong').expect(404);
   });
 
   it('serves valid Prometheus output to an authenticated private caller', async () => {
@@ -54,12 +53,8 @@ describe('internal metrics route', () => {
       .set('authorization', 'Bearer test-metrics-secret')
       .expect(200);
 
-    expect(response.text).toContain(
-      'legacy_post_payload_total{variant="content-images"} 1',
-    );
-    expect(response.text).toContain(
-      'legacy_post_payload_total{variant="other"} 1',
-    );
+    expect(response.text).toContain('legacy_post_payload_total{variant="content-images"} 1');
+    expect(response.text).toContain('legacy_post_payload_total{variant="other"} 1');
     expect(response.text).not.toContain('untrusted-free-form-value');
   });
 

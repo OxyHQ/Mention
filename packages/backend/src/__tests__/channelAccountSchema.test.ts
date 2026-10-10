@@ -175,7 +175,7 @@ describe('the channel exclusion — deletable for the new shape, blocked by the 
     expect(await matchingByAuthorshipJoin(WRITER, [ordinary.id])).toEqual([ordinary.id]);
   });
 
-  it('keeps a channel-authored post off the writer\'s surfaces WITH the clause too', async () => {
+  it("keeps a channel-authored post off the writer's surfaces WITH the clause too", async () => {
     const post = await seedChannelAuthoredPost();
 
     expect(await matching(authorFeedSql(WRITER), [post.id])).toEqual([]);
@@ -199,7 +199,7 @@ describe('MUTATION — the writer moved into post_authorships', () => {
     expect(byline.map((entry) => entry.oxyUserId)).toEqual([CHANNEL_ACCOUNT, WRITER]);
   });
 
-  it('puts the channel\'s post on the WRITER\'s own surfaces', async () => {
+  it("puts the channel's post on the WRITER's own surfaces", async () => {
     // The damage, in full, and no longer latent.
     //
     // While `channel_id is null` still stood inside these matchers, this same
@@ -245,7 +245,7 @@ describe('user_settings.channel_account_sign_posts', () => {
     });
   });
 
-  it('stays ABSENT on a person\'s settings rather than defaulting a channel onto them', async () => {
+  it("stays ABSENT on a person's settings rather than defaulting a channel onto them", async () => {
     // The presence of the object is what says "this account is a channel". A
     // `NOT NULL DEFAULT false` column would make every person read as a channel
     // that does not sign, and the two states would be indistinguishable

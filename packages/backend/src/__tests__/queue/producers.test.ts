@@ -16,7 +16,11 @@ vi.mock('../../queue/queues', () => ({
   getAccountErasureQueue: mocks.getAccountErasureQueue,
 }));
 
-import { enqueueAccountErasure, enqueueInboxActivity, enqueueDelivery } from '../../queue/producers';
+import {
+  enqueueAccountErasure,
+  enqueueInboxActivity,
+  enqueueDelivery,
+} from '../../queue/producers';
 import {
   DELIVERY_JOB_ATTEMPTS,
   DELIVERY_BACKOFF_STRATEGY,
@@ -56,7 +60,10 @@ beforeEach(() => {
 describe('enqueueInboxActivity', () => {
   it('dedupes inbound activities on a stable jobId derived from the verified actor and activity id', async () => {
     const activity = { id: 'https://remote/users/bob/statuses/1/activity', type: 'Like' };
-    const ok = await enqueueInboxActivity({ activity, verifiedActorUri: 'https://remote/users/bob' });
+    const ok = await enqueueInboxActivity({
+      activity,
+      verifiedActorUri: 'https://remote/users/bob',
+    });
 
     expect(ok).toBe(true);
     const expectedJobId = `inbox-${shortHash(`https://remote/users/bob|${activity.id}`)}`;
@@ -89,7 +96,10 @@ describe('enqueueInboxActivity', () => {
     const activity = { id: 'https://remote/shared/activity', type: 'Like' };
 
     await enqueueInboxActivity({ activity, verifiedActorUri: 'https://remote/users/bob' });
-    await enqueueInboxActivity({ activity, verifiedActorUri: 'https://evil.example/users/mallory' });
+    await enqueueInboxActivity({
+      activity,
+      verifiedActorUri: 'https://evil.example/users/mallory',
+    });
 
     const firstJobId = mocks.inboxAdd.mock.calls[0][2].jobId;
     const secondJobId = mocks.inboxAdd.mock.calls[1][2].jobId;

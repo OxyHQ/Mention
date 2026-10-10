@@ -28,25 +28,25 @@ const logger = createLogger('postInteractions');
  * in flight, as the per-row hooks did.
  */
 export interface PostInteractions {
-    toggleLike: (post: HydratedPost, source?: string) => Promise<void>;
-    toggleDownvote: (post: HydratedPost) => Promise<void>;
-    toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
-    toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
-    share: (post: HydratedPost) => void;
-    openMenu: (request: PostMenuRequest) => void;
-    openSources: (sources: PostSourceLink[]) => void;
-    openInsights: (postId: string) => void;
-    openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
+  toggleLike: (post: HydratedPost, source?: string) => Promise<void>;
+  toggleDownvote: (post: HydratedPost) => Promise<void>;
+  toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
+  toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
+  share: (post: HydratedPost) => void;
+  openMenu: (request: PostMenuRequest) => void;
+  openSources: (sources: PostSourceLink[]) => void;
+  openInsights: (postId: string) => void;
+  openCommunityNoteAbout: (note: CommunityNoteSummary) => void;
 }
 
 export interface PostMenuRequest {
-    post: HydratedPost;
-    /** The focused post on `/p/<id>`: deleting it also leaves the screen. */
-    isPostDetail: boolean;
-    /** Feed descriptor, attributed to a save made from the menu. */
-    source?: string;
-    /** The article reader is row-local state (a modal the row renders). */
-    onOpenArticle: () => void;
+  post: HydratedPost;
+  /** The focused post on `/p/<id>`: deleting it also leaves the screen. */
+  isPostDetail: boolean;
+  /** Feed descriptor, attributed to a save made from the menu. */
+  source?: string;
+  /** The article reader is row-local state (a modal the row renders). */
+  onOpenArticle: () => void;
 }
 
 /**
@@ -56,106 +56,110 @@ export interface PostMenuRequest {
  * every module that renders a row.
  */
 export type BoundPostCommands = Pick<
-    PostInteractions,
-    'openMenu' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout'
+  PostInteractions,
+  'openMenu' | 'openSources' | 'openInsights' | 'openCommunityNoteAbout'
 >;
 
 /** The canonical copy of a post right now, or the row's copy when the store has none. */
 export function currentPost(post: HydratedPost): HydratedPost {
-    return (usePostsStore.getState().getPostFromDb(post.id) as HydratedPost | null) ?? post;
+  return (usePostsStore.getState().getPostFromDb(post.id) as HydratedPost | null) ?? post;
 }
 
 const inFlight = new Set<string>();
 
 async function guarded(key: string, action: () => Promise<unknown>, what: string): Promise<void> {
-    if (inFlight.has(key)) return;
-    inFlight.add(key);
-    try {
-        await action();
-    } catch (error) {
-        logger.error(`Error toggling ${what}`, error);
-    } finally {
-        inFlight.delete(key);
-    }
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+  try {
+    await action();
+  } catch (error) {
+    logger.error(`Error toggling ${what}`, error);
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 /** Save/unsave the post as it stands now; the menu's Save entry uses it too. */
 export function toggleSave(post: HydratedPost, source?: string): Promise<void> {
-    const store = usePostsStore.getState();
-    const isSaved = currentPost(post).viewerState?.isSaved ?? false;
-    return guarded(
-        `${post.id}:save`,
-        () => (isSaved ? store.unsavePost({ postId: post.id }) : store.savePost({ postId: post.id }, source)),
-        'save',
-    );
+  const store = usePostsStore.getState();
+  const isSaved = currentPost(post).viewerState?.isSaved ?? false;
+  return guarded(
+    `${post.id}:save`,
+    () =>
+      isSaved ? store.unsavePost({ postId: post.id }) : store.savePost({ postId: post.id }, source),
+    'save',
+  );
 }
 
 interface Controller {
-    interactions: PostInteractions;
-    bind: (commands: BoundPostCommands | null) => void;
+  interactions: PostInteractions;
+  bind: (commands: BoundPostCommands | null) => void;
 }
 
 function createController(): Controller {
-    let bound: BoundPostCommands | null = null;
-    const whenBound = <K extends keyof BoundPostCommands>(name: K) =>
-        ((...args: Parameters<BoundPostCommands[K]>) => {
-            if (!bound) {
-                logger.warn(`${name}: no PostInteractionsBinder is mounted`);
-                return;
-            }
-            (bound[name] as (...a: Parameters<BoundPostCommands[K]>) => void)(...args);
-        }) as BoundPostCommands[K];
+  let bound: BoundPostCommands | null = null;
+  const whenBound = <K extends keyof BoundPostCommands>(name: K) =>
+    ((...args: Parameters<BoundPostCommands[K]>) => {
+      if (!bound) {
+        logger.warn(`${name}: no PostInteractionsBinder is mounted`);
+        return;
+      }
+      (bound[name] as (...a: Parameters<BoundPostCommands[K]>) => void)(...args);
+    }) as BoundPostCommands[K];
 
-    const interactions: PostInteractions = {
-        toggleLike: (post, source) => {
-            const store = usePostsStore.getState();
-            const isLiked = currentPost(post).viewerState?.isLiked ?? false;
-            return guarded(
-                `${post.id}:like`,
-                () =>
-                    isLiked
-                        ? store.unlikePost({ postId: post.id, type: 'post' })
-                        : store.likePost({ postId: post.id, type: 'post' }, source),
-                'like',
-            );
-        },
-        toggleDownvote: (post) => {
-            const store = usePostsStore.getState();
-            const isDownvoted = currentPost(post).viewerState?.isDownvoted ?? false;
-            return guarded(
-                `${post.id}:downvote`,
-                () =>
-                    isDownvoted
-                        ? store.unlikePost({ postId: post.id, type: 'post' })
-                        : store.downvotePost({ postId: post.id, type: 'post' }),
-                'downvote',
-            );
-        },
-        toggleSave,
-        toggleBoost: (post, source) => {
-            const store = usePostsStore.getState();
-            const isBoosted = currentPost(post).viewerState?.isBoosted ?? false;
-            return guarded(
-                `${post.id}:boost`,
-                () => (isBoosted ? store.unboostPost({ postId: post.id }) : store.boostPost({ postId: post.id }, source)),
-                'boost',
-            );
-        },
-        share: (post) => {
-            void sharePost(currentPost(post));
-        },
-        openMenu: whenBound('openMenu'),
-        openSources: whenBound('openSources'),
-        openInsights: whenBound('openInsights'),
-        openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),
-    };
+  const interactions: PostInteractions = {
+    toggleLike: (post, source) => {
+      const store = usePostsStore.getState();
+      const isLiked = currentPost(post).viewerState?.isLiked ?? false;
+      return guarded(
+        `${post.id}:like`,
+        () =>
+          isLiked
+            ? store.unlikePost({ postId: post.id, type: 'post' })
+            : store.likePost({ postId: post.id, type: 'post' }, source),
+        'like',
+      );
+    },
+    toggleDownvote: (post) => {
+      const store = usePostsStore.getState();
+      const isDownvoted = currentPost(post).viewerState?.isDownvoted ?? false;
+      return guarded(
+        `${post.id}:downvote`,
+        () =>
+          isDownvoted
+            ? store.unlikePost({ postId: post.id, type: 'post' })
+            : store.downvotePost({ postId: post.id, type: 'post' }),
+        'downvote',
+      );
+    },
+    toggleSave,
+    toggleBoost: (post, source) => {
+      const store = usePostsStore.getState();
+      const isBoosted = currentPost(post).viewerState?.isBoosted ?? false;
+      return guarded(
+        `${post.id}:boost`,
+        () =>
+          isBoosted
+            ? store.unboostPost({ postId: post.id })
+            : store.boostPost({ postId: post.id }, source),
+        'boost',
+      );
+    },
+    share: (post) => {
+      void sharePost(currentPost(post));
+    },
+    openMenu: whenBound('openMenu'),
+    openSources: whenBound('openSources'),
+    openInsights: whenBound('openInsights'),
+    openCommunityNoteAbout: whenBound('openCommunityNoteAbout'),
+  };
 
-    return {
-        interactions,
-        bind: (commands) => {
-            bound = commands;
-        },
-    };
+  return {
+    interactions,
+    bind: (commands) => {
+      bound = commands;
+    },
+  };
 }
 
 /**
@@ -169,12 +173,12 @@ const PostInteractionsContext = createContext<Controller>(fallbackController);
 
 /** One stable object for the app's lifetime: reading it never re-renders a row. */
 export function usePostInteractions(): PostInteractions {
-    return useContext(PostInteractionsContext).interactions;
+  return useContext(PostInteractionsContext).interactions;
 }
 
 /** For `PostInteractionsBinder` only. */
 export function usePostInteractionsBinding(): Controller['bind'] {
-    return useContext(PostInteractionsContext).bind;
+  return useContext(PostInteractionsContext).bind;
 }
 
 /**
@@ -183,6 +187,10 @@ export function usePostInteractionsBinding(): Controller['bind'] {
  * The service-backed commands are bound from below by `PostInteractionsBinder`.
  */
 export function PostInteractionsProvider({ children }: { children: ReactNode }) {
-    const [controller] = useState(createController);
-    return <PostInteractionsContext.Provider value={controller}>{children}</PostInteractionsContext.Provider>;
+  const [controller] = useState(createController);
+  return (
+    <PostInteractionsContext.Provider value={controller}>
+      {children}
+    </PostInteractionsContext.Provider>
+  );
 }

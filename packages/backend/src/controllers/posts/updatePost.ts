@@ -15,7 +15,12 @@ import {
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostVisibility, StoredPostContent, PostContentVariant, toBaseLanguages } from '@mention/shared-types';
+import {
+  PostVisibility,
+  StoredPostContent,
+  PostContentVariant,
+  toBaseLanguages,
+} from '@mention/shared-types';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import {
   deleteArticles,
@@ -29,7 +34,10 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
-import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import {
+  createPostMediaOwnerClient,
+  ensurePostMediaPublic,
+} from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
@@ -159,7 +167,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (!editingUnpublishedPost && !editingChannelPost) {
       const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
       if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
-        return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+        return res.status(403).json({
+          message:
+            'Edit window has expired. Posts can only be edited within 30 minutes of creation.',
+        });
       }
     }
 
@@ -234,12 +245,15 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     // The new primary body: the first author variant's when this edit supplies
     // variants, otherwise the plain text field (the API's single-language shape).
-    const text = authorLanguageVariants !== undefined
-      ? (authorLanguageVariants[0]?.text ?? '')
-      : (contentObj?.text ?? req.body.text);
+    const text =
+      authorLanguageVariants !== undefined
+        ? (authorLanguageVariants[0]?.text ?? '')
+        : (contentObj?.text ?? req.body.text);
 
     if (text !== undefined && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
-      return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+      return res
+        .status(400)
+        .json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
     }
 
     const textChanged = text !== undefined && currentText !== text;
@@ -247,9 +261,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // Save the old primary body to edit history before modifying
     let nextHashtags = post.hashtags;
     if (textChanged) {
-      patch.editHistory = currentText
-        ? [...post.editHistory, currentText]
-        : [...post.editHistory];
+      patch.editHistory = currentText ? [...post.editHistory, currentText] : [...post.editHistory];
       patch.isEdited = true;
       // Re-extract hashtags when the body changes
       nextHashtags = mergeHashtags(text || '', parsedHashtags || post.hashtags);
@@ -275,8 +287,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // rendition declares nothing, so detection re-runs on the new body — otherwise
       // a post rewritten from Spanish into English would stay pinned to `es`, since
       // the classifier trusts a declaration over the detector.
-      const declaredVariants = authorLanguageVariants
-        ?? (existingAuthorVariants.length > 1 ? existingAuthorVariants : []);
+      const declaredVariants =
+        authorLanguageVariants ?? (existingAuthorVariants.length > 1 ? existingAuthorVariants : []);
 
       const signals = baselineContentClassifier.classify({
         text: text ?? currentText,
@@ -325,12 +337,14 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       // media-only or settings-only edit still rewrites nobody's words. The tags
       // themselves survive the strip: `patch.hashtags` was taken from the RAW body
       // above, before this runs.
-      content.variants = stripSpamHashtagBlocks(rewriteEditedVariants({
-        authorLanguageVariants,
-        existingAuthorVariants,
-        text,
-        detectedPrimary: primaryLanguage,
-      }));
+      content.variants = stripSpamHashtagBlocks(
+        rewriteEditedVariants({
+          authorLanguageVariants,
+          existingAuthorVariants,
+          text,
+          detectedPrimary: primaryLanguage,
+        }),
+      );
     }
 
     // Handle content location updates (user's shared location)
@@ -347,15 +361,18 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // Remove content location
         content.location = undefined;
       } else if (
-        typeof contentLocation.latitude === 'number' && typeof contentLocation.longitude === 'number' &&
-        contentLocation.latitude >= -90 && contentLocation.latitude <= 90 &&
-        contentLocation.longitude >= -180 && contentLocation.longitude <= 180
+        typeof contentLocation.latitude === 'number' &&
+        typeof contentLocation.longitude === 'number' &&
+        contentLocation.latitude >= -90 &&
+        contentLocation.latitude <= 90 &&
+        contentLocation.longitude >= -180 &&
+        contentLocation.longitude <= 180
       ) {
         // Update content location
         content.location = {
           type: 'Point',
           coordinates: [contentLocation.longitude, contentLocation.latitude], // GeoJSON format: [lng, lat]
-          address: contentLocation.address || undefined
+          address: contentLocation.address || undefined,
         };
       }
     }
@@ -369,15 +386,18 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // coordinates for `undefined`.
         patch.location = null;
       } else if (
-        typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number' &&
-        postLocation.latitude >= -90 && postLocation.latitude <= 90 &&
-        postLocation.longitude >= -180 && postLocation.longitude <= 180
+        typeof postLocation.latitude === 'number' &&
+        typeof postLocation.longitude === 'number' &&
+        postLocation.latitude >= -90 &&
+        postLocation.latitude <= 90 &&
+        postLocation.longitude >= -180 &&
+        postLocation.longitude <= 180
       ) {
         // Update post location
         patch.location = {
           type: 'Point',
           coordinates: [postLocation.longitude, postLocation.latitude], // GeoJSON format: [lng, lat]
-          address: postLocation.address || undefined
+          address: postLocation.address || undefined,
         };
       }
     }
@@ -404,7 +424,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // `updateArticle` re-anchors `post_id` as well as writing the body, so
         // the two branches differ only in whether a row already exists.
         let articleId: string;
-        if (sanitizedArticle.body !== undefined && (existing?.body ?? undefined) !== (sanitizedArticle.body || undefined)) {
+        if (
+          sanitizedArticle.body !== undefined &&
+          (existing?.body ?? undefined) !== (sanitizedArticle.body || undefined)
+        ) {
           articleBodyChanged = true;
         }
         if (existing) {
@@ -425,10 +448,14 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         }
         content.article = {
           articleId,
-          title: sanitizedArticle.title !== undefined ? sanitizedArticle.title : previousArticle.title,
-          excerpt: sanitizedArticle.body !== undefined
-            ? (sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined)
-            : previousArticle.excerpt,
+          title:
+            sanitizedArticle.title !== undefined ? sanitizedArticle.title : previousArticle.title,
+          excerpt:
+            sanitizedArticle.body !== undefined
+              ? sanitizedArticle.body
+                ? sanitizedArticle.body.slice(0, 280)
+                : undefined
+              : previousArticle.excerpt,
         };
       } else {
         if (existingArticleId) {
@@ -437,7 +464,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         content.article = undefined;
       }
     }
-    const attachmentUpdateInput = req.body.content?.attachments ?? req.body.attachments ?? req.body.attachmentOrder;
+    const attachmentUpdateInput =
+      req.body.content?.attachments ?? req.body.attachments ?? req.body.attachmentOrder;
     const updatedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentUpdateInput ?? content.attachments,
       media: Array.isArray(content.media) ? content.media : [],
@@ -448,7 +476,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includeLocation: Boolean(content.location),
       includeSources: Boolean(content.sources && content.sources.length),
       includePodcast: Boolean(content.podcast),
-      includeJob: Boolean(content.job)
+      includeJob: Boolean(content.job),
     });
 
     content.attachments = updatedAttachments ?? undefined;
@@ -483,7 +511,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // or the article must drop them too, or a reader would be served a
     // translation of the post as it used to be. Their `post_variant_alt_texts`
     // rows go with them: `replacePostContent` rewrites the whole graph.
-    if (articleBodyChanged || translationSourceFingerprint(content) !== translationSourceFingerprint(post.content)) {
+    if (
+      articleBodyChanged ||
+      translationSourceFingerprint(content) !== translationSourceFingerprint(post.content)
+    ) {
       content.variants = authorVariants(content);
     }
 
@@ -493,11 +524,17 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // Post media renders from the public CDN, and uploads arrive private.
     await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
 
-    const written = await updatePostAndContent(post.id, patch, content, nextMentions,
-      loaded.status === 'draft' || loaded.status === 'scheduled' ? loaded.status : undefined);
+    const written = await updatePostAndContent(
+      post.id,
+      patch,
+      content,
+      nextMentions,
+      loaded.status === 'draft' || loaded.status === 'scheduled' ? loaded.status : undefined,
+    );
     if (!written) {
       return res.status(409).json({
-        message: 'This post changed while you were editing it. Reload it to edit within the current rules.',
+        message:
+          'This post changed while you were editing it. Reload it to edit within the current rules.',
       });
     }
 
@@ -545,11 +582,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           await getDb()
             .update(postsTable)
             .set({ scheduledFor: rescheduledTo })
-            .where(and(
-              inArray(postsTable.id, others),
-              eq(postsTable.oxyUserId, chainOwnerId),
-              eq(postsTable.status, 'scheduled'),
-            ));
+            .where(
+              and(
+                inArray(postsTable.id, others),
+                eq(postsTable.oxyUserId, chainOwnerId),
+                eq(postsTable.status, 'scheduled'),
+              ),
+            );
         }
       }
     }

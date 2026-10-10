@@ -53,7 +53,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
       posts: hydratedPosts,
       hasMore: posts.length === limit,
       page,
-      limit
+      limit,
     });
   } catch (error) {
     logger.error('Error fetching posts', error);

@@ -17,7 +17,10 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 
-const STATUS_TONE: Record<MentionJobApplicationStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
+const STATUS_TONE: Record<
+  MentionJobApplicationStatus,
+  'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'
+> = {
   new: 'info',
   reviewing: 'primary',
   interview: 'warning',
@@ -39,7 +42,11 @@ interface JobApplicationDetailSheetProps {
  * applicant; see `jobApplications.controller.ts`'s privacy invariant). Opened
  * from `app/(app)/jobs/[id]/applications.tsx` via `BottomSheetContext`.
  */
-const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobApplicationDetailSheetProps) => {
+const JobApplicationDetailSheet = ({
+  jobId,
+  application,
+  onStatusChanged,
+}: JobApplicationDetailSheetProps) => {
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
@@ -55,14 +62,23 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
   });
 
   const statusMutation = useMutation({
-    mutationFn: (status: MentionJobApplicationStatus) => jobApplicationsService.updateStatus(jobId, application.id, status),
+    mutationFn: (status: MentionJobApplicationStatus) =>
+      jobApplicationsService.updateStatus(jobId, application.id, status),
     onSuccess: ({ application: updated }) => {
       onStatusChanged(updated);
-      toast(t('jobs.applications.statusUpdated', { defaultValue: 'Status updated' }), { type: 'success' });
+      toast(t('jobs.applications.statusUpdated', { defaultValue: 'Status updated' }), {
+        type: 'success',
+      });
     },
     onError: (error) => {
       logger.error('[applications] Failed to update status', error);
-      toast(getJobErrorMessage(error, t('jobs.applications.statusFailed', { defaultValue: 'Could not update status' })), { type: 'error' });
+      toast(
+        getJobErrorMessage(
+          error,
+          t('jobs.applications.statusFailed', { defaultValue: 'Could not update status' }),
+        ),
+        { type: 'error' },
+      );
     },
   });
 
@@ -70,11 +86,19 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
     mutationFn: (note: string) => jobApplicationsService.addNote(jobId, application.id, note),
     onSuccess: async () => {
       setNoteDraft('');
-      await queryClient.invalidateQueries({ queryKey: viewerQueryKeys.jobApplicationNotes(user?.id, jobId, application.id) });
+      await queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.jobApplicationNotes(user?.id, jobId, application.id),
+      });
     },
     onError: (error) => {
       logger.error('[applications] Failed to add note', error);
-      toast(getJobErrorMessage(error, t('jobs.applications.noteFailed', { defaultValue: 'Could not add this note' })), { type: 'error' });
+      toast(
+        getJobErrorMessage(
+          error,
+          t('jobs.applications.noteFailed', { defaultValue: 'Could not add this note' }),
+        ),
+        { type: 'error' },
+      );
     },
   });
 
@@ -95,16 +119,28 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
   }, [noteDraft, addNoteMutation]);
 
   return (
-    <ScrollView className="bg-background px-4 pt-3" style={{ maxHeight: '90%' }} contentContainerStyle={{ paddingBottom: 24 }}>
+    <ScrollView
+      className="bg-background px-4 pt-3"
+      style={{ maxHeight: '90%' }}
+      contentContainerStyle={{ paddingBottom: 24 }}
+    >
       <View className="flex-row items-start justify-between gap-2 mb-2">
         <Text className="flex-1 text-foreground text-lg font-bold">
           {application.displayName || t('jobs.applications.unnamed', { defaultValue: 'Applicant' })}
         </Text>
-        <Badge content={application.status} color={STATUS_TONE[application.status]} variant="subtle" size="small" />
+        <Badge
+          content={application.status}
+          color={STATUS_TONE[application.status]}
+          variant="subtle"
+          size="small"
+        />
       </View>
 
       <Text className="text-muted-foreground text-xs mb-4">
-        {t('jobs.applications.appliedAgo', { defaultValue: 'Applied {{time}}', time: formatTimeAgo(application.createdAt) })}
+        {t('jobs.applications.appliedAgo', {
+          defaultValue: 'Applied {{time}}',
+          time: formatTimeAgo(application.createdAt),
+        })}
       </Text>
 
       {application.contactMethod ? (
@@ -145,7 +181,13 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
 
       {application.resumeFileId ? (
         <View className="mb-3">
-          <Button appearance="subtle" tone="neutral" size="sm" onPress={openResume} style={{ alignSelf: 'flex-start' }}>
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            size="sm"
+            onPress={openResume}
+            style={{ alignSelf: 'flex-start' }}
+          >
             {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
           </Button>
         </View>
@@ -182,7 +224,9 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
 
       <View className="pt-3 border-t border-border">
         <Text className="text-sm text-muted-foreground mb-2 font-primary">
-          {t('jobs.applications.internalNotes', { defaultValue: 'Internal notes (never shown to the applicant)' })}
+          {t('jobs.applications.internalNotes', {
+            defaultValue: 'Internal notes (never shown to the applicant)',
+          })}
         </Text>
 
         {notesQuery.isLoading ? (
@@ -192,7 +236,9 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
             {(notesQuery.data?.notes ?? []).map((note) => (
               <View key={note.id} className="bg-muted rounded-xl p-3">
                 <Text className="text-foreground text-[14px]">{note.note}</Text>
-                <Text className="text-muted-foreground text-[11px] mt-1">{formatTimeAgo(note.createdAt)}</Text>
+                <Text className="text-muted-foreground text-[11px] mt-1">
+                  {formatTimeAgo(note.createdAt)}
+                </Text>
               </View>
             ))}
             {(notesQuery.data?.notes ?? []).length === 0 ? (
@@ -212,7 +258,8 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
           />
         </TextField>
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="sm"
           style={{ alignSelf: 'flex-end', marginTop: 8 }}
           loading={addNoteMutation.isPending}

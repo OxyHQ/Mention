@@ -192,9 +192,7 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
     noteIdentityChanged({ id: EDITED, username: 'daily', avatar: 'avatar-after' });
 
     // The server has caught up: this batch already names the new picture.
-    precacheActorsFromPosts([
-      { user: { id: EDITED, username: 'daily', avatar: 'avatar-after' } },
-    ]);
+    precacheActorsFromPosts([{ user: { id: EDITED, username: 'daily', avatar: 'avatar-after' } }]);
 
     // So a value that differs AFTERWARDS is a genuine change made somewhere else
     // — another device, accounts.oxy.so — and must reach the cache unedited.
@@ -244,7 +242,14 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
 
     // The picture caught up, the name did not — that is not the server agreeing.
     precacheActorsFromPosts([
-      { user: { id: EDITED, username: 'daily', avatar: 'avatar-after', name: { displayName: 'Daily' } } },
+      {
+        user: {
+          id: EDITED,
+          username: 'daily',
+          avatar: 'avatar-after',
+          name: { displayName: 'Daily' },
+        },
+      },
     ]);
     precacheActorsFromPosts([staleAuthorPost()]);
 

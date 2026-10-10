@@ -52,10 +52,12 @@ describe('ScoreCursor', () => {
     const ids = Array.from({ length: 130 }, (_, index) =>
       (index + 1).toString(16).padStart(24, '0'),
     );
-    const parsed = ScoreCursor.parse(ScoreCursor.build(1, ids[0], {
-      asOf: Date.now(),
-      excludeIds: ids,
-    }));
+    const parsed = ScoreCursor.parse(
+      ScoreCursor.build(1, ids[0], {
+        asOf: Date.now(),
+        excludeIds: ids,
+      }),
+    );
 
     expect(parsed?.excludeIds).toHaveLength(100);
     expect(parsed?.excludeIds?.[0]).toBe(ids[0]);
@@ -68,9 +70,12 @@ describe('ScoreCursor', () => {
 
     expect(ScoreCursor.parse(`1~v1~not-json:${id}`)).toBeUndefined();
     expect(ScoreCursor.parse(`1~v1~${'a'.repeat(8193)}:${id}`)).toBeUndefined();
-    expect(ScoreCursor.parse(`1~v1~${encode({ a: Date.now() - 30 * 24 * 60 * 60 * 1000 })}:${id}`)?.asOf)
-      .toBeLessThan(Date.now());
-    expect(ScoreCursor.parse(`1~v1~${encode({ a: Date.now() + 6 * 60 * 1000 })}:${id}`)).toBeUndefined();
+    expect(
+      ScoreCursor.parse(`1~v1~${encode({ a: Date.now() - 30 * 24 * 60 * 60 * 1000 })}:${id}`)?.asOf,
+    ).toBeLessThan(Date.now());
+    expect(
+      ScoreCursor.parse(`1~v1~${encode({ a: Date.now() + 6 * 60 * 1000 })}:${id}`),
+    ).toBeUndefined();
     expect(ScoreCursor.parse(`1~v1~${encode({ a: 8_640_000_000_000_001 })}:${id}`)).toBeUndefined();
   });
 });

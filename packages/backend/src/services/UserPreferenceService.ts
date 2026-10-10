@@ -4,10 +4,7 @@ import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRe
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
-import {
-  loadUserBehavior,
-  updateUserBehavior,
-} from '../db/userProfile/userBehaviorRepository';
+import { loadUserBehavior, updateUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { MtnConfig, isVideoSurface } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { recordSeenTopics } from './viewerRecentTopics';
@@ -48,11 +45,12 @@ interface InteractionPost {
 export function readInteractionSurface(
   body: { source?: unknown; feedContext?: unknown } | undefined | null,
 ): string | undefined {
-  const raw = typeof body?.source === 'string'
-    ? body.source
-    : typeof body?.feedContext === 'string'
-      ? body.feedContext
-      : undefined;
+  const raw =
+    typeof body?.source === 'string'
+      ? body.source
+      : typeof body?.feedContext === 'string'
+        ? body.feedContext
+        : undefined;
   const trimmed = raw?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
@@ -97,7 +95,7 @@ export class UserPreferenceService {
     skip: -0.5,
     hide: -2.0,
     mute: -3.0,
-    block: -5.0
+    block: -5.0,
   };
 
   /**
@@ -116,8 +114,18 @@ export class UserPreferenceService {
   async recordInteraction(
     userId: string, // Oxy user ID
     postId: string,
-    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block',
-    context?: InteractionContext
+    interactionType:
+      | 'like'
+      | 'boost'
+      | 'comment'
+      | 'save'
+      | 'share'
+      | 'view'
+      | 'skip'
+      | 'hide'
+      | 'mute'
+      | 'block',
+    context?: InteractionContext,
   ): Promise<void> {
     try {
       logger.debug('[UserPreference] recording interaction', {
@@ -171,7 +179,17 @@ export class UserPreferenceService {
   private async applyInteraction(
     userId: string,
     post: InteractionPost,
-    interactionType: 'like' | 'boost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block',
+    interactionType:
+      | 'like'
+      | 'boost'
+      | 'comment'
+      | 'save'
+      | 'share'
+      | 'view'
+      | 'skip'
+      | 'hide'
+      | 'mute'
+      | 'block',
     context?: InteractionContext,
   ): Promise<void> {
     const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
@@ -195,113 +213,118 @@ export class UserPreferenceService {
     const authorAffinityFactor = fromVideoSurface ? ctx.videoSurfaceAuthorAffinityFactor : 1;
     const contentWeight = weight * (fromVideoSurface ? ctx.videoSurfaceContentBoost : 1);
 
-    await updateUserBehavior(userId, (userBehavior) => {
-      // Update author preference (positive signals strengthen the relationship).
-      // Dampened on video surfaces so reels likes barely move "follow this author".
-      if (post.oxyUserId && isPositiveSignal) {
-        this.updateAuthorPreference(
-          userBehavior,
-          post.oxyUserId,
-          interactionType,
-          weight,
-          authorAffinityFactor
-        );
-      }
-
-      // Update topic preferences (positive signals only — skipping a topic must
-      // not increase interest in it). Uses the content weight (amplified on video).
-      if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
-        for (const hashtag of post.hashtags) {
-          this.updateTopicPreference(
+    await updateUserBehavior(
+      userId,
+      (userBehavior) => {
+        // Update author preference (positive signals strengthen the relationship).
+        // Dampened on video surfaces so reels likes barely move "follow this author".
+        if (post.oxyUserId && isPositiveSignal) {
+          this.updateAuthorPreference(
             userBehavior,
-            hashtag.toLowerCase(),
-            contentWeight
+            post.oxyUserId,
+            interactionType,
+            weight,
+            authorAffinityFactor,
           );
         }
-      }
 
-      // Update topic preferences from classified topics (richer signal). Prefer
-      // the canonical `postClassification.topicRefs` (registry-linked), falling
-      // back to `postClassification.topics`. Canonical refs may carry no relevance
-      // (AI topics are slug-only), so an absent relevance scales by the full
-      // content weight (relevance factor 1) rather than zeroing the signal.
-      if (isPositiveSignal) {
-        for (const topic of this.getCanonicalTopics(post)) {
-          if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
-          const relevanceFactor =
-            typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
-          this.updateTopicPreference(
-            userBehavior,
-            topic.name.toLowerCase(),
-            contentWeight * relevanceFactor,
-            topic.topicId,
-          );
+        // Update topic preferences (positive signals only — skipping a topic must
+        // not increase interest in it). Uses the content weight (amplified on video).
+        if (isPositiveSignal && post.hashtags && post.hashtags.length > 0) {
+          for (const hashtag of post.hashtags) {
+            this.updateTopicPreference(userBehavior, hashtag.toLowerCase(), contentWeight);
+          }
         }
-      }
 
-      // Update post type preference (positive signals only — a skipped post type
-      // should not be promoted just because it was scrolled past). Uses the
-      // content weight so a reels like reinforces "I like video content".
-      if (isPositiveSignal) {
-        const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
-        if (postType in userBehavior.preferredPostTypes) {
-          userBehavior.preferredPostTypes[postType] =
-            (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+        // Update topic preferences from classified topics (richer signal). Prefer
+        // the canonical `postClassification.topicRefs` (registry-linked), falling
+        // back to `postClassification.topics`. Canonical refs may carry no relevance
+        // (AI topics are slug-only), so an absent relevance scales by the full
+        // content weight (relevance factor 1) rather than zeroing the signal.
+        if (isPositiveSignal) {
+          for (const topic of this.getCanonicalTopics(post)) {
+            if (typeof topic.name !== 'string' || topic.name.length === 0) continue;
+            const relevanceFactor = typeof topic.relevance === 'number' ? topic.relevance / 10 : 1;
+            this.updateTopicPreference(
+              userBehavior,
+              topic.name.toLowerCase(),
+              contentWeight * relevanceFactor,
+              topic.topicId,
+            );
+          }
         }
-      }
 
-      // Record active hour for any engagement (including a genuine view) — it
-      // reflects WHEN the user is on the app, independent of sentiment. A pure
-      // skip still means the user was active, so we record it too.
-      //
-      // A ROLLING LOG of the last 168 recorded hours, which is what the cap was
-      // always written for and what `timeOfDay` needs to mean anything. It was a
-      // deduplicated SET: `includes` refused a repeat, so the array held at most
-      // the 24 distinct hours-of-day and the 168 cap could never fire. That set
-      // only ever grew. A reader who was once awake at 03:00 kept 03:00 forever,
-      // and any reader who used the app across a full day eventually held all 24
-      // — at which point `timeOfDay` returned its 1.2 boost for EVERY post and
-      // stopped discriminating, silently and permanently. The same
-      // append-only-with-an-inert-cap shape as the learned language set removed
-      // earlier.
-      //
-      // Keeping the repeats is also what makes the signal weigh frequency: an
-      // hour the reader is on the app daily appears many times in the window, an
-      // hour they visited once appears once and falls out of it.
-      userBehavior.activeHours.push(new Date().getHours());
-      if (userBehavior.activeHours.length > ACTIVE_HOURS_WINDOW) {
-        userBehavior.activeHours = userBehavior.activeHours.slice(-ACTIVE_HOURS_WINDOW);
-      }
-
-      // Update REGION affinity (positive signals only — a skip must not increase
-      // interest in a region). Region is a CONTENT-origin signal, so it uses the
-      // content weight (amplified on video surfaces) like topics/post-type. It is
-      // best-effort and frequently absent — `postClassification.region` is itself
-      // derived only from a federated instance domain or author locale, never from
-      // post text — so this no-ops for most native posts. When present, the
-      // dominant region accrues a stable count (read via `getTopRegion`).
-      if (isPositiveSignal) {
-        const region = post.postClassification?.region;
-        if (typeof region === 'string' && region.length > 0) {
-          this.updateRegionPreference(userBehavior, region, contentWeight);
+        // Update post type preference (positive signals only — a skipped post type
+        // should not be promoted just because it was scrolled past). Uses the
+        // content weight so a reels like reinforces "I like video content".
+        if (isPositiveSignal) {
+          const postType = (
+            post.type || 'text'
+          ).toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+          if (postType in userBehavior.preferredPostTypes) {
+            userBehavior.preferredPostTypes[postType] =
+              (userBehavior.preferredPostTypes[postType] || 0) + contentWeight;
+          }
         }
-      }
 
-      // Handle hard negative signals (hide/mute/block) — author/topic suppression.
-      if (interactionType === 'hide' || interactionType === 'mute' || interactionType === 'block') {
-        this.handleNegativeSignal(userBehavior, post, interactionType);
-      }
+        // Record active hour for any engagement (including a genuine view) — it
+        // reflects WHEN the user is on the app, independent of sentiment. A pure
+        // skip still means the user was active, so we record it too.
+        //
+        // A ROLLING LOG of the last 168 recorded hours, which is what the cap was
+        // always written for and what `timeOfDay` needs to mean anything. It was a
+        // deduplicated SET: `includes` refused a repeat, so the array held at most
+        // the 24 distinct hours-of-day and the 168 cap could never fire. That set
+        // only ever grew. A reader who was once awake at 03:00 kept 03:00 forever,
+        // and any reader who used the app across a full day eventually held all 24
+        // — at which point `timeOfDay` returned its 1.2 boost for EVERY post and
+        // stopped discriminating, silently and permanently. The same
+        // append-only-with-an-inert-cap shape as the learned language set removed
+        // earlier.
+        //
+        // Keeping the repeats is also what makes the signal weigh frequency: an
+        // hour the reader is on the app daily appears many times in the window, an
+        // hour they visited once appears once and falls out of it.
+        userBehavior.activeHours.push(new Date().getHours());
+        if (userBehavior.activeHours.length > ACTIVE_HOURS_WINDOW) {
+          userBehavior.activeHours = userBehavior.activeHours.slice(-ACTIVE_HOURS_WINDOW);
+        }
 
-      // Handle the soft negative signal (skip): the viewer scrolled past quickly.
-      // This is NOT a suppression — it only nudges down an existing author
-      // preference weight so a repeatedly-skipped author gradually loses its
-      // boost. It never creates a preference entry or hides the author.
-      if (interactionType === 'skip' && post.oxyUserId) {
-        this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
-      }
+        // Update REGION affinity (positive signals only — a skip must not increase
+        // interest in a region). Region is a CONTENT-origin signal, so it uses the
+        // content weight (amplified on video surfaces) like topics/post-type. It is
+        // best-effort and frequently absent — `postClassification.region` is itself
+        // derived only from a federated instance domain or author locale, never from
+        // post text — so this no-ops for most native posts. When present, the
+        // dominant region accrues a stable count (read via `getTopRegion`).
+        if (isPositiveSignal) {
+          const region = post.postClassification?.region;
+          if (typeof region === 'string' && region.length > 0) {
+            this.updateRegionPreference(userBehavior, region, contentWeight);
+          }
+        }
 
-      userBehavior.lastUpdated = new Date();
-    }, { createIfMissing: true });
+        // Handle hard negative signals (hide/mute/block) — author/topic suppression.
+        if (
+          interactionType === 'hide' ||
+          interactionType === 'mute' ||
+          interactionType === 'block'
+        ) {
+          this.handleNegativeSignal(userBehavior, post, interactionType);
+        }
+
+        // Handle the soft negative signal (skip): the viewer scrolled past quickly.
+        // This is NOT a suppression — it only nudges down an existing author
+        // preference weight so a repeatedly-skipped author gradually loses its
+        // boost. It never creates a preference entry or hides the author.
+        if (interactionType === 'skip' && post.oxyUserId) {
+          this.decayAuthorPreference(userBehavior, post.oxyUserId, Math.abs(weight));
+        }
+
+        userBehavior.lastUpdated = new Date();
+      },
+      { createIfMissing: true },
+    );
   }
 
   /**
@@ -316,11 +339,9 @@ export class UserPreferenceService {
     // SURFACE-AWARE dampener applied to the FINAL normalized relationship weight.
     // 1 = no dampening (default / non-video surface); <1 = a video-surface
     // engagement contributes proportionally less toward "follow this author".
-    authorAffinityFactor: number = 1
+    authorAffinityFactor: number = 1,
   ): void {
-    let authorPref = userBehavior.preferredAuthors.find(
-      (a) => a.authorId === authorId
-    );
+    let authorPref = userBehavior.preferredAuthors.find((a) => a.authorId === authorId);
 
     if (!authorPref) {
       authorPref = {
@@ -332,9 +353,9 @@ export class UserPreferenceService {
           boosts: 0,
           comments: 0,
           saves: 0,
-          shares: 0
+          shares: 0,
         },
-        weight: 0
+        weight: 0,
       };
       userBehavior.preferredAuthors.push(authorPref);
     }
@@ -376,7 +397,10 @@ export class UserPreferenceService {
     // dampener (authorAffinityFactor) scales it DOWN for video-surface
     // engagements so a reels like barely moves "follow this author".
     const recencyFactor = Math.max(0, 1 - daysSinceLastInteraction / 30); // Decay over 30 days
-    authorPref.weight = Math.min(1, (totalInteractions / 100) * recencyFactor * authorAffinityFactor);
+    authorPref.weight = Math.min(
+      1,
+      (totalInteractions / 100) * recencyFactor * authorAffinityFactor,
+    );
 
     // Keep only top 100 authors by weight
     userBehavior.preferredAuthors.sort((a, b) => b.weight - a.weight);
@@ -395,11 +419,9 @@ export class UserPreferenceService {
   private decayAuthorPreference(
     userBehavior: UserBehaviorRecord,
     authorId: string,
-    magnitude: number
+    magnitude: number,
   ): void {
-    const authorPref = userBehavior.preferredAuthors.find(
-      (a) => a.authorId === authorId
-    );
+    const authorPref = userBehavior.preferredAuthors.find((a) => a.authorId === authorId);
     if (!authorPref) {
       return; // No existing relationship — nothing to erode.
     }
@@ -419,9 +441,9 @@ export class UserPreferenceService {
    * entry exposes `name`; only `topicRefs` carries the optional `topicId` and
    * `relevance` (the slug list is name-only, so it learns preferences by name).
    */
-  private getCanonicalTopics(
-    post: { postClassification?: { topicRefs?: unknown; topics?: unknown } },
-  ): Array<{ name?: unknown; topicId?: string; relevance?: number }> {
+  private getCanonicalTopics(post: {
+    postClassification?: { topicRefs?: unknown; topics?: unknown };
+  }): Array<{ name?: unknown; topicId?: string; relevance?: number }> {
     const refs = post.postClassification?.topicRefs;
     if (Array.isArray(refs) && refs.length > 0) {
       return refs;
@@ -443,9 +465,7 @@ export class UserPreferenceService {
     weight: number,
     topicId?: string,
   ): void {
-    let topicPref = userBehavior.preferredTopics.find(
-      (t) => t.topic === topic
-    );
+    let topicPref = userBehavior.preferredTopics.find((t) => t.topic === topic);
 
     if (!topicPref) {
       topicPref = {
@@ -491,9 +511,7 @@ export class UserPreferenceService {
     region: string,
     weight: number,
   ): void {
-    let regionPref = userBehavior.preferredRegions.find(
-      (r) => r.region === region,
-    );
+    let regionPref = userBehavior.preferredRegions.find((r) => r.region === region);
 
     if (!regionPref) {
       regionPref = { region, count: 0, lastInteractionAt: new Date() };
@@ -522,7 +540,10 @@ export class UserPreferenceService {
    * lean behavior shape used across the feed pipeline.
    */
   getTopRegion(
-    userBehavior: { preferredRegions?: Array<{ region?: string; count?: number }> } | null | undefined,
+    userBehavior:
+      | { preferredRegions?: Array<{ region?: string; count?: number }> }
+      | null
+      | undefined,
   ): string | undefined {
     const regions = userBehavior?.preferredRegions;
     if (!Array.isArray(regions) || regions.length === 0) return undefined;
@@ -541,7 +562,7 @@ export class UserPreferenceService {
   private handleNegativeSignal(
     userBehavior: UserBehaviorRecord,
     post: InteractionPost,
-    interactionType: string
+    interactionType: string,
   ): void {
     const authorId = post.oxyUserId ?? '';
 
@@ -567,7 +588,7 @@ export class UserPreferenceService {
     // DELETE of exactly that author's row — the surviving preferences keep their
     // own rows rather than being re-inserted around it.
     userBehavior.preferredAuthors = userBehavior.preferredAuthors.filter(
-      (a) => a.authorId !== authorId
+      (a) => a.authorId !== authorId,
     );
 
     // Handle hidden topics
@@ -637,7 +658,7 @@ export class UserPreferenceService {
             this.updateTopicPreference(
               userBehavior,
               hashtag.toLowerCase(),
-              0.5 // Lower weight for creation vs interaction
+              0.5, // Lower weight for creation vs interaction
             );
           }
         }
@@ -657,11 +678,7 @@ export class UserPreferenceService {
   /**
    * Track time spent viewing post (for engagement metrics)
    */
-  async recordViewTime(
-    userId: string,
-    postId: string,
-    viewTimeSeconds: number
-  ): Promise<void> {
+  async recordViewTime(userId: string, postId: string, viewTimeSeconds: number): Promise<void> {
     try {
       // Update average engagement time (exponential moving average). A viewer
       // with no behaviour row is left alone — including the skip below — which

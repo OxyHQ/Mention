@@ -31,11 +31,7 @@ import {
   BRIDGE_DOMAIN,
   type BridgeBskyCollection,
 } from './constants';
-import {
-  listRecords,
-  getRecord,
-  BRIDGE_DESCRIBE_COLLECTIONS,
-} from './repoReadService';
+import { listRecords, getRecord, BRIDGE_DESCRIBE_COLLECTIONS } from './repoReadService';
 import {
   getAtprotoIdentity,
   getAtprotoIdentityByOxyUserId,
@@ -125,7 +121,11 @@ router.get('/com.atproto.repo.listRecords', async (req: Request, res: Response) 
     const page = await listRecords(oxyUserId, collection, { limit, cursor });
     res.set('Cache-Control', 'public, max-age=30');
     return res.json({
-      records: page.records.map((record) => ({ uri: record.uri, cid: record.cid, value: record.value })),
+      records: page.records.map((record) => ({
+        uri: record.uri,
+        cid: record.cid,
+        value: record.value,
+      })),
       ...(page.cursor ? { cursor: page.cursor } : {}),
     });
   } catch (err) {

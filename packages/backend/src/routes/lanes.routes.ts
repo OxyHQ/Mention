@@ -42,7 +42,11 @@ import {
 } from '../db/channels/laneRepository';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
-import { laneReadRateLimiter, laneWriteRateLimiter, lanesRateLimiter } from '../middleware/security';
+import {
+  laneReadRateLimiter,
+  laneWriteRateLimiter,
+  lanesRateLimiter,
+} from '../middleware/security';
 import { config } from '../config';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
@@ -198,7 +202,11 @@ publicLanesRouter.get('/', ...readLimiters, async (req: Request, res: Response) 
       .where(and(eq(lanes.ownerId, ownerId), eq(lanes.displayMode, 'tab')))
       .orderBy(desc(lanes.createdAt));
 
-    return sendSuccessResponse(res, 200, tabs.map((lane) => serialize(lane)));
+    return sendSuccessResponse(
+      res,
+      200,
+      tabs.map((lane) => serialize(lane)),
+    );
   } catch (err) {
     logger.error('[Lanes] Error listing public lanes:', { error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list lanes');
@@ -278,7 +286,12 @@ router.get('/muted', ...readLimiters, async (req: AuthRequest, res: Response) =>
       db
         .select({ id: lanes.id, name: lanes.name, displayMode: lanes.displayMode })
         .from(lanes)
-        .where(inArray(lanes.id, mutes.map((mute) => mute.laneId))),
+        .where(
+          inArray(
+            lanes.id,
+            mutes.map((mute) => mute.laneId),
+          ),
+        ),
       resolveUserSummaries(mutes.map((mute) => mute.laneOwnerOxyUserId)),
     ]);
 
@@ -315,48 +328,58 @@ router.get('/muted', ...readLimiters, async (req: AuthRequest, res: Response) =>
  * the pre-check: `countDocuments` is not a lock, so two concurrent creates of the
  * same name are stopped by the constraint or not at all.
  */
-router.post('/', ...writeLimiters, validateBody(createLaneSchema), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-    const { name, displayMode } = req.body as z.infer<typeof createLaneSchema>;
-
-    const nameLower = normalizeLaneName(name);
-    if (!nameLower) {
-      return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
-    }
-
-    // The cap is PER PUBLISHER.
-    const [owned] = await getDb()
-      .select({ total: sql<number>`count(*)::int` })
-      .from(lanes)
-      .where(eq(lanes.ownerId, userId));
-    if (owned.total >= MAX_LANES_PER_OWNER) {
-      return sendErrorResponse(
-        res,
-        400,
-        'Bad Request',
-        `You can have at most ${MAX_LANES_PER_OWNER} lanes`,
-      );
-    }
-
+router.post(
+  '/',
+  ...writeLimiters,
+  validateBody(createLaneSchema),
+  async (req: AuthRequest, res: Response) => {
     try {
-      const created = await insertLane({
-        ownerId: userId,
-        name,
-        displayMode: displayMode ?? 'mixed',
-      });
-      return sendSuccessResponse(res, 201, serialize(created, 0), 'Lane created');
-    } catch (createErr) {
-      if (isUniqueViolation(createErr, LANE_NAME_UNIQUE)) {
-        return sendErrorResponse(res, 409, 'Conflict', 'You already have a lane with that name');
+      const userId = getAuthenticatedUserId(req);
+      const { name, displayMode } = req.body as z.infer<typeof createLaneSchema>;
+
+      const nameLower = normalizeLaneName(name);
+      if (!nameLower) {
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          'name must not be empty after normalization',
+        );
       }
-      throw createErr;
+
+      // The cap is PER PUBLISHER.
+      const [owned] = await getDb()
+        .select({ total: sql<number>`count(*)::int` })
+        .from(lanes)
+        .where(eq(lanes.ownerId, userId));
+      if (owned.total >= MAX_LANES_PER_OWNER) {
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          `You can have at most ${MAX_LANES_PER_OWNER} lanes`,
+        );
+      }
+
+      try {
+        const created = await insertLane({
+          ownerId: userId,
+          name,
+          displayMode: displayMode ?? 'mixed',
+        });
+        return sendSuccessResponse(res, 201, serialize(created, 0), 'Lane created');
+      } catch (createErr) {
+        if (isUniqueViolation(createErr, LANE_NAME_UNIQUE)) {
+          return sendErrorResponse(res, 409, 'Conflict', 'You already have a lane with that name');
+        }
+        throw createErr;
+      }
+    } catch (err) {
+      logger.error('[Lanes] Error creating lane:', { userId: req.user?.id, error: err });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to create lane');
     }
-  } catch (err) {
-    logger.error('[Lanes] Error creating lane:', { userId: req.user?.id, error: err });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to create lane');
-  }
-});
+  },
+);
 
 /**
  * PATCH /lanes/:id
@@ -397,7 +420,12 @@ router.patch(
       }
 
       if (name !== undefined && !normalizeLaneName(name)) {
-        return sendErrorResponse(res, 400, 'Bad Request', 'name must not be empty after normalization');
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          'name must not be empty after normalization',
+        );
       }
 
       let updated: LaneRow | null;
@@ -443,33 +471,38 @@ router.patch(
  * a different publisher kept a dangling `laneId`. `SET NULL` is unscoped, which
  * is what the invariant actually says.
  */
-router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-    const laneId = String(req.params.id);
+router.delete(
+  '/:id',
+  ...writeLimiters,
+  validateObjectId('id'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = getAuthenticatedUserId(req);
+      const laneId = String(req.params.id);
 
-    const db = getDb();
-    const [lane] = await db
-      .select({ ownerId: lanes.ownerId })
-      .from(lanes)
-      .where(eq(lanes.id, laneId))
-      .limit(1);
-    if (!lane || !callerManagesLane(lane, userId)) {
-      return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
+      const db = getDb();
+      const [lane] = await db
+        .select({ ownerId: lanes.ownerId })
+        .from(lanes)
+        .where(eq(lanes.id, laneId))
+        .limit(1);
+      if (!lane || !callerManagesLane(lane, userId)) {
+        return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
+      }
+
+      await db.delete(lanes).where(eq(lanes.id, laneId));
+
+      return sendSuccessResponse(res, 200, { success: true }, 'Lane deleted');
+    } catch (err) {
+      logger.error('[Lanes] Error deleting lane:', {
+        userId: req.user?.id,
+        id: req.params.id,
+        error: err,
+      });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to delete lane');
     }
-
-    await db.delete(lanes).where(eq(lanes.id, laneId));
-
-    return sendSuccessResponse(res, 200, { success: true }, 'Lane deleted');
-  } catch (err) {
-    logger.error('[Lanes] Error deleting lane:', {
-      userId: req.user?.id,
-      id: req.params.id,
-      error: err,
-    });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to delete lane');
-  }
-});
+  },
+);
 
 /**
  * POST /lanes/:id/mute
@@ -479,96 +512,103 @@ router.delete('/:id', ...writeLimiters, validateObjectId('id'), async (req: Auth
  * **Muting your OWN lane is refused (400).** It would delete your own posts from
  * your own Following feed, which nobody means to ask for.
  */
-router.post('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-    const laneId = String(req.params.id);
+router.post(
+  '/:id/mute',
+  ...writeLimiters,
+  validateObjectId('id'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = getAuthenticatedUserId(req);
+      const laneId = String(req.params.id);
 
-    const db = getDb();
-    const [lane] = await db
-      .select({ ownerId: lanes.ownerId })
-      .from(lanes)
-      .where(eq(lanes.id, laneId))
-      .limit(1);
-    if (!lane) {
-      return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
+      const db = getDb();
+      const [lane] = await db
+        .select({ ownerId: lanes.ownerId })
+        .from(lanes)
+        .where(eq(lanes.id, laneId))
+        .limit(1);
+      if (!lane) {
+        return sendErrorResponse(res, 404, 'Not Found', 'Lane not found');
+      }
+      if (lane.ownerId === userId) {
+        return sendErrorResponse(res, 400, 'Bad Request', 'You cannot mute your own lane');
+      }
+      // A CHANNEL's lane needs no special case: the channel is an Oxy account, so
+      // `laneOwnerOxyUserId` is a real user id that `GET /lanes/muted` resolves
+      // through `resolveUserSummaries` like any other, and a channel's posts DO
+      // reach a follower's timeline — so there is something for the mute to
+      // suppress.
+
+      const [existing] = await db
+        .select({ id: laneMutes.id })
+        .from(laneMutes)
+        .where(and(eq(laneMutes.viewerOxyUserId, userId), eq(laneMutes.laneId, laneId)))
+        .limit(1);
+      if (existing) {
+        return sendSuccessResponse(res, 200, { success: true }, 'Lane already muted');
+      }
+
+      const [muted] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(laneMutes)
+        .where(eq(laneMutes.viewerOxyUserId, userId));
+      if (muted.total >= MAX_MUTED_LANES) {
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          `You can mute at most ${MAX_MUTED_LANES} lanes`,
+        );
+      }
+
+      // `doNothing` on the row's own identity: a concurrent request that won the
+      // race produced exactly the state the caller asked for, so a duplicate is a
+      // no-op rather than an error. The pre-check above is not a lock and never
+      // was — this is what makes the mute idempotent.
+      await db
+        .insert(laneMutes)
+        .values({ viewerOxyUserId: userId, laneId, laneOwnerOxyUserId: lane.ownerId })
+        .onConflictDoNothing({ target: [laneMutes.viewerOxyUserId, laneMutes.laneId] });
+
+      return sendSuccessResponse(res, 201, { success: true }, 'Lane muted');
+    } catch (err) {
+      logger.error('[Lanes] Error muting lane:', {
+        userId: req.user?.id,
+        id: req.params.id,
+        error: err,
+      });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to mute lane');
     }
-    if (lane.ownerId === userId) {
-      return sendErrorResponse(res, 400, 'Bad Request', 'You cannot mute your own lane');
-    }
-    // A CHANNEL's lane needs no special case: the channel is an Oxy account, so
-    // `laneOwnerOxyUserId` is a real user id that `GET /lanes/muted` resolves
-    // through `resolveUserSummaries` like any other, and a channel's posts DO
-    // reach a follower's timeline — so there is something for the mute to
-    // suppress.
-
-    const [existing] = await db
-      .select({ id: laneMutes.id })
-      .from(laneMutes)
-      .where(and(eq(laneMutes.viewerOxyUserId, userId), eq(laneMutes.laneId, laneId)))
-      .limit(1);
-    if (existing) {
-      return sendSuccessResponse(res, 200, { success: true }, 'Lane already muted');
-    }
-
-    const [muted] = await db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(laneMutes)
-      .where(eq(laneMutes.viewerOxyUserId, userId));
-    if (muted.total >= MAX_MUTED_LANES) {
-      return sendErrorResponse(
-        res,
-        400,
-        'Bad Request',
-        `You can mute at most ${MAX_MUTED_LANES} lanes`,
-      );
-    }
-
-    // `doNothing` on the row's own identity: a concurrent request that won the
-    // race produced exactly the state the caller asked for, so a duplicate is a
-    // no-op rather than an error. The pre-check above is not a lock and never
-    // was — this is what makes the mute idempotent.
-    await db
-      .insert(laneMutes)
-      .values({ viewerOxyUserId: userId, laneId, laneOwnerOxyUserId: lane.ownerId })
-      .onConflictDoNothing({ target: [laneMutes.viewerOxyUserId, laneMutes.laneId] });
-
-    return sendSuccessResponse(res, 201, { success: true }, 'Lane muted');
-  } catch (err) {
-    logger.error('[Lanes] Error muting lane:', {
-      userId: req.user?.id,
-      id: req.params.id,
-      error: err,
-    });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to mute lane');
-  }
-});
+  },
+);
 
 /**
  * DELETE /lanes/:id/mute
  * Unmute. Idempotent: a lane that was not muted answers the same success, because
  * "not muted" is exactly the state the caller asked for.
  */
-router.delete('/:id/mute', ...writeLimiters, validateObjectId('id'), async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-    await getDb()
-      .delete(laneMutes)
-      .where(
-        and(
-          eq(laneMutes.viewerOxyUserId, userId),
-          eq(laneMutes.laneId, String(req.params.id)),
-        ),
-      );
-    return sendSuccessResponse(res, 200, { success: true }, 'Lane unmuted');
-  } catch (err) {
-    logger.error('[Lanes] Error unmuting lane:', {
-      userId: req.user?.id,
-      id: req.params.id,
-      error: err,
-    });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to unmute lane');
-  }
-});
+router.delete(
+  '/:id/mute',
+  ...writeLimiters,
+  validateObjectId('id'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = getAuthenticatedUserId(req);
+      await getDb()
+        .delete(laneMutes)
+        .where(
+          and(eq(laneMutes.viewerOxyUserId, userId), eq(laneMutes.laneId, String(req.params.id))),
+        );
+      return sendSuccessResponse(res, 200, { success: true }, 'Lane unmuted');
+    } catch (err) {
+      logger.error('[Lanes] Error unmuting lane:', {
+        userId: req.user?.id,
+        id: req.params.id,
+        error: err,
+      });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to unmute lane');
+    }
+  },
+);
 
 export default router;

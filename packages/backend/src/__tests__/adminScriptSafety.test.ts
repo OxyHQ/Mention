@@ -77,9 +77,9 @@ function callsAdminMutationGuard(script: string): boolean {
   let called = false;
   const visit = (node: TypeScript.Node): void => {
     if (
-      ts.isCallExpression(node)
-      && ts.isIdentifier(node.expression)
-      && node.expression.text === 'assertAdminMutationAllowed'
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'assertAdminMutationAllowed'
     ) {
       called = true;
     }
@@ -168,14 +168,14 @@ describe('assertAdminMutationAllowed', () => {
     expect([...READ_ONLY_SCRIPTS].filter((name) => !scripts.includes(name)).map(at)).toEqual([]);
 
     // FLOOR — the deploy-invoked exemptions must name real scripts too.
-    expect([...DEPLOY_INVOKED_SCRIPTS].filter((name) => !scripts.includes(name)).map(at)).toEqual([]);
+    expect([...DEPLOY_INVOKED_SCRIPTS].filter((name) => !scripts.includes(name)).map(at)).toEqual(
+      [],
+    );
 
     const unguarded = scripts
       .filter(
         (name) =>
-          !READ_ONLY_SCRIPTS.has(name) &&
-          !DEPLOY_INVOKED_SCRIPTS.has(name) &&
-          !guarded.has(name),
+          !READ_ONLY_SCRIPTS.has(name) && !DEPLOY_INVOKED_SCRIPTS.has(name) && !guarded.has(name),
       )
       .map(at);
     expect(unguarded).toEqual([]);

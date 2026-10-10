@@ -39,7 +39,9 @@ describe('HLS component signatures', () => {
     expect(isSignedHlsComponent(SEGMENT, undefined)).toBe(false);
     expect(isSignedHlsComponent(SEGMENT, '')).toBe(false);
     expect(isSignedHlsComponent(SEGMENT, 'not-base64url!!')).toBe(false);
-    expect(isSignedHlsComponent(SEGMENT, signHlsComponentUrl('https://other.example/x.ts'))).toBe(false);
+    expect(isSignedHlsComponent(SEGMENT, signHlsComponentUrl('https://other.example/x.ts'))).toBe(
+      false,
+    );
   });
 
   it('rejects a non-string signature (a repeated query parameter arrives as an array)', () => {

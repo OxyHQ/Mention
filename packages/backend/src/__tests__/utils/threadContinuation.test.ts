@@ -232,7 +232,7 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * thread root. Answering one, as the organization, is a conversation held under
    * the account's name — exactly what the exception must not become.
    */
-  it('refuses a THIRD PARTY\'s post that sits inside the account\'s own thread', async () => {
+  it("refuses a THIRD PARTY's post that sits inside the account's own thread", async () => {
     await expect(
       assertContinuesOwnThread({
         parentPostId: STRANGERS_REPLY,
@@ -261,7 +261,11 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    */
   it('refuses a thread the account did not start, even with its own parent in it', async () => {
     await expect(
-      assertContinuesOwnThread({ parentPostId: GRAFTED, threadId: FOREIGN_ROOT, authorId: CHANNEL }),
+      assertContinuesOwnThread({
+        parentPostId: GRAFTED,
+        threadId: FOREIGN_ROOT,
+        authorId: CHANNEL,
+      }),
     ).rejects.toBeInstanceOf(PublishAsAccessError);
   });
 
@@ -313,15 +317,28 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * this instance now mints.
    */
   it.each([
-    ['a malformed parent id', { parentPostId: 'not-an-objectid', threadId: ROOT, authorId: CHANNEL }],
-    ['a malformed thread id', { parentPostId: ROOT, threadId: 'not-an-objectid', authorId: CHANNEL }],
-  ])('refuses %s, which now names no row rather than failing a shape check', async (_label, args) => {
-    await expect(assertContinuesOwnThread(args)).rejects.toBeInstanceOf(PublishAsAccessError);
-  });
+    [
+      'a malformed parent id',
+      { parentPostId: 'not-an-objectid', threadId: ROOT, authorId: CHANNEL },
+    ],
+    [
+      'a malformed thread id',
+      { parentPostId: ROOT, threadId: 'not-an-objectid', authorId: CHANNEL },
+    ],
+  ])(
+    'refuses %s, which now names no row rather than failing a shape check',
+    async (_label, args) => {
+      await expect(assertContinuesOwnThread(args)).rejects.toBeInstanceOf(PublishAsAccessError);
+    },
+  );
 
   it('answers 400, the same refusal a plain reply gets — the two are not worth distinguishing', async () => {
     await expect(
-      assertContinuesOwnThread({ parentPostId: FOREIGN_POST, threadId: FOREIGN_ROOT, authorId: CHANNEL }),
+      assertContinuesOwnThread({
+        parentPostId: FOREIGN_POST,
+        threadId: FOREIGN_ROOT,
+        authorId: CHANNEL,
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 });
@@ -347,9 +364,15 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
 
   function member(memberUserId: string, permissions: string[]): AccountMember {
     return {
-      _id: 'row', accountId: 'acct', memberUserId, role: 'editor', permissions,
-      inherit: true, status: 'active',
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+      _id: 'row',
+      accountId: 'acct',
+      memberUserId,
+      role: 'editor',
+      permissions,
+      inherit: true,
+      status: 'active',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     };
   }
 
@@ -394,7 +417,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     callerId: OPERATOR,
   };
 
-  it('admits organization B answering organization A in A\'s thread', async () => {
+  it("admits organization B answering organization A in A's thread", async () => {
     await expect(
       assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
     ).resolves.toBeUndefined();
@@ -413,7 +436,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
     ).resolves.toBeUndefined();
   });
 
-  it('admits an organization answering the CALLER\'s own post', async () => {
+  it("admits an organization answering the CALLER's own post", async () => {
     await expect(
       assertAnswersOperatedAccount({
         ...base,
@@ -442,7 +465,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
    * channel. This is literally "an organization replying to a channel's post",
    * which is the hole the whole boundary exists to close.
    */
-  it('MUTATION GUARD: refuses answering a CHANNEL\'s post', async () => {
+  it("MUTATION GUARD: refuses answering a CHANNEL's post", async () => {
     await expect(
       assertAnswersOperatedAccount({
         ...base,
@@ -515,7 +538,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
    * `channelReplyGate`'s fail-soft, and deliberately: reading "unknown" as "not a
    * channel" here would admit the one thing this function refuses.
    */
-  it('refuses when the parent account\'s kind will not resolve', async () => {
+  it("refuses when the parent account's kind will not resolve", async () => {
     kindsAre({ [ORG_B]: 'organization' });
     await expect(
       assertAnswersOperatedAccount({ ...base, memberReader: readerFor(ALL_OPERATED) }),
@@ -532,7 +555,7 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
    * is the only shape that pins it: parent fine, caller authorized for it, and
    * only the root's kind missing.
    */
-  it('refuses when the thread ROOT\'s kind will not resolve, though the parent\'s does', async () => {
+  it("refuses when the thread ROOT's kind will not resolve, though the parent's does", async () => {
     kindsAre({ [ORG_A]: 'organization', [ORG_B]: 'organization' });
     await expect(
       assertAnswersOperatedAccount({

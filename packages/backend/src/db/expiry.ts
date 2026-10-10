@@ -204,7 +204,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       'The row is BOTH the §10.8 dedupe record and the audit trail of what a ' +
-      'third party told this deployment to do. §10.9\'s retry schedule ends at ' +
+      "third party told this deployment to do. §10.9's retry schedule ends at " +
       '24 hours, so 90 days is far past the point a redelivery could arrive — ' +
       'the retention exists for the audit, and deleting reclaims storage only.',
   },
@@ -264,14 +264,14 @@ const OUTBOX_SWEEP_MAX_BATCHES = 50;
  */
 export async function sweepProcessedEngagementOutbox(
   db: SqlExecutor,
-  options: ExpirySweepOptions = {}
+  options: ExpirySweepOptions = {},
 ): Promise<ExpirySweepResult> {
   const batchSize = options.batchSize ?? OUTBOX_SWEEP_BATCH_SIZE;
   const maxBatches = options.maxBatches ?? OUTBOX_SWEEP_MAX_BATCHES;
   const table = getTableName(engagementOutbox);
   const expired = and(
     sql`${engagementOutbox.expiresAt} <= now()`,
-    eq(engagementOutbox.status, 'processed')
+    eq(engagementOutbox.status, 'processed'),
   );
 
   let deleted = 0;
@@ -284,7 +284,7 @@ export async function sweepProcessedEngagementOutbox(
           select ctid from ${engagementOutbox} where ${expired} limit ${batchSize}
         )
         returning ctid
-      `
+      `,
     );
     deleted += rows.length;
     if (rows.length < batchSize) return { table, deleted, truncated: false };

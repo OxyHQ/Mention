@@ -1,10 +1,5 @@
-import {
-  buildFeedDescriptor,
-  isAuthorFeedFilter,
-} from '@mention/shared-types/mtn/feedDescriptor';
-import type {
-  AuthorFeedFilter,
-} from '@mention/shared-types/mtn/feedDescriptor';
+import { buildFeedDescriptor, isAuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
+import type { AuthorFeedFilter } from '@mention/shared-types/mtn/feedDescriptor';
 import type {
   FeedRequest,
   FeedResponse,
@@ -52,7 +47,8 @@ import { recordBootMilestone } from '@/lib/webTelemetry';
 // backend allows. Both are top-level, optional fields the response carries through
 // unchanged — the card CONTENT is fetched lazily by each card component, so a feed
 // response never blocks on recommendations.
-type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices' | 'interstitials'>>;
+type FeedServiceResponse = FeedResponse &
+  Partial<Pick<SlicedFeedResponse, 'slices' | 'interstitials'>>;
 
 /**
  * The network a resolved external actor belongs to (matches the backend
@@ -235,7 +231,7 @@ function hasFeedDataEnvelope(response: FeedDataResponse): response is FeedDataEn
 
 const makePublicRequest = async <T = unknown>(
   endpoint: string,
-  config?: PublicReadRequestConfig
+  config?: PublicReadRequestConfig,
 ): Promise<T> => {
   try {
     const response = await publicClient.get<T>(endpoint, config);
@@ -249,7 +245,7 @@ const makePublicRequest = async <T = unknown>(
 
 const makeViewerAwarePublicRead = async <T = unknown>(
   endpoint: string,
-  config?: PublicReadRequestConfig
+  config?: PublicReadRequestConfig,
 ): Promise<T> => {
   if (authDedupeMarker() === 'anon') {
     return await makePublicRequest<T>(endpoint, config);
@@ -346,144 +342,147 @@ class FeedService {
    * Get feed data from backend.
    * Caching is now handled by SQLite via postsStore — this is a pure network layer.
    */
-  async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
-      recordBootMilestone('primary-request-start');
-      // Deduplicate in-flight requests — but ONLY for signal-less callers. A
-      // request carrying an AbortSignal is owned by a single caller whose
-      // lifecycle controls the abort; it must neither be served from the shared
-      // cache (it would inherit a foreign abort and reject as "canceled") nor
-      // stored into it (its abort would poison every other deduped caller). See
-      // the matching guard in getMtnFeed for the full rationale (this was the
-      // root cause of the empty-feed-on-remount bug).
-      const dedupeKey = getDedupeKey(request);
-      const canShare = !options?.signal;
-      if (canShare) {
-        const inFlight = inFlightRequests.get(dedupeKey);
-        if (inFlight) return inFlight;
-      }
+  async getFeed(
+    request: ExtendedFeedRequest,
+    options?: FeedServiceOptions,
+  ): Promise<FeedServiceResponse> {
+    recordBootMilestone('primary-request-start');
+    // Deduplicate in-flight requests — but ONLY for signal-less callers. A
+    // request carrying an AbortSignal is owned by a single caller whose
+    // lifecycle controls the abort; it must neither be served from the shared
+    // cache (it would inherit a foreign abort and reject as "canceled") nor
+    // stored into it (its abort would poison every other deduped caller). See
+    // the matching guard in getMtnFeed for the full rationale (this was the
+    // root cause of the empty-feed-on-remount bug).
+    const dedupeKey = getDedupeKey(request);
+    const canShare = !options?.signal;
+    if (canShare) {
+      const inFlight = inFlightRequests.get(dedupeKey);
+      if (inFlight) return inFlight;
+    }
 
-      const fetchPromise = (async () => {
-        try {
-          // Handle one lane's tab.
-          //
-          // Its own explicit branch, and FIRST, because a lane is not a `FeedType`
-          // — it arrives as a filter on an ordinary type, so the fallback at the
-          // bottom of this chain would emit that type as the descriptor and fetch
-          // an entirely different feed with a 200. The lane already knows its own
-          // publisher, so the id is the whole descriptor.
-          if (request.filters?.laneId) {
-            return await this.getMtnFeed(buildFeedDescriptor('lane', request.filters.laneId), {
-              cursor: request.cursor,
-              limit: request.limit || 20,
-              signal: options?.signal,
-            });
-          }
-
-          // Handle hashtag feed
-          if (request.type === 'hashtag' && request.filters?.hashtag) {
-            const tag = encodeURIComponent(request.filters.hashtag);
-            const tagParams: Record<string, string | number> = {};
-            if (request.cursor) tagParams.cursor = request.cursor;
-            if (request.limit) tagParams.limit = request.limit;
-
-            return await readFeedPage<FeedServiceResponse>(`/posts/hashtag/${tag}`, {
-              params: tagParams,
-              signal: options?.signal,
-            });
-          }
-
-          // Handle topic feed
-          if (request.type === 'topic' && request.filters?.topic) {
-            const topic = encodeURIComponent(request.filters.topic);
-            const topicParams: Record<string, string | number> = {};
-            if (request.cursor) topicParams.cursor = request.cursor;
-            if (request.limit) topicParams.limit = request.limit;
-
-            return await readFeedPage<FeedServiceResponse>(`/posts/topic/${topic}`, {
-              params: topicParams,
-              signal: options?.signal,
-            });
-          }
-
-          // Handle custom feed
-          if (request.type === 'custom' && request.filters?.customFeedId) {
-            const feedId = request.filters.customFeedId;
-            const timelineParams: Record<string, string | number> = {};
-            if (request.cursor) timelineParams.cursor = request.cursor;
-            if (request.limit) timelineParams.limit = request.limit;
-
-            return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feeds/${feedId}/timeline`, {
-              params: timelineParams,
-              signal: options?.signal,
-            });
-          }
-
-          // Handle replies feed
-          if (request.type === 'replies') {
-            const parentId = feedThreadParentId(request.filters);
-            if (!parentId) {
-              return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
-            }
-            const repliesParams: Record<string, string | number> = {};
-            if (request.cursor) repliesParams.cursor = request.cursor;
-            if (request.limit) repliesParams.limit = request.limit;
-            if (request.filters?.sort) repliesParams.sort = request.filters.sort;
-
-            return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feed/replies/${parentId}`, {
-              params: repliesParams,
-              signal: options?.signal,
-            });
-          }
-
-          // Handle quotes feed — the posts quoting a given post, behind the
-          // post-detail screen's "N quotes" count.
-          if (request.type === 'quotes') {
-            const quotedId = request.filters?.postId;
-            if (!quotedId) {
-              return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
-            }
-            const quotesParams: Record<string, string | number> = {};
-            if (request.cursor) quotesParams.cursor = request.cursor;
-            if (request.limit) quotesParams.limit = request.limit;
-
-            return await readFeedPage<FeedServiceResponse>(`/feed/quotes/${quotedId}`, {
-              params: quotesParams,
-              signal: options?.signal,
-            });
-          }
-
-          // Route standard feeds through MTN descriptor-based API
-          const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
-          return await this.getMtnFeed(descriptor, {
+    const fetchPromise = (async () => {
+      try {
+        // Handle one lane's tab.
+        //
+        // Its own explicit branch, and FIRST, because a lane is not a `FeedType`
+        // — it arrives as a filter on an ordinary type, so the fallback at the
+        // bottom of this chain would emit that type as the descriptor and fetch
+        // an entirely different feed with a 200. The lane already knows its own
+        // publisher, so the id is the whole descriptor.
+        if (request.filters?.laneId) {
+          return await this.getMtnFeed(buildFeedDescriptor('lane', request.filters.laneId), {
             cursor: request.cursor,
             limit: request.limit || 20,
             signal: options?.signal,
           });
-        } catch (error) {
-          // Already retried (see `readFeedPage`), so this is the final answer.
-          // Logged at the level the failure earns: a rate limit or a 5xx from a
-          // backend having a moment is not a defect in this client, and an
-          // error-level line here is a red console entry — or a LogBox pop-up —
-          // for something the reader is about to be told about calmly.
-          const failure = classifyFeedFailure(error);
-          logFeedFailure(logger, 'Feed read failed', failure, { feedType: request.type });
-
-          // Preserve the original error (status, server payload, stack) via
-          // `cause` so callers can recover context with `normalizeApiError`.
-          throw new Error(failure.message || 'Failed to fetch feed', { cause: error });
         }
-      })();
 
-      if (!canShare) {
-        return await fetchPromise;
-      }
+        // Handle hashtag feed
+        if (request.type === 'hashtag' && request.filters?.hashtag) {
+          const tag = encodeURIComponent(request.filters.hashtag);
+          const tagParams: Record<string, string | number> = {};
+          if (request.cursor) tagParams.cursor = request.cursor;
+          if (request.limit) tagParams.limit = request.limit;
 
-      inFlightRequests.set(dedupeKey, fetchPromise);
-      try {
-        return await fetchPromise;
-      } finally {
-        inFlightRequests.delete(dedupeKey);
+          return await readFeedPage<FeedServiceResponse>(`/posts/hashtag/${tag}`, {
+            params: tagParams,
+            signal: options?.signal,
+          });
+        }
+
+        // Handle topic feed
+        if (request.type === 'topic' && request.filters?.topic) {
+          const topic = encodeURIComponent(request.filters.topic);
+          const topicParams: Record<string, string | number> = {};
+          if (request.cursor) topicParams.cursor = request.cursor;
+          if (request.limit) topicParams.limit = request.limit;
+
+          return await readFeedPage<FeedServiceResponse>(`/posts/topic/${topic}`, {
+            params: topicParams,
+            signal: options?.signal,
+          });
+        }
+
+        // Handle custom feed
+        if (request.type === 'custom' && request.filters?.customFeedId) {
+          const feedId = request.filters.customFeedId;
+          const timelineParams: Record<string, string | number> = {};
+          if (request.cursor) timelineParams.cursor = request.cursor;
+          if (request.limit) timelineParams.limit = request.limit;
+
+          return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feeds/${feedId}/timeline`, {
+            params: timelineParams,
+            signal: options?.signal,
+          });
+        }
+
+        // Handle replies feed
+        if (request.type === 'replies') {
+          const parentId = feedThreadParentId(request.filters);
+          if (!parentId) {
+            return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
+          }
+          const repliesParams: Record<string, string | number> = {};
+          if (request.cursor) repliesParams.cursor = request.cursor;
+          if (request.limit) repliesParams.limit = request.limit;
+          if (request.filters?.sort) repliesParams.sort = request.filters.sort;
+
+          return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feed/replies/${parentId}`, {
+            params: repliesParams,
+            signal: options?.signal,
+          });
+        }
+
+        // Handle quotes feed — the posts quoting a given post, behind the
+        // post-detail screen's "N quotes" count.
+        if (request.type === 'quotes') {
+          const quotedId = request.filters?.postId;
+          if (!quotedId) {
+            return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
+          }
+          const quotesParams: Record<string, string | number> = {};
+          if (request.cursor) quotesParams.cursor = request.cursor;
+          if (request.limit) quotesParams.limit = request.limit;
+
+          return await readFeedPage<FeedServiceResponse>(`/feed/quotes/${quotedId}`, {
+            params: quotesParams,
+            signal: options?.signal,
+          });
+        }
+
+        // Route standard feeds through MTN descriptor-based API
+        const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
+        return await this.getMtnFeed(descriptor, {
+          cursor: request.cursor,
+          limit: request.limit || 20,
+          signal: options?.signal,
+        });
+      } catch (error) {
+        // Already retried (see `readFeedPage`), so this is the final answer.
+        // Logged at the level the failure earns: a rate limit or a 5xx from a
+        // backend having a moment is not a defect in this client, and an
+        // error-level line here is a red console entry — or a LogBox pop-up —
+        // for something the reader is about to be told about calmly.
+        const failure = classifyFeedFailure(error);
+        logFeedFailure(logger, 'Feed read failed', failure, { feedType: request.type });
+
+        // Preserve the original error (status, server payload, stack) via
+        // `cause` so callers can recover context with `normalizeApiError`.
+        throw new Error(failure.message || 'Failed to fetch feed', { cause: error });
       }
+    })();
+
+    if (!canShare) {
+      return await fetchPromise;
+    }
+
+    inFlightRequests.set(dedupeKey, fetchPromise);
+    try {
+      return await fetchPromise;
+    } finally {
+      inFlightRequests.delete(dedupeKey);
+    }
   }
 
   /**
@@ -529,7 +528,9 @@ class FeedService {
    * Maps the camelCase {@link CreatePostRequest} into the backend's
    * snake_case wire format (e.g. `quotedPostId` → `quoted_post_id`).
    */
-  async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: HydratedPost | null }> {
+  async createPost(
+    request: CreatePostRequest,
+  ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const backendRequest = {
       content: {
         ...request.content,
@@ -552,7 +553,8 @@ class FeedService {
       // `content` or `metadata`. Keep it out of the payload when empty so
       // we don't accidentally turn a regular post into an empty-quote.
       ...(request.quotedPostId && { quoted_post_id: request.quotedPostId }),
-      ...(request.collaboratorIds && request.collaboratorIds.length > 0 && { collaboratorIds: request.collaboratorIds }),
+      ...(request.collaboratorIds &&
+        request.collaboratorIds.length > 0 && { collaboratorIds: request.collaboratorIds }),
       // The lane the author chose. It has to be named here as well as in
       // `buildMainPost`: this mapping is a whitelist, so a field the builder
       // returns and this object omits vanishes on the way out with a 201 and no
@@ -564,7 +566,10 @@ class FeedService {
       ...(request.publishAsOxyUserId && { publishAsOxyUserId: request.publishAsOxyUserId }),
     };
 
-    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>('/posts', backendRequest);
+    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
+      '/posts',
+      backendRequest,
+    );
     const data = response?.data;
 
     if (data && typeof data === 'object' && data.post) {
@@ -580,7 +585,9 @@ class FeedService {
   /**
    * Create a thread of posts
    */
-  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: HydratedPost[] }> {
+  async createThread(
+    request: CreateThreadRequest,
+  ): Promise<{ success: boolean; posts: HydratedPost[] }> {
     const response = await authenticatedClient.post<{
       success?: boolean;
       posts?: HydratedPost[];
@@ -600,12 +607,14 @@ class FeedService {
   /**
    * Create a reply
    */
-  async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: HydratedPost | null }> {
+  async createReply(
+    request: CreateReplyRequest,
+  ): Promise<{ success: boolean; reply: HydratedPost | null }> {
     const backendRequest = {
       postId: request.postId,
       content: request.content,
       mentions: request.mentions || [],
-      hashtags: request.hashtags || []
+      hashtags: request.hashtags || [],
     };
 
     // The server answers 201 `{ success, reply }` with the reply already
@@ -631,7 +640,10 @@ class FeedService {
    * content, not the author. Omitted from the payload when absent so the request
    * stays byte-identical for non-feed callers.
    */
-  async createBoost(request: CreateBoostRequest, source?: string): Promise<{ success: boolean; boost: unknown }> {
+  async createBoost(
+    request: CreateBoostRequest,
+    source?: string,
+  ): Promise<{ success: boolean; boost: unknown }> {
     const backendRequest = {
       originalPostId: request.originalPostId,
       content: request.content?.text || '',
@@ -650,7 +662,11 @@ class FeedService {
    * `source` (optional) is the originating feed descriptor for surface-aware
    * engagement attribution; omitted from the payload when absent.
    */
-  async voteItem(postId: string, value: 1 | -1, source?: string): Promise<{ success: boolean; data: unknown }> {
+  async voteItem(
+    postId: string,
+    value: 1 | -1,
+    source?: string,
+  ): Promise<{ success: boolean; data: unknown }> {
     const response = await authenticatedClient.post(`/posts/${postId}/like`, {
       value,
       ...(source ? { source } : {}),
@@ -672,7 +688,10 @@ class FeedService {
    * `source` (optional) is the originating feed descriptor for surface-aware
    * engagement attribution; omitted from the body when absent.
    */
-  async saveItem(request: { postId: string }, source?: string): Promise<{ success: boolean; data: unknown }> {
+  async saveItem(
+    request: { postId: string },
+    source?: string,
+  ): Promise<{ success: boolean; data: unknown }> {
     const response = await authenticatedClient.post(
       `/posts/${request.postId}/save`,
       source ? { source } : undefined,
@@ -699,7 +718,9 @@ class FeedService {
   /**
    * Get saved posts for current user
    */
-  async getSavedPosts(request: SavedPostsRequest = {}): Promise<{ success: boolean; data: SavedPostsPage }> {
+  async getSavedPosts(
+    request: SavedPostsRequest = {},
+  ): Promise<{ success: boolean; data: SavedPostsPage }> {
     const response = await authenticatedClient.get<SavedPostsPage>(
       '/posts/saved',
       buildSavedPostsRequestConfig(request),
@@ -724,10 +745,7 @@ class FeedService {
     return response.data.folder;
   }
 
-  async moveBookmarkToFolder(
-    postId: string,
-    folder: string | null,
-  ): Promise<void> {
+  async moveBookmarkToFolder(postId: string, folder: string | null): Promise<void> {
     const request = buildBookmarkFolderMoveRequest(postId, folder);
     await authenticatedClient.patch(request.url, request.data);
   }
@@ -746,10 +764,9 @@ class FeedService {
    * and its body may be selected for the viewer's language.
    */
   async getPostEditSource(postId: string, signal?: AbortSignal): Promise<PostEditSource> {
-    const response = await authenticatedClient.get<PostEditSource>(
-      `/posts/${postId}/edit-source`,
-      { signal },
-    );
+    const response = await authenticatedClient.get<PostEditSource>(`/posts/${postId}/edit-source`, {
+      signal,
+    });
     return response.data;
   }
 
@@ -764,10 +781,7 @@ class FeedService {
    * `total` can exceed `corrections.length`: retention bounds how many
    * superseded bodies one post keeps, and the counter never goes down.
    */
-  async getPostCorrections(
-    postId: string,
-    signal?: AbortSignal,
-  ): Promise<PostCorrectionsResponse> {
+  async getPostCorrections(postId: string, signal?: AbortSignal): Promise<PostCorrectionsResponse> {
     const response = await authenticatedClient.get<PostCorrectionsResponse>(
       `/posts/${postId}/corrections`,
       { signal },
@@ -792,15 +806,9 @@ class FeedService {
   /**
    * Get post by ID
    */
-  async getPostById(
-    postId: string,
-    signal?: AbortSignal,
-  ): Promise<HydratedPost> {
+  async getPostById(postId: string, signal?: AbortSignal): Promise<HydratedPost> {
     try {
-      return await makeViewerAwarePublicRead<HydratedPost>(
-        `/feed/item/${postId}`,
-        { signal },
-      );
+      return await makeViewerAwarePublicRead<HydratedPost>(`/feed/item/${postId}`, { signal });
     } catch (error) {
       if (signal?.aborted) throw error;
       // The feed-item endpoint may legitimately 404 for non-feed posts; fall
@@ -810,10 +818,7 @@ class FeedService {
         ...normalizeApiError(error),
       });
     }
-    return await makeViewerAwarePublicRead<HydratedPost>(
-      `/posts/${postId}`,
-      { signal },
-    );
+    return await makeViewerAwarePublicRead<HydratedPost>(`/posts/${postId}`, { signal });
   }
 
   /**
@@ -828,7 +833,11 @@ class FeedService {
     const body: PostDocumentsRequest = { ids };
     if (authDedupeMarker() === 'auth') {
       try {
-        return (await authenticatedClient.post<PostDocumentsResponse>('/posts/documents', body, { retry: false })).data;
+        return (
+          await authenticatedClient.post<PostDocumentsResponse>('/posts/documents', body, {
+            retry: false,
+          })
+        ).data;
       } catch (error) {
         if (normalizeApiError(error).status !== 401) throw error;
       }
@@ -842,7 +851,12 @@ class FeedService {
    */
   async resolveLinkPreviews(urls: string[], signal?: AbortSignal): Promise<LinkPreviewResponse> {
     const body: LinkPreviewRequest = { urls };
-    return (await authenticatedClient.post<LinkPreviewResponse>('/posts/link-previews', body, { signal, retry: false })).data;
+    return (
+      await authenticatedClient.post<LinkPreviewResponse>('/posts/link-previews', body, {
+        signal,
+        retry: false,
+      })
+    ).data;
   }
 
   /**
@@ -864,13 +878,16 @@ class FeedService {
   /**
    * Update post settings
    */
-  async updatePostSettings(postId: string, settings: {
-    isPinned?: boolean;
-    hideEngagementCounts?: boolean;
-    replyPermission?: ('anyone' | 'followers' | 'following' | 'mentioned' | 'nobody')[];
-    reviewReplies?: boolean;
-    quotesDisabled?: boolean;
-  }): Promise<{ success: boolean; data: unknown }> {
+  async updatePostSettings(
+    postId: string,
+    settings: {
+      isPinned?: boolean;
+      hideEngagementCounts?: boolean;
+      replyPermission?: ('anyone' | 'followers' | 'following' | 'mentioned' | 'nobody')[];
+      reviewReplies?: boolean;
+      quotesDisabled?: boolean;
+    },
+  ): Promise<{ success: boolean; data: unknown }> {
     const response = await authenticatedClient.patch(`/posts/${postId}/settings`, settings);
     return { success: true, data: response.data };
   }
@@ -883,21 +900,27 @@ class FeedService {
     return { success: true };
   }
 
-  async acceptCollabInvite(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+  async acceptCollabInvite(
+    postId: string,
+  ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
       `/posts/${postId}/collaborators/accept`,
     );
     return { success: true, post: response?.data?.post ?? null };
   }
 
-  async declineCollabInvite(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+  async declineCollabInvite(
+    postId: string,
+  ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
       `/posts/${postId}/collaborators/decline`,
     );
     return { success: true, post: response?.data?.post ?? null };
   }
 
-  async stopCollabSharing(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+  async stopCollabSharing(
+    postId: string,
+  ): Promise<{ success: boolean; post: HydratedPost | null }> {
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
       `/posts/${postId}/collaborators/stop-sharing`,
     );
@@ -923,17 +946,27 @@ class FeedService {
     if (request.cursor) params.cursor = request.cursor;
     if (request.limit) params.limit = request.limit;
 
-    return await makeViewerAwarePublicRead<FeedResponse>(`/posts/topic/${encodeURIComponent(topic)}`, { params });
+    return await makeViewerAwarePublicRead<FeedResponse>(
+      `/posts/topic/${encodeURIComponent(topic)}`,
+      { params },
+    );
   }
 
   /**
    * Get users who liked a post
    */
-  async getPostLikes(postId: string, cursor?: string, limit: number = 50): Promise<PostEngagementUsersResponse> {
+  async getPostLikes(
+    postId: string,
+    cursor?: string,
+    limit: number = 50,
+  ): Promise<PostEngagementUsersResponse> {
     const params: Record<string, unknown> = { limit };
     if (cursor) params.cursor = cursor;
 
-    const response = await authenticatedClient.get<PostEngagementUsersResponse>(`/posts/${postId}/likes`, { params });
+    const response = await authenticatedClient.get<PostEngagementUsersResponse>(
+      `/posts/${postId}/likes`,
+      { params },
+    );
     return response.data;
   }
 
@@ -942,18 +975,27 @@ class FeedService {
    * proof row. Viewer-scoped: an anonymous caller gets an empty result (200).
    */
   async getKnownPostLikers(postId: string): Promise<PostKnownLikersResponse> {
-    const response = await authenticatedClient.get<PostKnownLikersResponse>(`/posts/${postId}/likes/known`);
+    const response = await authenticatedClient.get<PostKnownLikersResponse>(
+      `/posts/${postId}/likes/known`,
+    );
     return response.data;
   }
 
   /**
    * Get users who boosted a post
    */
-  async getPostBoosts(postId: string, cursor?: string, limit: number = 50): Promise<PostEngagementUsersResponse> {
+  async getPostBoosts(
+    postId: string,
+    cursor?: string,
+    limit: number = 50,
+  ): Promise<PostEngagementUsersResponse> {
     const params: Record<string, unknown> = { limit };
     if (cursor) params.cursor = cursor;
 
-    const response = await authenticatedClient.get<PostEngagementUsersResponse>(`/posts/${postId}/boosts`, { params });
+    const response = await authenticatedClient.get<PostEngagementUsersResponse>(
+      `/posts/${postId}/boosts`,
+      { params },
+    );
     return response.data;
   }
 
@@ -966,7 +1008,7 @@ class FeedService {
    */
   async getMtnFeed(
     descriptor: FeedDescriptor,
-    options?: { cursor?: string; limit?: number; signal?: AbortSignal }
+    options?: { cursor?: string; limit?: number; signal?: AbortSignal },
   ): Promise<FeedServiceResponse> {
     const params: Record<string, unknown> = { descriptor };
     if (options?.cursor) params.cursor = options.cursor;
@@ -1151,13 +1193,22 @@ class FeedService {
    * protocol id (`externalId` from a resolve): an ActivityPub actor URI or an
    * atproto DID. The response echoes the CANONICAL `actorUri` the system stored.
    */
-  async followFederatedActor(actorUri: string): Promise<{ success: boolean; pending: boolean; actorUri: string }> {
-    const response = await authenticatedClient.post<{ success: boolean; pending: boolean; actorUri: string }>('/federation/follow', { actorUri });
+  async followFederatedActor(
+    actorUri: string,
+  ): Promise<{ success: boolean; pending: boolean; actorUri: string }> {
+    const response = await authenticatedClient.post<{
+      success: boolean;
+      pending: boolean;
+      actorUri: string;
+    }>('/federation/follow', { actorUri });
     return response.data;
   }
 
   async unfollowFederatedActor(actorUri: string): Promise<{ success: boolean; actorUri: string }> {
-    const response = await authenticatedClient.post<{ success: boolean; actorUri: string }>('/federation/unfollow', { actorUri });
+    const response = await authenticatedClient.post<{ success: boolean; actorUri: string }>(
+      '/federation/unfollow',
+      { actorUri },
+    );
     return response.data;
   }
 }

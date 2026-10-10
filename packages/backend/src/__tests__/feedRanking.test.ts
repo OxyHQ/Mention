@@ -9,7 +9,9 @@ vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: false,
     isOpen: false,
-    connect: vi.fn().mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
+    connect: vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
     ping: vi.fn().mockRejectedValue(new Error('not connected')),
     get: vi.fn(),
     set: vi.fn(),
@@ -150,7 +152,12 @@ describe('FeedRankingService recalibrated quality behavior', () => {
   it('rewards a genuinely high engagement-rate post once it has enough views', async () => {
     const minViews = MtnConfig.ranking.quality.minViewsForRate;
     const highRate = makePost({
-      stats: { likesCount: minViews, boostsCount: minViews, commentsCount: 0, viewsCount: minViews },
+      stats: {
+        likesCount: minViews,
+        boostsCount: minViews,
+        commentsCount: 0,
+        viewsCount: minViews,
+      },
     });
     const lowRate = makePost({
       stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: minViews * 100 },
@@ -278,7 +285,8 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
   });
 
   it('(c) a classified HIGH-QUALITY post is boosted above a LOW-QUALITY one', async () => {
-    const { highThreshold, lowThreshold, highBoost, lowPenalty } = MtnConfig.ranking.aiQuality.quality;
+    const { highThreshold, lowThreshold, highBoost, lowPenalty } =
+      MtnConfig.ranking.aiQuality.quality;
     const high = classified({ quality: highThreshold, spam: 0, toxicity: 0 });
     const low = classified({ quality: lowThreshold, spam: 0, toxicity: 0 });
 
@@ -329,7 +337,9 @@ describe('FeedRankingService AI content-classification signals (P3a)', () => {
 
 describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)', () => {
   it('zeroes the score of a classifier-flagged sensitive post', async () => {
-    const sensitive = makePost({ postClassification: { status: 'baseline', topics: [], sensitive: true } });
+    const sensitive = makePost({
+      postClassification: { status: 'baseline', topics: [], sensitive: true },
+    });
     expect(await scoreWith(sensitive, {})).toBe(0);
   });
 
@@ -358,10 +368,22 @@ describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)
     // Both posts carry identical real engagement so a positive base score exists;
     // the ONLY differentiator is the NSFW hashtag, which must zero the score.
     const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
-    const clean = makePost({ id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
-    const nsfw = makePost({ id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
+    const clean = makePost({
+      id: 'clean-1',
+      oxyUserId: 'a',
+      hashtags: ['tech'],
+      stats: { ...stats },
+    });
+    const nsfw = makePost({
+      id: 'nsfw-1',
+      oxyUserId: 'b',
+      hashtags: ['NSFW'],
+      stats: { ...stats },
+    });
     const ranked = await service.rankPosts([clean, nsfw], undefined, {});
-    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]));
+    const byId = new Map(
+      ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]),
+    );
     expect(byId.get('nsfw-1')).toBe(0);
     expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
   });
@@ -369,7 +391,9 @@ describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)
 
 describe('FeedRankingService sensitive/NSFW exclusion is VIEWER-CONDITIONAL (showSensitiveContent)', () => {
   it('does NOT zero a classifier-flagged sensitive post when the viewer opted in', async () => {
-    const sensitive = makePost({ postClassification: { status: 'baseline', topics: [], sensitive: true } });
+    const sensitive = makePost({
+      postClassification: { status: 'baseline', topics: [], sensitive: true },
+    });
     expect(await scoreWith(sensitive, { showSensitiveContent: true })).toBeGreaterThan(0);
   });
 
@@ -403,10 +427,24 @@ describe('FeedRankingService sensitive/NSFW exclusion is VIEWER-CONDITIONAL (sho
     // userId would lazy-load following/behavior from the server singleton); the
     // sensitive zeroing depends on showSensitiveContent, not on userId.
     const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
-    const clean = makePost({ id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
-    const nsfw = makePost({ id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
-    const ranked = await service.rankPosts([clean, nsfw], undefined, { showSensitiveContent: true });
-    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]));
+    const clean = makePost({
+      id: 'clean-1',
+      oxyUserId: 'a',
+      hashtags: ['tech'],
+      stats: { ...stats },
+    });
+    const nsfw = makePost({
+      id: 'nsfw-1',
+      oxyUserId: 'b',
+      hashtags: ['NSFW'],
+      stats: { ...stats },
+    });
+    const ranked = await service.rankPosts([clean, nsfw], undefined, {
+      showSensitiveContent: true,
+    });
+    const byId = new Map(
+      ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]),
+    );
     expect(byId.get('nsfw-1') ?? 0).toBeGreaterThan(0);
     expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
   });
@@ -454,7 +492,8 @@ describe('FeedRankingService deterministic-baseline scores (P3d) — honored via
   });
 
   it('honors a BASELINE quality signal (no AI): high quality outranks low quality', async () => {
-    const { highThreshold, lowThreshold, highBoost, lowPenalty } = MtnConfig.ranking.aiQuality.quality;
+    const { highThreshold, lowThreshold, highBoost, lowPenalty } =
+      MtnConfig.ranking.aiQuality.quality;
     const high = baselineScored({ quality: highThreshold, spam: 0, toxicity: 0 });
     const low = baselineScored({ quality: lowThreshold, spam: 0, toxicity: 0 });
 
@@ -472,7 +511,14 @@ describe('FeedRankingService deterministic-baseline scores (P3d) — honored via
         status: 'pending',
         topics: [],
         version: BASELINE_CLASSIFIER_VERSION - 1, // older ruleset → not honored
-        scores: { spam: 0.99, toxicity: 0.99, quality: 0, constructiveness: 0, controversy: 0, negativity: 0 },
+        scores: {
+          spam: 0.99,
+          toxicity: 0.99,
+          quality: 0,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     });
     expect(await scoreWith(stale, {})).toBeCloseTo(base, 10);
@@ -485,7 +531,14 @@ describe('FeedRankingService deterministic-baseline scores (P3d) — honored via
       postClassification: {
         status: 'classified',
         topics: [],
-        scores: { spam: spamThreshold, toxicity: 0, quality: 0.5, constructiveness: 0, controversy: 0, negativity: 0 },
+        scores: {
+          spam: spamThreshold,
+          toxicity: 0,
+          quality: 0.5,
+          constructiveness: 0,
+          controversy: 0,
+          negativity: 0,
+        },
       },
     });
     expect(await scoreWith(classifiedSpam, {})).toBeCloseTo(base * highRiskPenalty, 5);
@@ -496,7 +549,9 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
   const VIEWER = 'viewer-1';
 
   /** behaviorSets with one preferred topicId and one hidden topic name. */
-  function behaviorSets(): NonNullable<Parameters<FeedRankingService['calculatePostScore']>[2]>['behaviorSets'] {
+  function behaviorSets(): NonNullable<
+    Parameters<FeedRankingService['calculatePostScore']>[2]
+  >['behaviorSets'] {
     return {
       hiddenAuthors: new Set<string>(),
       mutedAuthors: new Set<string>(),
@@ -522,10 +577,18 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
 
   it('PERSONALIZATION — boosts a post whose topicRefs carry a preferred topicId', async () => {
     const matched = makePost({
-      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+      postClassification: {
+        status: 'baseline',
+        topics: ['basketball'],
+        topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }],
+      },
     });
     const unmatched = makePost({
-      postClassification: { status: 'baseline', topics: ['cooking'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
+      postClassification: {
+        status: 'baseline',
+        topics: ['cooking'],
+        topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }],
+      },
     });
     expect(await scoreAsViewer(matched)).toBeGreaterThan(await scoreAsViewer(unmatched));
   });
@@ -545,10 +608,18 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
     // topicRefs carries the preferred id and must drive the match. The same post
     // also has a non-matching slug list, proving topicRefs is the source used.
     const prefersRefs = makePost({
-      postClassification: { status: 'classified', topics: ['cooking'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+      postClassification: {
+        status: 'classified',
+        topics: ['cooking'],
+        topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }],
+      },
     });
     const unmatched = makePost({
-      postClassification: { status: 'classified', topics: ['basketball'], topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }] },
+      postClassification: {
+        status: 'classified',
+        topics: ['basketball'],
+        topicRefs: [{ name: 'cooking', topicId: 'topic-cooking' }],
+      },
     });
     expect(await scoreAsViewer(prefersRefs)).toBeGreaterThan(await scoreAsViewer(unmatched));
   });
@@ -562,10 +633,18 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
 
   it('HIDDEN-TOPIC — suppresses a post whose topicRefs name is hidden', async () => {
     const hidden = makePost({
-      postClassification: { status: 'baseline', topics: ['politics'], topicRefs: [{ name: 'politics' }] },
+      postClassification: {
+        status: 'baseline',
+        topics: ['politics'],
+        topicRefs: [{ name: 'politics' }],
+      },
     });
     const visible = makePost({
-      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+      postClassification: {
+        status: 'baseline',
+        topics: ['basketball'],
+        topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }],
+      },
     });
     expect(await scoreAsViewer(hidden)).toBeLessThan(await scoreAsViewer(visible));
   });
@@ -584,7 +663,11 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
     // A post with neither source must NOT be suppressed by hidden-topic logic.
     const topicLess = makePost({ postClassification: { status: 'baseline', topics: [] } });
     const visible = makePost({
-      postClassification: { status: 'baseline', topics: ['basketball'], topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }] },
+      postClassification: {
+        status: 'baseline',
+        topics: ['basketball'],
+        topicRefs: [{ name: 'basketball', topicId: 'topic-basketball' }],
+      },
     });
     // topicLess gets no topic-match boost AND no hidden penalty; visible gets the
     // basketball preference boost, so visible should score higher — but crucially
@@ -642,8 +725,14 @@ describe('FeedRankingService language personalization (ANY-overlap on postClassi
     // Language-match reads ONLY `postClassification.languages`. A legacy post that
     // carries only the top-level AP `language` (and no classification array) gets
     // NO language boost — it scores the same whether that scalar matches or not.
-    const topLevelMatch = makePost({ language: 'es', postClassification: { status: 'baseline', topics: [] } });
-    const topLevelMiss = makePost({ language: 'fr', postClassification: { status: 'baseline', topics: [] } });
+    const topLevelMatch = makePost({
+      language: 'es',
+      postClassification: { status: 'baseline', topics: [] },
+    });
+    const topLevelMiss = makePost({
+      language: 'fr',
+      postClassification: { status: 'baseline', topics: [] },
+    });
     expect(await scoreWithSpanishPref(topLevelMatch)).toBeCloseTo(
       await scoreWithSpanishPref(topLevelMiss),
       10,
@@ -667,7 +756,10 @@ describe('FeedRankingService language personalization (ANY-overlap on postClassi
   it('is NEUTRAL when the post carries no language signal at all', async () => {
     const noLang = makePost({ postClassification: { status: 'baseline', topics: [] } });
     const baseline = makePost({ postClassification: { status: 'baseline', topics: [] } });
-    expect(await scoreWithSpanishPref(noLang)).toBeCloseTo(await scoreWithSpanishPref(baseline), 10);
+    expect(await scoreWithSpanishPref(noLang)).toBeCloseTo(
+      await scoreWithSpanishPref(baseline),
+      10,
+    );
   });
 });
 
@@ -679,11 +771,23 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
     // No engagementScoreCache is passed, so real engagement math runs.
     const nativeBoosts = makePost({
       id: 'native-boosts',
-      stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
+      stats: {
+        likesCount: 0,
+        boostsCount: 5,
+        federatedBoostsCount: 0,
+        commentsCount: 0,
+        viewsCount: 0,
+      },
     });
     const federatedBoosts = makePost({
       id: 'federated-boosts',
-      stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 5, commentsCount: 0, viewsCount: 0 },
+      stats: {
+        likesCount: 0,
+        boostsCount: 5,
+        federatedBoostsCount: 5,
+        commentsCount: 0,
+        viewsCount: 0,
+      },
     });
 
     const nativeScore = await service.calculatePostScore(nativeBoosts, undefined, {});
@@ -702,7 +806,13 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
     });
     const explicitZero = makePost({
       id: 'fed-zero',
-      stats: { likesCount: 1, boostsCount: 4, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
+      stats: {
+        likesCount: 1,
+        boostsCount: 4,
+        federatedBoostsCount: 0,
+        commentsCount: 0,
+        viewsCount: 0,
+      },
     });
 
     const absentScore = await service.calculatePostScore(absent, undefined, {});
@@ -715,7 +825,7 @@ describe('FeedRankingService recalibrated diversity penalties', () => {
   it('uses the strengthened same-author / same-topic penalties from config', () => {
     // Guard the recalibration itself: these are the values the ranking reads.
     expect(MtnConfig.ranking.diversity.sameAuthorPenalty).toBe(0.85);
-    expect(MtnConfig.ranking.diversity.sameTopicPenalty).toBe(0.80);
+    expect(MtnConfig.ranking.diversity.sameTopicPenalty).toBe(0.8);
   });
 
   it('applies the same-author diversity penalty to a repeated author in a session', async () => {
@@ -727,8 +837,18 @@ describe('FeedRankingService recalibrated diversity penalties', () => {
     // Identical, non-zero engagement so the multiplicative base score is > 0 and
     // the ONLY difference between the two is the same-author diversity penalty.
     const stats = { likesCount: 10, boostsCount: 0, commentsCount: 0, viewsCount: 0 };
-    const first = makePost({ id: 'a1', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
-    const second = makePost({ id: 'a2', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
+    const first = makePost({
+      id: 'a1',
+      oxyUserId: 'author-A',
+      createdAt: now,
+      stats: { ...stats },
+    });
+    const second = makePost({
+      id: 'a2',
+      oxyUserId: 'author-A',
+      createdAt: now,
+      stats: { ...stats },
+    });
 
     const ranked = await service.rankPosts([first, second], undefined, {
       authorFollowerCounts: new Map(),

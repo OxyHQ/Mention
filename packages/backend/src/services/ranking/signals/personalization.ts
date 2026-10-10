@@ -40,9 +40,7 @@ export function personalizationScore(
     if (post.hashtags && post.hashtags.length > 0) {
       const preferredTopics = userBehavior.preferredTopics ?? [];
       matchCount += post.hashtags.filter((tag: string) =>
-        preferredTopics.some((t) =>
-          t.topic.toLowerCase() === tag.toLowerCase() && t.weight > 0.3
-        )
+        preferredTopics.some((t) => t.topic.toLowerCase() === tag.toLowerCase() && t.weight > 0.3),
       ).length;
     }
 
@@ -56,21 +54,26 @@ export function personalizationScore(
     }
 
     if (matchCount > 0) {
-      score *= 1 + (matchCount * 0.1) * R.personalization.topicMatch;
+      score *= 1 + matchCount * 0.1 * R.personalization.topicMatch;
     }
   }
 
   // Post type preference
   if (userBehavior.preferredPostTypes) {
     const postType = post.type?.toLowerCase() || 'text';
-    const typeCount: number = (userBehavior.preferredPostTypes[postType as keyof typeof userBehavior.preferredPostTypes] as number) || 0;
+    const typeCount: number =
+      (userBehavior.preferredPostTypes[
+        postType as keyof typeof userBehavior.preferredPostTypes
+      ] as number) || 0;
     const totalTypes: number = Object.values(userBehavior.preferredPostTypes).reduce(
-      (a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0
+      (a: number, b: unknown) => a + (typeof b === 'number' ? b : 0),
+      0,
     ) as number;
 
     if (totalTypes > 0 && typeCount > 0) {
       const typePreference = typeCount / totalTypes;
-      if (typePreference > 0.3) { // User prefers this type
+      if (typePreference > 0.3) {
+        // User prefers this type
         score *= R.personalization.postTypeMatch;
       }
     }

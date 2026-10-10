@@ -54,9 +54,9 @@ vi.mock('../../../../connectors/atproto/bridge/identityService', () => ({
 }));
 
 vi.mock('../../../../connectors/activitypub/constants', async () => {
-  const actual = await vi.importActual<typeof import('../../../../connectors/activitypub/constants')>(
-    '../../../../connectors/activitypub/constants',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../../../connectors/activitypub/constants')
+  >('../../../../connectors/activitypub/constants');
   return { ...actual, resolveOxyUser: (...a: unknown[]) => mockResolveOxyUser(...a) };
 });
 
@@ -91,7 +91,15 @@ beforeEach(() => {
 describe('com.atproto.repo.listRecords', () => {
   it('serves a translated record page (repo resolved by DID)', async () => {
     mockListRecords.mockResolvedValueOnce({
-      records: [{ uri: `at://${OWNER_DID}/app.bsky.feed.post/p1`, cid: 'mtn-rid-p1', value: { $type: 'app.bsky.feed.post', text: 'hi', createdAt: 'x' }, rkey: 'p1', createdAt: 'x' }],
+      records: [
+        {
+          uri: `at://${OWNER_DID}/app.bsky.feed.post/p1`,
+          cid: 'mtn-rid-p1',
+          value: { $type: 'app.bsky.feed.post', text: 'hi', createdAt: 'x' },
+          rkey: 'p1',
+          createdAt: 'x',
+        },
+      ],
       cursor: 'p1',
     });
     const res = await request(app)
@@ -106,7 +114,10 @@ describe('com.atproto.repo.listRecords', () => {
     });
     expect(res.body.cursor).toBe('p1');
     // The repo DID was parsed to the owner id without any Oxy resolution call.
-    expect(mockListRecords).toHaveBeenCalledWith(OWNER, 'app.bsky.feed.post', { limit: undefined, cursor: undefined });
+    expect(mockListRecords).toHaveBeenCalledWith(OWNER, 'app.bsky.feed.post', {
+      limit: undefined,
+      cursor: undefined,
+    });
   });
 
   it('resolves a handle repo via Oxy', async () => {
@@ -129,7 +140,9 @@ describe('com.atproto.repo.listRecords', () => {
   });
 
   it('400s on a missing collection param', async () => {
-    const res = await request(app).get('/xrpc/com.atproto.repo.listRecords').query({ repo: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.repo.listRecords')
+      .query({ repo: OWNER_DID });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('InvalidRequest');
   });
@@ -163,7 +176,9 @@ describe('com.atproto.repo.getRecord', () => {
 
 describe('com.atproto.repo.describeRepo', () => {
   it('describes the repo with did/handle/collections', async () => {
-    const res = await request(app).get('/xrpc/com.atproto.repo.describeRepo').query({ repo: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.repo.describeRepo')
+      .query({ repo: OWNER_DID });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       did: OWNER_DID,
@@ -177,7 +192,9 @@ describe('com.atproto.repo.describeRepo', () => {
     // Regression: a `did:web:oxy.so:u:<id>` repo contains dots (in `oxy.so`). The
     // identity MUST be derived from the resolved owner id — never from
     // `repo.split('.')[0]` (which would yield `did:web:oxy`).
-    const res = await request(app).get('/xrpc/com.atproto.repo.describeRepo').query({ repo: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.repo.describeRepo')
+      .query({ repo: OWNER_DID });
     expect(res.status).toBe(200);
     expect(res.body.handle).toBe('alice.mention.earth');
     expect(res.body.did).toBe(OWNER_DID);
@@ -200,7 +217,9 @@ describe('com.atproto.repo.describeRepo', () => {
 
   it('404s when the owner id maps to no identity', async () => {
     mockGetAtprotoIdentityByOxyUserId.mockResolvedValueOnce(null);
-    const res = await request(app).get('/xrpc/com.atproto.repo.describeRepo').query({ repo: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.repo.describeRepo')
+      .query({ repo: OWNER_DID });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('RepoNotFound');
   });
@@ -209,14 +228,18 @@ describe('com.atproto.repo.describeRepo', () => {
 describe('com.atproto.sync.getLatestCommit', () => {
   it('reports the chain head as the latest commit', async () => {
     mockGetHead.mockResolvedValueOnce({ headRecordId: 'headrid', seq: 7, recordCount: 8 });
-    const res = await request(app).get('/xrpc/com.atproto.sync.getLatestCommit').query({ did: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.sync.getLatestCommit')
+      .query({ did: OWNER_DID });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ cid: 'mtn-headrid', rev: '7' });
   });
 
   it('404s a repo with no commits', async () => {
     mockGetHead.mockResolvedValueOnce(null);
-    const res = await request(app).get('/xrpc/com.atproto.sync.getLatestCommit').query({ did: OWNER_DID });
+    const res = await request(app)
+      .get('/xrpc/com.atproto.sync.getLatestCommit')
+      .query({ did: OWNER_DID });
     expect(res.status).toBe(404);
   });
 
@@ -246,7 +269,13 @@ describe('GET /ap-bridge/did/:username', () => {
       authentication: [],
       assertionMethod: [],
       alsoKnownAs: ['at://alice.mention.earth'],
-      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: 'https://mention.earth' }],
+      service: [
+        {
+          id: '#atproto_pds',
+          type: 'AtprotoPersonalDataServer',
+          serviceEndpoint: 'https://mention.earth',
+        },
+      ],
     });
     const res = await request(app).get('/ap-bridge/did/alice');
     expect(res.status).toBe(200);
@@ -281,26 +310,20 @@ describe('GET /.well-known/atproto-did', () => {
   });
 
   it('404s the apex domain (no subdomain → no user handle, never invents one)', async () => {
-    const res = await request(app)
-      .get('/.well-known/atproto-did')
-      .set('Host', 'mention.earth');
+    const res = await request(app).get('/.well-known/atproto-did').set('Host', 'mention.earth');
     expect(res.status).toBe(404);
     // The apex's first label (`mention`) must NOT be treated as a username.
     expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
   });
 
   it('404s a host that is not under the bridge domain', async () => {
-    const res = await request(app)
-      .get('/.well-known/atproto-did')
-      .set('Host', 'alice.example.com');
+    const res = await request(app).get('/.well-known/atproto-did').set('Host', 'alice.example.com');
     expect(res.status).toBe(404);
     expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
   });
 
   it('404s a nested subdomain under the bridge domain', async () => {
-    const res = await request(app)
-      .get('/.well-known/atproto-did')
-      .set('Host', 'a.b.mention.earth');
+    const res = await request(app).get('/.well-known/atproto-did').set('Host', 'a.b.mention.earth');
     expect(res.status).toBe(404);
     expect(mockGetAtprotoIdentity).not.toHaveBeenCalled();
   });

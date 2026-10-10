@@ -15,7 +15,7 @@ const PostLocation: React.FC<PostLocationProps> = ({
   location,
   paddingHorizontal = 16,
   style,
-  onPress
+  onPress,
 }) => {
   const theme = useTheme();
 

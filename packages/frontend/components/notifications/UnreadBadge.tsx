@@ -23,7 +23,11 @@ interface UnreadBadgeProps {
  * and sidebar icon. Numbered pill by default; a small dot in `dot` mode. Renders
  * `null` when there is nothing unread so callers can mount it unconditionally.
  */
-const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({ count, dot = false, accessibilityLabel }) => {
+const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({
+  count,
+  dot = false,
+  accessibilityLabel,
+}) => {
   if (count <= 0) return null;
 
   if (dot) {

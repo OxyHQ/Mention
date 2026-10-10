@@ -21,7 +21,9 @@ export async function warmClarityDocumentForText(text: string | undefined): Prom
   let results: PromiseSettledResult<unknown>[];
   try {
     const clarity = await getClarityClient();
-    results = await Promise.allSettled(urls.map((url) => clarity.indexing.resolve({ urls: [url], waitMs: 8_000 })));
+    results = await Promise.allSettled(
+      urls.map((url) => clarity.indexing.resolve({ urls: [url], waitMs: 8_000 })),
+    );
   } catch (error) {
     // Best-effort: an unavailable service client must never fail the caller.
     logger.debug('[ClarityDocumentWarm] Failed to warm previews', {

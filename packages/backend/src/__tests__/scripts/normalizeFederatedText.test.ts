@@ -257,53 +257,59 @@ describe('the backfill reproduces the ingest', () => {
     '   ',
   ];
 
-  it.each(STORED_SUMMARIES)('spoilerText: %j lands on exactly what the ingest extracts', async (stored) => {
-    // What the ingest would write for this value if the Note arrived again today.
-    const ingested = extractApSummary({ summary: stored });
-    const post = await seedRecord({ federation: remote({ spoilerText: stored }) });
+  it.each(STORED_SUMMARIES)(
+    'spoilerText: %j lands on exactly what the ingest extracts',
+    async (stored) => {
+      // What the ingest would write for this value if the Note arrived again today.
+      const ingested = extractApSummary({ summary: stored });
+      const post = await seedRecord({ federation: remote({ spoilerText: stored }) });
 
-    const { update } = buildPostUpdate(post);
+      const { update } = buildPostUpdate(post);
 
-    if (ingested === stored) {
-      // Already what the ingest produces: the backfill must not write at all.
-      expect(update.set['federation.spoilerText']).toBeUndefined();
-      expect(update.unset['federation.spoilerText']).toBeUndefined();
-      return;
-    }
-    if (ingested === undefined) {
-      // The ingest would omit the field, so the stored one must DISAPPEAR — a CW is
-      // read as "present ⇒ show it", and a blank label would render as an empty CW.
-      expect(update.unset['federation.spoilerText']).toBe('');
-      expect(update.set['federation.spoilerText']).toBeUndefined();
-      return;
-    }
-    expect(update.set['federation.spoilerText']).toBe(ingested);
-  });
+      if (ingested === stored) {
+        // Already what the ingest produces: the backfill must not write at all.
+        expect(update.set['federation.spoilerText']).toBeUndefined();
+        expect(update.unset['federation.spoilerText']).toBeUndefined();
+        return;
+      }
+      if (ingested === undefined) {
+        // The ingest would omit the field, so the stored one must DISAPPEAR — a CW is
+        // read as "present ⇒ show it", and a blank label would render as an empty CW.
+        expect(update.unset['federation.spoilerText']).toBe('');
+        expect(update.set['federation.spoilerText']).toBeUndefined();
+        return;
+      }
+      expect(update.set['federation.spoilerText']).toBe(ingested);
+    },
+  );
 
   const STORED_ALTS = ['  un gato\n  en una caja ', 'ya limpio', ' \n ', 'a  b'];
 
-  it.each(STORED_ALTS)('media alt: %j lands on exactly what the alt rule produces', async (stored) => {
-    const canonical = normalizeAlt(stored);
-    const post = await seedRecord({
-      content: {
-        variants: [{ source: 'author', text: CLEAN_TEXT, tag: 'es' }],
-        media: [{ id: 'file-a', type: 'image', alt: stored }],
-      },
-    });
+  it.each(STORED_ALTS)(
+    'media alt: %j lands on exactly what the alt rule produces',
+    async (stored) => {
+      const canonical = normalizeAlt(stored);
+      const post = await seedRecord({
+        content: {
+          variants: [{ source: 'author', text: CLEAN_TEXT, tag: 'es' }],
+          media: [{ id: 'file-a', type: 'image', alt: stored }],
+        },
+      });
 
-    const { update } = buildPostUpdate(post);
+      const { update } = buildPostUpdate(post);
 
-    if (canonical === stored) {
-      expect(update.set['content.media.0.alt']).toBeUndefined();
-      expect(update.unset['content.media.0.alt']).toBeUndefined();
-      return;
-    }
-    if (canonical === undefined) {
-      expect(update.unset['content.media.0.alt']).toBe('');
-      return;
-    }
-    expect(update.set['content.media.0.alt']).toBe(canonical);
-  });
+      if (canonical === stored) {
+        expect(update.set['content.media.0.alt']).toBeUndefined();
+        expect(update.unset['content.media.0.alt']).toBeUndefined();
+        return;
+      }
+      if (canonical === undefined) {
+        expect(update.unset['content.media.0.alt']).toBe('');
+        return;
+      }
+      expect(update.set['content.media.0.alt']).toBe(canonical);
+    },
+  );
 });
 
 describe('buildActorUpdate', () => {
@@ -507,8 +513,9 @@ describe('normalizeStoredText — real run', () => {
 
     await normalizeStoredText(false);
 
-    expect(planned.find((entry) => entry.id === seeded.dirtyBody)?.update.set)
-      .toEqual({ 'content.variants.0.text': CLEAN_TEXT });
+    expect(planned.find((entry) => entry.id === seeded.dirtyBody)?.update.set).toEqual({
+      'content.variants.0.text': CLEAN_TEXT,
+    });
     expect(await storedVariantBodies(seeded.dirtyBody)).toEqual([CLEAN_TEXT]);
 
     expect(await storedSpoilerText(seeded.dirtyLabels)).toBe('CW: spoilers');

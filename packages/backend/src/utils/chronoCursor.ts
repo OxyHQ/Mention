@@ -71,10 +71,7 @@ export interface ChronoCursorData {
  * The version prefix allows a future cursor migration to fail explicitly
  * instead of silently applying an incompatible filter.
  */
-export function encodeChronoCursor(
-  createdAt: Date | string,
-  id: string,
-): string {
+export function encodeChronoCursor(createdAt: Date | string, id: string): string {
   const timestamp = new Date(createdAt).getTime();
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
     throw new Error('Cannot encode a chrono cursor with an invalid createdAt');
@@ -96,8 +93,11 @@ export function encodeChronoCursor(
  * versions return undefined so the route can reject them as a bad request.
  */
 export function decodeChronoCursor(cursor: string): ChronoCursorData | undefined {
-  if (cursor.length === 0 || cursor.length > MAX_CURSOR_LENGTH
-      || !cursor.startsWith(CHRONO_CURSOR_PREFIX)) {
+  if (
+    cursor.length === 0 ||
+    cursor.length > MAX_CURSOR_LENGTH ||
+    !cursor.startsWith(CHRONO_CURSOR_PREFIX)
+  ) {
     return undefined;
   }
 
@@ -107,15 +107,19 @@ export function decodeChronoCursor(cursor: string): ChronoCursorData | undefined
   }
 
   try {
-    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<EncodedChronoCursor>;
-    if (parsed.v !== CHRONO_CURSOR_VERSION
-        || !Number.isSafeInteger(parsed.t)
-        || (parsed.t as number) < 0
-        // The `typeof` is what NARROWS `i` for the `toLowerCase()` below —
-        // `isLiveEntityId` takes `unknown` and returns a plain boolean, not a
-        // type predicate, so it cannot do that job on its own.
-        || typeof parsed.i !== 'string'
-        || !isLiveEntityId(parsed.i)) {
+    const parsed = JSON.parse(
+      Buffer.from(encoded, 'base64url').toString('utf8'),
+    ) as Partial<EncodedChronoCursor>;
+    if (
+      parsed.v !== CHRONO_CURSOR_VERSION ||
+      !Number.isSafeInteger(parsed.t) ||
+      (parsed.t as number) < 0 ||
+      // The `typeof` is what NARROWS `i` for the `toLowerCase()` below —
+      // `isLiveEntityId` takes `unknown` and returns a plain boolean, not a
+      // type predicate, so it cannot do that job on its own.
+      typeof parsed.i !== 'string' ||
+      !isLiveEntityId(parsed.i)
+    ) {
       return undefined;
     }
 

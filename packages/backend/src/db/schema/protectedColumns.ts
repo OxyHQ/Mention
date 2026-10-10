@@ -74,7 +74,7 @@ export const PROTECTED_COLUMNS_BY_TABLE: ReadonlyMap<string, ReadonlySet<string>
  * runtime leak.
  */
 export function publicColumns<T extends PgTable>(
-  table: T
+  table: T,
 ): Omit<T['_']['columns'], ProtectedPropertyOf<T>> {
   const protectedProperties = PROTECTED_COLUMNS_BY_TABLE.get(getTableName(table));
   const columns = getTableColumns(table);

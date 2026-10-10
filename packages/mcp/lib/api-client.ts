@@ -8,8 +8,8 @@
  * Reads MENTION_API_URL from the environment for the base URL.
  * MENTION_API_TIMEOUT_MS controls the per-attempt timeout (default: 10 seconds).
  */
-import { requestContext } from "./context.js";
-import { loadApiClientConfig } from "./config.js";
+import { requestContext } from './context.js';
+import { loadApiClientConfig } from './config.js';
 
 export interface ApiError {
   status: number;
@@ -25,50 +25,53 @@ const RETRY_BASE_DELAY_MS = 100;
 
 function resolveToken(): string {
   const ctx = requestContext.getStore();
-  return ctx?.userToken || "";
+  return ctx?.userToken || '';
 }
 
 function headers(method: string): Record<string, string> {
   const h: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
   };
   const token = resolveToken();
   if (token) {
-    h["Authorization"] = `${requestContext.getStore()?.authorizationScheme ?? "Bearer"} ${token}`;
+    h['Authorization'] = `${requestContext.getStore()?.authorizationScheme ?? 'Bearer'} ${token}`;
   }
   const context = requestContext.getStore();
-  if (context?.authMode === "capability" && context.userToken) {
+  if (context?.authMode === 'capability' && context.userToken) {
     if (!context.toolName) {
       throw {
         status: 500,
-        message: "Mention refused a capability request without an exact tool binding.",
+        message: 'Mention refused a capability request without an exact tool binding.',
         body: null,
       } satisfies ApiError;
     }
-    h["X-Oxy-Capability-Tool"] = context.toolName;
+    h['X-Oxy-Capability-Tool'] = context.toolName;
   }
-  if (method !== "GET" && context?.userToken) {
+  if (method !== 'GET' && context?.userToken) {
     if (!context.idempotencyKey || !context.toolName) {
       throw {
         status: 500,
-        message: "Mention refused an MCP write without a bound idempotency key.",
+        message: 'Mention refused an MCP write without a bound idempotency key.',
         body: null,
       } satisfies ApiError;
     }
-    h["Idempotency-Key"] = context.idempotencyKey;
-    if (context.authMode !== "capability") {
-      h["X-Oxy-MCP-Tool"] = context.toolName;
+    h['Idempotency-Key'] = context.idempotencyKey;
+    if (context.authMode !== 'capability') {
+      h['X-Oxy-MCP-Tool'] = context.toolName;
     }
   }
   return h;
 }
 
-function buildUrl(path: string, query?: Record<string, string | number | boolean | undefined>): string {
+function buildUrl(
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>,
+): string {
   const url = new URL(`${BASE_URL}${path}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== null && value !== "") {
+      if (value !== undefined && value !== null && value !== '') {
         url.searchParams.set(key, String(value));
       }
     }
@@ -85,7 +88,7 @@ async function request<T = unknown>(
   },
 ): Promise<T> {
   const url = buildUrl(path, options?.query);
-  const attempts = method === "GET" ? 2 : 1;
+  const attempts = method === 'GET' ? 2 : 1;
 
   for (let attempt = 0; attempt < attempts; attempt++) {
     let response: Response;
@@ -96,7 +99,7 @@ async function request<T = unknown>(
         body: options?.body === undefined ? undefined : JSON.stringify(options.body),
       });
     } catch (error) {
-      if (method === "GET" && attempt === 0) {
+      if (method === 'GET' && attempt === 0) {
         await waitBeforeRetry();
         continue;
       }
@@ -105,7 +108,7 @@ async function request<T = unknown>(
 
     if (
       !response.ok &&
-      method === "GET" &&
+      method === 'GET' &&
       attempt === 0 &&
       RETRYABLE_GET_STATUSES.has(response.status)
     ) {
@@ -128,7 +131,7 @@ async function request<T = unknown>(
 
   throw {
     status: 503,
-    message: "Mention API request failed after retry.",
+    message: 'Mention API request failed after retry.',
     body: null,
   } satisfies ApiError;
 }
@@ -145,7 +148,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (error) {
-    if (timedOut || (error instanceof DOMException && error.name === "AbortError")) {
+    if (timedOut || (error instanceof DOMException && error.name === 'AbortError')) {
       throw {
         status: 504,
         message: `Mention API timed out after ${API_REQUEST_TIMEOUT_MS}ms.`,
@@ -159,7 +162,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
 }
 
 async function responseToApiError(response: Response): Promise<ApiError> {
-  const rawBody = await response.text().catch(() => "");
+  const rawBody = await response.text().catch(() => '');
   let body: unknown = rawBody;
   if (rawBody) {
     try {
@@ -172,10 +175,10 @@ async function responseToApiError(response: Response): Promise<ApiError> {
   let message: string;
   if (response.status === 401) {
     message =
-      "Authentication required. Reconnect your Mention account in the MCP client and try again.";
-  } else if (typeof body === "object" && body !== null && "message" in body) {
+      'Authentication required. Reconnect your Mention account in the MCP client and try again.';
+  } else if (typeof body === 'object' && body !== null && 'message' in body) {
     message = String((body as Record<string, unknown>).message);
-  } else if (typeof body === "object" && body !== null && "error" in body) {
+  } else if (typeof body === 'object' && body !== null && 'error' in body) {
     message = String((body as Record<string, unknown>).error);
   } else {
     message = `HTTP ${response.status} ${response.statusText}`;
@@ -197,40 +200,40 @@ function normalizeNetworkError(error: unknown): ApiError {
 }
 
 function isApiError(error: unknown): error is ApiError {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    "message" in error
-  );
+  return typeof error === 'object' && error !== null && 'status' in error && 'message' in error;
 }
 
 async function waitBeforeRetry(): Promise<void> {
-  const jitteredDelay = Math.round(
-    RETRY_BASE_DELAY_MS * (0.5 + Math.random()),
-  );
+  const jitteredDelay = Math.round(RETRY_BASE_DELAY_MS * (0.5 + Math.random()));
   await new Promise<void>((resolve) => setTimeout(resolve, jitteredDelay));
 }
 
 export const api = {
-  get<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    return request<T>("GET", path, { query });
+  get<T = unknown>(
+    path: string,
+    query?: Record<string, string | number | boolean | undefined>,
+  ): Promise<T> {
+    return request<T>('GET', path, { query });
   },
 
-  post<T = unknown>(path: string, body?: unknown, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    return request<T>("POST", path, { body, query });
+  post<T = unknown>(
+    path: string,
+    body?: unknown,
+    query?: Record<string, string | number | boolean | undefined>,
+  ): Promise<T> {
+    return request<T>('POST', path, { body, query });
   },
 
   put<T = unknown>(path: string, body?: unknown): Promise<T> {
-    return request<T>("PUT", path, { body });
+    return request<T>('PUT', path, { body });
   },
 
   patch<T = unknown>(path: string, body?: unknown): Promise<T> {
-    return request<T>("PATCH", path, { body });
+    return request<T>('PATCH', path, { body });
   },
 
   delete<T = unknown>(path: string, body?: unknown): Promise<T> {
-    return request<T>("DELETE", path, { body });
+    return request<T>('DELETE', path, { body });
   },
 };
 
@@ -238,7 +241,7 @@ export const api = {
  * Format an API error into a user-friendly string for MCP tool responses.
  */
 export function formatApiError(error: unknown): string {
-  if (typeof error === "object" && error !== null && "status" in error && "message" in error) {
+  if (typeof error === 'object' && error !== null && 'status' in error && 'message' in error) {
     const apiErr = error as ApiError;
     return `API error (${apiErr.status}): ${apiErr.message}`;
   }

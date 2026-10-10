@@ -21,9 +21,9 @@ jest.mock('@/utils/api', () => ({
 
 jest.mock('@/lib/queryClient', () => ({
   queryClient: {
-    invalidateQueries: (
-      options: { predicate?: (query: { queryKey: readonly unknown[] }) => boolean },
-    ) => {
+    invalidateQueries: (options: {
+      predicate?: (query: { queryKey: readonly unknown[] }) => boolean;
+    }) => {
       mockInvalidateQueries(options);
       mockCapturedPredicate = options.predicate ?? null;
     },
@@ -75,14 +75,12 @@ describe('appearanceStore optimistic banner echo', () => {
       .getState()
       .updateMySettings({ profileHeaderImage: 'new-banner-file' });
 
-    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage)
-      .toBe('new-banner-file');
+    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage).toBe('new-banner-file');
 
     pending.resolve({ data: { ...stored, profileHeaderImage: 'new-banner-file' } });
     await request;
 
-    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage)
-      .toBe('new-banner-file');
+    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage).toBe('new-banner-file');
   });
 
   it('clears the preview immediately when the banner is removed', async () => {
@@ -90,12 +88,9 @@ describe('appearanceStore optimistic banner echo', () => {
     const pending = deferred<{ data: UserAppearance }>();
     mockPut.mockReturnValueOnce(pending.promise);
 
-    const request = useAppearanceStore
-      .getState()
-      .updateMySettings({ profileHeaderImage: '' });
+    const request = useAppearanceStore.getState().updateMySettings({ profileHeaderImage: '' });
 
-    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage)
-      .toBeUndefined();
+    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage).toBeUndefined();
 
     pending.resolve({ data: { ...stored, profileHeaderImage: undefined } });
     await request;
@@ -110,14 +105,12 @@ describe('appearanceStore optimistic banner echo', () => {
       .getState()
       .updateMySettings({ profileHeaderImage: 'new-banner-file' });
 
-    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage)
-      .toBe('new-banner-file');
+    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage).toBe('new-banner-file');
 
     pending.reject(new Error('network down'));
     await request;
 
-    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage)
-      .toBe('old-banner-file');
+    expect(useAppearanceStore.getState().mySettings?.profileHeaderImage).toBe('old-banner-file');
     expect(useAppearanceStore.getState().error).toBe('network down');
     expect(mockInvalidateQueries).not.toHaveBeenCalled();
   });
@@ -152,9 +145,7 @@ describe('appearanceStore optimistic banner echo', () => {
       data: { ...stored, profileHeaderImage: 'new-banner-file' },
     });
 
-    await useAppearanceStore
-      .getState()
-      .updateMySettings({ profileHeaderImage: 'new-banner-file' });
+    await useAppearanceStore.getState().updateMySettings({ profileHeaderImage: 'new-banner-file' });
 
     const predicate = mockCapturedPredicate;
     if (typeof predicate !== 'function') {
@@ -163,29 +154,35 @@ describe('appearanceStore optimistic banner echo', () => {
 
     // The owner viewing their own profile, and any other viewer's copy of it:
     // the payload is privacy-gated per viewer, so every variant must be dropped.
-    expect(predicate({
-      queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a'),
-    })).toBe(true);
-    expect(predicate({
-      queryKey: viewerQueryKeys.appearanceForUser('someone-else', 'viewer-a'),
-    })).toBe(true);
+    expect(
+      predicate({
+        queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'viewer-a'),
+      }),
+    ).toBe(true);
+    expect(
+      predicate({
+        queryKey: viewerQueryKeys.appearanceForUser('someone-else', 'viewer-a'),
+      }),
+    ).toBe(true);
 
     // ...and nothing else: not another owner's appearance, not another family.
-    expect(predicate({
-      queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'other-owner'),
-    })).toBe(false);
-    expect(predicate({
-      queryKey: viewerQueryKeys.notifications('viewer-a'),
-    })).toBe(false);
+    expect(
+      predicate({
+        queryKey: viewerQueryKeys.appearanceForUser('viewer-a', 'other-owner'),
+      }),
+    ).toBe(false);
+    expect(
+      predicate({
+        queryKey: viewerQueryKeys.notifications('viewer-a'),
+      }),
+    ).toBe(false);
   });
 
   it('does not invalidate the profile entry when the save fails', async () => {
     seedStoredSettings();
     mockPut.mockRejectedValueOnce(new Error('network down'));
 
-    await useAppearanceStore
-      .getState()
-      .updateMySettings({ profileHeaderImage: 'new-banner-file' });
+    await useAppearanceStore.getState().updateMySettings({ profileHeaderImage: 'new-banner-file' });
 
     expect(mockInvalidateQueries).not.toHaveBeenCalled();
   });

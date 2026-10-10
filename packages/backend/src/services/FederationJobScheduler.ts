@@ -19,7 +19,10 @@ import {
   markDeliveriesMigrated,
   recordDeliveryAttempt,
 } from '../db/federation/deliveryQueueRepository';
-import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
+import {
+  activityPubConnector,
+  isPermanentlyUnavailableOutboxReason,
+} from '../connectors/activitypub/ActivityPubConnector';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
 import { drainFederatedMediaDeletions } from './mediaCache/federatedMediaDeletion';
@@ -161,30 +164,24 @@ class FederationJobScheduler {
   private startLegacyIntervals(): void {
     // Refresh stale actor profiles every 6 hours
     this.actorRefreshInterval = setInterval(() => {
-      this.refreshStaleActors().catch((err) =>
-        logger.error('Actor refresh job failed:', err)
-      );
+      this.refreshStaleActors().catch((err) => logger.error('Actor refresh job failed:', err));
     }, REFRESH_STALE_ACTORS_INTERVAL_MS);
     this.actorRefreshInterval.unref?.();
 
     // Retry failed deliveries every minute (Mongo delivery queue)
     this.deliveryRetryInterval = setInterval(() => {
-      this.retryFailedDeliveries().catch((err) =>
-        logger.error('Delivery retry job failed:', err)
-      );
+      this.retryFailedDeliveries().catch((err) => logger.error('Delivery retry job failed:', err));
     }, DELIVERY_RETRY_INTERVAL_MS);
     this.deliveryRetryInterval.unref?.();
 
     this.outboxSyncInterval = setInterval(() => {
-      this.syncFollowedActorsPosts().catch((err) =>
-        logger.error('Outbox sync job failed:', err)
-      );
+      this.syncFollowedActorsPosts().catch((err) => logger.error('Outbox sync job failed:', err));
     }, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS);
     this.outboxSyncInterval.unref?.();
 
     this.outboxBackfillInterval = setInterval(() => {
       this.syncRecentOutboxBackfills().catch((err) =>
-        logger.error('Recent outbox backfill job failed:', err)
+        logger.error('Recent outbox backfill job failed:', err),
       );
     }, RECENT_OUTBOX_BACKFILL_INTERVAL_MS);
     this.outboxBackfillInterval.unref?.();
@@ -197,7 +194,7 @@ class FederationJobScheduler {
       // Drain pending federated-media cache jobs (download remote → upload to Oxy).
       this.mediaCacheWorkerInterval = setInterval(() => {
         this.runMediaCacheWorker().catch((err) =>
-          logger.error('Media cache worker job failed:', err)
+          logger.error('Media cache worker job failed:', err),
         );
       }, MEDIA_CACHE_WORKER_INTERVAL_MS);
       this.mediaCacheWorkerInterval.unref?.();
@@ -205,7 +202,7 @@ class FederationJobScheduler {
       // Mirror federated banners (a sweep that cannot upload would only burn attempts).
       this.federatedBannerMirrorsInterval = setInterval(() => {
         this.runFederatedBannerMirrors().catch((err) =>
-          logger.error('Federated banner mirror sweep failed:', err)
+          logger.error('Federated banner mirror sweep failed:', err),
         );
       }, FEDERATED_BANNER_MIRRORS_INTERVAL_MS);
       this.federatedBannerMirrorsInterval.unref?.();
@@ -213,32 +210,31 @@ class FederationJobScheduler {
       // Evict idle cached media from Oxy S3 (activity-based TTL).
       this.mediaCacheEvictionInterval = setInterval(() => {
         this.runMediaCacheEviction().catch((err) =>
-          logger.error('Media cache eviction job failed:', err)
+          logger.error('Media cache eviction job failed:', err),
         );
       }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
       this.mediaCacheEvictionInterval.unref?.();
-
     }
 
     // Recommendation-signal jobs (interest-score recompute + endorsement-outbox
     // drain). Always armed — they are not gated on the media cache.
     this.interestScoresInterval = setInterval(() => {
       this.computeInterestScores().catch((err) =>
-        logger.error('Interest score recompute job failed:', err)
+        logger.error('Interest score recompute job failed:', err),
       );
     }, COMPUTE_INTEREST_SCORES_INTERVAL_MS);
     this.interestScoresInterval.unref?.();
 
     this.endorsementOutboxInterval = setInterval(() => {
       this.flushEndorsementOutbox().catch((err) =>
-        logger.error('Endorsement outbox flush job failed:', err)
+        logger.error('Endorsement outbox flush job failed:', err),
       );
     }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
     this.endorsementOutboxInterval.unref?.();
 
     this.affinityEventsInterval = setInterval(() => {
       this.flushAffinityEvents().catch((err) =>
-        logger.error('Affinity events flush job failed:', err)
+        logger.error('Affinity events flush job failed:', err),
       );
     }, FLUSH_AFFINITY_EVENTS_INTERVAL_MS);
     this.affinityEventsInterval.unref?.();
@@ -247,7 +243,7 @@ class FederationJobScheduler {
     // not live on as a re-hosted file, whatever else is switched off.
     this.federatedMediaDeletionsInterval = setInterval(() => {
       this.drainFederatedMediaDeletions().catch((err) =>
-        logger.error('Federated media deletion drain failed:', err)
+        logger.error('Federated media deletion drain failed:', err),
       );
     }, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS);
     this.federatedMediaDeletionsInterval.unref?.();
@@ -258,7 +254,7 @@ class FederationJobScheduler {
     if (instagramGraphConnector.enabled) {
       this.instagramGraphSyncInterval = setInterval(() => {
         this.syncInstagramFollowedAccounts().catch((err) =>
-          logger.error('Instagram Graph sync job failed:', err)
+          logger.error('Instagram Graph sync job failed:', err),
         );
       }, INSTAGRAM_GRAPH_SYNC_INTERVAL_MS);
       this.instagramGraphSyncInterval.unref?.();
@@ -267,10 +263,10 @@ class FederationJobScheduler {
     // Stagger startup tasks to let DB connections warm up
     this.initialSyncTimeout = setTimeout(() => {
       this.syncFollowedActorsPosts().catch((err) =>
-        logger.error('Initial outbox sync failed:', err)
+        logger.error('Initial outbox sync failed:', err),
       );
       this.syncRecentOutboxBackfills().catch((err) =>
-        logger.error('Initial recent outbox backfill failed:', err)
+        logger.error('Initial recent outbox backfill failed:', err),
       );
     }, INITIAL_SYNC_STARTUP_DELAY_MS);
     this.initialSyncTimeout.unref?.();
@@ -298,23 +294,67 @@ class FederationJobScheduler {
       );
     };
 
-    await upsert(PERIODIC_REFRESH_STALE_ACTORS, REFRESH_STALE_ACTORS_INTERVAL_MS, 'refreshStaleActors');
-    await upsert(PERIODIC_SYNC_FOLLOWED_OUTBOX, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS, 'syncFollowedActorsPosts');
-    await upsert(PERIODIC_RECENT_OUTBOX_BACKFILL, RECENT_OUTBOX_BACKFILL_INTERVAL_MS, 'syncRecentOutboxBackfills');
-    await upsert(PERIODIC_COMPUTE_INTEREST_SCORES, COMPUTE_INTEREST_SCORES_INTERVAL_MS, 'computeInterestScores');
-    await upsert(PERIODIC_FLUSH_ENDORSEMENT_OUTBOX, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS, 'flushEndorsementOutbox');
-    await upsert(PERIODIC_FLUSH_AFFINITY_EVENTS, FLUSH_AFFINITY_EVENTS_INTERVAL_MS, 'flushAffinityEvents');
+    await upsert(
+      PERIODIC_REFRESH_STALE_ACTORS,
+      REFRESH_STALE_ACTORS_INTERVAL_MS,
+      'refreshStaleActors',
+    );
+    await upsert(
+      PERIODIC_SYNC_FOLLOWED_OUTBOX,
+      SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
+      'syncFollowedActorsPosts',
+    );
+    await upsert(
+      PERIODIC_RECENT_OUTBOX_BACKFILL,
+      RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
+      'syncRecentOutboxBackfills',
+    );
+    await upsert(
+      PERIODIC_COMPUTE_INTEREST_SCORES,
+      COMPUTE_INTEREST_SCORES_INTERVAL_MS,
+      'computeInterestScores',
+    );
+    await upsert(
+      PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+      FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
+      'flushEndorsementOutbox',
+    );
+    await upsert(
+      PERIODIC_FLUSH_AFFINITY_EVENTS,
+      FLUSH_AFFINITY_EVENTS_INTERVAL_MS,
+      'flushAffinityEvents',
+    );
 
     if (isMediaCacheEnabled()) {
-      await upsert(PERIODIC_MEDIA_CACHE_WORKER, MEDIA_CACHE_WORKER_INTERVAL_MS, 'runMediaCacheWorker');
-      await upsert(PERIODIC_MEDIA_CACHE_EVICTION, MEDIA_CACHE_EVICTION_INTERVAL_MS, 'runMediaCacheEviction');
-      await upsert(PERIODIC_FEDERATED_BANNER_MIRRORS, FEDERATED_BANNER_MIRRORS_INTERVAL_MS, 'runFederatedBannerMirrors');
+      await upsert(
+        PERIODIC_MEDIA_CACHE_WORKER,
+        MEDIA_CACHE_WORKER_INTERVAL_MS,
+        'runMediaCacheWorker',
+      );
+      await upsert(
+        PERIODIC_MEDIA_CACHE_EVICTION,
+        MEDIA_CACHE_EVICTION_INTERVAL_MS,
+        'runMediaCacheEviction',
+      );
+      await upsert(
+        PERIODIC_FEDERATED_BANNER_MIRRORS,
+        FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
+        'runFederatedBannerMirrors',
+      );
     }
 
-    await upsert(PERIODIC_FEDERATED_MEDIA_DELETIONS, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS, 'drainFederatedMediaDeletions');
+    await upsert(
+      PERIODIC_FEDERATED_MEDIA_DELETIONS,
+      FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
+      'drainFederatedMediaDeletions',
+    );
 
     if (instagramGraphConnector.enabled) {
-      await upsert(PERIODIC_INSTAGRAM_GRAPH_SYNC, INSTAGRAM_GRAPH_SYNC_INTERVAL_MS, 'syncInstagramFollowedAccounts');
+      await upsert(
+        PERIODIC_INSTAGRAM_GRAPH_SYNC,
+        INSTAGRAM_GRAPH_SYNC_INTERVAL_MS,
+        'syncInstagramFollowedAccounts',
+      );
     } else {
       // A schedule registered while the connector was on must not outlive it.
       await queue.removeJobScheduler(PERIODIC_INSTAGRAM_GRAPH_SYNC).catch(() => undefined);
@@ -505,7 +545,9 @@ class FederationJobScheduler {
 
     if (staleActors.length === 0) return;
 
-    logger.info(`[FedSync] Refreshing ${staleActors.length} stale actor profiles (forcing avatar refresh)`);
+    logger.info(
+      `[FedSync] Refreshing ${staleActors.length} stale actor profiles (forcing avatar refresh)`,
+    );
 
     // Bounded concurrency to avoid overwhelming remote servers.
     const CONCURRENCY = 3;
@@ -519,8 +561,8 @@ class FederationJobScheduler {
             logger.debug('[FedSync] failed to refresh actor', {
               error: message,
             });
-          })
-        )
+          }),
+        ),
       );
     }
   }
@@ -559,10 +601,10 @@ class FederationJobScheduler {
         const batch = actors.slice(i, i + CONCURRENCY);
         await Promise.allSettled(
           batch.map((actor) =>
-            activityPubConnector.syncOutboxPosts(actor, 20).catch((err) =>
-              logger.debug('[FedSync] outbox sync failed', err)
-            )
-          )
+            activityPubConnector
+              .syncOutboxPosts(actor, 20)
+              .catch((err) => logger.debug('[FedSync] outbox sync failed', err)),
+          ),
         );
       }
     } finally {
@@ -611,10 +653,18 @@ class FederationJobScheduler {
     if (!outboxUrl) return;
 
     const previousState = actor.outboxBackfill;
-    const outboxChanged = Boolean(previousState?.outboxUrl && previousState.outboxUrl !== outboxUrl);
-    const previousProcessedCount = outboxChanged ? 0 : Math.max(0, previousState?.processedCount ?? 0);
-    const previousImportedCount = outboxChanged ? 0 : Math.max(0, previousState?.importedCount ?? 0);
-    const previousExistingCount = outboxChanged ? 0 : Math.max(0, previousState?.existingCount ?? 0);
+    const outboxChanged = Boolean(
+      previousState?.outboxUrl && previousState.outboxUrl !== outboxUrl,
+    );
+    const previousProcessedCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.processedCount ?? 0);
+    const previousImportedCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.importedCount ?? 0);
+    const previousExistingCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.existingCount ?? 0);
     const previousPageCount = outboxChanged ? 0 : Math.max(0, previousState?.pageCount ?? 0);
 
     if (!outboxChanged && previousProcessedCount >= OUTBOX_RECENT_BACKFILL_LIMIT) {
@@ -669,13 +719,17 @@ class FederationJobScheduler {
         limit: Math.min(OUTBOX_RECENT_BACKFILL_BATCH_SIZE, remaining),
         maxPages: OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN,
         startPageUrl: outboxChanged ? undefined : previousState?.cursorUrl,
-        startItemOffset: outboxChanged ? 0 : previousState?.cursorItemOffset ?? 0,
+        startItemOffset: outboxChanged ? 0 : (previousState?.cursorItemOffset ?? 0),
       },
     );
 
     const processedDelta = result.candidateCount ?? 0;
-    const processedCount = Math.min(OUTBOX_RECENT_BACKFILL_LIMIT, previousProcessedCount + processedDelta);
-    const importedCount = previousImportedCount + (result.newPostCount ?? 0) + (result.importedBoostCount ?? 0);
+    const processedCount = Math.min(
+      OUTBOX_RECENT_BACKFILL_LIMIT,
+      previousProcessedCount + processedDelta,
+    );
+    const importedCount =
+      previousImportedCount + (result.newPostCount ?? 0) + (result.importedBoostCount ?? 0);
     const existingCount = previousExistingCount + (result.existingCount ?? 0);
     const pageCount = previousPageCount + (result.pagesFetched ?? 0);
 
@@ -700,7 +754,11 @@ class FederationJobScheduler {
     } else if (!result.shouldStampCooldown) {
       patch.status = 'failed';
       patch.lastError = result.reason ?? 'unknown';
-    } else if (processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT || result.reachedEnd || !result.nextCursor) {
+    } else if (
+      processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT ||
+      result.reachedEnd ||
+      !result.nextCursor
+    ) {
       patch.status = 'complete';
       patch.completedAt = new Date();
       patch.cursorUrl = null;
@@ -712,16 +770,13 @@ class FederationJobScheduler {
     }
 
     await updateOutboxBackfill(actor.id, patch);
-    logger.info(
-      '[FedSync] recent backfill completed',
-      {
-        status: String(patch.status),
-        processedCount,
-        processingLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
-        importedCount,
-        existingCount,
-      },
-    );
+    logger.info('[FedSync] recent backfill completed', {
+      status: String(patch.status),
+      processedCount,
+      processingLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
+      importedCount,
+      existingCount,
+    });
   }
 
   /**
@@ -970,7 +1025,6 @@ class FederationJobScheduler {
       this.isInstagramGraphSyncRunning = false;
     }
   }
-
 }
 
 export const federationJobScheduler = new FederationJobScheduler();

@@ -31,7 +31,9 @@ afterEach(() => {
   }
 });
 
-function intentEntries(result: ExpoConfigResult): { scheme?: string; host?: string; port?: string }[] {
+function intentEntries(
+  result: ExpoConfigResult,
+): { scheme?: string; host?: string; port?: string }[] {
   return (result.expo.android?.intentFilters ?? [])
     .flatMap((filter) => filter.data ?? [])
     .filter((entry): entry is { scheme?: string; host?: string; port?: string } => Boolean(entry));

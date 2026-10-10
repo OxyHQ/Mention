@@ -33,7 +33,9 @@ function getDoc(oxyUserId: string): Record<string, unknown> {
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: TEST_USER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -44,8 +46,10 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 // hands it, not how the dotted paths are persisted (that is
 // `__tests__/db/userSettingsRepository.test.ts`, against real rows).
 vi.mock('../../db/userProfile/userSettingsRepository', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
-  loadUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  ensureUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  loadUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
   updateUserSettings: (
     oxyUserId: string,
     update: { set?: Record<string, unknown>; unset?: Record<string, unknown> },
@@ -57,7 +61,8 @@ vi.mock('../../db/userProfile/userSettingsRepository', () => ({
 }));
 
 vi.mock('../../utils/userSettings', () => ({
-  ensureUserSettings: (oxyUserId: string) => Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
+  ensureUserSettings: (oxyUserId: string) =>
+    Promise.resolve(JSON.parse(JSON.stringify(getDoc(oxyUserId)))),
   buildSettingsResponseForViewer: (doc: unknown) => doc,
 }));
 vi.mock('../../utils/oxyHelpers', () => ({

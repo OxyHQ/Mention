@@ -129,8 +129,5 @@ export interface ModerationSubjectProvider {
    * absent one costs queue position and never a verdict, while a made-up zero is
    * an assertion nobody can defend.
    */
-  urgencySnapshot?(
-    reportedId: string,
-    reporterId?: string,
-  ): Promise<ModerationUrgency | null>;
+  urgencySnapshot?(reportedId: string, reporterId?: string): Promise<ModerationUrgency | null>;
 }

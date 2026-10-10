@@ -54,10 +54,7 @@ import type { AccountKind } from '@oxy.so/contracts';
 import type { ChannelDeletionCounts } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';
-import {
-  assertCanDeleteAccount,
-  PublishAsAccessError,
-} from '../services/publishAsAccount';
+import { assertCanDeleteAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import {
   deleteChannelContent,
   previewChannelDeletion,
@@ -104,10 +101,7 @@ function toCounts(preview: ChannelDeletionPreview): ChannelDeletionCounts {
  * service re-checks the kind at its own door regardless — that guard is its
  * defence and not this route's to satisfy.
  */
-async function resolveDeletableChannel(
-  req: AuthRequest,
-  res: Response,
-): Promise<string | null> {
+async function resolveDeletableChannel(req: AuthRequest, res: Response): Promise<string | null> {
   const channelOxyUserId =
     typeof req.params.oxyUserId === 'string' ? req.params.oxyUserId.trim() : '';
   if (!channelOxyUserId || channelOxyUserId.length > MAX_OXY_USER_ID_LENGTH) {
@@ -163,7 +157,11 @@ router.get(
       const channelOxyUserId = await resolveDeletableChannel(req, res);
       if (!channelOxyUserId) return;
 
-      return sendSuccessResponse(res, 200, toCounts(await previewChannelDeletion(channelOxyUserId)));
+      return sendSuccessResponse(
+        res,
+        200,
+        toCounts(await previewChannelDeletion(channelOxyUserId)),
+      );
     } catch (error) {
       if (error instanceof NotAChannelAccountError) {
         return sendErrorResponse(res, 400, 'Bad Request', 'That account is not a channel');

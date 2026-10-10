@@ -2,8 +2,17 @@
  * Custom Feeds (user-created timelines)
  */
 
-export const FEED_CATEGORIES = ['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other'] as const;
-export type FeedCategory = typeof FEED_CATEGORIES[number];
+export const FEED_CATEGORIES = [
+  'news',
+  'tech',
+  'culture',
+  'finance',
+  'health',
+  'sports',
+  'entertainment',
+  'other',
+] as const;
+export type FeedCategory = (typeof FEED_CATEGORIES)[number];
 
 /** The two execution modes a composable feed definition can run in. */
 export type FeedDefinitionMode = 'ranked' | 'chronological';

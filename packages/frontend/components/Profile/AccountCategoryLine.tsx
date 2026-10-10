@@ -50,7 +50,8 @@ export const AccountCategoryLine = memo(function AccountCategoryLine({
           ? 'text-muted-foreground text-[13px] text-center mt-1'
           : 'text-muted-foreground text-[13px] mb-3'
       }
-      numberOfLines={1}>
+      numberOfLines={1}
+    >
       {categoryLabel(primary)}
     </Text>
   );

@@ -12,7 +12,10 @@ import { getDb } from '../db/postgres';
 import { bookmarks, likes } from '../db/schema/engagement';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import type { AccountKind } from '@oxy.so/contracts';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import {
+  requireOxyAuth as requireAuth,
+  type OxyAuthRequest as AuthRequest,
+} from '@oxy.so/core/server';
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
 import {
   UnknownSettingsPathError,
@@ -26,7 +29,11 @@ import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
-import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource, canonicalizeLanguageTag } from '@mention/shared-types';
+import {
+  EXTERNAL_EMBED_SOURCES,
+  type EmbedPlayerSource,
+  canonicalizeLanguageTag,
+} from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { operatedAccountSettingsRateLimiter } from '../middleware/security';
@@ -58,7 +65,10 @@ router.get('/settings/me', async (req: AuthRequest, res: Response) => {
     const doc = await ensureUserSettings(oxyUserId);
     return sendSuccessResponse(res, 200, doc);
   } catch (err) {
-    logger.error('[ProfileSettings] Error fetching my settings:', { userId: req.user?.id, error: err });
+    logger.error('[ProfileSettings] Error fetching my settings:', {
+      userId: req.user?.id,
+      error: err,
+    });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
   }
 });
@@ -77,9 +87,8 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
     }
 
-    const doc = userId === viewerUserId
-      ? await ensureUserSettings(userId)
-      : await loadUserSettings(userId);
+    const doc =
+      userId === viewerUserId ? await ensureUserSettings(userId) : await loadUserSettings(userId);
 
     // This route serves the SAME profile-design DTO as `GET /profile/design/:userId`,
     // so it applies the SAME visibility rule. Without it a private profile's
@@ -99,7 +108,11 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
       }),
     );
   } catch (err) {
-    logger.error('[ProfileSettings] Error fetching user settings:', { userId: req.user?.id, targetUserId: req.params.userId, error: err });
+    logger.error('[ProfileSettings] Error fetching user settings:', {
+      userId: req.user?.id,
+      targetUserId: req.params.userId,
+      error: err,
+    });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
   }
 });
@@ -264,7 +277,7 @@ router.put(
       });
       return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update settings');
     }
-    },
+  },
 );
 
 /**
@@ -274,7 +287,17 @@ router.put(
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
+    const {
+      appearance,
+      profileHeaderImage,
+      privacy,
+      profileMedia,
+      interests,
+      feedSettings,
+      notificationPreferences,
+      externalEmbeds,
+      fediversePreferredLanguage,
+    } = req.body || {};
 
     // Dot-notation leaf paths mapped to the value Mongo should store. The values
     // are deliberately heterogeneous (scalars, arrays, sub-documents) and are only
@@ -302,7 +325,12 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         // This legacy field stores a basic custom hex, never a Bloom identity or
         // premium preset name. Canonical names are validated by Oxy updateMe.
         if (!/^#[0-9a-f]{6}$/i.test(appearance.primaryColor.trim())) {
-          return sendErrorResponse(res, 400, 'Bad Request', 'appearance.primaryColor must be a six-digit hex color');
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'appearance.primaryColor must be a six-digit hex color',
+          );
         }
         update['appearance.primaryColor'] = appearance.primaryColor.trim();
       } else if (appearance.primaryColor === null) {
@@ -318,7 +346,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['appearance.collapseLongBio'] = appearance.collapseLongBio;
       }
     }
-    
+
     if (typeof profileHeaderImage === 'string') {
       const trimmedProfileHeaderImage = profileHeaderImage.trim();
       if (trimmedProfileHeaderImage) {
@@ -332,7 +360,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       unset.profileHeaderImage = '';
       bannerChanged = true;
     }
-    
+
     // Profile media: an Instagram-style pinned Syra song OR podcast show
     // (mutually exclusive — one field, one value, so setting either type
     // automatically replaces the other). The client sends only an untrusted
@@ -345,30 +373,44 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       unset['profileCustomization.profileMedia'] = '';
     } else if (profileMedia && typeof profileMedia === 'object' && !Array.isArray(profileMedia)) {
       if (profileMedia.type === 'song') {
-        const syraTrackId = typeof profileMedia.syraTrackId === 'string' ? profileMedia.syraTrackId.trim() : '';
+        const syraTrackId =
+          typeof profileMedia.syraTrackId === 'string' ? profileMedia.syraTrackId.trim() : '';
         if (!syraTrackId) {
           return sendErrorResponse(res, 400, 'Bad Request', 'profileMedia.syraTrackId is required');
         }
 
-        const requestedStartSec = typeof profileMedia.startSec === 'number' && Number.isFinite(profileMedia.startSec)
-          ? Math.max(0, Math.trunc(profileMedia.startSec))
-          : 0;
+        const requestedStartSec =
+          typeof profileMedia.startSec === 'number' && Number.isFinite(profileMedia.startSec)
+            ? Math.max(0, Math.trunc(profileMedia.startSec))
+            : 0;
 
         let track: TrackSummary;
         try {
           track = await syraClient.getTrack(syraTrackId);
         } catch (err) {
-          logger.warn('[ProfileSettings] Failed to resolve Syra track for profile media:', { userId: oxyUserId, syraTrackId, error: err });
+          logger.warn('[ProfileSettings] Failed to resolve Syra track for profile media:', {
+            userId: oxyUserId,
+            syraTrackId,
+            error: err,
+          });
           return sendErrorResponse(res, 400, 'Bad Request', 'Unable to resolve the selected song');
         }
 
         if (track.previewAvailable !== true) {
-          return sendErrorResponse(res, 400, 'Bad Request', 'The selected song does not have a public preview');
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'The selected song does not have a public preview',
+          );
         }
 
         // Clamp the start offset to [0, max(0, duration - 30)] so the full 30s
         // preview window always stays inside the track.
-        const maxStartSec = Math.max(0, Math.trunc(track.duration) - PROFILE_MEDIA_PREVIEW_WINDOW_SEC);
+        const maxStartSec = Math.max(
+          0,
+          Math.trunc(track.duration) - PROFILE_MEDIA_PREVIEW_WINDOW_SEC,
+        );
         const clampedStartSec = Math.min(requestedStartSec, maxStartSec);
 
         update['profileCustomization.profileMedia'] = {
@@ -382,17 +424,32 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           durationSec: track.duration,
         } satisfies ProfileMedia;
       } else if (profileMedia.type === 'podcast') {
-        const syraPodcastId = typeof profileMedia.syraPodcastId === 'string' ? profileMedia.syraPodcastId.trim() : '';
+        const syraPodcastId =
+          typeof profileMedia.syraPodcastId === 'string' ? profileMedia.syraPodcastId.trim() : '';
         if (!syraPodcastId) {
-          return sendErrorResponse(res, 400, 'Bad Request', 'profileMedia.syraPodcastId is required');
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'profileMedia.syraPodcastId is required',
+          );
         }
 
         let show: PodcastSummary;
         try {
           show = await syraClient.getPodcast(syraPodcastId);
         } catch (err) {
-          logger.warn('[ProfileSettings] Failed to resolve Syra podcast for profile media:', { userId: oxyUserId, syraPodcastId, error: err });
-          return sendErrorResponse(res, 400, 'Bad Request', 'Unable to resolve the selected podcast');
+          logger.warn('[ProfileSettings] Failed to resolve Syra podcast for profile media:', {
+            userId: oxyUserId,
+            syraPodcastId,
+            error: err,
+          });
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'Unable to resolve the selected podcast',
+          );
         }
 
         update['profileCustomization.profileMedia'] = {
@@ -404,7 +461,12 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           showUrl: syraClient.podcastUrl(syraPodcastId),
         } satisfies ProfileMedia;
       } else {
-        return sendErrorResponse(res, 400, 'Bad Request', 'profileMedia.type must be "song" or "podcast"');
+        return sendErrorResponse(
+          res,
+          400,
+          'Bad Request',
+          'profileMedia.type must be "song" or "podcast"',
+        );
       }
     }
 
@@ -422,14 +484,17 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         'showSensitiveContent',
         'searchEngineIndexing',
       ] as const;
-      
-      privacyFields.forEach(field => {
+
+      privacyFields.forEach((field) => {
         if (typeof privacy[field] === 'boolean') {
           update[`privacy.${field}`] = privacy[field];
         }
       });
-      
-      if (privacy.profileVisibility && ['public', 'private', 'followers_only'].includes(privacy.profileVisibility)) {
+
+      if (
+        privacy.profileVisibility &&
+        ['public', 'private', 'followers_only'].includes(privacy.profileVisibility)
+      ) {
         update['privacy.profileVisibility'] = privacy.profileVisibility;
       }
       // ELEMENTS filtered, not just the container — the same thing
@@ -457,7 +522,9 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['interests.tags'] = [];
       } else if (Array.isArray(interests.tags)) {
         // Validate that all tags are strings
-        const validTags = interests.tags.filter((tag: unknown): tag is string => typeof tag === 'string');
+        const validTags = interests.tags.filter(
+          (tag: unknown): tag is string => typeof tag === 'string',
+        );
         update['interests.tags'] = validTags;
       }
     }
@@ -477,7 +544,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
           update['feedSettings.diversity.sameTopicPenalty'] = penalty;
         }
         if (typeof feedSettings.diversity.maxConsecutiveSameAuthor === 'number') {
-          const maxConsecutive = Math.max(1, Math.min(10, Math.round(feedSettings.diversity.maxConsecutiveSameAuthor)));
+          const maxConsecutive = Math.max(
+            1,
+            Math.min(10, Math.round(feedSettings.diversity.maxConsecutiveSameAuthor)),
+          );
           update['feedSettings.diversity.maxConsecutiveSameAuthor'] = maxConsecutive;
         } else if (feedSettings.diversity.maxConsecutiveSameAuthor === null) {
           update['feedSettings.diversity.maxConsecutiveSameAuthor'] = undefined;
@@ -522,7 +592,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         'quotes',
       ] as const;
 
-      boolFields.forEach(field => {
+      boolFields.forEach((field) => {
         if (typeof notificationPreferences[field] === 'boolean') {
           update[`notificationPreferences.${field}`] = notificationPreferences[field];
         }
@@ -557,14 +627,19 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // then falls back to its own device/account-locale heuristic).
     if (fediversePreferredLanguage !== undefined) {
       if (
-        fediversePreferredLanguage === null
-        || (typeof fediversePreferredLanguage === 'string' && fediversePreferredLanguage.trim() === '')
+        fediversePreferredLanguage === null ||
+        (typeof fediversePreferredLanguage === 'string' && fediversePreferredLanguage.trim() === '')
       ) {
         unset.fediversePreferredLanguage = '';
       } else {
         const canonical = canonicalizeLanguageTag(fediversePreferredLanguage);
         if (canonical === null) {
-          return sendErrorResponse(res, 400, 'Bad Request', 'fediversePreferredLanguage must be a valid BCP-47 language tag');
+          return sendErrorResponse(
+            res,
+            400,
+            'Bad Request',
+            'fediversePreferredLanguage must be a valid BCP-47 language tag',
+          );
         }
         update.fediversePreferredLanguage = canonical;
       }
@@ -586,9 +661,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // a stack would tell the caller nothing about which key was wrong.
     let doc;
     try {
-      doc = Object.keys(operation).length > 0
-        ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
-        : await ensureUserSettings(oxyUserId);
+      doc =
+        Object.keys(operation).length > 0
+          ? await updateUserSettings(oxyUserId, { set: operation.$set, unset: operation.$unset })
+          : await ensureUserSettings(oxyUserId);
     } catch (error) {
       if (error instanceof UnknownSettingsPathError) {
         return sendErrorResponse(res, 400, 'Bad Request', error.message);
@@ -625,7 +701,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
 
     return sendSuccessResponse(res, 200, doc);
   } catch (err) {
-    logger.error('[ProfileSettings] Error updating settings:', { userId: req.user?.id, error: err });
+    logger.error('[ProfileSettings] Error updating settings:', {
+      userId: req.user?.id,
+      error: err,
+    });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update settings');
   }
 });
@@ -643,11 +722,19 @@ router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
       res,
       200,
       { success: true },
-      deleted ? 'Personalization data reset successfully' : 'No personalization data to reset'
+      deleted ? 'Personalization data reset successfully' : 'No personalization data to reset',
     );
   } catch (err) {
-    logger.error('[ProfileSettings] Error resetting user behavior:', { userId: req.user?.id, error: err });
-    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to reset personalization data');
+    logger.error('[ProfileSettings] Error resetting user behavior:', {
+      userId: req.user?.id,
+      error: err,
+    });
+    return sendErrorResponse(
+      res,
+      500,
+      'Internal Server Error',
+      'Failed to reset personalization data',
+    );
   }
 });
 
@@ -754,7 +841,10 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
 
     res.end();
   } catch (err) {
-    logger.error('[ProfileSettings] Error exporting user data:', { userId: req.user?.id, error: err });
+    logger.error('[ProfileSettings] Error exporting user data:', {
+      userId: req.user?.id,
+      error: err,
+    });
     if (res.headersSent) {
       // The stream already started, so a JSON error body is no longer possible —
       // destroy the socket so the client sees a failed/incomplete download

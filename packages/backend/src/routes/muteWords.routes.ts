@@ -16,7 +16,10 @@ import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/postgres';
 import { muteWords, MUTE_WORD_TARGETS } from '../db/schema/engagement';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import {
+  requireOxyAuth as requireAuth,
+  type OxyAuthRequest as AuthRequest,
+} from '@oxy.so/core/server';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
@@ -174,11 +177,20 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.post('/', validateBody(createMuteWordSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = getAuthenticatedUserId(req);
-    const { value: rawValue, targets, actorTarget } = req.body as z.infer<typeof createMuteWordSchema>;
+    const {
+      value: rawValue,
+      targets,
+      actorTarget,
+    } = req.body as z.infer<typeof createMuteWordSchema>;
 
     const normalized = normalizeMuteValue(rawValue, targets);
     if (!normalized) {
-      return sendErrorResponse(res, 400, 'Bad Request', 'value must not be empty after normalization');
+      return sendErrorResponse(
+        res,
+        400,
+        'Bad Request',
+        'value must not be empty after normalization',
+      );
     }
     if (normalized.value.length > MAX_MUTE_WORD_LENGTH) {
       return sendErrorResponse(

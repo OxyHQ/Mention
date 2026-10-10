@@ -56,7 +56,11 @@ function stubCdn(overrides?: {
   body?: string;
 }) {
   const requestMock = vi.fn(
-    (url: string | URL, _options: unknown, callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void) => {
+    (
+      url: string | URL,
+      _options: unknown,
+      callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void,
+    ) => {
       const handlers: Record<string, (arg?: unknown) => void> = {};
       const clientReq = {
         on(event: string, handler: (arg?: unknown) => void) {
@@ -175,7 +179,10 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   });
 
   it('forces immutable caching for content-hashed Expo assets', async () => {
-    stubCdn({ contentType: 'application/javascript', cacheControl: 'public, max-age=0, must-revalidate' });
+    stubCdn({
+      contentType: 'application/javascript',
+      cacheControl: 'public, max-age=0, must-revalidate',
+    });
 
     const res = await request(makeApp())
       .get('/_expo/static/js/web/entry-abc12345.js')
@@ -245,11 +252,26 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   });
 
   it.each([
-    ['a missing hashed asset the CDN answers as text', '/_expo/static/js/web/gone-deadbeef.js', 404, 'text/plain'],
-    ['a failing hashed font', '/fonts/BlomusModernus-Regular-19002cade532.woff2', 500, 'text/plain'],
+    [
+      'a missing hashed asset the CDN answers as text',
+      '/_expo/static/js/web/gone-deadbeef.js',
+      404,
+      'text/plain',
+    ],
+    [
+      'a failing hashed font',
+      '/fonts/BlomusModernus-Regular-19002cade532.woff2',
+      500,
+      'text/plain',
+    ],
     ['a failing unhashed file', '/manifest.json', 503, 'application/json'],
   ])('never lets %s be cached', async (_label, path, status, contentType) => {
-    stubCdn({ status, contentType, cacheControl: 'public, max-age=31536000, immutable', body: '{}' });
+    stubCdn({
+      status,
+      contentType,
+      cacheControl: 'public, max-age=31536000, immutable',
+      body: '{}',
+    });
 
     const res = await request(makeApp()).get(path).set('X-Forwarded-Host', APEX);
 
@@ -257,7 +279,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(res.headers['cache-control']).toBe('no-store');
   });
 
-  it('forwards the browser\'s validators and relays a bodiless 304', async () => {
+  it("forwards the browser's validators and relays a bodiless 304", async () => {
     const fetchMock = stubCdn({
       status: 304,
       contentType: 'application/manifest+json',
@@ -294,7 +316,9 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   it('does NOT proxy the API host — `/feed/item/:id` still hits the API', async () => {
     const fetchMock = stubCdn();
 
-    const res = await request(makeApp()).get('/feed/item/507f1f77bcf86cd799439011').set('X-Forwarded-Host', API);
+    const res = await request(makeApp())
+      .get('/feed/item/507f1f77bcf86cd799439011')
+      .set('X-Forwarded-Host', API);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ who: 'api-feed-item', id: '507f1f77bcf86cd799439011' });
@@ -343,17 +367,26 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
   describe('isApexHost', () => {
     it('matches the apex via the first X-Forwarded-Host token', () => {
-      const req = { headers: { 'x-forwarded-host': 'mention.earth, other.internal' }, hostname: '' } as unknown as express.Request;
+      const req = {
+        headers: { 'x-forwarded-host': 'mention.earth, other.internal' },
+        hostname: '',
+      } as unknown as express.Request;
       expect(isApexHost(req)).toBe(true);
     });
 
     it('does not match the API host', () => {
-      const req = { headers: { 'x-forwarded-host': 'api.mention.earth' }, hostname: 'api.mention.earth' } as unknown as express.Request;
+      const req = {
+        headers: { 'x-forwarded-host': 'api.mention.earth' },
+        hostname: 'api.mention.earth',
+      } as unknown as express.Request;
       expect(isApexHost(req)).toBe(false);
     });
 
     it('ignores a :port suffix when matching', () => {
-      const req = { headers: { 'x-forwarded-host': 'mention.earth:443' }, hostname: '' } as unknown as express.Request;
+      const req = {
+        headers: { 'x-forwarded-host': 'mention.earth:443' },
+        hostname: '',
+      } as unknown as express.Request;
       expect(isApexHost(req)).toBe(true);
     });
   });
@@ -380,7 +413,9 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
     it('exempts only browser GET/HEAD traffic on the apex', () => {
       expect(isApexWebPlaneRequest(makeRequest('/explore'))).toBe(true);
-      expect(isApexWebPlaneRequest(makeRequest('/_expo/static/js/web/entry-deadbeef.js'))).toBe(true);
+      expect(isApexWebPlaneRequest(makeRequest('/_expo/static/js/web/entry-deadbeef.js'))).toBe(
+        true,
+      );
       expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'HEAD' }))).toBe(true);
       expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'POST' }))).toBe(false);
       expect(isApexWebPlaneRequest(makeRequest('/explore', { host: API }))).toBe(false);
@@ -392,9 +427,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
       expect(isApexWebPlaneRequest(makeRequest('/xrpc/app.bsky.actor.getProfile'))).toBe(false);
       expect(isApexWebPlaneRequest(makeRequest('/media/proxy'))).toBe(false);
       expect(
-        isApexWebPlaneRequest(
-          makeRequest('/@alice', { accept: 'application/activity+json' }),
-        ),
+        isApexWebPlaneRequest(makeRequest('/@alice', { accept: 'application/activity+json' })),
       ).toBe(false);
       expect(
         isApexWebPlaneRequest(
@@ -417,7 +450,13 @@ describe('apex proxy upstream deadline', () => {
   function stubRedirectingCdn(delayMs: number) {
     const destroyed: Error[] = [];
     const requestMock = vi.fn(
-      (url: string | URL, _options: unknown, callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void) => {
+      (
+        url: string | URL,
+        _options: unknown,
+        callback: (
+          res: Readable & { statusCode?: number; headers?: Record<string, string> },
+        ) => void,
+      ) => {
         const handlers: Record<string, (arg?: unknown) => void> = {};
         let timer: ReturnType<typeof setTimeout> | undefined;
         const clientReq = {
@@ -430,7 +469,10 @@ describe('apex proxy upstream deadline', () => {
           },
           end() {
             timer = setTimeout(() => {
-              const incoming = new Readable({ read() {} }) as Readable & { statusCode?: number; headers?: Record<string, string> };
+              const incoming = new Readable({ read() {} }) as Readable & {
+                statusCode?: number;
+                headers?: Record<string, string>;
+              };
               incoming.statusCode = 302;
               incoming.headers = { location: `${String(url)}x` };
               callback(incoming);
@@ -460,8 +502,15 @@ describe('apex proxy upstream deadline', () => {
     const hop = Math.floor(PROXY_FETCH_TIMEOUT_MS * 0.4);
     const { requestMock } = stubRedirectingCdn(hop);
 
-    const pending = requestUpstream('https://shell.mention.earth/a', { method: 'GET', headers: {} }, 3);
-    const outcome = pending.then(() => 'resolved', (error: Error) => error.message);
+    const pending = requestUpstream(
+      'https://shell.mention.earth/a',
+      { method: 'GET', headers: {} },
+      3,
+    );
+    const outcome = pending.then(
+      () => 'resolved',
+      (error: Error) => error.message,
+    );
 
     await vi.advanceTimersByTimeAsync(PROXY_FETCH_TIMEOUT_MS + 1);
 

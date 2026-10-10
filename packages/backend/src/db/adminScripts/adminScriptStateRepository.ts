@@ -42,7 +42,7 @@ export interface AdminScriptCursorUpdate {
 /** Where a scope got to, or `null` if it has never run. */
 export async function findAdminScriptCursor(
   script: string,
-  scope: string
+  scope: string,
 ): Promise<AdminScriptCursorState | null> {
   const [row] = await getDb()
     .select({
@@ -67,7 +67,7 @@ export async function findAdminScriptCursor(
 export async function upsertAdminScriptCursor(
   script: string,
   scope: string,
-  update: AdminScriptCursorUpdate
+  update: AdminScriptCursorUpdate,
 ): Promise<void> {
   const completedAt = update.completed ? new Date() : null;
   await getDb()
@@ -109,7 +109,7 @@ export interface RepairFetchFailureInput {
  */
 export async function recordRepairFetchFailures(
   script: string,
-  failures: readonly RepairFetchFailureInput[]
+  failures: readonly RepairFetchFailureInput[],
 ): Promise<void> {
   if (failures.length === 0) return;
   await getDb()
@@ -121,7 +121,7 @@ export async function recordRepairFetchFailures(
         reason: failure.reason,
         status: failure.status ?? null,
         failedAt: failure.failedAt,
-      }))
+      })),
     )
     .onConflictDoUpdate({
       target: [repairFetchFailures.script, repairFetchFailures.postId],

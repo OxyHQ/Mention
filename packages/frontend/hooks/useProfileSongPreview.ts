@@ -73,7 +73,9 @@ export interface ProfileSongPreviewController {
  * releases on unmount or source change, and coordinates a single global preview
  * across the app so tapping one song stops any other that is playing.
  */
-export function useProfileSongPreview(previewUrl: string | undefined): ProfileSongPreviewController {
+export function useProfileSongPreview(
+  previewUrl: string | undefined,
+): ProfileSongPreviewController {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -132,14 +134,17 @@ export function useProfileSongPreview(previewUrl: string | undefined): ProfileSo
       // standalone tsc, so assert the surface we drive at this single call site.
       player = createAudioPlayer(previewUrl) as unknown as PreviewPlayer;
       playerRef.current = player;
-      subscriptionRef.current = player.addListener('playbackStatusUpdate', (status: PreviewStatus) => {
-        setIsPlaying(status.playing);
-        setIsLoading(status.isBuffering && !status.playing);
-        if (status.didJustFinish) {
-          // The backend preview is a fixed 30s clip; reset it for replay.
-          stop();
-        }
-      });
+      subscriptionRef.current = player.addListener(
+        'playbackStatusUpdate',
+        (status: PreviewStatus) => {
+          setIsPlaying(status.playing);
+          setIsLoading(status.isBuffering && !status.playing);
+          if (status.didJustFinish) {
+            // The backend preview is a fixed 30s clip; reset it for replay.
+            stop();
+          }
+        },
+      );
     }
 
     setIsLoading(true);

@@ -59,19 +59,22 @@ const ARTICLE_BODY_KEY = 'article.body';
 const ARTICLE_EXCERPT_KEY = 'article.excerpt';
 
 const TRANSLATION_SYSTEM_PROMPT =
-  'You are a strict translation engine. You receive text wrapped in <text> tags. '
-  + 'Output ONLY the translation — no explanations, no commentary, no extra text. '
-  + 'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
+  'You are a strict translation engine. You receive text wrapped in <text> tags. ' +
+  'Output ONLY the translation — no explanations, no commentary, no extra text. ' +
+  'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
 
 const KEYED_TRANSLATION_SYSTEM_PROMPT =
-  'You are a strict translation engine. You receive a JSON object whose values are strings to translate. '
-  + 'Output ONLY a JSON object with the SAME keys and the translated values. '
-  + 'No explanations, no commentary, no markdown fences. '
-  + 'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
+  'You are a strict translation engine. You receive a JSON object whose values are strings to translate. ' +
+  'Output ONLY a JSON object with the SAME keys and the translated values. ' +
+  'No explanations, no commentary, no markdown fences. ' +
+  'Preserve all formatting, mentions, hashtags, and line breaks exactly.';
 
 /** A translation request that is the CALLER's fault (unknown language, empty body). */
 export class TranslationRequestError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = 'TranslationRequestError';
   }
@@ -212,8 +215,9 @@ export class PostTranslationService {
     const pending = this.inFlight.get(key);
     if (pending) return pending;
 
-    const task = this.translateUnderLock(postId, content, tag, languageName, options)
-      .finally(() => this.inFlight.delete(key));
+    const task = this.translateUnderLock(postId, content, tag, languageName, options).finally(() =>
+      this.inFlight.delete(key),
+    );
     this.inFlight.set(key, task);
     return task;
   }
@@ -263,7 +267,10 @@ export class PostTranslationService {
       const attempt = await this.lock.tryAcquire(key, this.lockTtlMs);
 
       if (attempt.status === 'unavailable') {
-        logger.warn('PostTranslationService: translation lock unavailable; translating unguarded', { postId, tag });
+        logger.warn('PostTranslationService: translation lock unavailable; translating unguarded', {
+          postId,
+          tag,
+        });
         return this.translateAndStore(postId, content, tag, languageName, options, true);
       }
 
@@ -273,7 +280,14 @@ export class PostTranslationService {
           if (!latest) throw new TranslationRequestError('Post not found', 404);
           const answered = answerFromStored(latest.content, tag, options.force === true && !waited);
           if (answered) return answered;
-          return await this.translateAndStore(postId, latest.content, tag, languageName, options, true);
+          return await this.translateAndStore(
+            postId,
+            latest.content,
+            tag,
+            languageName,
+            options,
+            true,
+          );
         } finally {
           await attempt.release();
         }
@@ -281,10 +295,13 @@ export class PostTranslationService {
 
       waited = true;
       if (Date.now() >= deadline) {
-        logger.warn('PostTranslationService: translation lock still held after waiting; translating unguarded', {
-          postId,
-          tag,
-        });
+        logger.warn(
+          'PostTranslationService: translation lock still held after waiting; translating unguarded',
+          {
+            postId,
+            tag,
+          },
+        );
         return this.translateAndStore(postId, content, tag, languageName, options, true);
       }
       await new Promise((resolve) => setTimeout(resolve, this.lockPollMs));
@@ -337,10 +354,13 @@ export class PostTranslationService {
         throw new TranslationRequestError('Post not found', 404);
       case 'stale': {
         if (!retryOnEdit) throw new TranslationSourceChangedError();
-        logger.info('PostTranslationService: post edited during translation; translating the new source', {
-          postId,
-          tag,
-        });
+        logger.info(
+          'PostTranslationService: post edited during translation; translating the new source',
+          {
+            postId,
+            tag,
+          },
+        );
         const answered = answerFromStored(outcome.content, tag, options.force === true);
         if (answered) return answered;
         return this.translateAndStore(postId, outcome.content, tag, languageName, options, false);
@@ -376,7 +396,10 @@ export class PostTranslationService {
     const translated = await inferenceChat(
       [
         { role: 'system', content: TRANSLATION_SYSTEM_PROMPT },
-        { role: 'user', content: `Translate the following to ${languageName}:\n<text>\n${source}\n</text>` },
+        {
+          role: 'user',
+          content: `Translate the following to ${languageName}:\n<text>\n${source}\n</text>`,
+        },
       ],
       {
         feature: 'post-translation',

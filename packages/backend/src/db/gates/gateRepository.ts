@@ -113,7 +113,9 @@ async function loadAllowRules(
     .from(threadgateAllowRules)
     .where(eq(threadgateAllowRules.threadgateId, threadgateId))
     .orderBy(asc(threadgateAllowRules.position));
-  return rows.map((row) => (row.listId === null ? { type: row.type } : { type: row.type, list: row.listId }));
+  return rows.map((row) =>
+    row.listId === null ? { type: row.type } : { type: row.type, list: row.listId },
+  );
 }
 
 /**
@@ -122,9 +124,12 @@ async function loadAllowRules(
  * Upserts on `post_uri`, matching the `{ upsert: true, new: true }` the route
  * used, and REPLACES the rule list — the client always sends it complete.
  */
-export async function upsertThreadgate(
-  gate: { postUri: string; postId: string; createdBy: string; allow: readonly ThreadgateAllowRule[] },
-): Promise<ThreadgateRecord> {
+export async function upsertThreadgate(gate: {
+  postUri: string;
+  postId: string;
+  createdBy: string;
+  allow: readonly ThreadgateAllowRule[];
+}): Promise<ThreadgateRecord> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx
       .insert(threadgates)
@@ -207,15 +212,13 @@ export async function deleteThreadgate(id: string): Promise<void> {
 }
 
 /** Create or replace the quote-control gate for `postUri`. */
-export async function upsertPostgate(
-  gate: {
-    postUri: string;
-    postId: string;
-    createdBy: string;
-    disableQuotes: boolean;
-    detachedQuoteUris: readonly string[];
-  },
-): Promise<PostgateRecord> {
+export async function upsertPostgate(gate: {
+  postUri: string;
+  postId: string;
+  createdBy: string;
+  disableQuotes: boolean;
+  detachedQuoteUris: readonly string[];
+}): Promise<PostgateRecord> {
   const values = {
     postUri: gate.postUri,
     postId: gate.postId,

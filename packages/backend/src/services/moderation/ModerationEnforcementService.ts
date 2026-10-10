@@ -1,9 +1,6 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { Decision } from '@crowdsource.you/contracts';
-import type {
-  ModerationEnforcementAction,
-  ModerationEnforcementMode,
-} from '@mention/shared-types';
+import type { ModerationEnforcementAction, ModerationEnforcementMode } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
 import { moderationEnforcements } from '../../db/schema/moderation';
@@ -109,8 +106,7 @@ async function applyEffect(
   action: ModerationEnforcementAction,
   subject: EnforcementSubject,
 ): Promise<
-  | { changed: true; previousState: EnforcementPreviousState }
-  | { changed: false; reason: string }
+  { changed: true; previousState: EnforcementPreviousState } | { changed: false; reason: string }
 > {
   if (action === 'none' || action === 'manual_review') {
     return { changed: false, reason: `Action '${action}' has no effect by definition` };
@@ -136,10 +132,7 @@ async function applyEffect(
       if (current.status === 'restricted') {
         return { changed: false, reason: 'The post was already restricted' };
       }
-      await getDb()
-        .update(posts)
-        .set({ status: 'restricted' })
-        .where(eq(posts.id, subject.id));
+      await getDb().update(posts).set({ status: 'restricted' }).where(eq(posts.id, subject.id));
       return { changed: true, previousState: { previousStatePostStatus: current.status } };
     }
 
@@ -274,7 +267,9 @@ const RESTRICTION_IN_FORCE_ORDER: SQL[] = [
  * the CHECK constraint at restore time, turning a correction into a 500.
  */
 function asPostStatus(value: string | null | undefined): PostStatus {
-  return value !== null && value !== undefined && (POST_STATUSES as readonly string[]).includes(value)
+  return value !== null &&
+    value !== undefined &&
+    (POST_STATUSES as readonly string[]).includes(value)
     ? (value as PostStatus)
     : 'published';
 }
@@ -288,10 +283,7 @@ function asPostStatus(value: string | null | undefined): PostStatus {
  * removed while somebody reads a queue. Taking content down still waits for a
  * person. `automatic` allows the mapped set.
  */
-function modeAllows(
-  mode: ModerationEnforcementMode,
-  action: ModerationEnforcementAction,
-): boolean {
+function modeAllows(mode: ModerationEnforcementMode, action: ModerationEnforcementAction): boolean {
   switch (mode) {
     case 'observe':
       return false;
@@ -430,9 +422,7 @@ async function applyOne(
      * transient failure permanent: the action would be deduplicated away forever and
      * the decision would silently never be carried out.
      */
-    await getDb()
-      .delete(moderationEnforcements)
-      .where(eq(moderationEnforcements.id, recordId));
+    await getDb().delete(moderationEnforcements).where(eq(moderationEnforcements.id, recordId));
     logger.error('[CrowdSource] enforcement effect failed, claim released', {
       decisionId: decision.id,
       revision: decision.revision,

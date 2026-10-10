@@ -47,9 +47,7 @@ describe('appearanceStore viewer isolation', () => {
   it('discards A settings when its load resolves after B', async () => {
     const pendingA = deferred<{ data: UserAppearance }>();
     const pendingB = deferred<{ data: UserAppearance }>();
-    mockGet
-      .mockReturnValueOnce(pendingA.promise)
-      .mockReturnValueOnce(pendingB.promise);
+    mockGet.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise);
 
     const requestA = useAppearanceStore.getState().loadMySettings(true);
     useAppearanceStore.getState().resetViewerState();
@@ -57,21 +55,17 @@ describe('appearanceStore viewer isolation', () => {
 
     pendingB.resolve({ data: appearance('viewer-b', '#bbbbbb') });
     await requestB;
-    expect(useAppearanceStore.getState().mySettings?.oxyUserId)
-      .toBe('viewer-b');
+    expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
 
     pendingA.resolve({ data: appearance('viewer-a', '#aaaaaa') });
     await requestA;
-    expect(useAppearanceStore.getState().mySettings?.oxyUserId)
-      .toBe('viewer-b');
+    expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
   });
 
   it('does not let a late A update overwrite B settings', async () => {
     const pendingA = deferred<{ data: UserAppearance }>();
     const pendingB = deferred<{ data: UserAppearance }>();
-    mockPut
-      .mockReturnValueOnce(pendingA.promise)
-      .mockReturnValueOnce(pendingB.promise);
+    mockPut.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise);
 
     const requestA = useAppearanceStore
       .getState()
@@ -83,13 +77,11 @@ describe('appearanceStore viewer isolation', () => {
 
     pendingB.resolve({ data: appearance('viewer-b', '#bbbbbb') });
     await requestB;
-    expect(useAppearanceStore.getState().mySettings?.oxyUserId)
-      .toBe('viewer-b');
+    expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
 
     pendingA.resolve({ data: appearance('viewer-a', '#aaaaaa') });
     await requestA;
-    expect(useAppearanceStore.getState().mySettings?.oxyUserId)
-      .toBe('viewer-b');
+    expect(useAppearanceStore.getState().mySettings?.oxyUserId).toBe('viewer-b');
     expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
   });
 });

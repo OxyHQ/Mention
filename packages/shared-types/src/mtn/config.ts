@@ -137,7 +137,7 @@ export const MtnConfig = {
       // Strengthened so the feed mixes authors/topics more aggressively and
       // avoids a single prolific author or trending tag dominating a session.
       sameAuthorPenalty: 0.85, // was 0.95
-      sameTopicPenalty: 0.80, // was 0.92
+      sameTopicPenalty: 0.8, // was 0.92
       /**
        * Penalty for a post about a STORY already shown on this page.
        *
@@ -544,9 +544,23 @@ export const MtnConfig = {
        * already has a feed and wants accounts, not headlines.
        */
       rotation: {
-        cold: ['suggestedStarterPacks', 'trendingTopics', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
-        warm: ['suggestedUsers', 'suggestedFeeds', 'trendingTopics', 'suggestedStarterPacks'] satisfies FeedInterstitialKind[],
-        dense: ['suggestedUsers', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
+        cold: [
+          'suggestedStarterPacks',
+          'trendingTopics',
+          'suggestedUsers',
+          'suggestedFeeds',
+        ] satisfies FeedInterstitialKind[],
+        warm: [
+          'suggestedUsers',
+          'suggestedFeeds',
+          'trendingTopics',
+          'suggestedStarterPacks',
+        ] satisfies FeedInterstitialKind[],
+        dense: [
+          'suggestedUsers',
+          'suggestedUsers',
+          'suggestedFeeds',
+        ] satisfies FeedInterstitialKind[],
       },
       /**
        * Dense graphs only get a card every Nth page (deterministic off the

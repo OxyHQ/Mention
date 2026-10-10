@@ -55,7 +55,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUsersByIds: mocks.getUsersByIds }),
 }));
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),
@@ -257,12 +259,7 @@ describe('GET /notifications — a migrated account sees its newest notification
      */
     const viewer = viewerId();
     const sameInstant = new Date('2026-05-05T05:05:05.000Z');
-    const ids = [
-      objectIdShaped(11),
-      objectIdShaped(12),
-      uuidv7(),
-      uuidv7(),
-    ];
+    const ids = [objectIdShaped(11), objectIdShaped(12), uuidv7(), uuidv7()];
     await db.transaction(async (tx) => {
       for (const [index, id] of ids.entries()) {
         await tx.insert(notifications).values({

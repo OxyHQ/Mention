@@ -36,10 +36,7 @@ import { and, asc, count, eq, gt, inArray, isNotNull, type SQL } from 'drizzle-o
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
@@ -102,11 +99,13 @@ export async function backfillFederatedBoostCounts(
     const boostRows = await db
       .select({ boostOf: posts.boostOf, count: count() })
       .from(posts)
-      .where(and(
-        inArray(posts.boostOf, pageIds),
-        eq(posts.type, 'boost'),
-        isNotNull(posts.federationActivityId),
-      ))
+      .where(
+        and(
+          inArray(posts.boostOf, pageIds),
+          eq(posts.type, 'boost'),
+          isNotNull(posts.federationActivityId),
+        ),
+      )
       .groupBy(posts.boostOf);
     const federatedBoostsById = new Map(
       boostRows.flatMap((row) => (row.boostOf ? [[row.boostOf, row.count] as const] : [])),

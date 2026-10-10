@@ -42,13 +42,7 @@ import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import {
-  entityFollows,
-  likes,
-  posts,
-  starterPackMembers,
-  starterPacks,
-} from '../db/schema';
+import { entityFollows, likes, posts, starterPackMembers, starterPacks } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import { mutualsSource } from '../mtn/feed/engine/sources/userSources';
@@ -132,7 +126,7 @@ afterAll(async () => {
 });
 
 describe('the mutuals source', () => {
-  it('serves a mutual\'s followers-only posts, which are not public to anyone else', async () => {
+  it("serves a mutual's followers-only posts, which are not public to anyone else", async () => {
     // A mutual is by definition a follower, so followers-only is in scope —
     // that is the whole difference from `friendsOfFriends` below.
     const publicPost = await create({ oxyUserId: FRIEND_A, createdAt: at(0) });
@@ -146,7 +140,10 @@ describe('the mutuals source', () => {
     await create({ oxyUserId: STRANGER });
 
     const ctx: FeedEngineContext = { currentUserId: VIEWER, mutualIds: [FRIEND_A, FRIEND_B] };
-    expect(idsOf(await mutualsSource.gather(ctx, {}, 30))).toEqual([publicPost.id, followersOnly.id]);
+    expect(idsOf(await mutualsSource.gather(ctx, {}, 30))).toEqual([
+      publicPost.id,
+      followersOnly.id,
+    ]);
   });
 
   it('returns nothing when the controller populated no mutual ids', async () => {
@@ -171,7 +168,9 @@ describe('the friendsEngaged source', () => {
     // A stranger's like is not a friend's, and must not pull the post in.
     await like(STRANGER, noFriends.id);
     // A down-vote is not engagement.
-    await db.insert(likes).values({ userId: FRIEND_B, postId: noFriends.id, value: -1, createdAt: at(-1_000) });
+    await db
+      .insert(likes)
+      .values({ userId: FRIEND_B, postId: noFriends.id, value: -1, createdAt: at(-1_000) });
 
     const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FRIEND_A, FRIEND_B] };
     const gathered = await friendsEngagedSource.gather(ctx, {}, 30);
@@ -181,7 +180,7 @@ describe('the friendsEngaged source', () => {
     expect(gathered[1].finalScore).toBe(1);
   });
 
-  it('counts a friend\'s BOOST alongside their like, on the boosted original', async () => {
+  it("counts a friend's BOOST alongside their like, on the boosted original", async () => {
     const original = await create({ createdAt: at(-1_000) });
     await create({
       oxyUserId: FRIEND_A,
@@ -201,7 +200,7 @@ describe('the friendsEngaged source', () => {
     expect(gathered[0].finalScore).toBe(2);
   });
 
-  it('withholds the viewer\'s own post however many friends engaged with it', async () => {
+  it("withholds the viewer's own post however many friends engaged with it", async () => {
     const mine = await create({ oxyUserId: VIEWER, createdAt: at(-1_000) });
     const theirs = await create({ oxyUserId: AUTHOR, createdAt: at(-2_000) });
     await like(FRIEND_A, mine.id);
@@ -228,7 +227,9 @@ describe('the friendsEngaged source', () => {
   it('returns nothing when the viewer follows nobody', async () => {
     const post = await create();
     await like(FRIEND_A, post.id);
-    expect(await friendsEngagedSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30)).toEqual([]);
+    expect(
+      await friendsEngagedSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30),
+    ).toEqual([]);
   });
 });
 
@@ -261,7 +262,9 @@ describe('the quotes source', () => {
     // A quote, but by somebody else.
     await create({ oxyUserId: STRANGER, type: PostType.QUOTE, quoteOf: subject.id });
 
-    expect(idsOf(await quotesSource.gather({}, { authorIds: [AUTHOR] }, 30))).toEqual([byAuthor.id]);
+    expect(idsOf(await quotesSource.gather({}, { authorIds: [AUTHOR] }, 30))).toEqual([
+      byAuthor.id,
+    ]);
   });
 
   it('returns nothing with neither a post nor an author to anchor on', async () => {
@@ -280,7 +283,7 @@ describe('the repliesFromFollows source', () => {
    * replies as `parent_post_id IS NOT NULL` loses it from the conversation feed
    * — the same misclassification that promoted it onto the profile's main tab.
    */
-  it('selects a follow\'s replies under both parent encodings', async () => {
+  it("selects a follow's replies under both parent encodings", async () => {
     const root = await create({ oxyUserId: FRIEND_A, createdAt: at(-5_000) });
     const nativeReply = await create({
       oxyUserId: FRIEND_A,
@@ -314,12 +317,14 @@ describe('the repliesFromFollows source', () => {
   it('returns nothing when the viewer follows nobody', async () => {
     const root = await create({ oxyUserId: FRIEND_A });
     await create({ oxyUserId: FRIEND_A, parentPostId: root.id });
-    expect(await repliesFromFollowsSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30)).toEqual([]);
+    expect(
+      await repliesFromFollowsSource.gather({ currentUserId: VIEWER, followingIds: [] }, {}, 30),
+    ).toEqual([]);
   });
 });
 
 describe('the boostsFromFollows source', () => {
-  it('selects only the follows\' boost posts', async () => {
+  it("selects only the follows' boost posts", async () => {
     const original = await create({ oxyUserId: STRANGER, createdAt: at(-5_000) });
     const boost = await create({
       oxyUserId: FRIEND_A,
@@ -447,7 +452,9 @@ describe('the starterPack source', () => {
     // The Mongo original guarded this with `ObjectId.isValid`; that guard is
     // deleted, and a text id naming no row already produces the same answer.
     await create({ oxyUserId: FRIEND_A });
-    expect(await starterPackSource.gather({}, { packId: 'socialsrc-no-such-pack' }, 30)).toEqual([]);
+    expect(await starterPackSource.gather({}, { packId: 'socialsrc-no-such-pack' }, 30)).toEqual(
+      [],
+    );
     expect(await starterPackSource.gather({}, {}, 30)).toEqual([]);
   });
 
@@ -490,7 +497,7 @@ describe('the onThisDay source', () => {
     };
   }
 
-  it('matches the viewer\'s own posts from an earlier year on today\'s month and day', async () => {
+  it("matches the viewer's own posts from an earlier year on today's month and day", async () => {
     const { anniversary, dayBefore } = anchor();
     const memory = await create({ oxyUserId: VIEWER, createdAt: anniversary });
     // Right day, wrong year — today is not nostalgia.
@@ -528,7 +535,7 @@ describe('the onThisDay source', () => {
 });
 
 describe('the friendsOfFriends source', () => {
-  it('serves a friend-of-a-friend\'s PUBLIC posts only', async () => {
+  it("serves a friend-of-a-friend's PUBLIC posts only", async () => {
     // A friend-of-a-friend is NOT one of the viewer's followers, so their
     // followers-only posts are out of scope — the one way this differs from
     // `mutuals`, asserted on the same fixture shape.

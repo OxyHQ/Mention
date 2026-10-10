@@ -173,8 +173,9 @@ describe('RedisStore prefix uniqueness', () => {
     // Report the offenders verbatim — a bare count would leave the next reader
     // grepping for which two limiters actually clash.
     const detail = collisions
-      .map(([prefix, sites]) =>
-        `  ${prefix}\n${sites.map((s) => `    ${s.file}:${s.line}  ${s.source}`).join('\n')}`
+      .map(
+        ([prefix, sites]) =>
+          `  ${prefix}\n${sites.map((s) => `    ${s.file}:${s.line}  ${s.source}`).join('\n')}`,
       )
       .join('\n');
 

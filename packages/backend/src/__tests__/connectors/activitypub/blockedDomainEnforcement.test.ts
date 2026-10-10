@@ -261,7 +261,10 @@ beforeEach(() => {
   });
   mocks.signViaOxy.mockResolvedValue('signature');
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update?.$set,
+  }));
   mocks.followFindOneAndUpdate.mockResolvedValue({ _id: 'follow_1' });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
@@ -326,7 +329,12 @@ describe('inbound PUSH from a blocked domain', () => {
     await cacheActor(BLOCKED_ACTOR, 'oxy_mallory');
 
     await activityPubConnector.processInboxActivity(
-      { id: `${BLOCKED_ACTOR}/follows/1`, type: 'Follow', actor: BLOCKED_ACTOR, object: LOCAL_ACTOR },
+      {
+        id: `${BLOCKED_ACTOR}/follows/1`,
+        type: 'Follow',
+        actor: BLOCKED_ACTOR,
+        object: LOCAL_ACTOR,
+      },
       BLOCKED_ACTOR,
     );
 
@@ -339,7 +347,12 @@ describe('inbound PUSH from a blocked domain', () => {
     await cacheActor(ALLOWED_ACTOR, 'oxy_bob');
 
     await activityPubConnector.processInboxActivity(
-      { id: `${ALLOWED_ACTOR}/follows/1`, type: 'Follow', actor: ALLOWED_ACTOR, object: LOCAL_ACTOR },
+      {
+        id: `${ALLOWED_ACTOR}/follows/1`,
+        type: 'Follow',
+        actor: ALLOWED_ACTOR,
+        object: LOCAL_ACTOR,
+      },
       ALLOWED_ACTOR,
     );
 

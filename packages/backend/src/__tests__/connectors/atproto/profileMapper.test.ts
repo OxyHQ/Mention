@@ -67,9 +67,18 @@ const PROFILE = {
 beforeEach(async () => {
   await clearFederationScope(scope, [DID, DID_TWO]);
   vi.clearAllMocks();
-  mocks.resolveOxyIdentity.mockImplementation(async (input: { actorUri: string; transportAcct: string }) => oxyIdentityFixture({
-    ...input, canonicalAcct: 'alice@bsky.social', network: 'bsky.social', protocol: 'atproto', userId: 'oxy-alice', bio: PROFILE.description, avatar: PROFILE.avatar,
-  }));
+  mocks.resolveOxyIdentity.mockImplementation(
+    async (input: { actorUri: string; transportAcct: string }) =>
+      oxyIdentityFixture({
+        ...input,
+        canonicalAcct: 'alice@bsky.social',
+        network: 'bsky.social',
+        protocol: 'atproto',
+        userId: 'oxy-alice',
+        bio: PROFILE.description,
+        avatar: PROFILE.avatar,
+      }),
+  );
 });
 
 describe('mapProfileToNormalizedActor', () => {
@@ -153,31 +162,38 @@ describe('mapProfileToNormalizedActor', () => {
   // `@mayor.nyc.gov@nyc.gov` instead of `@mayor.nyc.gov@bsky.social`.
   it.each([
     { handle: 'skylee1.bsky.social', username: 'skylee1', rendered: 'skylee1@bsky.social' },
-    { handle: 'carnage4life.bsky.social', username: 'carnage4life', rendered: 'carnage4life@bsky.social' },
+    {
+      handle: 'carnage4life.bsky.social',
+      username: 'carnage4life',
+      rendered: 'carnage4life@bsky.social',
+    },
     { handle: 'gothamist.com', username: 'gothamist.com', rendered: 'gothamist.com@bsky.social' },
     { handle: 'mayor.nyc.gov', username: 'mayor.nyc.gov', rendered: 'mayor.nyc.gov@bsky.social' },
     { handle: 'jay.bsky.team', username: 'jay.bsky.team', rendered: 'jay.bsky.team@bsky.social' },
     { handle: 'bsky.app', username: 'bsky.app', rendered: 'bsky.app@bsky.social' },
-  ])('keys handle $handle to $rendered on the Bluesky network host', ({ handle, username, rendered: expected }) => {
-    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle });
-    // The `handle` field always preserves the real atproto handle (full DNS name).
-    expect(actor?.handle).toBe(handle);
-    expect(actor?.instanceDomain).toBe('bsky.social');
-    // `federatedUsername` carries the stored `local@domain` — the exact rendered
-    // handle, with a default handle's `.bsky.social` suffix already stripped.
-    expect(actor?.federatedUsername).toBe(expected);
+  ])(
+    'keys handle $handle to $rendered on the Bluesky network host',
+    ({ handle, username, rendered: expected }) => {
+      const actor = mapProfileToNormalizedActor({ ...PROFILE, handle });
+      // The `handle` field always preserves the real atproto handle (full DNS name).
+      expect(actor?.handle).toBe(handle);
+      expect(actor?.instanceDomain).toBe('bsky.social');
+      // `federatedUsername` carries the stored `local@domain` — the exact rendered
+      // handle, with a default handle's `.bsky.social` suffix already stripped.
+      expect(actor?.federatedUsername).toBe(expected);
 
-    // Rendering from the stored username + instance domain (the shape hydration
-    // reads off the Oxy user) reproduces the same handle.
-    const rendered = getNormalizedUserHandle({
-      username,
-      isFederated: true,
-      federation: { domain: actor?.instanceDomain },
-    });
-    expect(rendered).toBe(expected);
-    // The pre-fix doubled/bogus instance must never re-appear.
-    expect(rendered).not.toBe(`${handle}@${handle}`);
-  });
+      // Rendering from the stored username + instance domain (the shape hydration
+      // reads off the Oxy user) reproduces the same handle.
+      const rendered = getNormalizedUserHandle({
+        username,
+        isFederated: true,
+        federation: { domain: actor?.instanceDomain },
+      });
+      expect(rendered).toBe(expected);
+      // The pre-fix doubled/bogus instance must never re-appear.
+      expect(rendered).not.toBe(`${handle}@${handle}`);
+    },
+  );
 
   it('returns null when did or handle is missing', () => {
     expect(mapProfileToNormalizedActor({ handle: 'a.b' })).toBeNull();
@@ -250,7 +266,9 @@ describe('fetchAndUpsertAtprotoProfile', () => {
 
     const actor = await fetchAndUpsertAtprotoProfile(DID);
 
-    expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', { actor: DID });
+    expect(mocks.xrpcGet).toHaveBeenCalledWith('public.api.bsky.app', 'app.bsky.actor.getProfile', {
+      actor: DID,
+    });
     // The ROW is keyed on the DID and carries protocol + acct + banner.
     const stored = await readActor(DID);
     expect(stored).toMatchObject({
@@ -265,7 +283,9 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // make `PUT /users/resolve` 400 → no oxyUserId → no posts and proxied media.
     expect(mocks.resolveOxyIdentity).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorUri: DID, transportAcct: 'alice.bsky.social', protocol: 'atproto',
+        actorUri: DID,
+        transportAcct: 'alice.bsky.social',
+        protocol: 'atproto',
       }),
     );
     // Oxy user resolved + stamped ON THE ROW (the upsert carried no prior one).
@@ -307,7 +327,11 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // no row of its own, and identity resolution runs against the handle the
     // PREVIOUS holder still owns — attributing this DID's posts to them.
     expect(resolved.oxyUserId).toBeUndefined();
-    expect(mocks.resolveOxyIdentity).toHaveBeenCalledWith({ actorUri: DID, transportAcct: 'alice.bsky.social', protocol: 'atproto' });
+    expect(mocks.resolveOxyIdentity).toHaveBeenCalledWith({
+      actorUri: DID,
+      transportAcct: 'alice.bsky.social',
+      protocol: 'atproto',
+    });
     // No row was written for the new DID, and the previous holder's row is intact.
     expect(await readActor(DID)).toBeNull();
     expect((await readActor(DID_TWO))?.oxyUserId).toBe('oxy-previous-holder');
@@ -346,9 +370,14 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     metrics.reset();
 
     mocks.resolveOxyIdentity.mockImplementation(
-      async (input: { actorUri: string; transportAcct: string }) => oxyIdentityFixture({
-        ...input, canonicalAcct: `${input.actorUri}@bsky.social`, network: 'bsky.social', protocol: 'atproto', userId: `oxy-${input.actorUri}`,
-      }),
+      async (input: { actorUri: string; transportAcct: string }) =>
+        oxyIdentityFixture({
+          ...input,
+          canonicalAcct: `${input.actorUri}@bsky.social`,
+          network: 'bsky.social',
+          protocol: 'atproto',
+          userId: `oxy-${input.actorUri}`,
+        }),
     );
 
     mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID, handle: 'handle.invalid' });
@@ -387,7 +416,12 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     // And nothing was swallowed on the way. Asserted rather than assumed,
     // because a row can also go missing without an exception — this separates
     // "the constraint refused it" from "the write never happened".
-    expect(metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, { protocol: 'atproto', reason: 'federated_actors_acct_key' })).toBe(0);
+    expect(
+      metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, {
+        protocol: 'atproto',
+        reason: 'federated_actors_acct_key',
+      }),
+    ).toBe(0);
   });
 });
 

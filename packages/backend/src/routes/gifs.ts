@@ -1,4 +1,4 @@
-import express, { Response } from "express";
+import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { searchGifs, getTrendingGifs, GifResponse } from '../services/gifService';
 import {
@@ -44,7 +44,7 @@ export interface GifItem {
   klipyId: string;
   slug: string;
   title: string;
-  mp4Url: string;     // full looping muted mp4 — attached to the post via /gifs/use
+  mp4Url: string; // full looping muted mp4 — attached to the post via /gifs/use
   previewUrl: string; // small looping muted mp4 for the grid tile
   width: number;
   height: number;
@@ -75,7 +75,9 @@ function asString(value: unknown): string {
 }
 
 function asDimension(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : GIF_DEFAULT_DIMENSION;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : GIF_DEFAULT_DIMENSION;
 }
 
 /** Map an owned library row to the client DTO (served from our own CDN). */
@@ -174,7 +176,7 @@ async function buildMergedPayload(
 }
 
 // Search GIFs — local-first, Klipy top-up, import what's new.
-router.get("/search", async (req: AuthRequest, res: Response) => {
+router.get('/search', async (req: AuthRequest, res: Response) => {
   try {
     const q = queryString(req.query.q);
     const customerId = req.user?.id || 'anonymous';
@@ -209,14 +211,14 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
     logger.error('[GIFs] GIF search error:', { userId: req.user?.id, query: req.query.q, error });
     res.status(500).json({
       success: false,
-      message: "Error searching GIFs",
+      message: 'Error searching GIFs',
       error: getErrorMessage(error),
     });
   }
 });
 
 // Trending GIFs — owned trending first, Klipy top-up, import what's new.
-router.get("/trending", async (req: AuthRequest, res: Response) => {
+router.get('/trending', async (req: AuthRequest, res: Response) => {
   try {
     const customerId = req.user?.id || 'anonymous';
 
@@ -239,7 +241,7 @@ router.get("/trending", async (req: AuthRequest, res: Response) => {
     logger.error('[GIFs] GIF trending error:', { userId: req.user?.id, error });
     res.status(500).json({
       success: false,
-      message: "Error fetching trending GIFs",
+      message: 'Error fetching trending GIFs',
       error: getErrorMessage(error),
     });
   }
@@ -247,7 +249,7 @@ router.get("/trending", async (req: AuthRequest, res: Response) => {
 
 // Select / post a GIF — import on demand (if new), record the use, return the
 // SHARED Oxy file id the post will reference.
-router.post("/use", async (req: AuthRequest, res: Response) => {
+router.post('/use', async (req: AuthRequest, res: Response) => {
   try {
     const body = (req.body ?? {}) as UseGifBody;
     const klipyId = asString(body.klipyId).trim();
@@ -299,7 +301,7 @@ router.post("/use", async (req: AuthRequest, res: Response) => {
     logger.error('[GIFs] GIF use error:', { userId: req.user?.id, error });
     res.status(500).json({
       success: false,
-      message: "Error selecting GIF",
+      message: 'Error selecting GIF',
       error: getErrorMessage(error),
     });
   }

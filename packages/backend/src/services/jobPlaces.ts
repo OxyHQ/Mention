@@ -74,7 +74,10 @@ export function isClarityError(error: unknown): error is ClarityErrorLike {
 /** Derive Mention's stored location from a Clarity place. */
 export function locationFromPlace(place: Place): MentionJobLocation {
   if (!isCountryCode(place.countryCode)) {
-    throw new JobLocationError({ path: 'location.placeId', message: `Place ${place.id} has no recognized country` });
+    throw new JobLocationError({
+      path: 'location.placeId',
+      message: `Place ${place.id} has no recognized country`,
+    });
   }
   return place.kind === 'region'
     ? { placeId: place.id, countryCode: place.countryCode, region: place.name }
@@ -105,7 +108,9 @@ export function toMentionJobPlace(place: Place): MentionJobPlace {
  * @throws {JobLocationError} the place does not exist.
  * @throws {JobPlacesUnavailableError} Clarity could not answer.
  */
-export async function resolveJobLocation(input: MentionJobLocationInput): Promise<MentionJobLocation> {
+export async function resolveJobLocation(
+  input: MentionJobLocationInput,
+): Promise<MentionJobLocation> {
   if (input.placeId === undefined) {
     return { countryCode: input.countryCode as CountryCode };
   }

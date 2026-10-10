@@ -264,7 +264,15 @@ describe('resolveMediaItems', () => {
     // the poster frame, and a name outside the taxonomy (`full`, `large`,
     // `original`) 404s for every mime.
     const generated = new Set([
-      'w96', 'w128', 'thumb', 'w320', 'w640', 'w1280', 'w2048', 'poster', 'hls_master',
+      'w96',
+      'w128',
+      'thumb',
+      'w320',
+      'w640',
+      'w1280',
+      'w2048',
+      'poster',
+      'hls_master',
     ]);
     const items = resolveMediaItems([
       { id: 'video-file', type: 'video' },

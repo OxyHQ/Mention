@@ -17,59 +17,38 @@
     {
       "id": "stores",
       "why": "Zustand stores hold the client's own truth — engagement, identity, scroll position, invalidation signals.",
-      "include": [
-        "stores/**/*.ts",
-        "stores/**/*.tsx"
-      ]
+      "include": ["stores/**/*.ts", "stores/**/*.tsx"]
     },
     {
       "id": "services",
       "why": "Every network call the app makes and the shapes it expects back.",
-      "include": [
-        "services/**/*.ts"
-      ]
+      "include": ["services/**/*.ts"]
     },
     {
       "id": "lib",
       "why": "Session, query client, query keys, share intents, telemetry, platform forks.",
-      "include": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx"
-      ],
-      "exclude": [
-        "lib/animations/**"
-      ]
+      "include": ["lib/**/*.ts", "lib/**/*.tsx"],
+      "exclude": ["lib/animations/**"]
     },
     {
       "id": "db",
       "why": "The on-device feed cache, its schema and its migrations.",
-      "include": [
-        "db/**/*.ts"
-      ]
+      "include": ["db/**/*.ts"]
     },
     {
       "id": "providers",
       "why": "Boot order, auth routing and account-switch teardown — the components that are logic.",
-      "include": [
-        "components/providers/**/*.ts",
-        "components/providers/**/*.tsx"
-      ]
+      "include": ["components/providers/**/*.ts", "components/providers/**/*.tsx"]
     },
     {
       "id": "hooks",
       "why": "Where the app's product behaviour actually lives.",
-      "include": [
-        "hooks/**/*.ts",
-        "hooks/**/*.tsx"
-      ]
+      "include": ["hooks/**/*.ts", "hooks/**/*.tsx"]
     },
     {
       "id": "utils",
       "why": "Pure logic: intent parsing, post building, feed merging, formatting.",
-      "include": [
-        "utils/**/*.ts",
-        "utils/**/*.tsx"
-      ]
+      "include": ["utils/**/*.ts", "utils/**/*.tsx"]
     },
     {
       "id": "post-interactions",

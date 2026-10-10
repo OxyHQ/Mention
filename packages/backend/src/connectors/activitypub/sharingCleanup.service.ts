@@ -1,9 +1,6 @@
 import { logger } from '../../utils/logger';
 import { findActorsByUris } from '../../db/federation/actorRepository';
-import {
-  deleteFollowsByIds,
-  findFollows,
-} from '../../db/federation/followRepository';
+import { deleteFollowsByIds, findFollows } from '../../db/federation/followRepository';
 import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { AP_CONTEXT } from '@oxy.so/federation';
@@ -78,9 +75,7 @@ export async function runSharingCleanup(
 ): Promise<SharingCleanupResult> {
   const sharingState = await getFediverseSharingStateById(oxyUserId);
   if (sharingState === 'enabled') {
-    logger.info(
-      '[SharingCleanup] sharing is enabled; skipping stale cleanup job',
-    );
+    logger.info('[SharingCleanup] sharing is enabled; skipping stale cleanup job');
     return { deletesSent: 0, followersRemoved: 0 };
   }
   if (sharingState === 'unavailable') {
@@ -145,10 +140,7 @@ export async function runSharingCleanup(
       deletableIds.push(follow.id);
     } catch (err) {
       bridgeFailures += 1;
-    logger.warn(
-      '[SharingCleanup] bridge-unfollow failed',
-      err,
-      );
+      logger.warn('[SharingCleanup] bridge-unfollow failed', err);
     }
   }
 

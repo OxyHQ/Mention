@@ -120,7 +120,8 @@ const LanePickerSheet = memo(function LanePickerSheet({
         safeArea={false}
         leading={
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -164,7 +165,8 @@ const LanePickerSheet = memo(function LanePickerSheet({
             <EmptyState
               icon={{ name: 'git-branch-outline' }}
               subtitle={t('lanes.picker.empty', {
-                defaultValue: 'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
+                defaultValue:
+                  'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
               })}
             />
           }

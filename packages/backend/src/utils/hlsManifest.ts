@@ -100,7 +100,11 @@ function rewriteLine(rawLine: string, manifestUrl: string, buildProxyUrl: ProxyU
   return hasCarriageReturn ? `${rewritten}\r` : rewritten;
 }
 
-function rewriteLineBody(line: string, manifestUrl: string, buildProxyUrl: ProxyUrlBuilder): string {
+function rewriteLineBody(
+  line: string,
+  manifestUrl: string,
+  buildProxyUrl: ProxyUrlBuilder,
+): string {
   const trimmed = line.trim();
 
   // Blank line: structural padding, nothing to rewrite.
@@ -132,7 +136,9 @@ function rewriteTagUri(line: string, manifestUrl: string, buildProxyUrl: ProxyUr
 
   const tagName = line.slice(0, separatorIndex + 1);
   const attributes = splitAttributeList(line.slice(separatorIndex + 1));
-  const rewritten = attributes.map((attribute) => rewriteAttribute(attribute, manifestUrl, buildProxyUrl));
+  const rewritten = attributes.map((attribute) =>
+    rewriteAttribute(attribute, manifestUrl, buildProxyUrl),
+  );
 
   return `${tagName}${rewritten.join(',')}`;
 }
@@ -168,7 +174,11 @@ function splitAttributeList(value: string): string[] {
  * Rewrite a single `NAME=VALUE` attribute when it is the `URI` one. Everything
  * else — including the attribute's original spacing — is returned untouched.
  */
-function rewriteAttribute(attribute: string, manifestUrl: string, buildProxyUrl: ProxyUrlBuilder): string {
+function rewriteAttribute(
+  attribute: string,
+  manifestUrl: string,
+  buildProxyUrl: ProxyUrlBuilder,
+): string {
   const equalsIndex = attribute.indexOf('=');
   if (equalsIndex === -1) return attribute;
 
@@ -193,7 +203,11 @@ function rewriteAttribute(attribute: string, manifestUrl: string, buildProxyUrl:
  * does not serve (a `data:` decryption key, say) — the caller then leaves the
  * original text in place rather than emitting something broken.
  */
-function toProxiedUrl(uri: string, manifestUrl: string, buildProxyUrl: ProxyUrlBuilder): string | null {
+function toProxiedUrl(
+  uri: string,
+  manifestUrl: string,
+  buildProxyUrl: ProxyUrlBuilder,
+): string | null {
   if (uri.length === 0) return null;
 
   let absolute: URL;

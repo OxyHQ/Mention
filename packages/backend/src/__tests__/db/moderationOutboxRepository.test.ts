@@ -88,10 +88,14 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(moderationOutbox).where(like(moderationOutbox.id, `${PREFIX}%`));
+  await getDb()
+    .delete(moderationOutbox)
+    .where(like(moderationOutbox.id, `${PREFIX}%`));
   // `moderation_outbox.payload_report_id` cascades from `reports`, but the events
   // are deleted above by their own prefix; this clears the subjects they named.
-  await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+  await getDb()
+    .delete(reports)
+    .where(like(reports.reporter, `${PREFIX}%`));
 });
 
 afterAll(async () => {

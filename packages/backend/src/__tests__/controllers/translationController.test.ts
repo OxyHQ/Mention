@@ -21,7 +21,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../services/PostTranslationService', () => {
   class TranslationRequestError extends Error {
-    constructor(message: string, readonly status: number) {
+    constructor(
+      message: string,
+      readonly status: number,
+    ) {
       super(message);
     }
   }
@@ -111,14 +114,16 @@ describe('post translation inference failures', () => {
   });
 
   it('preserves the explicit rate-limit response from the inference edge', async () => {
-    mocks.translatePost.mockRejectedValue(new OxyInferenceError({
-      code: 'rate_limited',
-      message: 'Slow down.',
-      retryable: true,
-      requestId: 'oxy-request-2',
-      retryAfterMs: 1_000,
-      status: 429,
-    }));
+    mocks.translatePost.mockRejectedValue(
+      new OxyInferenceError({
+        code: 'rate_limited',
+        message: 'Slow down.',
+        retryable: true,
+        requestId: 'oxy-request-2',
+        retryAfterMs: 1_000,
+        status: 429,
+      }),
+    );
     const res = response();
 
     await translatePost(request(), res);

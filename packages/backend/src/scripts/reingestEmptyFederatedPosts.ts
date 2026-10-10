@@ -53,14 +53,8 @@ import { buildFederatedNoteContent } from '../connectors/activitypub/apPostConte
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  DeletionPreflightError,
-  assertPostsSafeToDelete,
-} from './lib/adminDeletionPreflight';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { DeletionPreflightError, assertPostsSafeToDelete } from './lib/adminDeletionPreflight';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 /** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -174,20 +168,16 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
     skippedNoUrl: 0,
   };
 
-  const deleteIfUnreferenced = async (
-    post: EmptyFederatedPostRow,
-  ): Promise<boolean> => {
+  const deleteIfUnreferenced = async (post: EmptyFederatedPostRow): Promise<boolean> => {
     try {
-      await assertPostsSafeToDelete(
-        `reingestEmptyFederatedPosts:${post.id}`,
-        [{
+      await assertPostsSafeToDelete(`reingestEmptyFederatedPosts:${post.id}`, [
+        {
           id: post.id,
-          uris: [
-            post.federation?.activityId,
-            post.federation?.url,
-          ].filter((value): value is string => typeof value === 'string' && value.length > 0),
-        }],
-      );
+          uris: [post.federation?.activityId, post.federation?.url].filter(
+            (value): value is string => typeof value === 'string' && value.length > 0,
+          ),
+        },
+      ]);
     } catch (error) {
       if (!(error instanceof DeletionPreflightError)) throw error;
       counts.blockedDelete += 1;
@@ -216,10 +206,7 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
     });
 
     const baseFilter = buildEmptyFederatedFilter(flags.actorUri);
-    const [totals] = await getDb()
-      .select({ count: count() })
-      .from(posts)
-      .where(baseFilter);
+    const [totals] = await getDb().select({ count: count() }).from(posts).where(baseFilter);
     const totalCount = totals?.count ?? 0;
     logger.info(`[reingestEmptyFederatedPosts] ${totalCount} empty federated posts to scan`);
     if (totalCount === 0) {
@@ -274,9 +261,12 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
         }
 
         const hasBody = built.text.trim().length > 0 || built.media.length > 0;
-        const derivedType = built.media.length > 0
-          ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
-          : PostType.TEXT;
+        const derivedType =
+          built.media.length > 0
+            ? built.media.some((m) => m.type === 'video')
+              ? PostType.VIDEO
+              : PostType.IMAGE
+            : PostType.TEXT;
 
         if (!flags.dryRun) {
           await updatePostRecord(post.id, {

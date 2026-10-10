@@ -11,11 +11,11 @@ const IS_WEB = Platform.OS === 'web';
 /** The thread's reply composer owns a local footer above shared app navigation.
  * It is not an app header, panel mask, or second shell. */
 interface PanelStickyFooterProps {
-    children: React.ReactNode;
-    /** Extra classes appended after the centralized chrome classes. */
-    className?: string;
-    /** Reanimated OR plain style — same `Animated.View` style type as the header. */
-    style?: StyleProp<AnimatedStyle<ViewStyle>>;
+  children: React.ReactNode;
+  /** Extra classes appended after the centralized chrome classes. */
+  className?: string;
+  /** Reanimated OR plain style — same `Animated.View` style type as the header. */
+  style?: StyleProp<AnimatedStyle<ViewStyle>>;
 }
 
 /** z-index the footer paints at so it floats over the scrolling content beneath it. */
@@ -41,44 +41,46 @@ const FOOTER_Z_INDEX = Platform.OS === 'web' ? 110 : 999;
  * the `web:sticky` class (RN's typed `ViewStyle.position` has no `'sticky'`,
  * so it is never written inline).
  */
-export function PanelStickyFooter({
-    children,
-    className,
-    style,
-}: PanelStickyFooterProps) {
-    const framed = useIsScreenNotMobile();
-    const surfaceFill = useSurfaceFill();
-    return (
-        <Animated.View
-            className={cn(
-                'w-full',
-                IS_WEB && 'web:sticky web:shrink-0',
-                IS_WEB && (framed ? 'web:bottom-2' : 'web:bottom-0'),
-                className,
-            )}
-            style={[
-                Platform.select({
-                    web: { zIndex: FOOTER_Z_INDEX },
-                    default: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, zIndex: FOOTER_Z_INDEX },
-                }),
-                style,
-            ]}
-        >
-            <View
-                // A PROP: react-native-web resolves `none` from the prop path only.
-                pointerEvents="none"
-                className={cn(IS_WEB && framed && 'web:overflow-hidden web:rounded-b-[28px]')}
-                style={styles.scrim}
-            >
-                <EdgeScrim edge="bottom" color={surfaceFill} />
-            </View>
-            {children}
-        </Animated.View>
-    );
+export function PanelStickyFooter({ children, className, style }: PanelStickyFooterProps) {
+  const framed = useIsScreenNotMobile();
+  const surfaceFill = useSurfaceFill();
+  return (
+    <Animated.View
+      className={cn(
+        'w-full',
+        IS_WEB && 'web:sticky web:shrink-0',
+        IS_WEB && (framed ? 'web:bottom-2' : 'web:bottom-0'),
+        className,
+      )}
+      style={[
+        Platform.select({
+          web: { zIndex: FOOTER_Z_INDEX },
+          default: {
+            position: 'absolute' as const,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: FOOTER_Z_INDEX,
+          },
+        }),
+        style,
+      ]}
+    >
+      <View
+        // A PROP: react-native-web resolves `none` from the prop path only.
+        pointerEvents="none"
+        className={cn(IS_WEB && framed && 'web:overflow-hidden web:rounded-b-[28px]')}
+        style={styles.scrim}
+      >
+        <EdgeScrim edge="bottom" color={surfaceFill} />
+      </View>
+      {children}
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({
-    // A percentage `top` resolves against the footer's own height on both
-    // platforms, so the tail follows the footer without measuring it.
-    scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, top: `${-SCRIM_TAIL_RATIO * 100}%` },
+  // A percentage `top` resolves against the footer's own height on both
+  // platforms, so the tail follows the footer without measuring it.
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, top: `${-SCRIM_TAIL_RATIO * 100}%` },
 });

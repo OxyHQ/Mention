@@ -11,7 +11,9 @@
  * becomes the source of truth for a Mention-authored job.
  */
 
-import type * as ClarityVocabularies from '@clarity.surf/sdk/vocabularies' with { 'resolution-mode': 'import' };
+import type * as ClarityVocabularies from '@clarity.surf/sdk/vocabularies' with {
+  'resolution-mode': 'import',
+};
 
 /**
  * Clarity's job-search shapes, re-exported so the app types Mention's `/jobs`
@@ -46,7 +48,8 @@ export type CountryCode = ClarityVocabularies.CountryCode;
 export const CURRENCY_CODES: readonly CurrencyCode[] = vocabularies.CURRENCY_CODES;
 /** ISO 3166-1 alpha-2 codes, sorted. Localize with `Intl.DisplayNames({ type: 'region' })`. */
 export const COUNTRY_CODES: readonly CountryCode[] = vocabularies.COUNTRY_CODES;
-export const isCurrencyCode: (value: unknown) => value is CurrencyCode = vocabularies.isCurrencyCode;
+export const isCurrencyCode: (value: unknown) => value is CurrencyCode =
+  vocabularies.isCurrencyCode;
 export const isCountryCode: (value: unknown) => value is CountryCode = vocabularies.isCountryCode;
 
 export const MENTION_JOB_WORKPLACE_TYPES = ['onsite', 'hybrid', 'remote'] as const;
@@ -216,7 +219,9 @@ export interface CreateMentionJobRequest {
 }
 
 /** Every field optional; `null` on a clearable field (`location`, `salary`, …) clears it. */
-export type UpdateMentionJobRequest = Partial<Omit<CreateMentionJobRequest, 'employerOxyUserId' | 'publish'>>;
+export type UpdateMentionJobRequest = Partial<
+  Omit<CreateMentionJobRequest, 'employerOxyUserId' | 'publish'>
+>;
 
 export interface MentionJobListFilters {
   employerOxyUserId?: string;
@@ -321,7 +326,11 @@ export interface MentionJobMetricsSummary {
   completedApplications: number;
 }
 
-export type MentionJobMetricEvent = 'view' | 'apply_start' | 'external_apply_click' | 'application_completed';
+export type MentionJobMetricEvent =
+  | 'view'
+  | 'apply_start'
+  | 'external_apply_click'
+  | 'application_completed';
 
 /**
  * The publish gate for Phase D. Mention stores no payment/plan state itself —

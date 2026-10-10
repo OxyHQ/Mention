@@ -57,10 +57,7 @@ jest.mock('@/db', () => ({
   upsertPost: jest.fn(),
   upsertPosts: jest.fn(),
   getPostById: (postId: string) => mockPosts.get(postId) ?? null,
-  updatePost: (
-    postId: string,
-    updater: (previous: FeedItem) => FeedItem | null | undefined,
-  ) => {
+  updatePost: (postId: string, updater: (previous: FeedItem) => FeedItem | null | undefined) => {
     const previous = mockPosts.get(postId);
     if (!previous) return null;
     const next = updater(previous);
@@ -184,10 +181,7 @@ describe('live post engagement counts, over a real socket', () => {
   });
 
   /** Everything a real broadcast is: one payload, into one post's room. */
-  function broadcast(
-    event: string,
-    payload: Omit<PostEngagementCountsPayload, 'timestamp'>,
-  ): void {
+  function broadcast(event: string, payload: Omit<PostEngagementCountsPayload, 'timestamp'>): void {
     ioServer
       .to(postEngagementRoom(payload.postId))
       .emit(event, { ...payload, timestamp: new Date().toISOString() });
@@ -390,10 +384,7 @@ describe('live post engagement counts, over a real socket', () => {
       // Saves carry no actor, deliberately — a room must not learn who saved.
     });
 
-    await waitFor(
-      () => storedPost(WATCHED_POST).engagement.saves === 8,
-      'the save count to land',
-    );
+    await waitFor(() => storedPost(WATCHED_POST).engagement.saves === 8, 'the save count to land');
     expect(storedPost(WATCHED_POST).viewerState.isSaved).toBe(false);
   });
 
@@ -483,10 +474,7 @@ describe('live post engagement counts, over a real socket', () => {
 
     it('leaves the retry loop armed, so a LATER drop still reconnects', async () => {
       socketService.suspendForPageFreeze();
-      await waitFor(
-        () => (serverSockets.at(-1)?.disconnected ?? false),
-        'the transport to close',
-      );
+      await waitFor(() => serverSockets.at(-1)?.disconnected ?? false, 'the transport to close');
       socketService.resumeAfterPageRestore();
       await waitFor(
         () => socketService.getConnectionStatus().isConnected,

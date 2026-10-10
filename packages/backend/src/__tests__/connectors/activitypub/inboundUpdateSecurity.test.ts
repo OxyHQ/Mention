@@ -43,7 +43,9 @@ const OWNER_OXY_ID = scope.user('bob');
 let edited: PostRecord;
 
 /** The stored renditions, which is where a federated body actually lives. */
-async function storedVariants(postId: string): Promise<Array<{ tag: string | null; body: string }>> {
+async function storedVariants(
+  postId: string,
+): Promise<Array<{ tag: string | null; body: string }>> {
   return getDb()
     .select({ tag: postContentVariants.tag, body: postContentVariants.body })
     .from(postContentVariants)
@@ -145,7 +147,12 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   // The sending actor, resolved. `handleUpdate` falls back to it for the owner
   // id when the edited post has none.
-  await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId: OWNER_OXY_ID, lastFetchedAt: new Date() });
+  await seedActor(scope, {
+    username: 'bob',
+    uri: ACTOR_URI,
+    oxyUserId: OWNER_OXY_ID,
+    lastFetchedAt: new Date(),
+  });
   await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
   // The post being edited, as a REAL row owned by the SENDING actor. The
   // ownership scope is the security property here, and it is only expressible
@@ -284,7 +291,12 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
     for (const type of ['Person', 'Service', 'Application', 'Group', 'Organization']) {
       fetchRemoteActor.mockClear();
       await inboxProcessingService.processInboxActivity(
-        { id: `${ACTOR_URI}#update-${type}`, type: 'Update', actor: ACTOR_URI, object: { id: ACTOR_URI, type } },
+        {
+          id: `${ACTOR_URI}#update-${type}`,
+          type: 'Update',
+          actor: ACTOR_URI,
+          object: { id: ACTOR_URI, type },
+        },
         ACTOR_URI,
       );
       expect(fetchRemoteActor).toHaveBeenCalledWith(ACTOR_URI);
@@ -298,7 +310,12 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
     for (const type of ['Video', 'Question', 'Tombstone', 'Event']) {
       fetchRemoteActor.mockClear();
       await inboxProcessingService.processInboxActivity(
-        { id: `${ACTOR_URI}#update-${type}`, type: 'Update', actor: ACTOR_URI, object: { id: `${ACTOR_URI}/x`, type } },
+        {
+          id: `${ACTOR_URI}#update-${type}`,
+          type: 'Update',
+          actor: ACTOR_URI,
+          object: { id: `${ACTOR_URI}/x`, type },
+        },
         ACTOR_URI,
       );
       expect(fetchRemoteActor).not.toHaveBeenCalled();

@@ -27,153 +27,170 @@ const mockOpenExternalLink = jest.fn();
  */
 
 jest.mock('@oxy.so/core', () => ({
-    getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
+  getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
 }));
 
 // The hover card is a pass-through on native; keeping the real one here would
 // only add the platform file's indirection to what is a shape assertion.
 jest.mock('@/components/ProfileHoverCard', () => ({
-    ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
+  ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 jest.mock('@/utils/openExternalLink', () => ({
-    openExternalLink: (...args: unknown[]) => mockOpenExternalLink(...args),
+  openExternalLink: (...args: unknown[]) => mockOpenExternalLink(...args),
 }));
 
 /** Every host node the render produced, as `[type, text-or-null]` pairs. */
 function hostNodes(element: React.ReactElement) {
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-    act(() => {
-        renderer = TestRenderer.create(element);
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  act(() => {
+    renderer = TestRenderer.create(element);
+  });
+  if (!renderer) throw new Error('render produced no tree');
+  const out: { type: string; strings: string[] }[] = [];
+  const walk = (node: unknown) => {
+    if (node === null || typeof node !== 'object') return;
+    const n = node as { type: string; children: unknown[] | null };
+    out.push({
+      type: n.type,
+      strings: (n.children ?? []).filter((c): c is string => typeof c === 'string'),
     });
-    if (!renderer) throw new Error('render produced no tree');
-    const out: { type: string; strings: string[] }[] = [];
-    const walk = (node: unknown) => {
-        if (node === null || typeof node !== 'object') return;
-        const n = node as { type: string; children: unknown[] | null };
-        out.push({
-            type: n.type,
-            strings: (n.children ?? []).filter((c): c is string => typeof c === 'string'),
-        });
-        for (const child of n.children ?? []) walk(child);
-    };
-    walk(renderer.toJSON());
-    act(() => renderer?.unmount());
-    return out;
+    for (const child of n.children ?? []) walk(child);
+  };
+  walk(renderer.toJSON());
+  act(() => renderer?.unmount());
+  return out;
 }
 
 describe('LinkifiedText', () => {
-    beforeEach(() => {
-        mockOpenExternalLink.mockReset();
+  beforeEach(() => {
+    mockOpenExternalLink.mockReset();
+  });
+
+  it('opens the actual source URL of an unresolved federated mention', () => {
+    const href = 'https://flipboard.com/@forbes/leadership-bs0je34pz';
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <LinkifiedText text={`Posted into Leadership [@@leadership-forbes](${href})`} />,
+      );
     });
+    if (!renderer) throw new Error('render produced no tree');
+    const link = renderer.root.findAll(
+      (node) =>
+        typeof node.props.onPress === 'function' && node.props.children === '@leadership-forbes',
+    )[0];
+    if (!link) throw new Error('render produced no mention link');
+    const stopPropagation = jest.fn();
+    act(() => link.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(mockOpenExternalLink).toHaveBeenCalledWith(href);
+    expect(link.props.href).not.toBe(`/@${href}`);
+    act(() => renderer?.unmount());
+  });
 
-    it('opens the actual source URL of an unresolved federated mention', () => {
-        const href = 'https://flipboard.com/@forbes/leadership-bs0je34pz';
-        let renderer: TestRenderer.ReactTestRenderer | undefined;
-        act(() => {
-            renderer = TestRenderer.create(<LinkifiedText text={`Posted into Leadership [@@leadership-forbes](${href})`} />);
-        });
-        if (!renderer) throw new Error('render produced no tree');
-        const link = renderer.root.findAll((node) =>
-            typeof node.props.onPress === 'function' && node.props.children === '@leadership-forbes',
-        )[0];
-        if (!link) throw new Error('render produced no mention link');
-        const stopPropagation = jest.fn();
-        act(() => link.props.onPress({ stopPropagation }));
-        expect(stopPropagation).toHaveBeenCalled();
-        expect(mockOpenExternalLink).toHaveBeenCalledWith(href);
-        expect(link.props.href).not.toBe(`/@${href}`);
-        act(() => renderer?.unmount());
+  it('draws prose with a single text node', () => {
+    const nodes = hostNodes(<LinkifiedText text="just some words about nothing" />);
+    const texts = nodes.filter((n) => n.type === 'Text');
+
+    expect(texts).toHaveLength(1);
+    expect(texts[0].strings.join('')).toBe('just some words about nothing');
+  });
+
+  it('still gives a hashtag its own text node, with the prose around it inline', () => {
+    // The control for the test above. The hashtag is pressable and coloured,
+    // so it MUST be its own node; the two prose runs beside it must not be.
+    const nodes = hostNodes(<LinkifiedText text="hey #expo look at this" />);
+    const texts = nodes.filter((n) => n.type === 'Text');
+
+    expect(texts).toHaveLength(2);
+    expect(texts[0].strings).toEqual(['hey ', ' look at this']);
+    expect(texts[1].strings).toEqual(['#expo']);
+  });
+
+  it.each([
+    ['a mention', 'hi [@Nate](nate)', 'Nate', '/@nate'],
+    [
+      'a federated handle',
+      'hi @gargron@mastodon.social',
+      '@gargron@mastodon.social',
+      '/@gargron@mastodon.social',
+    ],
+    ['a hashtag', 'hey #expo', '#expo', '/hashtag/expo'],
+  ])('makes %s a real link to its page', (_label, text, label, href) => {
+    // An `href` is what makes it an `<a href>` on web — the thing a crawler
+    // follows from a post to the profile it mentions. A press handler alone
+    // is invisible to one.
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(<LinkifiedText text={text} />);
     });
+    if (!renderer) throw new Error('render produced no tree');
+    const link = renderer.root.find(
+      (node) => String(node.type) === 'Text' && node.props.children === label,
+    );
+    expect(link.props.href).toBe(href);
+    expect(link.props.role).toBe('link');
+  });
 
-    it('draws prose with a single text node', () => {
-        const nodes = hostNodes(<LinkifiedText text="just some words about nothing" />);
-        const texts = nodes.filter((n) => n.type === 'Text');
-
-        expect(texts).toHaveLength(1);
-        expect(texts[0].strings.join('')).toBe('just some words about nothing');
+  it.each([
+    [
+      'a typed federated handle',
+      'hi @nobody@nowhere.example',
+      '@nobody@nowhere.example',
+      'nofollow',
+    ],
+    ['a hydrated mention', 'hi [@Nate](nate)', 'Nate', undefined],
+    ['a hashtag', 'hey #expo', '#expo', undefined],
+  ])('tells crawlers whether to follow %s', (_label, text, label, rel) => {
+    // A typed handle names an account nobody checked exists; each one naming
+    // nobody was a page Google crawled and recorded as a 404.
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(<LinkifiedText text={text} />);
     });
+    if (!renderer) throw new Error('render produced no tree');
+    const link = renderer.root.find(
+      (node) => String(node.type) === 'Text' && node.props.children === label,
+    );
+    expect(link.props.hrefAttrs?.rel).toBe(rel);
+  });
 
-    it('still gives a hashtag its own text node, with the prose around it inline', () => {
-        // The control for the test above. The hashtag is pressable and coloured,
-        // so it MUST be its own node; the two prose runs beside it must not be.
-        const nodes = hostNodes(<LinkifiedText text="hey #expo look at this" />);
-        const texts = nodes.filter((n) => n.type === 'Text');
-
-        expect(texts).toHaveLength(2);
-        expect(texts[0].strings).toEqual(['hey ', ' look at this']);
-        expect(texts[1].strings).toEqual(['#expo']);
-    });
-
-    it.each([
-        ['a mention', 'hi [@Nate](nate)', 'Nate', '/@nate'],
-        ['a federated handle', 'hi @gargron@mastodon.social', '@gargron@mastodon.social', '/@gargron@mastodon.social'],
-        ['a hashtag', 'hey #expo', '#expo', '/hashtag/expo'],
-    ])('makes %s a real link to its page', (_label, text, label, href) => {
-        // An `href` is what makes it an `<a href>` on web — the thing a crawler
-        // follows from a post to the profile it mentions. A press handler alone
-        // is invisible to one.
-        let renderer: TestRenderer.ReactTestRenderer | undefined;
-        act(() => {
-            renderer = TestRenderer.create(<LinkifiedText text={text} />);
-        });
-        if (!renderer) throw new Error('render produced no tree');
-        const link = renderer.root.find(
-            (node) => String(node.type) === 'Text' && node.props.children === label,
+  it.each([
+    [
+      'an https URL',
+      'Read https://example.com/articles/a-very…',
+      'Read https://example.com/articles/a-very-long-slug',
+      'https://example.com/articles/a-very-long-slug',
+    ],
+    [
+      'a scheme-less www URL',
+      'Read www.example.com/articles/a-very…',
+      'Read www.example.com/articles/a-very-long-slug',
+      'https://www.example.com/articles/a-very-long-slug',
+    ],
+  ])(
+    'opens the complete source destination for %s cut in the visible text',
+    (_label, text, linkTargetText, expected) => {
+      let renderer: TestRenderer.ReactTestRenderer | undefined;
+      act(() => {
+        renderer = TestRenderer.create(
+          <LinkifiedText text={text} linkTargetText={linkTargetText} />,
         );
-        expect(link.props.href).toBe(href);
-        expect(link.props.role).toBe('link');
-    });
+      });
+      if (!renderer) throw new Error('render produced no tree');
 
-    it.each([
-        ['a typed federated handle', 'hi @nobody@nowhere.example', '@nobody@nowhere.example', 'nofollow'],
-        ['a hydrated mention', 'hi [@Nate](nate)', 'Nate', undefined],
-        ['a hashtag', 'hey #expo', '#expo', undefined],
-    ])('tells crawlers whether to follow %s', (_label, text, label, rel) => {
-        // A typed handle names an account nobody checked exists; each one naming
-        // nobody was a page Google crawled and recorded as a 404.
-        let renderer: TestRenderer.ReactTestRenderer | undefined;
-        act(() => {
-            renderer = TestRenderer.create(<LinkifiedText text={text} />);
-        });
-        if (!renderer) throw new Error('render produced no tree');
-        const link = renderer.root.find(
-            (node) => String(node.type) === 'Text' && node.props.children === label,
-        );
-        expect(link.props.hrefAttrs?.rel).toBe(rel);
-    });
+      const link = renderer.root.findAll(
+        (node) =>
+          typeof node.props.onPress === 'function' &&
+          typeof node.props.children === 'string' &&
+          node.props.children === text.slice('Read '.length),
+      )[0];
+      if (!link) throw new Error('render produced no pressable URL');
 
-    it.each([
-        [
-            'an https URL',
-            'Read https://example.com/articles/a-very…',
-            'Read https://example.com/articles/a-very-long-slug',
-            'https://example.com/articles/a-very-long-slug',
-        ],
-        [
-            'a scheme-less www URL',
-            'Read www.example.com/articles/a-very…',
-            'Read www.example.com/articles/a-very-long-slug',
-            'https://www.example.com/articles/a-very-long-slug',
-        ],
-    ])('opens the complete source destination for %s cut in the visible text', (_label, text, linkTargetText, expected) => {
-        let renderer: TestRenderer.ReactTestRenderer | undefined;
-        act(() => {
-            renderer = TestRenderer.create(
-                <LinkifiedText text={text} linkTargetText={linkTargetText} />,
-            );
-        });
-        if (!renderer) throw new Error('render produced no tree');
-
-        const link = renderer.root.findAll(
-            (node) => typeof node.props.onPress === 'function' &&
-                typeof node.props.children === 'string' &&
-                node.props.children === text.slice('Read '.length),
-        )[0];
-        if (!link) throw new Error('render produced no pressable URL');
-
-        act(() => link.props.onPress());
-        expect(mockOpenExternalLink).toHaveBeenCalledWith(expected);
-        act(() => renderer?.unmount());
-    });
+      act(() => link.props.onPress());
+      expect(mockOpenExternalLink).toHaveBeenCalledWith(expected);
+      act(() => renderer?.unmount());
+    },
+  );
 });

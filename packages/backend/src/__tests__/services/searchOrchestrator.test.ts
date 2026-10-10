@@ -14,10 +14,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  runSearchOverview,
-  type LaneDefinition,
-} from '../../services/search/SearchOrchestrator';
+import { runSearchOverview, type LaneDefinition } from '../../services/search/SearchOrchestrator';
 
 function lane(overrides: Partial<LaneDefinition> & Pick<LaneDefinition, 'name'>): LaneDefinition {
   return {
@@ -34,7 +31,13 @@ describe('runSearchOverview', () => {
     // A client must be able to read every key without checking it exists. A
     // lane nobody ran is `unavailable`, not absent.
     expect(Object.keys(body.lanes).sort()).toEqual([
-      'feeds', 'hashtags', 'lists', 'posts', 'profiles', 'saved', 'starterPacks',
+      'feeds',
+      'hashtags',
+      'lists',
+      'posts',
+      'profiles',
+      'saved',
+      'starterPacks',
     ]);
     for (const value of Object.values(body.lanes)) {
       expect(value.status).toBe('unavailable');
@@ -47,7 +50,12 @@ describe('runSearchOverview', () => {
       'q',
       [
         lane({ name: 'hashtags' }),
-        lane({ name: 'feeds', run: async () => { throw new Error('lane exploded'); } }),
+        lane({
+          name: 'feeds',
+          run: async () => {
+            throw new Error('lane exploded');
+          },
+        }),
       ],
       [],
     );
@@ -73,7 +81,10 @@ describe('runSearchOverview', () => {
           // Never settles. The response must come back anyway — the budget is
           // the point, and `Promise.allSettled` over the raw lanes would hang
           // here forever.
-          run: () => new Promise(() => { /* intentionally pending */ }),
+          run: () =>
+            new Promise(() => {
+              /* intentionally pending */
+            }),
         }),
       ],
       [],
@@ -94,7 +105,14 @@ describe('runSearchOverview', () => {
 
     const body = await runSearchOverview(
       'q',
-      [lane({ name: 'lists', run: async () => { throw canceled; } })],
+      [
+        lane({
+          name: 'lists',
+          run: async () => {
+            throw canceled;
+          },
+        }),
+      ],
       [],
     );
 
@@ -104,8 +122,14 @@ describe('runSearchOverview', () => {
   it('does not count a deliberately skipped lane as degraded', async () => {
     const body = await runSearchOverview(
       'q',
-      [lane({ name: 'hashtags' }), lane({ name: 'feeds' }), lane({ name: 'lists' }),
-       lane({ name: 'starterPacks' }), lane({ name: 'posts' }), lane({ name: 'saved' })],
+      [
+        lane({ name: 'hashtags' }),
+        lane({ name: 'feeds' }),
+        lane({ name: 'lists' }),
+        lane({ name: 'starterPacks' }),
+        lane({ name: 'posts' }),
+        lane({ name: 'saved' }),
+      ],
       [{ name: 'profiles', status: 'skipped' }],
     );
 
@@ -151,7 +175,12 @@ describe('runSearchOverview', () => {
   it('passes a lane cursor through, so the tab can continue rather than restart', async () => {
     const body = await runSearchOverview(
       'q',
-      [lane({ name: 'hashtags', run: async () => ({ items: ['a'], hasMore: true, nextCursor: 'c1' }) })],
+      [
+        lane({
+          name: 'hashtags',
+          run: async () => ({ items: ['a'], hasMore: true, nextCursor: 'c1' }),
+        }),
+      ],
       [],
     );
 
@@ -166,7 +195,14 @@ describe('runSearchOverview', () => {
     try {
       await runSearchOverview(
         'q',
-        [lane({ name: 'feeds', run: async () => { throw new Error('lane exploded'); } })],
+        [
+          lane({
+            name: 'feeds',
+            run: async () => {
+              throw new Error('lane exploded');
+            },
+          }),
+        ],
         [],
       );
       expect(warn).toHaveBeenCalled();

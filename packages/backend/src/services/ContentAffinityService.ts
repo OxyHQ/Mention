@@ -51,7 +51,18 @@
  */
 
 import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, inArray, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
@@ -253,7 +264,7 @@ export class ContentAffinityService {
         reasons: Array.from(acc.reasons).sort(),
       }))
       // Highest affinity first; tie-break on id for deterministic output.
-      .sort((a, b) => (b.weight - a.weight) || (a.userId < b.userId ? -1 : 1))
+      .sort((a, b) => b.weight - a.weight || (a.userId < b.userId ? -1 : 1))
       .slice(0, limit);
 
     await this.writeCache(cacheKey, candidates);
@@ -315,16 +326,21 @@ export class ContentAffinityService {
     hiddenTopics: Set<string>,
   ): Array<{ topic: string; weight: number }> {
     const prefs = behavior?.preferredTopics ?? [];
-    return prefs
-      .map((p) => ({
-        topic: typeof p.topic === 'string' ? p.topic.trim().toLowerCase() : '',
-        weight: typeof p.weight === 'number' && Number.isFinite(p.weight) ? Math.max(0, Math.min(1, p.weight)) : 0,
-      }))
-      .filter((p) => p.topic.length > 0 && p.weight > 0 && !hiddenTopics.has(p.topic))
-      // The model already keeps preferredTopics sorted by weight desc, but sort
-      // defensively so the cap takes the genuinely strongest topics.
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, MAX_PREFERRED_TOPICS);
+    return (
+      prefs
+        .map((p) => ({
+          topic: typeof p.topic === 'string' ? p.topic.trim().toLowerCase() : '',
+          weight:
+            typeof p.weight === 'number' && Number.isFinite(p.weight)
+              ? Math.max(0, Math.min(1, p.weight))
+              : 0,
+        }))
+        .filter((p) => p.topic.length > 0 && p.weight > 0 && !hiddenTopics.has(p.topic))
+        // The model already keeps preferredTopics sorted by weight desc, but sort
+        // defensively so the cap takes the genuinely strongest topics.
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, MAX_PREFERRED_TOPICS)
+    );
   }
 
   /**
@@ -336,11 +352,14 @@ export class ContentAffinityService {
    * engagement. Zero/invalid weights contribute nothing. Pure in-memory — the
    * behavior doc was already fetched.
    */
-  private computePreferredAuthorAffinity(behavior: UserBehaviorRecord | null): Map<string, AuthorAccumulator> {
+  private computePreferredAuthorAffinity(
+    behavior: UserBehaviorRecord | null,
+  ): Map<string, AuthorAccumulator> {
     const result = new Map<string, AuthorAccumulator>();
     for (const pref of behavior?.preferredAuthors ?? []) {
       const authorId = typeof pref.authorId === 'string' ? pref.authorId : '';
-      const weight = typeof pref.weight === 'number' && Number.isFinite(pref.weight) ? pref.weight : 0;
+      const weight =
+        typeof pref.weight === 'number' && Number.isFinite(pref.weight) ? pref.weight : 0;
       if (authorId.length === 0 || weight <= 0) continue;
       result.set(authorId, {
         weight: Math.max(0, Math.min(1, weight)) * PREFERRED_AUTHOR_WEIGHT,
@@ -502,7 +521,10 @@ export class ContentAffinityService {
         if (!followingIds.has(authorId)) merged.delete(authorId);
       }
     } catch (error) {
-      logger.warn('[ContentAffinity] candidate profile ACL filter failed; dropping candidates:', error);
+      logger.warn(
+        '[ContentAffinity] candidate profile ACL filter failed; dropping candidates:',
+        error,
+      );
       merged.clear();
     }
   }
@@ -547,10 +569,7 @@ export class ContentAffinityService {
    * Resolve the viewer's exclusion set (self + Oxy blocks/restrictions + local
    * mutes) as a Set for O(1) membership tests during the merge.
    */
-  private async resolveExcludeIds(
-    viewerId: string,
-    oxyClient?: OxyClient,
-  ): Promise<Set<string>> {
+  private async resolveExcludeIds(viewerId: string, oxyClient?: OxyClient): Promise<Set<string>> {
     const privacyState = await UserPrivacyManager.loadPrivacyState(viewerId, {
       oxyClient,
       includeRestricted: true,
@@ -711,7 +730,8 @@ export class ContentAffinityService {
     // normal like weight toward this author becoming a FOLLOW candidate. Non-video
     // likes contribute the full weight (prior behavior). The popularity-floor
     // factor (~0.25) is the same shared constant used in UserBehavior attribution.
-    const videoLikeFactor = MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
+    const videoLikeFactor =
+      MtnConfig.preferences.engagementContext.videoSurfaceAuthorAffinityFactor;
     for (const like of likedPosts) {
       const authorId = postAuthor.get(like.postId);
       if (!authorId || authorId === viewerId) continue;
@@ -742,13 +762,7 @@ export class ContentAffinityService {
       const rows = await getDb()
         .select({ postId: likes.postId, source: likes.source })
         .from(likes)
-        .where(
-          and(
-            eq(likes.userId, viewerId),
-            eq(likes.value, 1),
-            gte(likes.createdAt, since),
-          ),
-        )
+        .where(and(eq(likes.userId, viewerId), eq(likes.value, 1), gte(likes.createdAt, since)))
         .orderBy(desc(likes.createdAt), desc(likes.id))
         .limit(MAX_LIKES_SCANNED);
       return rows

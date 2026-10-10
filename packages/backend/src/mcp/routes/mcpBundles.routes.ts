@@ -1,16 +1,10 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { extractBearerToken } from '@oxy.so/mcp';
-import {
-  requestAccountLink,
-  selectConnectionAccount,
-} from '../services/mcpConnectionDirectory';
+import { requestAccountLink, selectConnectionAccount } from '../services/mcpConnectionDirectory';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { stripMentionHandle } from '../../utils/resolveLocalMentionHandles';
-import type {
-  McpRequestContext,
-  OxyAuthRequestWithMcp,
-} from '../middleware/mcpAuth';
+import type { McpRequestContext, OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
 import { toMcpUserSummary, type McpUserSummary } from '../utils/mcpUserSummary';
 
@@ -65,13 +59,14 @@ function centralAccessToken(req: AuthRequest, res: Response): string | null {
  */
 function oxyFailure(error: unknown): { status: number; message: string; code?: string } {
   const failure = error as { status?: number; message?: string; code?: string } | undefined;
-  const clientRefusal = typeof failure?.status === 'number'
-    && failure.status >= 400 && failure.status < 500;
+  const clientRefusal =
+    typeof failure?.status === 'number' && failure.status >= 400 && failure.status < 500;
   return {
-    status: clientRefusal ? failure.status as number : 502,
-    message: clientRefusal && typeof failure?.message === 'string' && failure.message.length > 0
-      ? failure.message
-      : 'Oxy could not complete this connection request',
+    status: clientRefusal ? (failure.status as number) : 502,
+    message:
+      clientRefusal && typeof failure?.message === 'string' && failure.message.length > 0
+        ? failure.message
+        : 'Oxy could not complete this connection request',
     ...(typeof failure?.code === 'string' ? { code: failure.code } : {}),
   };
 }
@@ -82,8 +77,9 @@ router.get('/accounts', async (req: AuthRequest, res: Response) => {
     const context = requireMcpConnection(req, res);
     if (!context) return;
     // Oxy owns the account set; Mention only adds the Mention-side identity.
-    const members = context.connection?.accounts
-      ?? [{ accountId: context.activeUserId, isOrigin: true, linkedAt: '' }];
+    const members = context.connection?.accounts ?? [
+      { accountId: context.activeUserId, isOrigin: true, linkedAt: '' },
+    ];
     const summaries = await Promise.all(
       members.map((member) => hydrateUserSummary(member.accountId)),
     );

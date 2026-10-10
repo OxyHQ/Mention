@@ -64,8 +64,8 @@ function bothOxyClients(): { readonly http: OxyIdentityCacheEvictor } {
   return {
     http: {
       invalidateCache: (spec) =>
-        getServiceOxyClient().http.invalidateCache(spec)
-        + getRuntimeOxyClient().http.invalidateCache(spec),
+        getServiceOxyClient().http.invalidateCache(spec) +
+        getRuntimeOxyClient().http.invalidateCache(spec),
     },
   };
 }

@@ -108,8 +108,7 @@ export function normalizeToTerms(input: string | undefined | null): string[] {
     .split(/\s+/)
     .map((token) => token.trim())
     .filter(
-      (token) =>
-        token.length > 0 && token.length <= GIF_TERM_MAX_LEN && !GIF_STOPWORDS.has(token),
+      (token) => token.length > 0 && token.length <= GIF_TERM_MAX_LEN && !GIF_STOPWORDS.has(token),
     );
 }
 
@@ -144,15 +143,18 @@ export function klipyItemToCandidate(item: KlipyGifItem): GifImportCandidate | n
   if (!mp4Url) return null;
 
   const previewUrl =
-    item.file?.sm?.mp4?.url ||
-    item.file?.xs?.mp4?.url ||
-    item.file?.md?.mp4?.url ||
-    mp4Url;
+    item.file?.sm?.mp4?.url || item.file?.xs?.mp4?.url || item.file?.md?.mp4?.url || mp4Url;
 
   const width =
-    fullFile?.mp4?.width || fullFile?.gif?.width || thumbnailFile?.gif?.width || GIF_DEFAULT_DIMENSION;
+    fullFile?.mp4?.width ||
+    fullFile?.gif?.width ||
+    thumbnailFile?.gif?.width ||
+    GIF_DEFAULT_DIMENSION;
   const height =
-    fullFile?.mp4?.height || fullFile?.gif?.height || thumbnailFile?.gif?.height || GIF_DEFAULT_DIMENSION;
+    fullFile?.mp4?.height ||
+    fullFile?.gif?.height ||
+    thumbnailFile?.gif?.height ||
+    GIF_DEFAULT_DIMENSION;
 
   return {
     klipyId,
@@ -453,7 +455,10 @@ function deriveUploadName(candidate: GifImportCandidate, role: 'mp4' | 'preview.
  * effort: returns null (never throws) on any failure; tolerates a concurrent
  * cross-process import via the unique-key race handler.
  */
-async function importGif(candidate: GifImportCandidate, queryTerm?: string): Promise<GifRecord | null> {
+async function importGif(
+  candidate: GifImportCandidate,
+  queryTerm?: string,
+): Promise<GifRecord | null> {
   const { klipyId } = candidate;
 
   const existing = await findByKlipyId(klipyId);
@@ -543,7 +548,10 @@ async function importGif(candidate: GifImportCandidate, queryTerm?: string): Pro
 }
 
 /** Single-flight wrapper: dedup concurrent imports of the same klipyId. */
-function importSingleFlight(candidate: GifImportCandidate, queryTerm?: string): Promise<GifRecord | null> {
+function importSingleFlight(
+  candidate: GifImportCandidate,
+  queryTerm?: string,
+): Promise<GifRecord | null> {
   const { klipyId } = candidate;
   const pending = inFlight.get(klipyId);
   if (pending) return pending;

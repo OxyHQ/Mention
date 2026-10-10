@@ -10,7 +10,8 @@ const ts = createRequire(path.join(__dirname, 'loggerPolicy.test.ts'))(
 const BACKEND_ROOT = path.resolve(__dirname, '../../..');
 const SOURCE_ROOT = path.join(BACKEND_ROOT, 'src');
 const LOGGER_METHODS = new Set(['debug', 'error', 'info', 'warn']);
-const SENSITIVE_IDENTIFIER = /(?:^|_)(?:id|ids|did|uri|uris|url|urls|href|inbox|room|ip|ipaddress|address|username|handle|email|acct|query|body|params|content|text|message|dbname|mongouri)$|(?:Id|Ids|Did|Uri|Uris|Url|Urls|Href|Inbox|Room|Ip|IpAddress|Address|Username|Handle|Email|Acct|Query|Body|Params|Content|Text|Message|DbName|MongoUri)$/;
+const SENSITIVE_IDENTIFIER =
+  /(?:^|_)(?:id|ids|did|uri|uris|url|urls|href|inbox|room|ip|ipaddress|address|username|handle|email|acct|query|body|params|content|text|message|dbname|mongouri)$|(?:Id|Ids|Did|Uri|Uris|Url|Urls|Href|Inbox|Room|Ip|IpAddress|Address|Username|Handle|Email|Acct|Query|Body|Params|Content|Text|Message|DbName|MongoUri)$/;
 
 function productionFiles(directory: string): string[] {
   const files: string[] = [];
@@ -28,15 +29,13 @@ function productionFiles(directory: string): string[] {
   return files;
 }
 
-function isLoggerCall(
-  node: TypeScript.Node,
-): node is TypeScript.CallExpression {
+function isLoggerCall(node: TypeScript.Node): node is TypeScript.CallExpression {
   return (
-    ts.isCallExpression(node)
-    && ts.isPropertyAccessExpression(node.expression)
-    && ts.isIdentifier(node.expression.expression)
-    && node.expression.expression.text === 'logger'
-    && LOGGER_METHODS.has(node.expression.name.text)
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === 'logger' &&
+    LOGGER_METHODS.has(node.expression.name.text)
   );
 }
 
@@ -44,15 +43,12 @@ function containsSensitiveIdentifier(node: TypeScript.Node): boolean {
   let found = false;
   const visit = (child: TypeScript.Node): void => {
     if (
-      (ts.isIdentifier(child) || ts.isPrivateIdentifier(child))
-      && SENSITIVE_IDENTIFIER.test(child.text)
+      (ts.isIdentifier(child) || ts.isPrivateIdentifier(child)) &&
+      SENSITIVE_IDENTIFIER.test(child.text)
     ) {
       found = true;
     }
-    if (
-      ts.isPropertyAccessExpression(child)
-      && SENSITIVE_IDENTIFIER.test(child.name.text)
-    ) {
+    if (ts.isPropertyAccessExpression(child) && SENSITIVE_IDENTIFIER.test(child.name.text)) {
       found = true;
     }
     ts.forEachChild(child, visit);
@@ -61,11 +57,7 @@ function containsSensitiveIdentifier(node: TypeScript.Node): boolean {
   return found;
 }
 
-function location(
-  file: string,
-  sourceFile: TypeScript.SourceFile,
-  node: TypeScript.Node,
-): string {
+function location(file: string, sourceFile: TypeScript.SourceFile, node: TypeScript.Node): string {
   const line = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
   return `${path.relative(BACKEND_ROOT, file).replaceAll('\\', '/')}:${line}`;
 }
@@ -91,27 +83,21 @@ function scanLoggerCalls(file: string, source: string): LoggerScan {
     if (isLoggerCall(node)) {
       loggerCalls += 1;
       const message = node.arguments[0];
-      const sensitiveTemplate = (
-        message
-        && ts.isTemplateExpression(message)
-        && message.templateSpans.some((span) =>
-          containsSensitiveIdentifier(span.expression),
-        )
-      );
-      const sensitiveConcatenation = (
-        message
-        && ts.isBinaryExpression(message)
-        && containsSensitiveIdentifier(message)
-      );
+      const sensitiveTemplate =
+        message &&
+        ts.isTemplateExpression(message) &&
+        message.templateSpans.some((span) => containsSensitiveIdentifier(span.expression));
+      const sensitiveConcatenation =
+        message && ts.isBinaryExpression(message) && containsSensitiveIdentifier(message);
       const callText = node.getText(sourceFile);
       const messageText = message?.getText(sourceFile) ?? '';
       if (
-        sensitiveTemplate
-        || sensitiveConcatenation
-        || /JSON\.stringify\s*\(/.test(callText)
-        || /\breq\.(?:body|query|params)\b/.test(messageText)
-        || /\bsocket\.handshake\.address\b/.test(callText)
-        || /\b(?:dbName|mongoUri)\b/.test(callText)
+        sensitiveTemplate ||
+        sensitiveConcatenation ||
+        /JSON\.stringify\s*\(/.test(callText) ||
+        /\breq\.(?:body|query|params)\b/.test(messageText) ||
+        /\bsocket\.handshake\.address\b/.test(callText) ||
+        /\b(?:dbName|mongoUri)\b/.test(callText)
       ) {
         violations.push(location(file, sourceFile, node));
       }
@@ -153,14 +139,23 @@ const REQUIRED_SCANNED_FILES = [
 const LEAKING_CALLS: readonly { readonly shape: string; readonly source: string }[] = [
   { shape: 'a template interpolating an id', source: 'logger.info(`imported post ${postId}`);' },
   { shape: 'a concatenated actor uri', source: "logger.warn('actor ' + actorUri);" },
-  { shape: 'JSON.stringify of a payload', source: "logger.debug('payload', JSON.stringify(payload));" },
+  {
+    shape: 'JSON.stringify of a payload',
+    source: "logger.debug('payload', JSON.stringify(payload));",
+  },
   { shape: 'a raw request payload as the message', source: 'logger.error(req.body);' },
-  { shape: 'a socket peer address', source: "logger.info('connected', { address: socket.handshake.address });" },
+  {
+    shape: 'a socket peer address',
+    source: "logger.info('connected', { address: socket.handshake.address });",
+  },
   { shape: 'the database name', source: "logger.info('connected', { dbName });" },
 ];
 
 const CLEAN_CALLS: readonly { readonly shape: string; readonly source: string }[] = [
-  { shape: 'an id passed as CONTEXT, which is the house form', source: "logger.info('user resolved', { userId });" },
+  {
+    shape: 'an id passed as CONTEXT, which is the house form',
+    source: "logger.info('user resolved', { userId });",
+  },
   { shape: 'a constant message', source: "logger.debug('sweep complete');" },
   { shape: 'an error passed second', source: "logger.error('failed to load feed', error);" },
 ];
@@ -220,32 +215,27 @@ describe('backend logging policy', () => {
     // registers them — `server.ts` only calls `registerGlobalErrorHandlers()`.
     const serverFile = path.join(BACKEND_ROOT, 'src/runtime/globalErrorHandlers.ts');
     const source = readFileSync(serverFile, 'utf8');
-    const sourceFile = ts.createSourceFile(
-      serverFile,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-    );
+    const sourceFile = ts.createSourceFile(serverFile, source, ts.ScriptTarget.Latest, true);
     const violations: string[] = [];
     let calls = 0;
 
     const visit = (node: TypeScript.Node): void => {
       if (
-        ts.isCallExpression(node)
-        && ts.isPropertyAccessExpression(node.expression)
-        && ts.isIdentifier(node.expression.expression)
-        && node.expression.expression.text === 'console'
-        && node.expression.name.text === 'error'
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === 'console' &&
+        node.expression.name.text === 'error'
       ) {
         calls += 1;
         const payload = node.arguments[1];
         if (
-          node.arguments.length !== 2
-          || !ts.isStringLiteral(node.arguments[0])
-          || !payload
-          || !ts.isCallExpression(payload)
-          || !ts.isIdentifier(payload.expression)
-          || payload.expression.text !== 'sanitizeLogValue'
+          node.arguments.length !== 2 ||
+          !ts.isStringLiteral(node.arguments[0]) ||
+          !payload ||
+          !ts.isCallExpression(payload) ||
+          !ts.isIdentifier(payload.expression) ||
+          payload.expression.text !== 'sanitizeLogValue'
         ) {
           violations.push(location(serverFile, sourceFile, node));
         }

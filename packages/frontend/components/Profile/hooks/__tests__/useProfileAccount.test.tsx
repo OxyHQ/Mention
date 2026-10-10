@@ -4,11 +4,22 @@ import { useProfileAccount, type ProfileAccount } from '../useProfileAccount';
 
 const mockUseProfileData = jest.fn();
 
-jest.mock('@/hooks/useProfileData', () => ({ useProfileData: (handle: string) => mockUseProfileData(handle) }));
-jest.mock('@/hooks/useProfileScreenColor', () => ({ useProfileScreenColor: () => ({ colorName: undefined }) }));
+jest.mock('@/hooks/useProfileData', () => ({
+  useProfileData: (handle: string) => mockUseProfileData(handle),
+}));
+jest.mock('@/hooks/useProfileScreenColor', () => ({
+  useProfileScreenColor: () => ({ colorName: undefined }),
+}));
 jest.mock('@oxy.so/core', () => ({
-  getNormalizedUserHandle: ({ username, instance, isFederated }: { username?: string; instance?: string; isFederated?: boolean }) =>
-    isFederated && instance ? `${username}@${instance}` : username,
+  getNormalizedUserHandle: ({
+    username,
+    instance,
+    isFederated,
+  }: {
+    username?: string;
+    instance?: string;
+    isFederated?: boolean;
+  }) => (isFederated && instance ? `${username}@${instance}` : username),
 }));
 jest.mock('../../profileRoute', () => ({ canonicalProfileHref: () => null }));
 
@@ -27,7 +38,9 @@ function account(handle: string): ProfileAccount {
 }
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -38,14 +51,29 @@ beforeEach(() => {
 /** The account every profile screen looks up — and, since #1124, whether it exists. */
 describe('useProfileAccount', () => {
   it('passes on that the account does not exist', () => {
-    mockUseProfileData.mockReturnValue({ data: null, loading: false, notFound: true, refresh: jest.fn() });
+    mockUseProfileData.mockReturnValue({
+      data: null,
+      loading: false,
+      notFound: true,
+      refresh: jest.fn(),
+    });
     const result = account('@qa_missing');
     expect(mockUseProfileData).toHaveBeenCalledWith('qa_missing');
-    expect(result).toMatchObject({ username: 'qa_missing', handle: 'qa_missing', profileData: null, notFound: true });
+    expect(result).toMatchObject({
+      username: 'qa_missing',
+      handle: 'qa_missing',
+      profileData: null,
+      notFound: true,
+    });
   });
 
   it('passes on a failed lookup as a failure, not as "not found"', () => {
-    mockUseProfileData.mockReturnValue({ data: null, loading: false, notFound: false, refresh: jest.fn() });
+    mockUseProfileData.mockReturnValue({
+      data: null,
+      loading: false,
+      notFound: false,
+      refresh: jest.fn(),
+    });
     expect(account('someone').notFound).toBe(false);
   });
 

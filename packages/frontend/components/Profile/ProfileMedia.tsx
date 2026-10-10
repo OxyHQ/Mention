@@ -28,10 +28,7 @@ export const ProfileMedia = memo(function ProfileMedia({ media, isOwnProfile }: 
 
   const openPicker = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <MediaPickerSheet
-        currentMedia={media}
-        onClose={() => bottomSheet.openBottomSheet(false)}
-      />,
+      <MediaPickerSheet currentMedia={media} onClose={() => bottomSheet.openBottomSheet(false)} />,
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, media]);

@@ -88,7 +88,11 @@ describe('OxyRankingClient.rank', () => {
     // Three raw items, one of which has neither displayName nor handle → dropped from
     // `profiles` but still counted in `rawCount` so the caller can page correctly.
     mocks.serviceRequest.mockResolvedValue({
-      data: [makeItem({ id: 'a' }), makeItem({ id: 'b' }), makeItem({ id: 'c', username: undefined, name: { first: 'X' } })],
+      data: [
+        makeItem({ id: 'a' }),
+        makeItem({ id: 'b' }),
+        makeItem({ id: 'c', username: undefined, name: { first: 'X' } }),
+      ],
     });
     const client = new OxyRankingClient();
 
@@ -151,7 +155,9 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('passes the account colour through, and adds none when Oxy sends none', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [makeItem({ color: 'teal' }), makeItem({ id: 'u2' })] });
+    mocks.serviceRequest.mockResolvedValue({
+      data: [makeItem({ color: 'teal' }), makeItem({ id: 'u2' })],
+    });
     const client = new OxyRankingClient();
 
     const result = await client.rank({ limit: 10 });
@@ -183,15 +189,35 @@ describe('OxyRankingClient.rank', () => {
   });
 
   it('uses the one normalized handle fallback when displayName is absent', async () => {
-    mocks.serviceRequest.mockResolvedValue({ data: [
-      makeItem({ id: 'local', username: 'alice', name: { first: 'Never synthesize' } }),
-      makeItem({ id: 'federated', username: 'remote', instance: 'example.test', isFederated: true, name: {} }),
-      makeItem({ id: 'nameless', username: 'handle_only', name: undefined }),
-      makeItem({ id: 'invalid_handle', username: '/profile/path', name: { first: 'Do not use' } }),
-    ] });
+    mocks.serviceRequest.mockResolvedValue({
+      data: [
+        makeItem({ id: 'local', username: 'alice', name: { first: 'Never synthesize' } }),
+        makeItem({
+          id: 'federated',
+          username: 'remote',
+          instance: 'example.test',
+          isFederated: true,
+          name: {},
+        }),
+        makeItem({ id: 'nameless', username: 'handle_only', name: undefined }),
+        makeItem({
+          id: 'invalid_handle',
+          username: '/profile/path',
+          name: { first: 'Do not use' },
+        }),
+      ],
+    });
     const result = await new OxyRankingClient().rank({ limit: 10 });
-    expect(result.profiles.map((profile) => profile.id)).toEqual(['local', 'federated', 'nameless']);
-    expect(result.profiles.map((profile) => profile.name.displayName)).toEqual(['alice', 'remote@example.test', 'handle_only']);
+    expect(result.profiles.map((profile) => profile.id)).toEqual([
+      'local',
+      'federated',
+      'nameless',
+    ]);
+    expect(result.profiles.map((profile) => profile.name.displayName)).toEqual([
+      'alice',
+      'remote@example.test',
+      'handle_only',
+    ]);
     expect(result.rawCount).toBe(4);
   });
 

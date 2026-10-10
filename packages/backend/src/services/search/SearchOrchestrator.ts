@@ -74,7 +74,11 @@ export interface SkippedLane {
 }
 
 /** The statuses that mean the viewer is missing something they should have. */
-const DEGRADED_STATUSES = new Set<SearchLane<unknown>['status']>(['timeout', 'error', 'unavailable']);
+const DEGRADED_STATUSES = new Set<SearchLane<unknown>['status']>([
+  'timeout',
+  'error',
+  'unavailable',
+]);
 
 function emptyLane(status: SearchLane<unknown>['status'], tookMs: number): SearchLane<unknown> {
   return { status, items: [], hasMore: false, tookMs };
@@ -173,9 +177,7 @@ export async function runSearchOverview(
     // degraded and every search at all while `profiles` stays out, which would
     // make the flag mean nothing. Degraded means "something that should be here
     // is missing".
-    degraded: SEARCH_LANE_NAMES.some((name) =>
-      DEGRADED_STATUSES.has(assembled[name].status),
-    ),
+    degraded: SEARCH_LANE_NAMES.some((name) => DEGRADED_STATUSES.has(assembled[name].status)),
     servedFromCache: false,
   };
 }

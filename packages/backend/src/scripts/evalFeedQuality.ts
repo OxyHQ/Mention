@@ -44,9 +44,16 @@ import {
   type RankablePost,
   type RankingUserBehavior,
 } from '../services/ranking/signalContext';
-import type { BaselineContentClassifier, ClassifyInput } from '../services/BaselineContentClassifier';
+import type {
+  BaselineContentClassifier,
+  ClassifyInput,
+} from '../services/BaselineContentClassifier';
 import type { FeedRankingService } from '../services/FeedRankingService';
-import type { CandidatePost, FeedEngineContext, DiscoveryGateBucket } from '../mtn/feed/engine/types';
+import type {
+  CandidatePost,
+  FeedEngineContext,
+  DiscoveryGateBucket,
+} from '../mtn/feed/engine/types';
 import { originForFederation } from '../mtn/feed/feedMetrics';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import type {
@@ -298,7 +305,8 @@ export function percentiles(values: number[]): Percentiles {
   const n = values.length;
   if (n === 0) return { p10: 0, p50: 0, p90: 0, n: 0 };
   const sorted = [...values].sort((a, b) => a - b);
-  const at = (p: number): number => sorted[Math.min(n - 1, Math.max(0, Math.ceil((p / 100) * n) - 1))];
+  const at = (p: number): number =>
+    sorted[Math.min(n - 1, Math.max(0, Math.ceil((p / 100) * n) - 1))];
   return { p10: at(10), p50: at(50), p90: at(90), n };
 }
 
@@ -397,11 +405,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
 }
 
 /** Aggregate per-candidate rows into the report. Pure. */
-function buildReport(
-  rows: EvalScoredRow[],
-  topK: number,
-  viewerLangSet: Set<string>,
-): EvalReport {
+function buildReport(rows: EvalScoredRow[], topK: number, viewerLangSet: Set<string>): EvalReport {
   const total = rows.length;
   const byScoreDesc = [...rows].sort((a, b) => b.score - a.score);
 
@@ -423,7 +427,8 @@ function buildReport(
   const rejectedGood = goodRows.filter((r) => r.gated).length;
   const totalRejected = rejectedJunk + rejectedGood;
   const reasons: Record<string, number> = {};
-  const byModule: Record<string, { rejected: number; rejectedJunk: number; rejectedGood: number }> = {};
+  const byModule: Record<string, { rejected: number; rejectedJunk: number; rejectedGood: number }> =
+    {};
   for (const r of rows) {
     if (r.gated && r.gateReason) reasons[r.gateReason] = (reasons[r.gateReason] ?? 0) + 1;
     for (const moduleId of r.gateRejectedBy) {
@@ -437,7 +442,9 @@ function buildReport(
 
   // Trusted-quality distributions.
   const withQuality = (rs: EvalScoredRow[]): number[] =>
-    rs.filter((r): r is EvalScoredRow & { quality: number } => r.quality !== null).map((r) => r.quality);
+    rs
+      .filter((r): r is EvalScoredRow & { quality: number } => r.quality !== null)
+      .map((r) => r.quality);
   const trustedAllQ = withQuality(rows);
 
   // Language-match rate over candidates that declare a language (null if viewer
@@ -446,7 +453,9 @@ function buildReport(
   let languageMatchRate: number | null = null;
   if (viewerLangSet.size > 0) {
     const withLang = rows.filter((r) => r.languages.length > 0);
-    const matched = withLang.filter((r) => r.languages.some((l) => viewerLangSet.has(getBaseLanguage(l)))).length;
+    const matched = withLang.filter((r) =>
+      r.languages.some((l) => viewerLangSet.has(getBaseLanguage(l))),
+    ).length;
     languageMatchRate = ratio(matched, withLang.length);
   }
 
@@ -623,16 +632,26 @@ export function formatReportLines(report: EvalReport): string[] {
   lines.push('──────────────────────────────────────────────────────────────');
   lines.push('  FEED QUALITY EVAL');
   lines.push('──────────────────────────────────────────────────────────────');
-  lines.push(`  candidates: ${report.totalCandidates}  (labeled junk=${report.labeled.junk}, good=${report.labeled.good})`);
+  lines.push(
+    `  candidates: ${report.totalCandidates}  (labeled junk=${report.labeled.junk}, good=${report.labeled.good})`,
+  );
   lines.push(`  federated share: ${fmtPct(report.federatedShare)}`);
   lines.push('');
   lines.push(`  JUNK-IN-TOP-${report.topK} (primary):`);
-  lines.push(`    pre-gate : ${report.junkInTopKPreGate.count}/${report.junkInTopKPreGate.window}  (${fmtPct(report.junkInTopKPreGate.rate)})`);
-  lines.push(`    post-gate: ${report.junkInTopK.count}/${report.junkInTopK.window}  (${fmtPct(report.junkInTopK.rate)})`);
+  lines.push(
+    `    pre-gate : ${report.junkInTopKPreGate.count}/${report.junkInTopKPreGate.window}  (${fmtPct(report.junkInTopKPreGate.rate)})`,
+  );
+  lines.push(
+    `    post-gate: ${report.junkInTopK.count}/${report.junkInTopK.window}  (${fmtPct(report.junkInTopK.rate)})`,
+  );
   lines.push('');
   lines.push('  DISCOVERY GATE (vs labels):');
-  lines.push(`    precision: ${fmtPct(report.gate.precision)}   recall: ${fmtPct(report.gate.recall)}`);
-  lines.push(`    rejected junk=${report.gate.rejectedJunk}/${report.gate.labeledJunk}, good=${report.gate.rejectedGood}/${report.gate.labeledGood}`);
+  lines.push(
+    `    precision: ${fmtPct(report.gate.precision)}   recall: ${fmtPct(report.gate.recall)}`,
+  );
+  lines.push(
+    `    rejected junk=${report.gate.rejectedJunk}/${report.gate.labeledJunk}, good=${report.gate.rejectedGood}/${report.gate.labeledGood}`,
+  );
   const reasonLine = Object.entries(report.gate.reasons)
     .sort((a, b) => b[1] - a[1])
     .map(([reason, count]) => `${reason}=${count}`)
@@ -642,26 +661,35 @@ export function formatReportLines(report: EvalReport): string[] {
   // table you read to decide whether one particular rule earns being enforced.
   // `good` is the column that matters: a rule rejecting labeled-good posts is a
   // rule taking real content away.
-  const byModule = Object.entries(report.gate.byModule).sort((a, b) => b[1].rejected - a[1].rejected);
+  const byModule = Object.entries(report.gate.byModule).sort(
+    (a, b) => b[1].rejected - a[1].rejected,
+  );
   lines.push('    per module (rejected / junk / good):');
   if (byModule.length === 0) {
     lines.push('      (none)');
   } else {
     for (const [moduleId, counts] of byModule) {
-      const precision = counts.rejectedJunk + counts.rejectedGood > 0
-        ? fmtPct(counts.rejectedJunk / (counts.rejectedJunk + counts.rejectedGood))
-        : 'n/a';
+      const precision =
+        counts.rejectedJunk + counts.rejectedGood > 0
+          ? fmtPct(counts.rejectedJunk / (counts.rejectedJunk + counts.rejectedGood))
+          : 'n/a';
       lines.push(
-        `      ${moduleId.padEnd(20)} ${String(counts.rejected).padStart(5)} `
-        + `${String(counts.rejectedJunk).padStart(5)} ${String(counts.rejectedGood).padStart(5)}   precision=${precision}`,
+        `      ${moduleId.padEnd(20)} ${String(counts.rejected).padStart(5)} ` +
+          `${String(counts.rejectedJunk).padStart(5)} ${String(counts.rejectedGood).padStart(5)}   precision=${precision}`,
       );
     }
   }
   lines.push('');
   lines.push(`  TRUSTED QUALITY (p10/p50/p90, n=${report.quality.trustedCount}):`);
-  lines.push(`    all : ${fmt(report.quality.all.p10)}/${fmt(report.quality.all.p50)}/${fmt(report.quality.all.p90)} (n=${report.quality.all.n})`);
-  lines.push(`    junk: ${fmt(report.quality.junk.p10)}/${fmt(report.quality.junk.p50)}/${fmt(report.quality.junk.p90)} (n=${report.quality.junk.n})`);
-  lines.push(`    good: ${fmt(report.quality.good.p10)}/${fmt(report.quality.good.p50)}/${fmt(report.quality.good.p90)} (n=${report.quality.good.n})`);
+  lines.push(
+    `    all : ${fmt(report.quality.all.p10)}/${fmt(report.quality.all.p50)}/${fmt(report.quality.all.p90)} (n=${report.quality.all.n})`,
+  );
+  lines.push(
+    `    junk: ${fmt(report.quality.junk.p10)}/${fmt(report.quality.junk.p50)}/${fmt(report.quality.junk.p90)} (n=${report.quality.junk.n})`,
+  );
+  lines.push(
+    `    good: ${fmt(report.quality.good.p10)}/${fmt(report.quality.good.p50)}/${fmt(report.quality.good.p90)} (n=${report.quality.good.n})`,
+  );
   lines.push('');
   lines.push(`  language-match rate: ${fmtPct(report.languageMatchRate)}`);
   lines.push('');
@@ -669,7 +697,9 @@ export function formatReportLines(report: EvalReport): string[] {
   for (const row of report.rows.filter((r) => r.label)) {
     const gate = row.gated ? `GATED(${row.gateReason})` : 'kept';
     const quality = row.quality === null ? 'n/a' : fmt(row.quality, 2);
-    lines.push(`    [${row.label}] ${row.acct ?? row.id}  score=${fmt(row.score, 4)}  ${gate}  q=${quality}  langs=[${row.languages.join(',')}]`);
+    lines.push(
+      `    [${row.label}] ${row.acct ?? row.id}  score=${fmt(row.score, 4)}  ${gate}  q=${quality}  langs=[${row.languages.join(',')}]`,
+    );
   }
   lines.push('──────────────────────────────────────────────────────────────');
   return lines;
@@ -684,7 +714,9 @@ export function formatOnlineLines(
     `    ${label.padEnd(9)} impressions=${r.impressions}  eng/imp=${fmt(r.engagementPerImpression, 4)}  ` +
     `report/imp=${fmt(r.reportPerImpression, 5)}  fast/imp=${fmt(r.fastImpressionRate, 4)}`;
   lines.push('');
-  lines.push(`  ONLINE (feed_interactions, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
+  lines.push(
+    `  ONLINE (feed_interactions, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`,
+  );
   lines.push(row('overall', online.overall));
   for (const [bucket, report] of Object.entries(online.byBucket).sort()) {
     lines.push(row(bucket, report));
@@ -725,7 +757,8 @@ function parseArgs(argv: string[]): CliArgs {
     .split(',')
     .map((l) => l.trim().toLowerCase())
     .filter((l) => l.length > 0);
-  const days = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : DEFAULT_ONLINE_WINDOW_DAYS;
+  const days =
+    Number.isFinite(windowDays) && windowDays > 0 ? windowDays : DEFAULT_ONLINE_WINDOW_DAYS;
   return {
     topK: Number.isFinite(topK) && topK > 0 ? topK : 20,
     viewerId: get('viewer'),
@@ -742,26 +775,36 @@ async function main(): Promise<void> {
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
   const { logger } = await import('../utils/logger.js');
-    const { MtnConfig } = await import('@mention/shared-types');
-    const { getDiscoveryGateRolloutMode } = await import('../config/index.js');
-  const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository.js');
-  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres.js');
-  const { and, eq, gte, isNotNull, or, sql } = require('drizzle-orm') as typeof import(
-    'drizzle-orm',
-    { with: { 'resolution-mode': 'require' } }
+  const { MtnConfig } = await import('@mention/shared-types');
+  const { getDiscoveryGateRolloutMode } = await import('../config/index.js');
+  const { findActorByAcct, findActorByUri, findActorsByUris } = await import(
+    '../db/federation/actorRepository.js'
   );
+  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres.js');
+  const { and, eq, gte, isNotNull, or, sql } =
+    require('drizzle-orm') as typeof import('drizzle-orm', { with: {
+      'resolution-mode': 'require',
+    }});
   const { posts } = await import('../db/schema/posts.js');
   const { feedInteractions } = await import('../db/schema/feeds.js');
-  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository.js');
+  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import(
+    '../db/posts/postRepository.js'
+  );
   const { baselineContentClassifier } = await import('../services/BaselineContentClassifier.js');
   const { feedRankingService } = await import('../services/FeedRankingService.js');
   const { registerAllModules } = await import('../mtn/feed/engine/index.js');
   const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry.js');
-  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets.js');
-  const { loadViewerFeedContext, resolveViewerBaseLanguages } = await import('../mtn/feed/feedContext.js');
+  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import(
+    '../mtn/feed/definitions/presets.js'
+  );
+  const { loadViewerFeedContext, resolveViewerBaseLanguages } = await import(
+    '../mtn/feed/feedContext.js'
+  );
   const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources.js');
   const { getServiceOxyClient } = await import('../utils/oxyHelpers.js');
-  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels.js');
+  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import(
+    './fixtures/feedQualityLabels.js'
+  );
 
   try {
     // Postgres only. This script connected to Mongo as well until
@@ -784,9 +827,17 @@ async function main(): Promise<void> {
     }
 
     const toActor = (doc: {
-      uri: string; acct: string; domain: string; type: string; oxyUserId?: string;
+      uri: string;
+      acct: string;
+      domain: string;
+      type: string;
+      oxyUserId?: string;
     }): LabeledActor => ({
-      uri: doc.uri, acct: doc.acct, domain: doc.domain, type: doc.type, oxyUserId: doc.oxyUserId,
+      uri: doc.uri,
+      acct: doc.acct,
+      domain: doc.domain,
+      type: doc.type,
+      oxyUserId: doc.oxyUserId,
     });
 
     // ---- Labeled set (acct → federated actor → recent posts) ----
@@ -862,7 +913,9 @@ async function main(): Promise<void> {
     const unlabeled = [...randomSample, ...forYouPool];
     const actorUris = Array.from(
       new Set(
-        unlabeled.map((p) => federationActorUri(p)).filter((u): u is string => typeof u === 'string'),
+        unlabeled
+          .map((p) => federationActorUri(p))
+          .filter((u): u is string => typeof u === 'string'),
       ),
     );
     const actorByUri = new Map<string, LabeledActor>();
@@ -934,7 +987,10 @@ async function main(): Promise<void> {
         .from(feedInteractions)
         .where(gte(feedInteractions.createdAt, since))
         .groupBy(feedInteractions.userId, feedInteractions.event);
-      const online = aggregateOnlineByBucket(grouped, (userId) => resolveDiscoveryGateBucket(userId) ?? 'none');
+      const online = aggregateOnlineByBucket(
+        grouped,
+        (userId) => resolveDiscoveryGateBucket(userId) ?? 'none',
+      );
       for (const line of formatOnlineLines(online, args.onlineWindowMs)) logger.info(line);
     }
 

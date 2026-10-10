@@ -85,7 +85,11 @@ async function aggregateMine(now = Date.now()) {
 /** Redis disabled → no last-pushed history, so every computed score is a delta. */
 function resetMocks(): void {
   vi.clearAllMocks();
-  mocks.getRedisClient.mockReturnValue({ isReady: false, hGetAll: mocks.hGetAll, hSet: mocks.hSet });
+  mocks.getRedisClient.mockReturnValue({
+    isReady: false,
+    hGetAll: mocks.hGetAll,
+    hSet: mocks.hSet,
+  });
   mocks.pushInterests.mockResolvedValue(undefined);
 }
 
@@ -113,7 +117,7 @@ describe('aggregateAuthors — the numbers come back as NUMBERS', () => {
    * seed below still SETS it, which is what makes this a test of the sum rather
    * than of the seeder — a fifth term reappearing in the expression goes red here.
    */
-  it('sums the four written engagement counters across an author\'s posts', async () => {
+  it("sums the four written engagement counters across an author's posts", async () => {
     const author = authorId('sums');
     await seedPost(author, { likes: 1, boosts: 2, comments: 3, views: 4, shares: 5 });
     await seedPost(author, { likes: 10, views: 20 });
@@ -186,7 +190,10 @@ describe('aggregateAuthors — the numbers come back as NUMBERS', () => {
     await seedPost(boostOnly, { likes: 99, type: 'boost' });
     await seedPost(draftOnly, { likes: 99, status: 'draft' });
     await seedPost(privateOnly, { likes: 99, visibility: 'private' });
-    await seedPost(staleOnly, { likes: 99, createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) });
+    await seedPost(staleOnly, {
+      likes: 99,
+      createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+    });
 
     const rows = await aggregateMine();
 
@@ -224,20 +231,28 @@ describe('computeScore', () => {
   it('produces a normalized score in [0, 1]', () => {
     const service = makeService();
     const now = 2_000_000_000_000;
-    const score = service.computeScore({ oxyUserId: 'a', raw: 100, postCount: 5, lastPostMs: now }, now);
+    const score = service.computeScore(
+      { oxyUserId: 'a', raw: 100, postCount: 5, lastPostMs: now },
+      now,
+    );
     expect(score).toBeGreaterThan(0);
     expect(score).toBeLessThanOrEqual(1);
   });
 
   it('returns 0 for an author with no posts', () => {
     const service = makeService();
-    expect(service.computeScore({ oxyUserId: 'a', raw: 0, postCount: 0, lastPostMs: Date.now() })).toBe(0);
+    expect(
+      service.computeScore({ oxyUserId: 'a', raw: 0, postCount: 0, lastPostMs: Date.now() }),
+    ).toBe(0);
   });
 
   it('decays the score for older activity', () => {
     const service = makeService();
     const now = 3_000_000_000_000;
-    const fresh = service.computeScore({ oxyUserId: 'a', raw: 100, postCount: 5, lastPostMs: now }, now);
+    const fresh = service.computeScore(
+      { oxyUserId: 'a', raw: 100, postCount: 5, lastPostMs: now },
+      now,
+    );
     const stale = service.computeScore(
       { oxyUserId: 'a', raw: 100, postCount: 5, lastPostMs: now - 60 * 24 * 60 * 60 * 1000 },
       now,
@@ -280,12 +295,19 @@ describe('run — real rows in, deltas out', () => {
     const aggregates = await service.aggregateAuthors(scoredNow);
     const unchangedScore = service.computeScore(
       aggregates.find((row) => row.oxyUserId === unchanged) ?? {
-        oxyUserId: unchanged, raw: 0, postCount: 0, lastPostMs: scoredNow,
+        oxyUserId: unchanged,
+        raw: 0,
+        postCount: 0,
+        lastPostMs: scoredNow,
       },
       scoredNow,
     );
 
-    mocks.getRedisClient.mockReturnValue({ isReady: true, hGetAll: mocks.hGetAll, hSet: mocks.hSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      hGetAll: mocks.hGetAll,
+      hSet: mocks.hSet,
+    });
     mocks.hGetAll.mockResolvedValue({ [unchanged]: String(unchangedScore) });
     mocks.hSet.mockResolvedValue(1);
 
@@ -311,7 +333,13 @@ describe('runIfDue — the cadence survives a change of leader (#1166)', () => {
   const set = vi.fn();
 
   function readyRedis(): void {
-    mocks.getRedisClient.mockReturnValue({ isReady: true, exists, set, hGetAll: mocks.hGetAll, hSet: mocks.hSet });
+    mocks.getRedisClient.mockReturnValue({
+      isReady: true,
+      exists,
+      set,
+      hGetAll: mocks.hGetAll,
+      hSet: mocks.hSet,
+    });
     mocks.hGetAll.mockResolvedValue({});
     mocks.hSet.mockResolvedValue(0);
   }

@@ -153,7 +153,8 @@ afterEach(async () => {
   const usedLanes = laneIds.splice(0);
   if (usedLanes.length > 0) await db.delete(lanes).where(inArray(lanes.id, usedLanes));
   const owners = settingsOwners.splice(0);
-  if (owners.length > 0) await db.delete(userSettings).where(inArray(userSettings.oxyUserId, owners));
+  if (owners.length > 0)
+    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, owners));
 });
 
 afterAll(async () => {
@@ -168,7 +169,7 @@ describe('the following source', () => {
    * `post_authorships.post_id` to anything but `posts.id`) and this goes red
    * with an EMPTY result — the exact silent failure it guards.
    */
-  it('gathers a followed author\'s public posts, including ones they only collaborated on', async () => {
+  it("gathers a followed author's public posts, including ones they only collaborated on", async () => {
     const own = await create({ oxyUserId: FOLLOW, createdAt: at(0) });
     const collaborated = await create({
       oxyUserId: STRANGER,
@@ -188,11 +189,20 @@ describe('the following source', () => {
       ],
     });
     await create({ oxyUserId: FOLLOW, visibility: PostVisibility.FOLLOWERS_ONLY });
-    await create({ oxyUserId: FOLLOW, type: PostType.BOOST, boostOf: own.id, content: { variants: [] } });
+    await create({
+      oxyUserId: FOLLOW,
+      type: PostType.BOOST,
+      boostOf: own.id,
+      content: { variants: [] },
+    });
     await create({ oxyUserId: FOLLOW, createdAt: new Date(HORIZON - 30 * 24 * 60 * 60 * 1000) });
     await create({ oxyUserId: STRANGER });
 
-    const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [FOLLOW], seenPostIds: [] };
+    const ctx: FeedEngineContext = {
+      currentUserId: VIEWER,
+      followingIds: [FOLLOW],
+      seenPostIds: [],
+    };
     // Naturally scoped: the predicate names FOLLOW, so nothing else can match.
     expect(idsOf(await followingSource.gather(ctx, {}, 60))).toEqual([own.id, collaborated.id]);
   });
@@ -256,7 +266,9 @@ describe('the topic source', () => {
       createdAt: at(-1_000),
       postClassification: { topics: ['feedsrc-tech'] },
     });
-    await create({ postClassification: { topics: ['feedsrc-sports'], topicRefs: [{ name: 'feedsrc-sports' }] } });
+    await create({
+      postClassification: { topics: ['feedsrc-sports'], topicRefs: [{ name: 'feedsrc-sports' }] },
+    });
     await create({
       visibility: PostVisibility.FOLLOWERS_ONLY,
       postClassification: { topics: ['feedsrc-tech'] },
@@ -265,7 +277,11 @@ describe('the topic source', () => {
 
     // The slug arrives from a URL segment and is normalized once, in
     // `normalizeTopicSlug` — a mixed-case request must find the stored slugs.
-    const gathered = await topicSource.gather({ currentUserId: VIEWER }, { slug: 'FEEDSRC-Tech' }, 31);
+    const gathered = await topicSource.gather(
+      { currentUserId: VIEWER },
+      { slug: 'FEEDSRC-Tech' },
+      31,
+    );
     expect(idsOf(gathered)).toEqual([viaRefs.id, viaSlug.id]);
   });
 });
@@ -299,7 +315,12 @@ describe('the global discovery source', () => {
 describe('the videos source', () => {
   /** A post carrying one video media row, with the metadata the filter reads. */
   function videoPost(
-    media: { durationSec?: number; orientation?: 'portrait' | 'landscape'; width?: number; height?: number },
+    media: {
+      durationSec?: number;
+      orientation?: 'portrait' | 'landscape';
+      width?: number;
+      height?: number;
+    },
     overrides: Partial<PostRecordInput> = {},
   ): Promise<PostRecord> {
     return create({
@@ -334,7 +355,9 @@ describe('the videos source', () => {
       type: PostType.IMAGE,
       content: {
         variants: [{ source: 'author', text: 'pic' }],
-        media: [{ id: 'feedsrc-img', type: 'image', width: 800, height: 600, orientation: 'portrait' }],
+        media: [
+          { id: 'feedsrc-img', type: 'image', width: 800, height: 600, orientation: 'portrait' },
+        ],
       },
     });
 
@@ -348,7 +371,10 @@ describe('the videos source', () => {
 
   it('honours the orientation and duration filters the client can send', async () => {
     const portrait = await videoPost(PORTRAIT, { createdAt: at(0) });
-    const landscape = await videoPost({ ...PORTRAIT, orientation: 'landscape' }, { createdAt: at(-1_000) });
+    const landscape = await videoPost(
+      { ...PORTRAIT, orientation: 'landscape' },
+      { createdAt: at(-1_000) },
+    );
     const short = await videoPost({ ...PORTRAIT, durationSec: 5 }, { createdAt: at(-2_000) });
 
     const everyOrientation = await videosSource.gather(
@@ -383,7 +409,7 @@ describe('the keywords source', () => {
    * correlated EXISTS over that child table — the same shape as the authorship
    * subquery and the same silent failure if the correlation is lost.
    */
-  it('matches a keyword in ANY rendition\'s body, or in the hashtag array', async () => {
+  it("matches a keyword in ANY rendition's body, or in the hashtag array", async () => {
     const inPrimaryBody = await create({
       createdAt: at(0),
       content: { variants: [{ source: 'author', tag: 'en', text: 'about feedsrcwidgets today' }] },
@@ -453,7 +479,7 @@ describe('the authored source (the profile feed)', () => {
     expect(idsOf(replyTab)).toEqual([nativeReply.id, federatedReply.id]);
   });
 
-  it('serves the author\'s boosts on the boosts tab and on the main tab', async () => {
+  it("serves the author's boosts on the boosts tab and on the main tab", async () => {
     // A boost is a top-level post, so it belongs on both — which is why the
     // `author` definition hydrates at depth 1 (a boost's own body is empty).
     const original = await create({ oxyUserId: STRANGER });
@@ -486,9 +512,13 @@ describe('the authored source (the profile feed)', () => {
      * Driven by `post_mentions`, not by the author's own posts — so it lists
      * OTHER people's posts, and post visibility is judged for the VIEWER.
      */
-    it('serves other people\'s posts that mention the author, newest first', async () => {
+    it("serves other people's posts that mention the author, newest first", async () => {
       const newer = await create({ oxyUserId: STRANGER, createdAt: at(0), mentions: [AUTHOR] });
-      const older = await create({ oxyUserId: FOLLOW, createdAt: at(-1_000), mentions: [AUTHOR, VIEWER] });
+      const older = await create({
+        oxyUserId: FOLLOW,
+        createdAt: at(-1_000),
+        mentions: [AUTHOR, VIEWER],
+      });
       // Each of the following must NOT appear.
       await create({ oxyUserId: STRANGER, mentions: [VIEWER] });
       await create({ oxyUserId: AUTHOR, mentions: [AUTHOR] });
@@ -531,7 +561,9 @@ describe('the authored source (the profile feed)', () => {
       await create({ oxyUserId: STRANGER, mentions: [AUTHOR] });
 
       const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [STRANGER] };
-      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'mentions' }, 31)).toEqual([]);
+      expect(
+        await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'mentions' }, 31),
+      ).toEqual([]);
     });
   });
 
@@ -684,16 +716,22 @@ describe('the authored source (the profile feed)', () => {
       await create({ oxyUserId: AUTHOR, type: PostType.IMAGE });
 
       const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [STRANGER] };
-      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'posts' }, 31)).toEqual([]);
+      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'posts' }, 31)).toEqual(
+        [],
+      );
       // The media tab is gated too — the posts are `visibility: public`, so
       // post-level visibility alone would have served them.
-      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'media' }, 31)).toEqual([]);
+      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'media' }, 31)).toEqual(
+        [],
+      );
     });
 
     it('withholds a followers-only profile from an anonymous viewer', async () => {
       await setProfileVisibility(AUTHOR, 'followers_only');
       await create({ oxyUserId: AUTHOR });
-      expect(await authoredSource.gather({}, { authorId: AUTHOR, filter: 'posts' }, 31)).toEqual([]);
+      expect(await authoredSource.gather({}, { authorId: AUTHOR, filter: 'posts' }, 31)).toEqual(
+        [],
+      );
     });
 
     it('serves a private profile to a follower and to its owner', async () => {
@@ -782,7 +820,7 @@ describe('the authored source (the profile feed)', () => {
       expect(idsOf(replies)).not.toContain(hidden.id);
     });
 
-    it('leaves the likes tab alone — it lists other people\'s posts', async () => {
+    it("leaves the likes tab alone — it lists other people's posts", async () => {
       // The profile owner's curation has no bearing on posts they did not write,
       // so the likes tab never loads their lanes at all.
       await lane('hidden');
@@ -812,10 +850,7 @@ describe('the authored source (the profile feed)', () => {
  * unknown-lane case states.
  */
 describe('the lane source', () => {
-  async function lane(
-    displayMode: 'mixed' | 'tab' | 'hidden',
-    ownerId: string,
-  ): Promise<string> {
+  async function lane(displayMode: 'mixed' | 'tab' | 'hidden', ownerId: string): Promise<string> {
     const name = `feedsrc-src-${laneSeq++}`;
     const [row] = await db
       .insert(lanes)
@@ -846,7 +881,7 @@ describe('the lane source', () => {
     expect(await laneSource.gather({ currentUserId: VIEWER }, { laneId }, 31)).toEqual([]);
   });
 
-  it('withholds a private publisher\'s lane from a non-follower', async () => {
+  it("withholds a private publisher's lane from a non-follower", async () => {
     await setProfileVisibility(AUTHOR, 'private');
     const laneId = await lane('tab', AUTHOR);
     await create({ laneId });
@@ -857,7 +892,7 @@ describe('the lane source', () => {
     expect(await laneSource.gather({ currentUserId: AUTHOR }, { laneId }, 31)).toHaveLength(1);
   });
 
-  it('serves a CHANNEL account\'s lane through the same publisher gate', async () => {
+  it("serves a CHANNEL account's lane through the same publisher gate", async () => {
     // A channel is an Oxy account, so its lane tab answers to `canViewAuthorFeed`
     // exactly as a person's does — ONE publisher, one check, no second branch and
     // no channel table to consult. `CHANNEL_ACCOUNT` is an ordinary `oxyUserId`

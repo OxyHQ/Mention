@@ -43,12 +43,7 @@ describe('the page table', () => {
   it('draws four destinations; camera is swipe-only and compose is an action', () => {
     // This is the fact the two index spaces exist for, so it is stated rather
     // than left implicit in an arithmetic assertion further down.
-    expect(BAR_TABS.map((tab) => tab.name)).toEqual([
-      'index',
-      'videos',
-      'notifications',
-      'you',
-    ]);
+    expect(BAR_TABS.map((tab) => tab.name)).toEqual(['index', 'videos', 'notifications', 'you']);
   });
 
   it('opts the composer AND the camera out of neighbour preloading', () => {

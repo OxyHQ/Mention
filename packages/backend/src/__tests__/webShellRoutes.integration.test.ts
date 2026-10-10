@@ -68,7 +68,8 @@ const ABSENT_POST_ID = '019616a0-0000-7000-8000-00000000cafe';
 
 /** The profile's server-rendered `ProfilePage`. */
 function profileJsonLd(html: string): Record<string, unknown> {
-  const match = /<script data-mention-seo="true" type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+  const match =
+    /<script data-mention-seo="true" type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
   if (!match) throw new Error('no JSON-LD in the document');
   return JSON.parse(match[1]) as Record<string, unknown>;
 }
@@ -86,7 +87,11 @@ function stubFetch(profile: { ok: boolean; body?: unknown }) {
     vi.fn(async (url: string | URL) => {
       const href = String(url);
       if (href.includes('/profiles/username/')) {
-        return { ok: profile.ok, status: profile.ok ? 200 : 404, json: async () => profile.body } as Response;
+        return {
+          ok: profile.ok,
+          status: profile.ok ? 200 : 404,
+          json: async () => profile.body,
+        } as Response;
       }
       return { ok: true, text: async () => SHELL } as unknown as Response;
     }),
@@ -121,7 +126,12 @@ function mockHydrated(id: string, overrides: Partial<HydratedPost> = {}) {
   vi.mocked(postHydrationService.hydratePosts).mockResolvedValue([
     {
       id,
-      user: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
+      user: {
+        id: AUTHOR,
+        username: 'nate',
+        name: { displayName: 'Nate' },
+        avatar: 'https://cdn/a.png',
+      },
       content: { text: 'hi there' },
       ...overrides,
     } as unknown as HydratedPost,
@@ -148,8 +158,13 @@ describe('webShell routes (integration)', () => {
 
   // First shell request in this module: the process cache is genuinely cold.
   it('does not cache an empty homepage when the shell origin is unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })));
-    const response = await request(makeApp()).get('/').set('Host', new URL(config.web.origin).hostname);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 503 })),
+    );
+    const response = await request(makeApp())
+      .get('/')
+      .set('Host', new URL(config.web.origin).hostname);
     expect(response.status).toBe(502);
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['x-robots-tag']).toBe('noindex');
@@ -214,7 +229,10 @@ describe('webShell routes (integration)', () => {
   });
 
   it('serves the shell with profile OG for a crawler /@handle request', async () => {
-    stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
+    stubFetch({
+      ok: true,
+      body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } },
+    });
 
     const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
 
@@ -223,7 +241,9 @@ describe('webShell routes (integration)', () => {
     expect(res.headers.location).toBeUndefined();
     expect(res.headers.vary).toContain('Accept');
     expect(res.headers.vary).not.toContain('User-Agent');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">',
+    );
     expect(res.text).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
     expect(res.text).not.toContain('<title>Mention</title>');
     // Head hints are always injected (browsers benefit; crawlers ignore them).
@@ -251,7 +271,9 @@ describe('webShell routes (integration)', () => {
   function expectNoCanonicalProfile(res: request.Response) {
     expect(res.status).toBe(404);
     expect(res.headers.location).toBeUndefined();
-    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,nofollow">',
+    );
     expect(res.text).not.toContain('"@type":"ProfilePage"');
     expect(res.text).not.toContain(canonicalIdentity.name.displayName);
     expect(res.text).not.toContain(canonicalIdentity.bio);
@@ -263,10 +285,15 @@ describe('webShell routes (integration)', () => {
   it.each(['ssr-canonical@instagram.com', 'ssr-proven@threads.net'])(
     'renders canonical metadata for the Oxy-authorized handle %s',
     async (handle) => {
-      stubFetch({ ok: true, body: { data: {
-        ...canonicalIdentity,
-        externalIdentities: [provenAlias('ssr-proven@threads.net')],
-      } } });
+      stubFetch({
+        ok: true,
+        body: {
+          data: {
+            ...canonicalIdentity,
+            externalIdentities: [provenAlias('ssr-proven@threads.net')],
+          },
+        },
+      });
 
       const res = await request(makeApp()).get(`/@${handle}`).set('User-Agent', 'Twitterbot/1.0');
 
@@ -275,19 +302,27 @@ describe('webShell routes (integration)', () => {
       expect(res.text).toContain(canonicalIdentity.name.displayName);
       expect(res.text).toContain(canonicalIdentity.bio);
       expect(res.text).toContain('ssr-canonical-private-route-avatar');
-      expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@ssr-canonical@instagram.com">');
+      expect(res.text).toContain(
+        '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@ssr-canonical@instagram.com">',
+      );
     },
   );
 
   it.each(['/@', '/c/'])(
     'withholds canonical metadata from a transport handle at %s',
     async (prefix) => {
-      stubFetch({ ok: true, body: { data: {
-        ...canonicalIdentity,
-        externalIdentities: [provenAlias('ssr-proven@threads.net')],
-      } } });
+      stubFetch({
+        ok: true,
+        body: {
+          data: {
+            ...canonicalIdentity,
+            externalIdentities: [provenAlias('ssr-proven@threads.net')],
+          },
+        },
+      });
 
-      const res = await request(makeApp()).get(`${prefix}ssr-transport@bridge.example`)
+      const res = await request(makeApp())
+        .get(`${prefix}ssr-transport@bridge.example`)
         .set('User-Agent', 'Twitterbot/1.0');
 
       expectNoCanonicalProfile(res);
@@ -297,11 +332,16 @@ describe('webShell routes (integration)', () => {
   it.each([
     { label: 'missing', proof: undefined },
     { label: 'incomplete', proof: [{ canonicalAcct: 'ssr-incomplete@threads.net' }] },
-    { label: 'malformed', proof: [{ ...provenAlias('ssr-malformed@threads.net'), protocol: 'unverified' }] },
+    {
+      label: 'malformed',
+      proof: [{ ...provenAlias('ssr-malformed@threads.net'), protocol: 'unverified' }],
+    },
   ])('withholds canonical metadata when alias proof is $label', async ({ label, proof }) => {
     stubFetch({ ok: true, body: { data: { ...canonicalIdentity, externalIdentities: proof } } });
 
-    const res = await request(makeApp()).get(`/@ssr-${label}@threads.net`).set('User-Agent', 'Twitterbot/1.0');
+    const res = await request(makeApp())
+      .get(`/@ssr-${label}@threads.net`)
+      .set('User-Agent', 'Twitterbot/1.0');
 
     expectNoCanonicalProfile(res);
   });
@@ -322,7 +362,9 @@ describe('webShell routes (integration)', () => {
       },
     });
 
-    const res = await request(makeApp()).get('/@user@remote.social').set('User-Agent', 'Twitterbot/1.0');
+    const res = await request(makeApp())
+      .get('/@user@remote.social')
+      .set('User-Agent', 'Twitterbot/1.0');
 
     expect(res.status).toBe(200);
     expect(res.text).toContain(
@@ -335,7 +377,10 @@ describe('webShell routes (integration)', () => {
   });
 
   it('serves profile metadata without modifying the SPA body to a browser', async () => {
-    stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
+    stubFetch({
+      ok: true,
+      body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } },
+    });
 
     const res = await request(makeApp())
       .get('/@nate')
@@ -344,16 +389,24 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
-    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">',
+    );
+    expect(res.text).toContain(
+      '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">',
+    );
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
+    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
+      SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0],
+    );
     expect(res.text).toContain('rel="preconnect"');
   });
 
   describe('profile bootstrap', () => {
     const bootstrapOf = (html: string): unknown => {
-      const match = html.match(/<script type="application\/json" id="mention-bootstrap">([\s\S]*?)<\/script>/);
+      const match = html.match(
+        /<script type="application\/json" id="mention-bootstrap">([\s\S]*?)<\/script>/,
+      );
       return match ? JSON.parse(match[1]) : undefined;
     };
     const privateOxyUserId = 'ssr-bootstrap-private-owner';
@@ -363,13 +416,19 @@ describe('webShell routes (integration)', () => {
     });
 
     it('hands the app the public profile the page resolved, as inert JSON', async () => {
-      stubFetch({ ok: true, body: { data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } } } });
+      stubFetch({
+        ok: true,
+        body: { data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } } },
+      });
 
       const res = await request(makeApp()).get('/@nate/media');
 
       expect(res.status).toBe(200);
       expect(bootstrapOf(res.text)).toEqual({
-        profile: { handle: 'nate', data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } } },
+        profile: {
+          handle: 'nate',
+          data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } },
+        },
       });
     });
 
@@ -380,12 +439,19 @@ describe('webShell routes (integration)', () => {
       const res = await request(makeApp()).get('/@nate');
 
       expect(res.text).not.toContain('<script>alert(1)');
-      expect(bootstrapOf(res.text)).toEqual({ profile: { handle: 'nate', data: { id: 'oxy-nate', username: 'nate', bio } } });
+      expect(bootstrapOf(res.text)).toEqual({
+        profile: { handle: 'nate', data: { id: 'oxy-nate', username: 'nate', bio } },
+      });
     });
 
     it('carries nothing for a profile Mention does not publish', async () => {
-      await getDb().insert(userSettings).values({ oxyUserId: privateOxyUserId, privacyProfileVisibility: 'private' });
-      stubFetch({ ok: true, body: { data: { id: privateOxyUserId, username: 'hidden', bio: 'private bio' } } });
+      await getDb()
+        .insert(userSettings)
+        .values({ oxyUserId: privateOxyUserId, privacyProfileVisibility: 'private' });
+      stubFetch({
+        ok: true,
+        body: { data: { id: privateOxyUserId, username: 'hidden', bio: 'private bio' } },
+      });
 
       const res = await request(makeApp()).get('/@hidden');
 
@@ -420,17 +486,26 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue@x.com">');
+    expect(res.text).toContain(
+      '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue@x.com">',
+    );
     expect(res.text).toContain('"@type":"ProfilePage"');
   });
 
-  it('tells search engines a local profile\'s public post count', async () => {
+  it("tells search engines a local profile's public post count", async () => {
     await seedOgPost();
     await seedOgPost();
     await seedOgPost({ visibility: 'private' });
     stubFetch({
       ok: true,
-      body: { data: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' }, _count: { followers: 5, following: 2 } } },
+      body: {
+        data: {
+          id: AUTHOR,
+          username: 'nate',
+          name: { displayName: 'Nate' },
+          _count: { followers: 5, following: 2 },
+        },
+      },
     });
 
     const res = await request(makeApp()).get('/@nate');
@@ -438,31 +513,45 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(200);
     const entity = profileJsonLd(res.text).mainEntity as Record<string, unknown>;
     expect(entity.interactionStatistic).toEqual([
-      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 5 },
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/FollowAction',
+        userInteractionCount: 5,
+      },
     ]);
     expect(entity.agentInteractionStatistic).toEqual([
-      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/WriteAction', userInteractionCount: 2 },
-      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 2 },
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/WriteAction',
+        userInteractionCount: 2,
+      },
+      {
+        '@type': 'InteractionCounter',
+        interactionType: 'https://schema.org/FollowAction',
+        userInteractionCount: 2,
+      },
     ]);
   });
 
-  it('describes a federated profile with its origin\'s totals and join date', async () => {
+  it("describes a federated profile with its origin's totals and join date", async () => {
     const actorUri = `https://origin.example/users/${AUTHOR}`;
-    await getDb().insert(federatedActors).values({
-      protocol: 'activitypub',
-      uri: actorUri,
-      username: AUTHOR,
-      domain: 'origin.example',
-      acct: `${AUTHOR}@origin.example`,
-      type: 'Person',
-      oxyUserId: AUTHOR,
-      followersUrl: `${actorUri}/followers`,
-      followingUrl: `${actorUri}/following`,
-      followersCount: 382900,
-      followingCount: 743,
-      remoteCreatedAt: new Date('2016-03-16T00:00:00.000Z'),
-      lastFetchedAt: new Date(),
-    });
+    await getDb()
+      .insert(federatedActors)
+      .values({
+        protocol: 'activitypub',
+        uri: actorUri,
+        username: AUTHOR,
+        domain: 'origin.example',
+        acct: `${AUTHOR}@origin.example`,
+        type: 'Person',
+        oxyUserId: AUTHOR,
+        followersUrl: `${actorUri}/followers`,
+        followingUrl: `${actorUri}/following`,
+        followersCount: 382900,
+        followingCount: 743,
+        remoteCreatedAt: new Date('2016-03-16T00:00:00.000Z'),
+        lastFetchedAt: new Date(),
+      });
     try {
       await seedOgPost();
       stubFetch({
@@ -508,8 +597,12 @@ describe('webShell routes (integration)', () => {
 
       expect(res.status).toBe(200);
       expect(res.text).toContain(`<title data-mention-seo="true">#${tag} on Mention</title>`);
-      expect(res.text).toContain(`<link data-mention-seo="true" rel="canonical" href="https://mention.earth/hashtag/${tag}">`);
-      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="index,follow">');
+      expect(res.text).toContain(
+        `<link data-mention-seo="true" rel="canonical" href="https://mention.earth/hashtag/${tag}">`,
+      );
+      expect(res.text).toContain(
+        '<meta data-mention-seo="true" name="robots" content="index,follow">',
+      );
       expect(res.text).toContain('"@type":"CollectionPage"');
     });
 
@@ -521,7 +614,9 @@ describe('webShell routes (integration)', () => {
       const res = await request(makeApp()).get(`/hashtag/${tag}`).set('Host', apex);
 
       expect(res.status).toBe(200);
-      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,follow">');
+      expect(res.text).toContain(
+        '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+      );
     });
 
     it('is a real 404 for something that is not a hashtag', async () => {
@@ -534,7 +629,9 @@ describe('webShell routes (integration)', () => {
       stubFetch({ ok: true });
       const app = makeApp();
       app.use((_req, res) => res.status(418).end());
-      const res = await request(app).get('/hashtag/expo').set('Host', new URL(config.web.apiOrigin).hostname);
+      const res = await request(app)
+        .get('/hashtag/expo')
+        .set('Host', new URL(config.web.apiOrigin).hostname);
       expect(res.status).toBe(418);
     });
   });
@@ -575,11 +672,16 @@ describe('webShell routes (integration)', () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
     vi.mocked(postHydrationService.hydratePosts).mockRejectedValue(
-      Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429, code: 'INTERNAL_ERROR' }),
+      Object.assign(new Error('HTTP 429: Too Many Requests'), {
+        status: 429,
+        code: 'INTERNAL_ERROR',
+      }),
     );
     const warn = vi.spyOn(logger, 'warn');
 
-    const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
+    const res = await request(makeApp())
+      .get(`/p/${postId}`)
+      .set('User-Agent', 'facebookexternalhit/1.1');
 
     expect(res.status).toBe(503);
     expect(res.headers['retry-after']).toBe('60');
@@ -594,12 +696,15 @@ describe('webShell routes (integration)', () => {
   it('names a profile page failure the same way, with the upstream status', async () => {
     // The Oxy SDK rejects with a PLAIN OBJECT, which `String(error)` would have
     // printed as `[object Object]`; the status is what says "rate budget".
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
-      if (String(url).includes('/profiles/username/')) {
-        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
-      }
-      return { ok: true, text: async () => SHELL } as unknown as Response;
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => {
+        if (String(url).includes('/profiles/username/')) {
+          throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+        }
+        return { ok: true, text: async () => SHELL } as unknown as Response;
+      }),
+    );
     const warn = vi.spyOn(logger, 'warn');
 
     const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
@@ -617,12 +722,18 @@ describe('webShell routes (integration)', () => {
     const postId = await seedOgPost();
     mockHydrated(postId);
 
-    const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
+    const res = await request(makeApp())
+      .get(`/p/${postId}`)
+      .set('User-Agent', 'facebookexternalhit/1.1');
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
-    expect(res.text).toContain(`<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`);
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">',
+    );
+    expect(res.text).toContain(
+      `<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`,
+    );
     // NOT the remote URL. A federated avatar lives on the remote instance's own
     // media host, and emitting it here made every card renderer — crawlers,
     // Slack, WhatsApp — fetch the image from that third party. Nothing outside
@@ -642,9 +753,13 @@ describe('webShell routes (integration)', () => {
     expect(postId).not.toMatch(/^[a-f0-9]{24}$/);
     mockHydrated(postId);
 
-    const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
+    const res = await request(makeApp())
+      .get(`/p/${postId}`)
+      .set('User-Agent', 'facebookexternalhit/1.1');
 
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">',
+    );
   });
 
   it('serves post metadata without modifying the SPA body to a browser', async () => {
@@ -653,13 +768,22 @@ describe('webShell routes (integration)', () => {
 
     const res = await request(makeApp())
       .get(`/p/${postId}`)
-      .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36');
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36',
+      );
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<title data-mention-seo="true">Nate on Mention: &quot;hi there&quot;</title>');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">');
+    expect(res.text).toContain(
+      '<title data-mention-seo="true">Nate on Mention: &quot;hi there&quot;</title>',
+    );
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">',
+    );
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
+    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
+      SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0],
+    );
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 
@@ -680,7 +804,9 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(404);
     expect(res.text).toContain('<title data-mention-seo="true">Post not found</title>');
-    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,nofollow">',
+    );
     expect(res.text).toContain('<div id="root"></div>');
     expect(res.text).not.toContain('data-mention-seo-fallback="true"');
   });
@@ -730,11 +856,19 @@ describe('webShell post OG sensitivity gate', () => {
     expect(res.text).not.toContain('twitter:image');
     expect(res.text).not.toContain('https://cdn/sensitive.jpg');
     // The card must not promise a large image it is no longer sending.
-    expect(res.text).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="twitter:card" content="summary">',
+    );
     // Attribution and the link still go out — neither reveals what the warning covers.
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
-    expect(res.text).toContain(`<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`);
-    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate on Mention">',
+    );
+    expect(res.text).toContain(
+      `<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`,
+    );
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,nofollow">',
+    );
   });
 
   it('emits NO og:image for the legacy metadata.isSensitive flag', async () => {
@@ -776,7 +910,9 @@ describe('webShell post OG sensitivity gate', () => {
 
     const res = await crawl(postId);
 
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="CW: eye contact">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:description" content="CW: eye contact">',
+    );
     expect(res.text).not.toContain(SENSITIVE_BODY);
     expect(res.text).not.toContain('og:image');
   });
@@ -824,15 +960,22 @@ describe('webShell post OG sensitivity gate', () => {
 
     const res = await crawl(boostId);
 
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:image" content="https://cdn/ordinary.jpg">');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="an ordinary original">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:image" content="https://cdn/ordinary.jpg">',
+    );
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:description" content="an ordinary original">',
+    );
   });
 
   it.each([{ visibility: 'private' }, { status: 'draft' }] as const)(
-    'withholds a boost original that became unavailable: %j', async (patch) => {
+    'withholds a boost original that became unavailable: %j',
+    async (patch) => {
       const originalId = await seedOgPost();
       const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
-      mockHydrated(boostId, { originalPost: { content: { text: SENSITIVE_BODY } } } as unknown as Partial<HydratedPost>);
+      mockHydrated(boostId, {
+        originalPost: { content: { text: SENSITIVE_BODY } },
+      } as unknown as Partial<HydratedPost>);
       await updatePostRecord(originalId, patch);
       const response = await crawl(boostId);
       expect(response.text).not.toContain(SENSITIVE_BODY);
@@ -846,38 +989,64 @@ describe('webShell post OG sensitivity gate', () => {
     const OPTED_OUT = scope.user('search-opt-out');
 
     beforeEach(async () => {
-      await getDb().insert(userSettings).values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
+      await getDb()
+        .insert(userSettings)
+        .values({ oxyUserId: OPTED_OUT, privacySearchEngineIndexing: false });
     });
     afterEach(async () => {
       await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, OPTED_OUT));
     });
 
     it('keeps their profile public, but noindex', async () => {
-      stubFetch({ ok: true, body: { data: { id: OPTED_OUT, username: 'quiet', name: { displayName: 'Quiet' }, bio: 'still public' } } });
+      stubFetch({
+        ok: true,
+        body: {
+          data: {
+            id: OPTED_OUT,
+            username: 'quiet',
+            name: { displayName: 'Quiet' },
+            bio: 'still public',
+          },
+        },
+      });
 
       const res = await request(makeApp()).get('/@quiet');
 
       expect(res.status).toBe(200);
-      expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,follow">');
+      expect(res.text).toContain(
+        '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+      );
       // An opt-out from search results, not from people: the card still unfurls.
-      expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="still public">');
+      expect(res.text).toContain(
+        '<meta data-mention-seo="true" property="og:description" content="still public">',
+      );
     });
 
     it('keeps their posts public, but noindex', async () => {
-      const postId = await seedOgPost({ oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+      const postId = await seedOgPost({
+        oxyUserId: OPTED_OUT,
+        authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
+      });
       mockHydrated(postId);
 
       const res = await crawl(postId);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('content="noindex,follow"');
-      expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="hi there">');
+      expect(res.text).toContain(
+        '<meta data-mention-seo="true" property="og:description" content="hi there">',
+      );
     });
 
     it('carries their choice to a boost of their post', async () => {
-      const originalId = await seedOgPost({ oxyUserId: OPTED_OUT, authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }] });
+      const originalId = await seedOgPost({
+        oxyUserId: OPTED_OUT,
+        authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
+      });
       const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
-      mockHydrated(boostId, { originalPost: { content: { text: 'their words' } } } as unknown as Partial<HydratedPost>);
+      mockHydrated(boostId, {
+        originalPost: { content: { text: 'their words' } },
+      } as unknown as Partial<HydratedPost>);
 
       const res = await crawl(boostId);
 
@@ -891,7 +1060,7 @@ describe('webShell post OG sensitivity gate', () => {
       expect((await crawl(postId)).text).toContain('content="index,follow"');
     });
 
-    it('lists a post\'s public replies as its comments, never a gated one or theirs', async () => {
+    it("lists a post's public replies as its comments, never a gated one or theirs", async () => {
       const postId = await seedOgPost();
       const shown = await seedOgPost({ parentPostId: postId });
       const gated = await seedOgPost({ parentPostId: postId, metadata: { isSensitive: true } });
@@ -901,11 +1070,15 @@ describe('webShell post OG sensitivity gate', () => {
         authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
       });
       vi.mocked(postHydrationService.hydratePosts).mockImplementation(async (rows) =>
-        (rows as { id: string }[]).map((row) => ({
-          id: row.id,
-          user: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' } },
-          content: { text: `words of ${row.id}` },
-        }) as unknown as HydratedPost));
+        (rows as { id: string }[]).map(
+          (row) =>
+            ({
+              id: row.id,
+              user: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' } },
+              content: { text: `words of ${row.id}` },
+            }) as unknown as HydratedPost,
+        ),
+      );
 
       const res = await crawl(postId);
 
@@ -919,7 +1092,9 @@ describe('webShell post OG sensitivity gate', () => {
 
   it('never caches a card whose author failed to resolve for this request', async () => {
     const postId = await seedOgPost();
-    mockHydrated(postId, { user: { id: AUTHOR, username: '', name: { displayName: 'Unknown user' } } } as unknown as Partial<HydratedPost>);
+    mockHydrated(postId, {
+      user: { id: AUTHOR, username: '', name: { displayName: 'Unknown user' } },
+    } as unknown as Partial<HydratedPost>);
 
     const degraded = await crawl(postId);
     expect(degraded.status).toBe(503);
@@ -935,7 +1110,8 @@ describe('webShell post OG sensitivity gate', () => {
     const originalId = await seedOgPost({ oxyUserId: scope.user('hidden-original') });
     const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
     getUsersByIds.mockImplementationOnce(async (ids) =>
-      ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })));
+      ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
+    );
     getUsersByIds.mockResolvedValueOnce([]);
     const response = await crawl(boostId);
     expect(response.text).not.toContain('data-mention-seo-fallback');
@@ -945,8 +1121,11 @@ describe('webShell post OG sensitivity gate', () => {
 
   it('bypasses cached public text after the raw sensitivity flag changes', async () => {
     const postId = await seedGatedPost({}, SENSITIVE_BODY);
-    const stale = mapPostOg({ user: { username: 'nate' }, content: { text: SENSITIVE_BODY } } as unknown as HydratedPost,
-      postId, { requiresWarning: false });
+    const stale = mapPostOg(
+      { user: { username: 'nate' }, content: { text: SENSITIVE_BODY } } as unknown as HydratedPost,
+      postId,
+      { requiresWarning: false },
+    );
     const cache = vi.spyOn(shellCache, 'getShellCached').mockResolvedValue(stale);
     try {
       await updatePostRecord(postId, { metadata: { isSensitive: true } });
@@ -961,12 +1140,21 @@ describe('webShell post OG sensitivity gate', () => {
   });
 
   it('still unfurls an ordinary post with its image and text', async () => {
-    const postId = await seedGatedPost({ postClassification: { status: 'baseline' } }, 'an ordinary post');
+    const postId = await seedGatedPost(
+      { postClassification: { status: 'baseline' } },
+      'an ordinary post',
+    );
 
     const res = await crawl(postId);
 
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:image" content="https://cdn/sensitive.jpg">');
-    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="an ordinary post">');
-    expect(res.text).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">');
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:image" content="https://cdn/sensitive.jpg">',
+    );
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" property="og:description" content="an ordinary post">',
+    );
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">',
+    );
   });
 });

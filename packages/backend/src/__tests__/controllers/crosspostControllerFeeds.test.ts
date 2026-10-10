@@ -129,12 +129,20 @@ describe('the quotes feed', () => {
 
     const { res, payload } = buildResponse();
     await feedController.getQuotesFeed(
-      { query: {}, params: { postId: anchor.id }, user: { id: scope.user('viewer') }, headers: {} } as never,
+      {
+        query: {},
+        params: { postId: anchor.id },
+        user: { id: scope.user('viewer') },
+        headers: {},
+      } as never,
       res as never,
     );
 
     expect(payload.value?.items?.map((item) => item.id)).toEqual([shown]);
-    const stored = await getDb().select({ id: posts.id }).from(posts).where(inArray(posts.id, [shown, hidden]));
+    const stored = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(inArray(posts.id, [shown, hidden]));
     expect([...stored]).toHaveLength(2);
   });
 });
@@ -151,7 +159,11 @@ describe('the nearby-posts map', () => {
 
     const { res, payload } = buildResponse();
     await getNearbyPosts(
-      { query: { lat: String(LAT), lng: String(LNG), radius: '500' }, user: { id: scope.user('viewer') }, headers: {} } as never,
+      {
+        query: { lat: String(LAT), lng: String(LNG), radius: '500' },
+        user: { id: scope.user('viewer') },
+        headers: {},
+      } as never,
       res as never,
     );
 
@@ -170,7 +182,12 @@ describe('the replies feed', () => {
 
     const { res, payload } = buildResponse();
     await feedController.getRepliesFeed(
-      { query: { sort: 'oldest' }, params: { parentId: parent.id }, user: { id: scope.user('viewer') }, headers: {} } as never,
+      {
+        query: { sort: 'oldest' },
+        params: { parentId: parent.id },
+        user: { id: scope.user('viewer') },
+        headers: {},
+      } as never,
       res as never,
     );
 

@@ -33,9 +33,9 @@ const service = vi.hoisted(() => ({
 const posts = vi.hoisted(() => ({ loadPostRecords: vi.fn(), hydratePosts: vi.fn() }));
 
 vi.mock('../../services/communityNotes/CommunityNotesService', async () => {
-  const actual = await vi.importActual<typeof import('../../services/communityNotes/CommunityNotesService')>(
-    '../../services/communityNotes/CommunityNotesService',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../services/communityNotes/CommunityNotesService')
+  >('../../services/communityNotes/CommunityNotesService');
   return { ...actual, ...service };
 });
 
@@ -142,7 +142,9 @@ describe('writing a note', () => {
   });
 
   it('refuses a post with no resolvable author, which CrowdSource could not exclude', async () => {
-    posts.loadPostRecords.mockResolvedValue([{ id: 'p1', authorship: [], status: 'published', visibility: 'public' }]);
+    posts.loadPostRecords.mockResolvedValue([
+      { id: 'p1', authorship: [], status: 'published', visibility: 'public' },
+    ]);
 
     const res = await request(app).post('/community-notes').send({ postId: 'p1', text: 'context' });
 
@@ -185,11 +187,19 @@ describe('writing a note', () => {
     ['no post', { text: 'context' }],
     ['a body too long', { postId: 'p1', text: 'x'.repeat(501) }],
     ['a source that is not a URL', { postId: 'p1', text: 'context', sourceUrls: ['not-a-url'] }],
-    ['more sources than a reader opens', {
-      postId: 'p1',
-      text: 'context',
-      sourceUrls: ['https://a.example', 'https://b.example', 'https://c.example', 'https://d.example'],
-    }],
+    [
+      'more sources than a reader opens',
+      {
+        postId: 'p1',
+        text: 'context',
+        sourceUrls: [
+          'https://a.example',
+          'https://b.example',
+          'https://c.example',
+          'https://d.example',
+        ],
+      },
+    ],
   ])('refuses %s without asking CrowdSource', async (_label, body) => {
     const res = await request(app).post('/community-notes').send(body);
     expect(res.status).toBe(400);
@@ -198,14 +208,18 @@ describe('writing a note', () => {
   });
 
   it('refuses a caller with no session', async () => {
-    const res = await request(anonymous).post('/community-notes').send({ postId: 'p1', text: 'context' });
+    const res = await request(anonymous)
+      .post('/community-notes')
+      .send({ postId: 'p1', text: 'context' });
     expect(res.status).toBe(401);
   });
 });
 
 describe('what a CrowdSource refusal looks like from outside', () => {
-  const refuse = (status: number, code: Parameters<typeof CrowdSourceApiError>[0]['code'] = 'invalid_request') =>
-    new CrowdSourceApiError({ status, code, message: 'refused' });
+  const refuse = (
+    status: number,
+    code: Parameters<typeof CrowdSourceApiError>[0]['code'] = 'invalid_request',
+  ) => new CrowdSourceApiError({ status, code, message: 'refused' });
 
   beforeEach(() => {
     posts.loadPostRecords.mockResolvedValue([postRecord('author-1')]);
@@ -282,7 +296,9 @@ describe('rating', () => {
   });
 
   it('refuses a caller with no session', async () => {
-    const res = await request(anonymous).post('/community-notes/n1/ratings').send({ rating: 'helpful', reasons: ['relevant'] });
+    const res = await request(anonymous)
+      .post('/community-notes/n1/ratings')
+      .send({ rating: 'helpful', reasons: ['relevant'] });
     expect(res.status).toBe(401);
   });
 });

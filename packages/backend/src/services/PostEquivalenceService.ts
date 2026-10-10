@@ -102,10 +102,8 @@ const EQUIVALENCE_DECISION_METRIC = 'post_equivalence_decision_total';
  * "the same author posted something similar later today", which is the collision
  * this bound exists to exclude rather than to tolerate.
  */
-export const CROSSPOST_WINDOW_MS = Number.parseInt(
-  process.env.CROSSPOST_WINDOW_MS ?? '',
-  10,
-) || 30 * 60 * 1000;
+export const CROSSPOST_WINDOW_MS =
+  Number.parseInt(process.env.CROSSPOST_WINDOW_MS ?? '', 10) || 30 * 60 * 1000;
 
 /**
  * The same bound for a pair with NO media, where the only evidence is that two
@@ -115,10 +113,8 @@ export const CROSSPOST_WINDOW_MS = Number.parseInt(
  * accounts every day of their life, and at half an hour the fallback would
  * cluster two of them roughly whenever the two ingests landed near each other.
  */
-export const CROSSPOST_TEXT_ONLY_WINDOW_MS = Number.parseInt(
-  process.env.CROSSPOST_TEXT_ONLY_WINDOW_MS ?? '',
-  10,
-) || 5 * 60 * 1000;
+export const CROSSPOST_TEXT_ONLY_WINDOW_MS =
+  Number.parseInt(process.env.CROSSPOST_TEXT_ONLY_WINDOW_MS ?? '', 10) || 5 * 60 * 1000;
 
 /** What happened to one detection attempt. */
 export interface CrosspostDecision {
@@ -175,7 +171,11 @@ interface CandidateMedia {
   sizeBytes: number | null;
 }
 
-function decision(outcome: CrosspostDecision['outcome'], reason: string, clusterId?: string): CrosspostDecision {
+function decision(
+  outcome: CrosspostDecision['outcome'],
+  reason: string,
+  clusterId?: string,
+): CrosspostDecision {
   metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, { outcome, reason });
   return { outcome, reason, clusterId };
 }
@@ -204,9 +204,13 @@ export function sharedMediaIdentifier(remoteUrl: string | null): string | undefi
   }
   // Only Meta's asset namespace makes a basename comparable across CDN hosts.
   // An unrelated origin can serve a different file under that same name.
-  if (url.protocol !== 'https:' || !['cdninstagram.com', 'fbcdn.net'].some(
-    (domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`),
-  )) return undefined;
+  if (
+    url.protocol !== 'https:' ||
+    !['cdninstagram.com', 'fbcdn.net'].some(
+      (domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`),
+    )
+  )
+    return undefined;
   const segments = url.pathname.split('/').filter((segment) => segment.length > 0);
   const terminal = segments[segments.length - 1];
   if (!terminal) return undefined;
@@ -249,7 +253,8 @@ function networkDomainSql(): SQL<string | null> {
 export function crosspostReconciliationPostSql(): SQL {
   // Mirror canonicalFederationHost used by classifyPair (trim, lowercase,
   // remove one www. prefix); networkAcct still takes precedence over domain.
-  const trimCharacters = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+  const trimCharacters =
+    ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
   const domain = sql<string>`regexp_replace(lower(btrim(${networkDomainSql()}, ${trimCharacters})), '^www[.]', '')`;
   return sql`(${or(
     and(
@@ -298,9 +303,10 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
     .limit(1);
   if (!row || row.status !== 'published' || row.boostOf !== null) return null;
   if (!row.oxyUserId || !row.createdAt) return null;
-  const importSource = row.importSourceId && row.importSourceUrl && !row.actorUri
-    ? { sourceId: row.importSourceId, sourceUrl: row.importSourceUrl }
-    : null;
+  const importSource =
+    row.importSourceId && row.importSourceUrl && !row.actorUri
+      ? { sourceId: row.importSourceId, sourceUrl: row.importSourceUrl }
+      : null;
   const networkDomain = importSource ? permalinkHost(importSource.sourceUrl) : row.networkDomain;
   if (!networkDomain || (!importSource && !row.actorUri)) return null;
 
@@ -356,16 +362,18 @@ async function findSiblingIds(candidate: EquivalenceCandidate): Promise<string[]
     .from(posts)
     .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
     .leftJoin(postEquivalenceMembers, eq(postEquivalenceMembers.postId, posts.id))
-    .where(and(
-      eq(posts.oxyUserId, candidate.oxyUserId),
-      ne(posts.id, candidate.id),
-      ne(networkDomainSql(), candidate.networkDomain),
-      eq(posts.status, 'published'),
-      isNull(posts.boostOf),
-      gte(posts.createdAt, since),
-      lte(posts.createdAt, until),
-      isNull(postEquivalenceMembers.id),
-    ))
+    .where(
+      and(
+        eq(posts.oxyUserId, candidate.oxyUserId),
+        ne(posts.id, candidate.id),
+        ne(networkDomainSql(), candidate.networkDomain),
+        eq(posts.status, 'published'),
+        isNull(posts.boostOf),
+        gte(posts.createdAt, since),
+        lte(posts.createdAt, until),
+        isNull(postEquivalenceMembers.id),
+      ),
+    )
     .orderBy(posts.createdAt)
     .limit(20);
   return rows.map((row) => row.id);
@@ -377,9 +385,16 @@ interface EquivalenceErrorOptions {
 }
 
 /** One request per detection/re-evaluation, scoped to the current decision. */
-async function loadIdentityProof(candidates: Iterable<EquivalenceCandidate>, options: EquivalenceErrorOptions = {}) {
+async function loadIdentityProof(
+  candidates: Iterable<EquivalenceCandidate>,
+  options: EquivalenceErrorOptions = {},
+) {
   // An import has no source actor to prove; its tier needs no identity lookup.
-  const identifiers = [...new Set([...candidates].map((candidate) => candidate.actorUri).filter((uri) => uri.length > 0))];
+  const identifiers = [
+    ...new Set(
+      [...candidates].map((candidate) => candidate.actorUri).filter((uri) => uri.length > 0),
+    ),
+  ];
   if (identifiers.length === 0) return [];
   try {
     return await lookupOxyIdentities(identifiers);
@@ -404,7 +419,8 @@ function classifyPair(
   // An import is only ever the same object as the federated copy of its own
   // source item; it takes no part in the cross-network tiers below.
   if (a.importSource || b.importSource) return importedCopyEvidence(a, b);
-  if (Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) > CROSSPOST_WINDOW_MS) return undefined;
+  if (Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) > CROSSPOST_WINDOW_MS)
+    return undefined;
   if ((a.isEdited || b.isEdited) && a.text !== b.text) return undefined;
 
   // The two networks must be a REVIEWED pair. Sharing an Oxy user is not enough
@@ -420,9 +436,14 @@ function classifyPair(
   // Cached author ids are projections; only current Oxy proof authorizes collapse.
   for (const candidate of [a, b]) {
     const identity = identities.find((entry) => entry.identifier === candidate.actorUri);
-    if (identity?.userId !== candidate.oxyUserId || !identity.externalIdentities.some(
-      (source) => source.actorUri === candidate.actorUri && source.network === candidate.networkDomain,
-    )) return undefined;
+    if (
+      identity?.userId !== candidate.oxyUserId ||
+      !identity.externalIdentities.some(
+        (source) =>
+          source.actorUri === candidate.actorUri && source.network === candidate.networkDomain,
+      )
+    )
+      return undefined;
   }
 
   const declared = declaredOriginalUrls.find(
@@ -440,7 +461,8 @@ function classifyPair(
   if (!textsCompatible(a, b)) return undefined;
 
   const sharedAsset = sharedMediaAsset(a, b);
-  if (sharedAsset) return { confidence: 'shared-media-id', evidence: `shared-media-id:${sharedAsset}` };
+  if (sharedAsset)
+    return { confidence: 'shared-media-id', evidence: `shared-media-id:${sharedAsset}` };
 
   return fingerprint(a, b);
 }
@@ -462,9 +484,12 @@ function importedCopyEvidence(
   const federated = imported === a ? b : a;
   if (!imported.importSource || federated.importSource || !federated.actorUri) return undefined;
   const { sourceId, sourceUrl } = imported.importSource;
-  const names = [federated.federationActivityId, federated.federationUrl].filter((url): url is string => !!url);
-  const same = (federated.federationActivityId !== null && federated.federationActivityId === sourceId)
-    || names.some((url) => sameUrl(sourceUrl, url));
+  const names = [federated.federationActivityId, federated.federationUrl].filter(
+    (url): url is string => !!url,
+  );
+  const same =
+    (federated.federationActivityId !== null && federated.federationActivityId === sourceId) ||
+    names.some((url) => sameUrl(sourceUrl, url));
   return same ? { confidence: 'declared', evidence: `imported-copy:${sourceUrl}` } : undefined;
 }
 
@@ -490,10 +515,12 @@ function sameUrl(left: string, right: string): boolean {
   try {
     const a = new URL(left);
     const b = new URL(right);
-    return a.protocol === b.protocol
-      && a.host.toLowerCase() === b.host.toLowerCase()
-      && a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '')
-      && a.search === b.search;
+    return (
+      a.protocol === b.protocol &&
+      a.host.toLowerCase() === b.host.toLowerCase() &&
+      a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '') &&
+      a.search === b.search
+    );
   } catch {
     return false;
   }
@@ -502,7 +529,9 @@ function sameUrl(left: string, right: string): boolean {
 /** A first-party media identifier both posts carry, or `undefined`. */
 function sharedMediaAsset(a: EquivalenceCandidate, b: EquivalenceCandidate): string | undefined {
   if (a.media.length === 0 || a.media.length !== b.media.length) return undefined;
-  const theirs = b.media.map((item) => `${item.type}:${sharedMediaIdentifier(item.remoteUrl)}`).sort();
+  const theirs = b.media
+    .map((item) => `${item.type}:${sharedMediaIdentifier(item.remoteUrl)}`)
+    .sort();
   // EVERY item must match, not merely one. One shared asset inside two different
   // carousels is one reused photo, which is a thing people do on purpose.
   const identifiers = a.media.map((item) => sharedMediaIdentifier(item.remoteUrl));
@@ -551,7 +580,12 @@ function fingerprint(
     // a refusal rather than a pass: "we could not tell" is not "they matched",
     // and treating it as one is how a fingerprint check becomes a text check
     // wearing a media check's name.
-    if (!ours.width || !ours.height || ours.width !== theirs.width || ours.height !== theirs.height) {
+    if (
+      !ours.width ||
+      !ours.height ||
+      ours.width !== theirs.width ||
+      ours.height !== theirs.height
+    ) {
       return undefined;
     }
     if (!ours.sizeBytes || ours.sizeBytes !== theirs.sizeBytes) return undefined;
@@ -579,30 +613,40 @@ export function preferredVariant(
   candidates: ReadonlyMap<string, EquivalenceCandidate>,
 ): string {
   const pixels = (candidate: EquivalenceCandidate | undefined): number =>
-    (candidate?.media ?? []).reduce((total, item) => total + (item.width ?? 0) * (item.height ?? 0), 0);
+    (candidate?.media ?? []).reduce(
+      (total, item) => total + (item.width ?? 0) * (item.height ?? 0),
+      0,
+    );
 
-  return [...members]
-    .sort((left, right) => {
-      const a = candidates.get(left.postId);
-      const b = candidates.get(right.postId);
-      const importedLeft = a?.importSource ? 1 : 0;
-      const importedRight = b?.importSource ? 1 : 0;
-      if (importedLeft !== importedRight) return importedLeft - importedRight;
-      const declaredLeft = left.evidence.startsWith('declared-original:') && a?.federationUrl
-        && sameUrl(left.evidence.slice('declared-original:'.length), a.federationUrl) ? 0 : 1;
-      const declaredRight = right.evidence.startsWith('declared-original:') && b?.federationUrl
-        && sameUrl(right.evidence.slice('declared-original:'.length), b.federationUrl) ? 0 : 1;
-      if (declaredLeft !== declaredRight) return declaredLeft - declaredRight;
+  return [...members].sort((left, right) => {
+    const a = candidates.get(left.postId);
+    const b = candidates.get(right.postId);
+    const importedLeft = a?.importSource ? 1 : 0;
+    const importedRight = b?.importSource ? 1 : 0;
+    if (importedLeft !== importedRight) return importedLeft - importedRight;
+    const declaredLeft =
+      left.evidence.startsWith('declared-original:') &&
+      a?.federationUrl &&
+      sameUrl(left.evidence.slice('declared-original:'.length), a.federationUrl)
+        ? 0
+        : 1;
+    const declaredRight =
+      right.evidence.startsWith('declared-original:') &&
+      b?.federationUrl &&
+      sameUrl(right.evidence.slice('declared-original:'.length), b.federationUrl)
+        ? 0
+        : 1;
+    if (declaredLeft !== declaredRight) return declaredLeft - declaredRight;
 
-      const mediaCount = (b?.media.length ?? 0) - (a?.media.length ?? 0);
-      if (mediaCount !== 0) return mediaCount;
-      const area = pixels(b) - pixels(a);
-      if (area !== 0) return area;
+    const mediaCount = (b?.media.length ?? 0) - (a?.media.length ?? 0);
+    if (mediaCount !== 0) return mediaCount;
+    const area = pixels(b) - pixels(a);
+    if (area !== 0) return area;
 
-      const published = (a?.createdAt.getTime() ?? 0) - (b?.createdAt.getTime() ?? 0);
-      if (published !== 0) return published;
-      return left.postId < right.postId ? -1 : 1;
-    })[0].postId;
+    const published = (a?.createdAt.getTime() ?? 0) - (b?.createdAt.getTime() ?? 0);
+    if (published !== 0) return published;
+    return left.postId < right.postId ? -1 : 1;
+  })[0].postId;
 }
 
 /**
@@ -631,14 +675,18 @@ export async function detectCrosspostEquivalence(
     if (siblingIds.length === 0) return decision('refused', 'no-sibling-in-window');
 
     const declared = input.declaredOriginalUrls ?? [];
-    const siblings = (await Promise.all(siblingIds.map(loadCandidate)))
-      .filter((sibling): sibling is EquivalenceCandidate => sibling !== null);
+    const siblings = (await Promise.all(siblingIds.map(loadCandidate))).filter(
+      (sibling): sibling is EquivalenceCandidate => sibling !== null,
+    );
     const identities = await loadIdentityProof([candidate, ...siblings], options);
     for (const sibling of siblings) {
       const match = classifyPair(candidate, sibling, declared, identities);
       if (!match) continue;
 
-      const candidates = new Map([[candidate.id, candidate], [sibling.id, sibling]]);
+      const candidates = new Map([
+        [candidate.id, candidate],
+        [sibling.id, sibling],
+      ]);
       const members: EquivalenceMemberWrite[] = [
         {
           postId: candidate.id,
@@ -703,7 +751,10 @@ export async function collapseImportedCopies(
         result.refused += 1;
         continue;
       }
-      const [imported, federated] = await Promise.all([loadCandidate(pair.importedPostId), loadCandidate(pair.federatedPostId)]);
+      const [imported, federated] = await Promise.all([
+        loadCandidate(pair.importedPostId),
+        loadCandidate(pair.federatedPostId),
+      ]);
       const match = imported && federated ? classifyPair(imported, federated, [], []) : undefined;
       if (!imported || !federated || !match) {
         result.refused += 1;
@@ -717,21 +768,34 @@ export async function collapseImportedCopies(
         preferred: false,
         evidence: match.evidence,
       }));
-      const preferredId = preferredVariant(members, new Map([[imported.id, imported], [federated.id, federated]]));
+      const preferredId = preferredVariant(
+        members,
+        new Map([
+          [imported.id, imported],
+          [federated.id, federated],
+        ]),
+      );
       for (const member of members) member.preferred = member.postId === preferredId;
       let clusterId: string;
       try {
         clusterId = await createCluster(match.confidence, members);
       } catch (err) {
         // A concurrent run clustered one of the two first (unique member key).
-        if ((err as { code?: string }).code !== '23505' && (err as { cause?: { code?: string } }).cause?.code !== '23505') throw err;
+        if (
+          (err as { code?: string }).code !== '23505' &&
+          (err as { cause?: { code?: string } }).cause?.code !== '23505'
+        )
+          throw err;
         result.refused += 1;
         continue;
       }
       claimed.add(pair.federatedPostId);
       claimed.add(pair.importedPostId);
       result.clustered += 1;
-      metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, { outcome: 'clustered', reason: 'imported-copy' });
+      metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, {
+        outcome: 'clustered',
+        reason: 'imported-copy',
+      });
       logger.info('[Equivalence] imported post collapsed under its federated copy', {
         cluster: clusterId,
         imported: imported.id,
@@ -740,7 +804,10 @@ export async function collapseImportedCopies(
     }
   } catch (err) {
     if (options.failOnError) throw err;
-    logger.warn('[Equivalence] imported-copy collapse failed', { oxyUserId: params.oxyUserId, err });
+    logger.warn('[Equivalence] imported-copy collapse failed', {
+      oxyUserId: params.oxyUserId,
+      err,
+    });
   }
   return result;
 }
@@ -760,7 +827,10 @@ export async function collapseImportedCopies(
  * cannot stand in for current source metadata: the changed objects must match
  * through their current content evidence.
  */
-export async function reevaluateCluster(clusterId: string, options: EquivalenceErrorOptions = {}): Promise<void> {
+export async function reevaluateCluster(
+  clusterId: string,
+  options: EquivalenceErrorOptions = {},
+): Promise<void> {
   try {
     const cluster = await findClusterById(clusterId);
     if (!cluster) return;
@@ -796,9 +866,10 @@ export async function reevaluateCluster(clusterId: string, options: EquivalenceE
       const other = loaded.get(member.postId)!;
       // Stored declarations describe the old source object. An edit must prove
       // equivalence again from current content rather than inherit that claim.
-      const declared = !anchor.isEdited && !other.isEdited && member.evidence.startsWith('declared-original:')
-        ? [member.evidence.slice('declared-original:'.length)]
-        : [];
+      const declared =
+        !anchor.isEdited && !other.isEdited && member.evidence.startsWith('declared-original:')
+          ? [member.evidence.slice('declared-original:'.length)]
+          : [];
       if (classifyPair(other, anchor, declared, identities)) continue;
       await removeClusterMember(clusterId, member.postId);
       removed += 1;
@@ -820,8 +891,11 @@ export async function reevaluateCluster(clusterId: string, options: EquivalenceE
 }
 
 /** Re-check the cluster a post belongs to, if any. The edit path's entry point. */
-export async function reevaluateClusterForPost(postId: string, options: EquivalenceErrorOptions = {}): Promise<void> {
-  const cluster = await findClusterByPostId(postId).catch(error => {
+export async function reevaluateClusterForPost(
+  postId: string,
+  options: EquivalenceErrorOptions = {},
+): Promise<void> {
+  const cluster = await findClusterByPostId(postId).catch((error) => {
     if (options.failOnError) throw error;
     return null;
   });
@@ -885,10 +959,7 @@ export async function loadCrosspostVariants(
         preferred: postEquivalenceMembers.preferred,
       })
       .from(mine)
-      .innerJoin(
-        postEquivalenceMembers,
-        eq(postEquivalenceMembers.clusterId, mine.clusterId),
-      )
+      .innerJoin(postEquivalenceMembers, eq(postEquivalenceMembers.clusterId, mine.clusterId))
       .where(inArray(mine.postId, [...postIds]))
       // Deterministic, and the same order the card renders: the representative
       // first, then by network, so two readers of one cluster never see the two

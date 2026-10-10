@@ -58,9 +58,13 @@ describe('ActivityPub remote JSON transport limits', () => {
     const stream = new PassThrough();
     stream.end('<html>not an actor</html>');
 
-    await expect(singleHopToResponse(singleHop(stream, {
-      'content-type': 'text/html; charset=utf-8',
-    }))).rejects.toThrow('unsupported content-type');
+    await expect(
+      singleHopToResponse(
+        singleHop(stream, {
+          'content-type': 'text/html; charset=utf-8',
+        }),
+      ),
+    ).rejects.toThrow('unsupported content-type');
     expect(stream.destroyed).toBe(true);
   });
 
@@ -70,9 +74,13 @@ describe('ActivityPub remote JSON transport limits', () => {
     const stream = new PassThrough();
     stream.end('<html>not an actor</html>');
 
-    await expect(singleHopToResponse(singleHop(stream, {
-      'content-type': 'text/html; charset=utf-8',
-    }))).rejects.toThrow('unsupported content-type: text/html');
+    await expect(
+      singleHopToResponse(
+        singleHop(stream, {
+          'content-type': 'text/html; charset=utf-8',
+        }),
+      ),
+    ).rejects.toThrow('unsupported content-type: text/html');
   });
 
   it('reports a MISSING content-type as (none) rather than an empty string', async () => {
@@ -87,10 +95,14 @@ describe('ActivityPub remote JSON transport limits', () => {
   it('rejects an oversized declared content length before reading', async () => {
     const stream = new PassThrough();
 
-    await expect(singleHopToResponse(singleHop(stream, {
-      'content-type': 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-      'content-length': String(ACTIVITYPUB_JSON_MAX_BYTES + 1),
-    }))).rejects.toThrow(`exceeds ${ACTIVITYPUB_JSON_MAX_BYTES} bytes`);
+    await expect(
+      singleHopToResponse(
+        singleHop(stream, {
+          'content-type': 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          'content-length': String(ACTIVITYPUB_JSON_MAX_BYTES + 1),
+        }),
+      ),
+    ).rejects.toThrow(`exceeds ${ACTIVITYPUB_JSON_MAX_BYTES} bytes`);
     expect(stream.destroyed).toBe(true);
   });
 
@@ -120,9 +132,10 @@ describe('ActivityPub remote JSON transport limits', () => {
     vi.useFakeTimers();
     let operationSignal: AbortSignal | undefined;
     const responsePromise = withActivityPubDeadline(
-      (signal) => new Promise<never>(() => {
-        operationSignal = signal;
-      }),
+      (signal) =>
+        new Promise<never>(() => {
+          operationSignal = signal;
+        }),
     );
     const rejection = expect(responsePromise).rejects.toThrow('fetch deadline exceeded');
 
@@ -137,9 +150,10 @@ describe('ActivityPub remote JSON transport limits', () => {
     const reason = new Error('caller cancelled');
     let operationSignal: AbortSignal | undefined;
     const responsePromise = withActivityPubDeadline(
-      (signal) => new Promise<never>(() => {
-        operationSignal = signal;
-      }),
+      (signal) =>
+        new Promise<never>(() => {
+          operationSignal = signal;
+        }),
       caller.signal,
     );
 

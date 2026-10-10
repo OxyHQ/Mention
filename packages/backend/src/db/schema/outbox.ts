@@ -119,18 +119,18 @@ export const engagementOutbox = pgTable(
   (t) => [
     check(
       'engagement_outbox_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_KINDS))})`,
     ),
     check(
       'engagement_outbox_status_check',
-      sql`${t.status} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ENGAGEMENT_OUTBOX_STATUSES))})`,
     ),
     check('engagement_outbox_revision_check', sql`${t.revision} >= 1`),
     check('engagement_outbox_attempts_check', sql`${t.attempts} >= 0`),
     check(
       'engagement_outbox_values_check',
       sql`(${t.payloadPreviousValue} is null or ${t.payloadPreviousValue} in (1, -1))
-        and (${t.payloadValue} is null or ${t.payloadValue} in (1, -1))`
+        and (${t.payloadValue} is null or ${t.payloadValue} in (1, -1))`,
     ),
     // Pending work and expired claims are separate bounded scans.
     index('engagement_outbox_due_idx').on(t.status, t.availableAt, t.createdAt),
@@ -140,11 +140,11 @@ export const engagementOutbox = pgTable(
     index('engagement_outbox_relationship_order_idx').on(
       t.payloadRelationshipId,
       t.revision,
-      t.status
+      t.status,
     ),
     // Required by the expiry sweep.
     index('engagement_outbox_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -181,16 +181,16 @@ export const endorsementOutbox = pgTable(
   (t) => [
     check(
       'endorsement_outbox_source_check',
-      sql`${t.source} in (${sql.raw(inList(ENDORSEMENT_SOURCES))})`
+      sql`${t.source} in (${sql.raw(inList(ENDORSEMENT_SOURCES))})`,
     ),
     check(
       'endorsement_outbox_status_check',
-      sql`${t.status} in (${sql.raw(inList(ENDORSEMENT_OUTBOX_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ENDORSEMENT_OUTBOX_STATUSES))})`,
     ),
     check('endorsement_outbox_attempts_check', sql`${t.attempts} >= 0`),
     // One row per scope — the upsert target.
     unique('endorsement_outbox_source_source_id_key').on(t.source, t.sourceId),
     // The drain query: pending rows due for an attempt, oldest first.
     index('endorsement_outbox_drain_idx').on(t.status, t.nextAttemptAt),
-  ]
+  ],
 );

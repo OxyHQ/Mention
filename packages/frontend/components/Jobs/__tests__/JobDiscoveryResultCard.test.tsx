@@ -1,5 +1,9 @@
 import React from 'react';
-import TestRenderer, { type ReactTestInstance, type ReactTestRenderer, act } from 'react-test-renderer';
+import TestRenderer, {
+  type ReactTestInstance,
+  type ReactTestRenderer,
+  act,
+} from 'react-test-renderer';
 import type { JobSearchResult } from '@mention/shared-types/job';
 
 const mockPush = jest.fn();
@@ -57,16 +61,22 @@ jest.mock('react-i18next', () => ({
 }));
 
 const mockOpenExternalLink = jest.fn();
-jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: (...args: unknown[]) => mockOpenExternalLink(...args) }));
+jest.mock('@/utils/openExternalLink', () => ({
+  openExternalLink: (...args: unknown[]) => mockOpenExternalLink(...args),
+}));
 
 const mockShareLink = jest.fn();
-jest.mock('@/utils/shareLink', () => ({ shareLink: (...args: unknown[]) => mockShareLink(...args) }));
+jest.mock('@/utils/shareLink', () => ({
+  shareLink: (...args: unknown[]) => mockShareLink(...args),
+}));
 
 jest.mock('@/config', () => ({ WEB_BASE_URL: 'https://mention.earth' }));
 
 const mockReportExternalJob = jest.fn();
 jest.mock('@/services/jobApplicationsService', () => ({
-  jobApplicationsService: { reportExternalJob: (...args: unknown[]) => mockReportExternalJob(...args) },
+  jobApplicationsService: {
+    reportExternalJob: (...args: unknown[]) => mockReportExternalJob(...args),
+  },
 }));
 
 import JobDiscoveryResultCard, { ExternalJobReportSheet } from '../JobDiscoveryResultCard';
@@ -137,7 +147,8 @@ function pressHandlers(renderer: ReactTestRenderer): Array<() => void> {
 /** Finds the (outermost) onPress handler for the node carrying this accessibilityLabel. */
 function pressHandlerByLabel(renderer: ReactTestRenderer, label: string): () => void {
   const matches = renderer.root.findAll(
-    (node: ReactTestInstance) => node.props?.accessibilityLabel === label && typeof node.props?.onPress === 'function',
+    (node: ReactTestInstance) =>
+      node.props?.accessibilityLabel === label && typeof node.props?.onPress === 'function',
     { deep: true },
   );
   return matches[0].props.onPress as () => void;
@@ -154,16 +165,35 @@ beforeEach(() => {
 describe('JobDiscoveryResultCard', () => {
   it('appends a posted-time label when publishedAt is set, and omits it otherwise', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const posted = render(<JobDiscoveryResultCard job={result({ publishedAt: twoHoursAgo })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />);
+    const posted = render(
+      <JobDiscoveryResultCard
+        job={result({ publishedAt: twoHoursAgo })}
+        isSaved={false}
+        onToggleSave={jest.fn()}
+        onReport={jest.fn()}
+      />,
+    );
     expect(textOf(posted)).toContain('· 2h');
 
-    const unposted = render(<JobDiscoveryResultCard job={result({ publishedAt: undefined })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />);
+    const unposted = render(
+      <JobDiscoveryResultCard
+        job={result({ publishedAt: undefined })}
+        isSaved={false}
+        onToggleSave={jest.fn()}
+        onReport={jest.fn()}
+      />,
+    );
     expect(textOf(unposted)).not.toContain('2h');
   });
 
   it('treats a salary object with neither a floor nor a ceiling as no salary at all', () => {
     const renderer = render(
-      <JobDiscoveryResultCard job={result({ salary: { currency: 'USD', interval: 'year' } })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />,
+      <JobDiscoveryResultCard
+        job={result({ salary: { currency: 'USD', interval: 'year' } })}
+        isSaved={false}
+        onToggleSave={jest.fn()}
+        onReport={jest.fn()}
+      />,
     );
     expect(textOf(renderer)).not.toContain('USD');
   });
@@ -191,7 +221,9 @@ describe('JobDiscoveryResultCard', () => {
     act(() => {
       pressHandlers(renderer)[0]();
     });
-    expect(mockOpenExternalLink).toHaveBeenCalledWith('https://boards.example.com/jobs/fallback-path');
+    expect(mockOpenExternalLink).toHaveBeenCalledWith(
+      'https://boards.example.com/jobs/fallback-path',
+    );
   });
 
   it('opens the top-level applyUrl when the source has none of its own', () => {
@@ -210,7 +242,14 @@ describe('JobDiscoveryResultCard', () => {
   });
 
   it('shows the already-saved icon state and label when isSaved is true', () => {
-    const renderer = render(<JobDiscoveryResultCard job={result()} isSaved onToggleSave={jest.fn()} onReport={jest.fn()} />);
+    const renderer = render(
+      <JobDiscoveryResultCard
+        job={result()}
+        isSaved
+        onToggleSave={jest.fn()}
+        onReport={jest.fn()}
+      />,
+    );
     expect(() => pressHandlerByLabel(renderer, 'Remove from saved')).not.toThrow();
   });
 
@@ -219,7 +258,15 @@ describe('JobDiscoveryResultCard', () => {
       render(
         <JobDiscoveryResultCard
           job={result({
-            locations: [{ raw: 'BCN office', placeId: '3128760', countryCode: 'ES', region: 'Catalonia', locality: 'Barcelona' }],
+            locations: [
+              {
+                raw: 'BCN office',
+                placeId: '3128760',
+                countryCode: 'ES',
+                region: 'Catalonia',
+                locality: 'Barcelona',
+              },
+            ],
           })}
           isSaved={false}
           onToggleSave={jest.fn()}
@@ -232,7 +279,12 @@ describe('JobDiscoveryResultCard', () => {
 
     const crawled = textOf(
       render(
-        <JobDiscoveryResultCard job={result({ locations: [{ raw: 'Somewhere nice' }] })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />,
+        <JobDiscoveryResultCard
+          job={result({ locations: [{ raw: 'Somewhere nice' }] })}
+          isSaved={false}
+          onToggleSave={jest.fn()}
+          onReport={jest.fn()}
+        />,
       ),
     );
     expect(crawled).toContain('Somewhere nice');
@@ -258,17 +310,44 @@ describe('JobDiscoveryResultCard', () => {
 
   it('formats a salary with only a floor, only a ceiling, and neither', () => {
     expect(
-      textOf(render(<JobDiscoveryResultCard job={result({ salary: { min: 50000, currency: 'USD', interval: 'year' } })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />)),
+      textOf(
+        render(
+          <JobDiscoveryResultCard
+            job={result({ salary: { min: 50000, currency: 'USD', interval: 'year' } })}
+            isSaved={false}
+            onToggleSave={jest.fn()}
+            onReport={jest.fn()}
+          />,
+        ),
+      ),
     ).toContain('50,000+');
     expect(
-      textOf(render(<JobDiscoveryResultCard job={result({ salary: { max: 90000, currency: 'USD', interval: 'year' } })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />)),
+      textOf(
+        render(
+          <JobDiscoveryResultCard
+            job={result({ salary: { max: 90000, currency: 'USD', interval: 'year' } })}
+            isSaved={false}
+            onToggleSave={jest.fn()}
+            onReport={jest.fn()}
+          />,
+        ),
+      ),
     ).toContain('Up to 90,000');
     expect(
-      textOf(render(<JobDiscoveryResultCard job={result({ salary: undefined })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />)),
+      textOf(
+        render(
+          <JobDiscoveryResultCard
+            job={result({ salary: undefined })}
+            isSaved={false}
+            onToggleSave={jest.fn()}
+            onReport={jest.fn()}
+          />,
+        ),
+      ),
     ).not.toMatch(/\d,\d{3}/);
   });
 
-  it('routes to an in-app path for a first-party result on this app\'s own web origin, and hides the report button', () => {
+  it("routes to an in-app path for a first-party result on this app's own web origin, and hides the report button", () => {
     const renderer = render(
       <JobDiscoveryResultCard
         job={result({
@@ -321,7 +400,9 @@ describe('JobDiscoveryResultCard', () => {
     act(() => {
       pressHandlers(renderer)[0]();
     });
-    expect(mockOpenExternalLink).toHaveBeenCalledWith('https://boards.example.com/jobs/widget-engineer');
+    expect(mockOpenExternalLink).toHaveBeenCalledWith(
+      'https://boards.example.com/jobs/widget-engineer',
+    );
     expect(mockPush).not.toHaveBeenCalled();
   });
 
@@ -349,7 +430,9 @@ describe('JobDiscoveryResultCard', () => {
     act(() => {
       pressHandlers(renderer)[0]();
     });
-    expect(mockOpenExternalLink).toHaveBeenCalledWith('https://boards.example.com/jobs/widget-engineer/apply');
+    expect(mockOpenExternalLink).toHaveBeenCalledWith(
+      'https://boards.example.com/jobs/widget-engineer/apply',
+    );
   });
 
   it('calls onToggleSave and onReport with the job, and shares the canonical URL', () => {
@@ -357,13 +440,20 @@ describe('JobDiscoveryResultCard', () => {
     const onReport = jest.fn();
     const job = result();
     const renderer = render(
-      <JobDiscoveryResultCard job={job} isSaved={false} onToggleSave={onToggleSave} onReport={onReport} />,
+      <JobDiscoveryResultCard
+        job={job}
+        isSaved={false}
+        onToggleSave={onToggleSave}
+        onReport={onReport}
+      />,
     );
     act(() => pressHandlerByLabel(renderer, 'Save job')());
     expect(onToggleSave).toHaveBeenCalledWith(job);
 
     act(() => pressHandlerByLabel(renderer, 'Share')());
-    expect(mockShareLink).toHaveBeenCalledWith(expect.objectContaining({ title: 'Widget Engineer', url: job.canonicalUrl }));
+    expect(mockShareLink).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Widget Engineer', url: job.canonicalUrl }),
+    );
 
     act(() => pressHandlerByLabel(renderer, 'Report')());
     expect(onReport).toHaveBeenCalledWith(job);
@@ -372,7 +462,13 @@ describe('JobDiscoveryResultCard', () => {
   it('renders nothing extra for a listing with no badges, salary or snippet', () => {
     const renderer = render(
       <JobDiscoveryResultCard
-        job={result({ locations: [], workplaceType: undefined, employmentTypes: [], salary: undefined, snippet: undefined })}
+        job={result({
+          locations: [],
+          workplaceType: undefined,
+          employmentTypes: [],
+          salary: undefined,
+          snippet: undefined,
+        })}
         isSaved={false}
         onToggleSave={jest.fn()}
         onReport={jest.fn()}
@@ -394,7 +490,9 @@ describe('ExternalJobReportSheet', () => {
     });
 
     expect(mockReportExternalJob).toHaveBeenCalledWith('doc-1', 'scam');
-    expect(mockToast).toHaveBeenCalledWith(expect.stringContaining('reported'), { type: 'success' });
+    expect(mockToast).toHaveBeenCalledWith(expect.stringContaining('reported'), {
+      type: 'success',
+    });
     expect(onClose).toHaveBeenCalled();
   });
 

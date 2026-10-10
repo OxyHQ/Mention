@@ -45,7 +45,10 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest, users: { getMany: mocks.getUsersByIds } }),
+  getServiceOxyClient: () => ({
+    serviceRequest: mocks.serviceRequest,
+    users: { getMany: mocks.getUsersByIds },
+  }),
 }));
 
 vi.mock('@oxy.so/federation/node', async (importOriginal) => {
@@ -90,7 +93,13 @@ import { postImports } from '../../../db/schema/imports';
 import { postEquivalenceClusters, postEquivalenceMembers, posts } from '../../../db/schema/posts';
 import { federatedFollows } from '../../../db/schema/federation';
 import { findClusterByPostId } from '../../../db/posts/postEquivalenceRepository';
-import { clearFederationScope, federationScope, seedActor, seedFollow, seedPost } from '../../helpers/federationFixtures';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+  seedPost,
+} from '../../helpers/federationFixtures';
 import '../../../connectors/activitypub/inbox.service';
 import { parseInboundActivity } from '../../../connectors/activitypub/apSchemas';
 import { applyInboundMove, recordRemoteMove } from '../../../connectors/activitypub/move.service';
@@ -111,7 +120,14 @@ const MOVE_ID = `${OLD_ACTOR}#moves/1`;
 const MOVE = { activityId: MOVE_ID, oldActorUri: OLD_ACTOR, targetActorUri: TARGET_ACTOR };
 
 function move(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { id: MOVE_ID, type: 'Move', actor: OLD_ACTOR, object: OLD_ACTOR, target: TARGET_ACTOR, ...overrides };
+  return {
+    id: MOVE_ID,
+    type: 'Move',
+    actor: OLD_ACTOR,
+    object: OLD_ACTOR,
+    target: TARGET_ACTOR,
+    ...overrides,
+  };
 }
 
 function oxyApplied(overrides: Record<string, unknown> = {}) {
@@ -157,14 +173,16 @@ async function importedPost(statusId: string, text: string) {
     authorship: [{ oxyUserId: TARGET, role: 'owner', status: 'accepted' }],
     content: { variants: [{ source: 'author', text, tag: 'en' }] },
   });
-  await getDb().insert(postImports).values({
-    postId: post.id,
-    oxyUserId: TARGET,
-    platform: 'mastodon',
-    sourceId: statusId,
-    sourceUrl: `${scope.origin}/@alice/${statusId}`,
-    importBatchId: 'move-job-1',
-  });
+  await getDb()
+    .insert(postImports)
+    .values({
+      postId: post.id,
+      oxyUserId: TARGET,
+      platform: 'mastodon',
+      sourceId: statusId,
+      sourceUrl: `${scope.origin}/@alice/${statusId}`,
+      importBatchId: 'move-job-1',
+    });
   trackedPostIds.push(post.id);
   return post;
 }
@@ -186,11 +204,20 @@ beforeEach(() => {
 
 afterEach(async () => {
   const members = trackedPostIds.length
-    ? await getDb().select({ clusterId: postEquivalenceMembers.clusterId }).from(postEquivalenceMembers)
-      .where(inArray(postEquivalenceMembers.postId, trackedPostIds))
+    ? await getDb()
+        .select({ clusterId: postEquivalenceMembers.clusterId })
+        .from(postEquivalenceMembers)
+        .where(inArray(postEquivalenceMembers.postId, trackedPostIds))
     : [];
   if (members.length) {
-    await getDb().delete(postEquivalenceClusters).where(inArray(postEquivalenceClusters.id, members.map((m) => m.clusterId)));
+    await getDb()
+      .delete(postEquivalenceClusters)
+      .where(
+        inArray(
+          postEquivalenceClusters.id,
+          members.map((m) => m.clusterId),
+        ),
+      );
   }
   trackedPostIds.splice(0);
   await clearFederationScope(scope);
@@ -199,7 +226,9 @@ afterEach(async () => {
 describe('Move schema', () => {
   it('validates a Move with bare or embedded references (it used to be dropped as invalid)', () => {
     expect(parseInboundActivity(move()).ok).toBe(true);
-    expect(parseInboundActivity(move({ target: { id: TARGET_ACTOR, type: 'Person' } })).ok).toBe(true);
+    expect(parseInboundActivity(move({ target: { id: TARGET_ACTOR, type: 'Person' } })).ok).toBe(
+      true,
+    );
     expect(parseInboundActivity(move({ target: undefined })).ok).toBe(false);
     expect(parseInboundActivity(move({ id: undefined })).ok).toBe(false);
   });
@@ -212,7 +241,12 @@ describe('inbound Move → Oxy', () => {
 
   it('forwards the Move to POST /federation/move', async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
 
     await applyInboundMove(MOVE);
 
@@ -226,16 +260,24 @@ describe('inbound Move → Oxy', () => {
 
   it('logs a 4xx refusal with its code and drops it (the job succeeds, nothing is adopted)', async () => {
     mocks.serviceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
     const copy = await federatedCopy('1', 'hello from mastodon');
 
     await expect(applyInboundMove(MOVE)).resolves.toBeUndefined();
 
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('[Federation] Move refused by Oxy', expect.objectContaining({
-      code: 'alias_missing',
-      status: 422,
-      activityId: MOVE_ID,
-    }));
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      '[Federation] Move refused by Oxy',
+      expect.objectContaining({
+        code: 'alias_missing',
+        status: 422,
+        activityId: MOVE_ID,
+      }),
+    );
     expect((await row(copy.id)).oxyUserId).toBe(SHADOW);
   });
 
@@ -253,7 +295,12 @@ describe('inbound Move → Oxy', () => {
 describe('adoption after Oxy applies the Move', () => {
   it('reattributes the old actor posts and collapses a matching import under the federated copy', async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
     const copy = await federatedCopy('1', 'hello from mastodon');
     const onlyFederated = await federatedCopy('2', 'never imported');
     const reply = await seedPost(scope, {
@@ -287,14 +334,28 @@ describe('adoption after Oxy applies the Move', () => {
     // The same Move again (another inbox, or a retry): Oxy replays, nothing changes.
     mocks.serviceRequest.mockResolvedValue(oxyApplied({ replayed: true }));
     await applyInboundMove(MOVE);
-    const clusters = await getDb().select({ clusterId: postEquivalenceMembers.clusterId }).from(postEquivalenceMembers)
-      .where(inArray(postEquivalenceMembers.postId, [copy.id, duplicate.id, onlyImported.id, onlyFederated.id]));
+    const clusters = await getDb()
+      .select({ clusterId: postEquivalenceMembers.clusterId })
+      .from(postEquivalenceMembers)
+      .where(
+        inArray(postEquivalenceMembers.postId, [
+          copy.id,
+          duplicate.id,
+          onlyImported.id,
+          onlyFederated.id,
+        ]),
+      );
     expect(new Set(clusters.map((c) => c.clusterId)).size).toBe(1);
   });
 
   it('is reversible: projecting the source back splits the pair and shows both posts', async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
     const copy = await federatedCopy('1', 'hello from mastodon');
     const duplicate = await importedPost('1', 'hello from mastodon');
     await applyInboundMove(MOVE);
@@ -311,12 +372,21 @@ describe('adoption after Oxy applies the Move', () => {
 
   it('collapses an import that arrives after the Move under the copy the Move adopted', async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
     const copy = await federatedCopy('1', 'hello from mastodon');
     await applyInboundMove(MOVE);
 
     const late = await importedPost('1', 'hello from mastodon');
-    const result = await collapseImportedCopies({ oxyUserId: TARGET, actorUris: [OLD_ACTOR], importedPostIds: [late.id] });
+    const result = await collapseImportedCopies({
+      oxyUserId: TARGET,
+      actorUris: [OLD_ACTOR],
+      importedPostIds: [late.id],
+    });
 
     expect(result.clustered).toBe(1);
     expect((await row(late.id)).crosspostCollapsed).toBe(true);
@@ -326,26 +396,51 @@ describe('adoption after Oxy applies the Move', () => {
   it('adopts nothing when Mention never cached the old actor', async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await expect(applyInboundMove(MOVE)).resolves.toBeUndefined();
-    expect(mocks.loggerInfo).toHaveBeenCalledWith('[Federation] Move applied', expect.objectContaining({
-      adoptionSkipped: 'actor_not_cached',
-      postsReattributed: 0,
-    }));
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      '[Federation] Move applied',
+      expect.objectContaining({
+        adoptionSkipped: 'actor_not_cached',
+        postsReattributed: 0,
+      }),
+    );
   });
 });
 
 describe('local follows of the old actor', () => {
-  it('sends each local follower\'s Undo(Follow) to the old actor and removes the edge, once', async () => {
+  it("sends each local follower's Undo(Follow) to the old actor and removes the edge, once", async () => {
     mocks.serviceRequest.mockResolvedValue(oxyApplied());
-    await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'alice',
+      uri: OLD_ACTOR,
+      oxyUserId: SHADOW,
+      lastFetchedAt: new Date(),
+    });
     const bob = scope.user('bob');
     const carol = scope.user('carol');
     const unknown = scope.user('unknown');
-    await seedFollow(scope, { localUserId: bob, remoteActorUri: OLD_ACTOR, direction: 'outbound', activityId: `${bob}/follows/1` });
-    await seedFollow(scope, { localUserId: carol, remoteActorUri: OLD_ACTOR, direction: 'outbound', status: 'pending' });
-    await seedFollow(scope, { localUserId: unknown, remoteActorUri: OLD_ACTOR, direction: 'outbound' });
+    await seedFollow(scope, {
+      localUserId: bob,
+      remoteActorUri: OLD_ACTOR,
+      direction: 'outbound',
+      activityId: `${bob}/follows/1`,
+    });
+    await seedFollow(scope, {
+      localUserId: carol,
+      remoteActorUri: OLD_ACTOR,
+      direction: 'outbound',
+      status: 'pending',
+    });
+    await seedFollow(scope, {
+      localUserId: unknown,
+      remoteActorUri: OLD_ACTOR,
+      direction: 'outbound',
+    });
     // The old actor following bob is not bob following it: untouched.
     await seedFollow(scope, { localUserId: bob, remoteActorUri: OLD_ACTOR, direction: 'inbound' });
-    mocks.getUsersByIds.mockResolvedValue([{ id: bob, username: 'bob' }, { id: carol, username: 'carol' }]);
+    mocks.getUsersByIds.mockResolvedValue([
+      { id: bob, username: 'bob' },
+      { id: carol, username: 'carol' },
+    ]);
     const undo = vi.spyOn(deliveryService, 'sendUndoFollow').mockResolvedValue(true);
 
     await applyInboundMove(MOVE);
@@ -359,10 +454,12 @@ describe('local follows of the old actor', () => {
       .from(federatedFollows)
       .where(eq(federatedFollows.remoteActorUri, OLD_ACTOR));
     // A user Oxy did not return keeps the edge rather than losing it without an Undo.
-    expect(remaining).toEqual(expect.arrayContaining([
-      { localUserId: bob, direction: 'inbound' },
-      { localUserId: unknown, direction: 'outbound' },
-    ]));
+    expect(remaining).toEqual(
+      expect.arrayContaining([
+        { localUserId: bob, direction: 'inbound' },
+        { localUserId: unknown, direction: 'outbound' },
+      ]),
+    );
     expect(remaining).toHaveLength(2);
 
     // Replayed: nothing left to undo for the users already handled.
@@ -375,7 +472,11 @@ describe('local follows of the old actor', () => {
 
   it('sends nothing when Oxy refuses the Move', async () => {
     mocks.serviceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
-    await seedFollow(scope, { localUserId: scope.user('bob'), remoteActorUri: OLD_ACTOR, direction: 'outbound' });
+    await seedFollow(scope, {
+      localUserId: scope.user('bob'),
+      remoteActorUri: OLD_ACTOR,
+      direction: 'outbound',
+    });
     const undo = vi.spyOn(deliveryService, 'sendUndoFollow');
 
     await applyInboundMove(MOVE);
@@ -397,7 +498,9 @@ describe('a move to another server (remote → remote)', () => {
   it('records the target on the old actor when the target lists it as an alias', async () => {
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW });
     const target = await seedTarget([OLD_ACTOR]);
-    const fetch = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue({ ...target, _id: target.id });
+    const fetch = vi
+      .spyOn(actorService, 'fetchRemoteActor')
+      .mockResolvedValue({ ...target, _id: target.id });
     mocks.serviceRequest.mockRejectedValue(oxyError(422, 'target_not_local'));
 
     await applyInboundMove(REMOTE_MOVE);
@@ -406,7 +509,11 @@ describe('a move to another server (remote → remote)', () => {
     expect(fetch).toHaveBeenCalledWith(NEW_ACTOR);
     expect((await findActorByUri(OLD_ACTOR))?.movedTo).toBe(NEW_ACTOR);
     // Oxy still gets the Move; its refusal changes nothing recorded here.
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/move', expect.anything());
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/federation/move',
+      expect.anything(),
+    );
     // The profile page is told where the account went, by the new handle.
     expect((await loadRemoteProfileStats(SHADOW))?.movedTo).toEqual({
       handle: `alice-new@${scope.domain}`,
@@ -418,7 +525,9 @@ describe('a move to another server (remote → remote)', () => {
   it('refuses a move whose target does not name the old actor in alsoKnownAs', async () => {
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW });
     const target = await seedTarget([]);
-    const fetch = vi.spyOn(actorService, 'fetchRemoteActor').mockResolvedValue({ ...target, _id: target.id });
+    const fetch = vi
+      .spyOn(actorService, 'fetchRemoteActor')
+      .mockResolvedValue({ ...target, _id: target.id });
 
     await expect(recordRemoteMove(REMOTE_MOVE)).resolves.toBe('alias_missing');
     expect((await findActorByUri(OLD_ACTOR))?.movedTo).toBeUndefined();

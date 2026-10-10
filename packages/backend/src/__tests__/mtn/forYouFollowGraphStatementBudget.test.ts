@@ -108,8 +108,16 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   // A MUTUAL federated edge: the viewer follows the actor and is followed back.
   await seedActor(scope, { username: 'mutual', uri: MUTUAL_ACTOR, oxyUserId: 'fedmutual' });
-  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'outbound', status: 'accepted' });
-  await seedFollow(scope, { remoteActorUri: MUTUAL_ACTOR, direction: 'inbound', status: 'accepted' });
+  await seedFollow(scope, {
+    remoteActorUri: MUTUAL_ACTOR,
+    direction: 'outbound',
+    status: 'accepted',
+  });
+  await seedFollow(scope, {
+    remoteActorUri: MUTUAL_ACTOR,
+    direction: 'inbound',
+    status: 'accepted',
+  });
   capturedContext = undefined;
   metrics.reset();
 });
@@ -134,8 +142,14 @@ function makeRes() {
   return {
     statusCode: 200,
     body: undefined as unknown,
-    status(code: number) { this.statusCode = code; return this; },
-    json(body: unknown) { this.body = body; return this; },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+      return this;
+    },
   };
 }
 

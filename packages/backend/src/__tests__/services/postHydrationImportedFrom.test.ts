@@ -99,14 +99,16 @@ describe('PostHydrationService — importedFrom', () => {
   it('names the source platform on the imported post and on no other', async () => {
     const imported = await seedPost(scope, { oxyUserId: AUTHOR_ID });
     const native = await seedPost(scope, { oxyUserId: AUTHOR_ID });
-    await getDb().insert(postImports).values({
-      postId: imported.id,
-      oxyUserId: AUTHOR_ID,
-      platform: 'mastodon',
-      sourceId: `${scope.name}-1`,
-      sourceUrl: 'https://mastodon.example/@author/1',
-      importBatchId: `${scope.name}-batch`,
-    });
+    await getDb()
+      .insert(postImports)
+      .values({
+        postId: imported.id,
+        oxyUserId: AUTHOR_ID,
+        platform: 'mastodon',
+        sourceId: `${scope.name}-1`,
+        sourceUrl: 'https://mastodon.example/@author/1',
+        importBatchId: `${scope.name}-batch`,
+      });
 
     const hydrated = await hydrate([imported, native]);
     const byId = new Map(hydrated.map((post) => [post.id, post]));
@@ -123,15 +125,17 @@ describe('PostHydrationService — importedFrom', () => {
 
   it("renders an imported post's content warning as its spoiler label", async () => {
     const imported = await seedPost(scope, { oxyUserId: AUTHOR_ID });
-    await getDb().insert(postImports).values({
-      postId: imported.id,
-      oxyUserId: AUTHOR_ID,
-      platform: 'bluesky',
-      sourceId: `${scope.name}-2`,
-      sourceUrl: 'https://bsky.app/profile/author/post/2',
-      contentWarning: 'spoilers for the finale',
-      importBatchId: `${scope.name}-batch`,
-    });
+    await getDb()
+      .insert(postImports)
+      .values({
+        postId: imported.id,
+        oxyUserId: AUTHOR_ID,
+        platform: 'bluesky',
+        sourceId: `${scope.name}-2`,
+        sourceUrl: 'https://bsky.app/profile/author/post/2',
+        contentWarning: 'spoilers for the finale',
+        importBatchId: `${scope.name}-batch`,
+      });
 
     const [hydrated] = await hydrate([imported]);
     expect(hydrated?.metadata.spoilerText).toBe('spoilers for the finale');

@@ -82,8 +82,7 @@ function render(element: React.ReactElement): ReactTestRenderer {
 /** The channel marker, wherever it ended up in the tree. */
 function marker(renderer: ReactTestRenderer): ReactTestInstance[] {
   return renderer.root.findAll(
-    (node) =>
-      typeof node.type === 'string' && node.props?.accessibilityLabel === CHANNEL_LABEL,
+    (node) => typeof node.type === 'string' && node.props?.accessibilityLabel === CHANNEL_LABEL,
     { deep: true },
   );
 }

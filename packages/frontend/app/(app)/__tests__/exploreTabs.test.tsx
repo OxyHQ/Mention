@@ -15,7 +15,10 @@ jest.mock('expo-router', () => ({
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({
-  Tabs: (props: TabsProps) => { mockTabsProps = props; return null; },
+  Tabs: (props: TabsProps) => {
+    mockTabsProps = props;
+    return null;
+  },
   TabsTrigger: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
@@ -24,7 +27,10 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/assets/icons/search-icon', () => ({ Search: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/context/ScreenReselectContext', () => ({
-  useTabSelect: <T,>(active: T, select: (tab: T) => void) => (tab: T) => (tab === active ? mockReselect() : select(tab)),
+  useTabSelect:
+    <T,>(active: T, select: (tab: T) => void) =>
+    (tab: T) =>
+      tab === active ? mockReselect() : select(tab),
 }));
 
 // The mocks above must be installed first.
@@ -32,7 +38,9 @@ import ExploreLayout from '../explore/_layout';
 
 function renderAt(pathname: string) {
   mockPathname = pathname;
-  act(() => { TestRenderer.create(<ExploreLayout />); });
+  act(() => {
+    TestRenderer.create(<ExploreLayout />);
+  });
   if (!mockTabsProps) throw new Error('Explore rendered no tab strip');
   return mockTabsProps;
 }

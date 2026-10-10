@@ -48,33 +48,40 @@ vi.mock('../../services/search/hashtagSearch', async () => {
     '../../services/search/hashtagSearch',
   );
   const postgres = await vi.importActual<typeof import('../../db/postgres')>('../../db/postgres');
-  const { isStatementTimeout } = await vi.importActual<typeof import('../../utils/withStatementTimeout')>(
-    '../../utils/withStatementTimeout',
-  );
+  const { isStatementTimeout } = await vi.importActual<
+    typeof import('../../utils/withStatementTimeout')
+  >('../../utils/withStatementTimeout');
   return {
     ...actual,
     // Sleeps on whichever connection the route hands it, falling back to the
     // pool exactly as the service's own default does — so a route that stops
     // passing the budgeted transaction gets an unbounded sleep, not an error.
-    searchHashtagsWithCounts: vi.fn(async (
-      _query: string,
-      _offset: number,
-      _limit: number,
-      db: import('../../db/postgres').DatabaseOrTransaction = postgres.getDb(),
-    ) => {
-      hashtagCalls.count += 1;
-      const started = Date.now();
-      // Adopted into ONE promise: drizzle's query is a lazy thenable that
-      // executes again on every `then`, and the second run would meet a
-      // transaction the first one's cancellation had already aborted.
-      const query = Promise.resolve(db.execute(sql`select pg_sleep(${SLEEP_SECONDS})`));
-      hashtagCalls.settled.push(query.then(
-        () => ({ tookMs: Date.now() - started, cancelledByPostgres: false }),
-        (error: unknown) => ({ tookMs: Date.now() - started, cancelledByPostgres: isStatementTimeout(error) }),
-      ));
-      await query;
-      return { results: [], hasMore: false };
-    }),
+    searchHashtagsWithCounts: vi.fn(
+      async (
+        _query: string,
+        _offset: number,
+        _limit: number,
+        db: import('../../db/postgres').DatabaseOrTransaction = postgres.getDb(),
+      ) => {
+        hashtagCalls.count += 1;
+        const started = Date.now();
+        // Adopted into ONE promise: drizzle's query is a lazy thenable that
+        // executes again on every `then`, and the second run would meet a
+        // transaction the first one's cancellation had already aborted.
+        const query = Promise.resolve(db.execute(sql`select pg_sleep(${SLEEP_SECONDS})`));
+        hashtagCalls.settled.push(
+          query.then(
+            () => ({ tookMs: Date.now() - started, cancelledByPostgres: false }),
+            (error: unknown) => ({
+              tookMs: Date.now() - started,
+              cancelledByPostgres: isStatementTimeout(error),
+            }),
+          ),
+        );
+        await query;
+        return { results: [], hasMore: false };
+      },
+    ),
   };
 });
 

@@ -34,12 +34,15 @@ jest.mock('react-i18next', () => {
     useTranslation: () => ({
       t: (key: string, options: Record<string, unknown> = {}) => {
         const count = options.count;
-        const suffixed = typeof count === 'number' ? `${key}_${count === 1 ? 'one' : 'other'}` : key;
+        const suffixed =
+          typeof count === 'number' ? `${key}_${count === 1 ? 'one' : 'other'}` : key;
         const template = messages[suffixed] ?? messages[key];
         if (template === undefined) {
           throw new Error(`Missing i18n key: ${key}`);
         }
-        return template.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(options[name] ?? ''));
+        return template.replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+          String(options[name] ?? ''),
+        );
       },
     }),
   };

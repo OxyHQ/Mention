@@ -53,7 +53,10 @@ const MAX_PARTICIPANT_AVATARS = 10;
  * The faces for one of the room's avatar piles, read from the same user cache
  * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
  */
-function useRoomAvatarItems(userIds: string[], oxyServices: FileUrlResolver & { users: { get(id: string): Promise<User> } }): AvatarGroupItem[] {
+function useRoomAvatarItems(
+  userIds: string[],
+  oxyServices: FileUrlResolver & { users: { get(id: string): Promise<User> } },
+): AvatarGroupItem[] {
   const results = useQueries({
     queries: userIds.map((userId) => ({
       queryKey: queryKeys.users.detail(userId),
@@ -93,7 +96,9 @@ const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUr
       <View className="flex-row items-center">
         <Avatar size={48} source={avatarUri} shape="squircle" />
         <View className="flex-1 ml-3">
-          <BloomText className="text-foreground text-base leading-6 font-semibold">{displayName}</BloomText>
+          <BloomText className="text-foreground text-base leading-6 font-semibold">
+            {displayName}
+          </BloomText>
           {profile?.username && (
             <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
           )}
@@ -198,7 +203,9 @@ const RoomDetailScreen = () => {
       bottomSheet.openBottomSheet(false);
       const confirmed = await confirmDialog({
         title: t('agora.leaveRoomConfirmTitle', { defaultValue: 'Leave room' }),
-        message: t('agora.leaveRoomConfirmMessage', { defaultValue: 'Are you sure you want to leave this room?' }),
+        message: t('agora.leaveRoomConfirmMessage', {
+          defaultValue: 'Are you sure you want to leave this room?',
+        }),
         okText: t('agora.leaveRoom', { defaultValue: 'Leave room' }),
         cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
         destructive: true,
@@ -211,7 +218,9 @@ const RoomDetailScreen = () => {
         loadRoom();
         toast(t('agora.leftRoom', { defaultValue: 'You have left the room' }), { type: 'success' });
       } else {
-        toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), { type: 'error' });
+        toast(t('agora.leaveRoomFailed', { defaultValue: 'Failed to leave room' }), {
+          type: 'error',
+        });
       }
       setActionLoading(false);
     };
@@ -225,12 +234,19 @@ const RoomDetailScreen = () => {
             bottomSheet.openBottomSheet(false);
             const success = await reportService.reportRoom(id, categories, details);
             if (success) {
-              toast(t('agora.reportThankYou', { defaultValue: 'Thank you for helping keep our community safe.' }), { type: 'success' });
+              toast(
+                t('agora.reportThankYou', {
+                  defaultValue: 'Thank you for helping keep our community safe.',
+                }),
+                { type: 'success' },
+              );
             } else {
-              toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), { type: 'error' });
+              toast(t('agora.reportFailed', { defaultValue: 'Failed to submit report.' }), {
+                type: 'error',
+              });
             }
           }}
-        />
+        />,
       );
       bottomSheet.openBottomSheet(true);
     };
@@ -271,13 +287,16 @@ const RoomDetailScreen = () => {
   // Resolve user IDs to real profiles. Hooks must run on every render, so this
   // stays above the loading / error branches.
   const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter(
-    (userId): userId is string => Boolean(userId)
+    (userId): userId is string => Boolean(userId),
   );
   useRoomUsers(allUserIds);
 
   const participants = room?.participants ?? [];
   const speakers = room?.speakers ?? [];
-  const participantItems = useRoomAvatarItems(participants.slice(0, MAX_PARTICIPANT_AVATARS), oxyServices);
+  const participantItems = useRoomAvatarItems(
+    participants.slice(0, MAX_PARTICIPANT_AVATARS),
+    oxyServices,
+  );
   const speakerItems = useRoomAvatarItems(speakers.slice(0, MAX_PARTICIPANT_AVATARS), oxyServices);
 
   return (
@@ -294,7 +313,8 @@ const RoomDetailScreen = () => {
           actions={
             room ? (
               <Button
-                appearance="subtle" tone="neutral"
+                appearance="subtle"
+                tone="neutral"
                 iconOnly
                 leadingIcon={RiMoreFill}
                 accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
@@ -407,22 +427,27 @@ const RoomDetailScreen = () => {
               {room.stats && (
                 <Card
                   radius="radius-12"
-                  className="mx-4 mt-6 flex-row items-center p-4" appearance="outline"
+                  className="mx-4 mt-6 flex-row items-center p-4"
+                  appearance="outline"
                 >
                   <View className="flex-1 items-center">
                     <BloomText variant="title-1-semibold">
                       {room.stats.peakListeners || 0}
                     </BloomText>
-                    <BloomText variant="body-2-regular" style={{ marginTop: 4, color: theme.colors.textSecondary }}>
+                    <BloomText
+                      variant="body-2-regular"
+                      style={{ marginTop: 4, color: theme.colors.textSecondary }}
+                    >
                       Peak listeners
                     </BloomText>
                   </View>
                   <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />
                   <View className="flex-1 items-center">
-                    <BloomText variant="title-1-semibold">
-                      {room.stats.totalJoined || 0}
-                    </BloomText>
-                    <BloomText variant="body-2-regular" style={{ marginTop: 4, color: theme.colors.textSecondary }}>
+                    <BloomText variant="title-1-semibold">{room.stats.totalJoined || 0}</BloomText>
+                    <BloomText
+                      variant="body-2-regular"
+                      style={{ marginTop: 4, color: theme.colors.textSecondary }}
+                    >
                       Total joined
                     </BloomText>
                   </View>
@@ -451,7 +476,9 @@ const RoomDetailScreen = () => {
                   disabled={actionLoading}
                 >
                   <RiPlayFill width={20} height={20} fill={theme.colors.primaryForeground} />
-                  <Text className="text-base font-semibold text-primary-foreground">Start Room</Text>
+                  <Text className="text-base font-semibold text-primary-foreground">
+                    Start Room
+                  </Text>
                 </TouchableOpacity>
               )}
               {!isHost && isScheduled && (

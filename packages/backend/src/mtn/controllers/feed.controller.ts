@@ -6,7 +6,12 @@
  */
 
 import { Response } from 'express';
-import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
+import {
+  isValidFeedDescriptor,
+  MtnConfig,
+  createPostUri,
+  parseFeedDescriptor,
+} from '@mention/shared-types';
 import type {
   FeedDescriptor,
   FeedPostSlice,
@@ -19,7 +24,11 @@ import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
-import { loadViewerFeedContext, loadViewerLanguages, resolveViewerBaseLanguages } from '../feed/feedContext';
+import {
+  loadViewerFeedContext,
+  loadViewerLanguages,
+  resolveViewerBaseLanguages,
+} from '../feed/feedContext';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
@@ -27,7 +36,10 @@ import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
 import { planInterstitials } from '../feed/interstitials/planInterstitials';
-import { parseInterstitialEvent, recordInterstitialEvent } from '../feed/interstitials/interstitialTelemetry';
+import {
+  parseInterstitialEvent,
+  recordInterstitialEvent,
+} from '../feed/interstitials/interstitialTelemetry';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
@@ -55,7 +67,9 @@ import { assignThreadState } from '../../services/ThreadSlicingService';
  * `feedgen|<uri>` and the popular fallback, and re-flattening one of those wipes
  * its entire page to `items: []`.
  */
-function syncFlattenedItemsWithSlices(response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>): void {
+function syncFlattenedItemsWithSlices(
+  response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>,
+): void {
   response.items = FeedResponseBuilder.flattenSlicesToItems(response.slices);
   response.totalCount = response.items.length;
 }
@@ -149,8 +163,8 @@ async function getFederatedMutualIds(
     // Shared with the feed context's follow-graph merge when the caller has that
     // read in flight already — the outbound half of this pair was byte-identical
     // to it on every authenticated request.
-    acceptedOutboundUris
-      ?? distinctRemoteActorUris({ localUserId, direction: 'outbound', statuses: ['accepted'] }),
+    acceptedOutboundUris ??
+      distinctRemoteActorUris({ localUserId, direction: 'outbound', statuses: ['accepted'] }),
     distinctRemoteActorUris({ localUserId, direction: 'inbound', statuses: ['accepted'] }),
   ]);
   const outboundSet = new Set(outbound);
@@ -215,7 +229,9 @@ interface FollowsOfFollowsCapable {
 }
 
 function supportsFollowsOfFollows(client: unknown): client is FollowsOfFollowsCapable {
-  return typeof (client as { getFollowsOfFollowsIds?: unknown }).getFollowsOfFollowsIds === 'function';
+  return (
+    typeof (client as { getFollowsOfFollowsIds?: unknown }).getFollowsOfFollowsIds === 'function'
+  );
 }
 
 /**
@@ -236,7 +252,6 @@ async function computeFriendsOfFriendsIds(): Promise<string[]> {
     return [];
   }
 }
-
 
 /**
  * Resolve the one descriptor still served by a legacy FeedAPI: `feedgen|uri`
@@ -298,18 +313,20 @@ function parseVideoFeedFilters(
 ): FeedEngineContext['videoFilters'] | undefined {
   if (parseFeedDescriptor(descriptor).source !== 'videos') return undefined;
 
-  const orientationRaw = typeof query.orientation === 'string' ? query.orientation.trim().toLowerCase() : '';
-  const orientation = orientationRaw === 'portrait'
-    || orientationRaw === 'landscape'
-    || orientationRaw === 'square'
-    || orientationRaw === 'all'
-    ? orientationRaw
-    : undefined;
+  const orientationRaw =
+    typeof query.orientation === 'string' ? query.orientation.trim().toLowerCase() : '';
+  const orientation =
+    orientationRaw === 'portrait' ||
+    orientationRaw === 'landscape' ||
+    orientationRaw === 'square' ||
+    orientationRaw === 'all'
+      ? orientationRaw
+      : undefined;
 
-  const minDurationRaw = typeof query.minDuration === 'string' ? parseInt(query.minDuration, 10) : NaN;
-  const minDurationSec = Number.isFinite(minDurationRaw) && minDurationRaw > 0
-    ? minDurationRaw
-    : undefined;
+  const minDurationRaw =
+    typeof query.minDuration === 'string' ? parseInt(query.minDuration, 10) : NaN;
+  const minDurationSec =
+    Number.isFinite(minDurationRaw) && minDurationRaw > 0 ? minDurationRaw : undefined;
 
   if (!orientation && minDurationSec === undefined) return undefined;
   return { orientation, minDurationSec };
@@ -341,8 +358,11 @@ class MtnFeedController {
       const descriptor: FeedDescriptor = descriptorParam;
       const cursor = queryString(req.query.cursor);
       const limit = Math.min(
-        Math.max(parseInt(queryString(req.query.limit) ?? '', 10) || MtnConfig.feed.defaultLimit, 1),
-        MtnConfig.feed.maxLimit
+        Math.max(
+          parseInt(queryString(req.query.limit) ?? '', 10) || MtnConfig.feed.defaultLimit,
+          1,
+        ),
+        MtnConfig.feed.maxLimit,
       );
       const videoFilters = parseVideoFeedFilters(descriptor, req.query);
 
@@ -409,16 +429,16 @@ class MtnFeedController {
       // Viewer-private endpoints (blocks/restrictions) must use ONLY the
       // authenticated request client. Graph reads retain the existing singleton
       // fallback so feeds still degrade as they did when no bearer is available.
-      const feedOxyClient = requestOxyClient
-        ?? (getRuntimeOxyClient() as unknown as OxyClient);
+      const feedOxyClient = requestOxyClient ?? (getRuntimeOxyClient() as unknown as OxyClient);
 
       // The Mutuals feed ALWAYS needs the viewer's mutual-follow id set; For You
       // needs it too, but ONLY when the `socialProof` signal is active (Phase 5) —
       // it widens the network-engager set to `following ∪ mutuals`, so mutuals are
       // worth the extra Oxy round trip only then. Resolved for exactly those
       // descriptors so no other feed pays for it.
-      const needsMutuals = !!currentUserId
-        && (feedSource === 'mutuals' || (feedSource === 'for_you' && forYouUsesSocialProof()));
+      const needsMutuals =
+        !!currentUserId &&
+        (feedSource === 'mutuals' || (feedSource === 'for_you' && forYouUsesSocialProof()));
       // The Friends-of-Friends feed needs the viewer's follows-of-follows id set
       // (guarded Oxy optional call). Resolved ONLY for that descriptor.
       const needsFof = !!currentUserId && feedSource === 'friends_of_friends';
@@ -458,15 +478,18 @@ class MtnFeedController {
               oxyClient: requestOxyClient,
             })
           : Promise.resolve(null),
-        loadViewerFeedContext(currentUserId, feedOxyClient, acceptedOutboundFollowUris, requestLanguages),
+        loadViewerFeedContext(
+          currentUserId,
+          feedOxyClient,
+          acceptedOutboundFollowUris,
+          requestLanguages,
+        ),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
         needsMutuals && currentUserId
           ? computeMutualIds(currentUserId, acceptedOutboundFollowUris)
           : Promise.resolve<string[] | null>(null),
-        needsFof
-          ? computeFriendsOfFriendsIds()
-          : Promise.resolve<string[] | null>(null),
+        needsFof ? computeFriendsOfFriendsIds() : Promise.resolve<string[] | null>(null),
       ]);
 
       context.privacyOxyClient = requestOxyClient;
@@ -513,7 +536,9 @@ class MtnFeedController {
       } else {
         const feedApi = resolveLegacyFeed(descriptor);
         if (!feedApi) {
-          res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+          res
+            .status(400)
+            .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
           return;
         }
         response = await feedApi.fetch({ cursor, limit }, context);
@@ -629,8 +654,7 @@ class MtnFeedController {
       const descriptor: FeedDescriptor = descriptorParam;
       const currentUserId = req.user?.id;
       const requestOxyClient = createScopedOxyClient(req);
-      const feedOxyClient = requestOxyClient
-        ?? (getRuntimeOxyClient() as unknown as OxyClient);
+      const feedOxyClient = requestOxyClient ?? (getRuntimeOxyClient() as unknown as OxyClient);
 
       // `?lang=` then `Accept-Language`. Synchronous; the account rung below wins
       // when it has anything.
@@ -704,14 +728,18 @@ class MtnFeedController {
       } else {
         const feedApi = resolveLegacyFeed(descriptor);
         if (!feedApi) {
-          res.status(400).json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+          res
+            .status(400)
+            .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
           return;
         }
         latest = await feedApi.peekLatest(context);
       }
       res.json({
         success: true,
-        data: latest ? { uri: createPostUri(String(latest.user?.id), String(latest.id)), post: latest } : null,
+        data: latest
+          ? { uri: createPostUri(String(latest.user?.id), String(latest.id)), post: latest }
+          : null,
       });
     } catch (error) {
       logger.error('[MtnFeedController] peekLatest error', error);

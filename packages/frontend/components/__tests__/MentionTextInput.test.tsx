@@ -4,10 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { logger } from '@oxy.so/core/logger';
 import MentionTextInput from '../MentionTextInput';
 import { MentionSearchContext } from '@/context/MentionSearchContext';
-import {
-  reconcileMentionTextValue,
-  type MentionTextValue,
-} from '@/utils/mentions';
+import { reconcileMentionTextValue, type MentionTextValue } from '@/utils/mentions';
 import {
   createMentionSearchCache,
   type MentionSearchCache,
@@ -204,7 +201,7 @@ describe('MentionTextInput typed handles', () => {
     expect(fetchUsers).not.toHaveBeenCalled();
   });
 
-  it('offers the session cache\'s results for the handle being typed', async () => {
+  it("offers the session cache's results for the handle being typed", async () => {
     const fetchUsers = jest.fn(async () => [aliceUser, aliciaUser]);
     const cache = createMentionSearchCache(fetchUsers);
     await cache.search('al');
@@ -253,7 +250,9 @@ describe('MentionTextInput typed handles', () => {
     function press(renderer: TestRenderer.ReactTestRenderer, key: string) {
       const preventDefault = jest.fn();
       act(() => {
-        renderer.root.findByType(TextInput).props.onKeyPress({ nativeEvent: { key }, preventDefault });
+        renderer.root
+          .findByType(TextInput)
+          .props.onKeyPress({ nativeEvent: { key }, preventDefault });
       });
       return preventDefault;
     }
@@ -295,14 +294,18 @@ describe('MentionTextInput typed handles', () => {
     type(renderer, 'Hi @al');
     const preventDefault = jest.fn();
     act(() => {
-      renderer.root.findByType(TextInput).props.onKeyPress({ nativeEvent: { key: 'Enter' }, preventDefault });
+      renderer.root
+        .findByType(TextInput)
+        .props.onKeyPress({ nativeEvent: { key: 'Enter' }, preventDefault });
     });
     expect(preventDefault).not.toHaveBeenCalled();
     expect(latestState).toEqual({ text: 'Hi @al', mentions: [] });
   });
 
   it('searches Oxy itself outside a composer session', async () => {
-    mockOxySearch.mockResolvedValue({ data: [{ id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } }] });
+    mockOxySearch.mockResolvedValue({
+      data: [{ id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } }],
+    });
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<ControlledInput initial={EMPTY} />);
@@ -323,7 +326,10 @@ describe('MentionTextInput typed handles', () => {
     failing.reject(new Error('offline'));
     await flush();
     expect(latestState).toEqual({ text: 'Hi @alice ', mentions: [] });
-    expect(warn).toHaveBeenCalledWith('Typed mention lookup failed', expect.objectContaining({ handle: 'alice' }));
+    expect(warn).toHaveBeenCalledWith(
+      'Typed mention lookup failed',
+      expect.objectContaining({ handle: 'alice' }),
+    );
 
     const late = deferred<MentionUser[]>();
     const onValueChange = jest.fn();

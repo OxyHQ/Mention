@@ -22,115 +22,108 @@ import { ProfileHoverCard } from '@/components/ProfileHoverCard';
  */
 
 export interface ListCardData {
-    id: string;
-    uri: string;
-    name: string;
-    description?: string;
-    creator?: {
-        username: string;
-        displayName?: string;
-        avatar?: string | null;
-    };
-    purpose?: 'curatelist' | 'modlist';
-    itemCount?: number;
-    subscriberCount?: number;
+  id: string;
+  uri: string;
+  name: string;
+  description?: string;
+  creator?: {
+    username: string;
+    displayName?: string;
+    avatar?: string | null;
+  };
+  purpose?: 'curatelist' | 'modlist';
+  itemCount?: number;
+  subscriberCount?: number;
 }
 
 export type ListCardVariant = 'card' | 'row';
 
 interface ListCardProps {
-    list: ListCardData;
-    onPress?: () => void;
-    showPinButton?: boolean;
-    variant?: ListCardVariant;
+  list: ListCardData;
+  onPress?: () => void;
+  showPinButton?: boolean;
+  variant?: ListCardVariant;
 }
 
 /**
  * Main ListCard component
  */
 export function ListCard({
-    list,
-    onPress,
-    showPinButton = false,
-    variant = 'card',
+  list,
+  onPress,
+  showPinButton = false,
+  variant = 'card',
 }: ListCardProps) {
-    const router = useRouter();
-    const { t } = useTranslation();
-    const isRow = variant === 'row';
+  const router = useRouter();
+  const { t } = useTranslation();
+  const isRow = variant === 'row';
 
-    const handlePress = () => {
-        if (onPress) {
-            onPress();
-        } else if (list.id) {
-            router.push(`/lists/${list.id}`);
-        }
-    };
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    } else if (list.id) {
+      router.push(`/lists/${list.id}`);
+    }
+  };
 
-    const purposeLabel = list.purpose === 'modlist'
-        ? 'Moderation list'
-        : 'List';
+  const purposeLabel = list.purpose === 'modlist' ? 'Moderation list' : 'List';
 
-    return (
-        <PressableScale
-            onPress={handlePress}
-            className={cn(
-                'w-full',
-                isRow
-                    ? 'px-3 py-3 gap-1 border-b border-border'
-                    : 'bg-card border-border p-4 rounded-xl gap-3',
-            )}
-            style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}>
-            <View className="flex-row items-center gap-3">
-                <Avatar
-                    size={40}
-                    variant={MEDIA_VARIANT_AVATAR}
-                />
-                <View className="flex-1 gap-1">
-                    <Text
-                        className="text-base font-semibold leading-5 text-foreground"
-                        numberOfLines={1}>
-                        {list.name}
-                    </Text>
-                    {list.creator && (
-                        <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
-                            <Text
-                                className="text-muted-foreground text-sm leading-[18px]"
-                                numberOfLines={1}>
-                                {purposeLabel} by @{list.creator.username}
-                            </Text>
-                        </ProfileHoverCard>
-                    )}
-                </View>
-                {showPinButton && (
-                    <View className="items-end min-w-[80px]">
-                        {/* Pin button can be added here if needed */}
-                    </View>
-                )}
-            </View>
-            {list.description && (
-                <Text
-                    className={cn('text-muted-foreground text-sm leading-5', !isRow && 'mt-1')}
-                    numberOfLines={isRow ? 2 : 3}>
-                    {list.description}
-                </Text>
-            )}
-            {(list.itemCount !== undefined || list.subscriberCount !== undefined) && (
-                <View className={cn('flex-row items-center gap-3', !isRow && 'mt-1')}>
-                    {list.itemCount !== undefined && (
-                        <Text className="text-muted-foreground text-sm leading-6 font-semibold">
-                            {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
-                        </Text>
-                    )}
-                    {list.subscriberCount !== undefined && (
-                        <Text className="text-muted-foreground text-sm leading-6 font-semibold">
-                            {t('lists.subscriberCount', {
-                                count: list.subscriberCount,
-                                defaultValue: '{{count}} subscribers',
-                            })}
-                        </Text>
-                    )}
-                </View>
-            )}
-        </PressableScale>
-    );
+  return (
+    <PressableScale
+      onPress={handlePress}
+      className={cn(
+        'w-full',
+        isRow
+          ? 'px-3 py-3 gap-1 border-b border-border'
+          : 'bg-card border-border p-4 rounded-xl gap-3',
+      )}
+      style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}
+    >
+      <View className="flex-row items-center gap-3">
+        <Avatar size={40} variant={MEDIA_VARIANT_AVATAR} />
+        <View className="flex-1 gap-1">
+          <Text className="text-base font-semibold leading-5 text-foreground" numberOfLines={1}>
+            {list.name}
+          </Text>
+          {list.creator && (
+            <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
+              <Text className="text-muted-foreground text-sm leading-[18px]" numberOfLines={1}>
+                {purposeLabel} by @{list.creator.username}
+              </Text>
+            </ProfileHoverCard>
+          )}
+        </View>
+        {showPinButton && (
+          <View className="items-end min-w-[80px]">
+            {/* Pin button can be added here if needed */}
+          </View>
+        )}
+      </View>
+      {list.description && (
+        <Text
+          className={cn('text-muted-foreground text-sm leading-5', !isRow && 'mt-1')}
+          numberOfLines={isRow ? 2 : 3}
+        >
+          {list.description}
+        </Text>
+      )}
+      {(list.itemCount !== undefined || list.subscriberCount !== undefined) && (
+        <View className={cn('flex-row items-center gap-3', !isRow && 'mt-1')}>
+          {list.itemCount !== undefined && (
+            <Text className="text-muted-foreground text-sm leading-6 font-semibold">
+              {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
+            </Text>
+          )}
+          {list.subscriberCount !== undefined && (
+            <Text className="text-muted-foreground text-sm leading-6 font-semibold">
+              {t('lists.subscriberCount', {
+                count: list.subscriberCount,
+                defaultValue: '{{count}} subscribers',
+              })}
+            </Text>
+          )}
+        </View>
+      )}
+    </PressableScale>
+  );
 }

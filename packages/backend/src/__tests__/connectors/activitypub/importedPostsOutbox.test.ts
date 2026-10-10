@@ -34,7 +34,10 @@ vi.mock('../../../queue/producers', () => ({
   enqueueInboxActivity: vi.fn(),
 }));
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
@@ -51,7 +54,9 @@ vi.mock('../../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 vi.mock('../../../utils/clarityClient', () => ({
-  getClarityClient: async () => ({ indexing: { resolve: vi.fn().mockResolvedValue({ documents: [] }) } }),
+  getClarityClient: async () => ({
+    indexing: { resolve: vi.fn().mockResolvedValue({ documents: [] }) },
+  }),
 }));
 vi.mock('../../../services/mtn/MentionRecordEmitter', () => ({
   emitPostCreated: vi.fn(),
@@ -79,7 +84,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
-  mocks.resolveOxyUser.mockResolvedValue({ _id: ALICE, username: 'alice', name: { displayName: 'Alice' } });
+  mocks.resolveOxyUser.mockResolvedValue({
+    _id: ALICE,
+    username: 'alice',
+    name: { displayName: 'Alice' },
+  });
   mocks.getUserById.mockResolvedValue({ id: ALICE, username: 'alice' });
 });
 

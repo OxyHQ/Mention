@@ -21,14 +21,22 @@ import {
   savePost,
   unsavePost,
 } from '../controllers/posts/bookmarks';
-import { getDrafts, getScheduledPosts, publishScheduledPostNow } from '../controllers/posts/scheduledPosts';
+import {
+  getDrafts,
+  getScheduledPosts,
+  publishScheduledPostNow,
+} from '../controllers/posts/scheduledPosts';
 import {
   getLocationStats,
   getNearbyPosts,
   getNearbyPostsBothLocations,
   getPostsInArea,
 } from '../controllers/posts/geo';
-import { getKnownPostLikers, getPostBoosts, getPostLikes } from '../controllers/posts/engagementLists';
+import {
+  getKnownPostLikers,
+  getPostBoosts,
+  getPostLikes,
+} from '../controllers/posts/engagementLists';
 import { translateDraft, translatePost } from '../controllers/posts/translation';
 import {
   acceptCollabInvite,
@@ -49,7 +57,14 @@ import {
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
-import { laneWriteRateLimiter, linkPreviewRateLimiter, postDocumentsRateLimiter, postViewRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
+import {
+  laneWriteRateLimiter,
+  linkPreviewRateLimiter,
+  postDocumentsRateLimiter,
+  postViewRateLimiter,
+  postWriteRateLimiter,
+  translationRateLimiter,
+} from '../middleware/security';
 import { getPostDocuments, resolveLinkPreviews } from '../controllers/posts/linkDocuments';
 
 const router = Router();
@@ -63,9 +78,7 @@ const router = Router();
  * Production-gated, mirroring `feed.routes.ts`: the limiter is Redis-backed and a
  * dev machine has no Redis.
  */
-const translationRateLimiters = config.runtime.isProduction
-  ? [translationRateLimiter]
-  : [];
+const translationRateLimiters = config.runtime.isProduction ? [translationRateLimiter] : [];
 
 /**
  * Creating or editing a post is the network's main spam surface: it fans out to
@@ -73,9 +86,7 @@ const translationRateLimiters = config.runtime.isProduction
  * composing normally never comes close, and a long thread still fits — because it
  * exists to stop a loop, not to police enthusiasm.
  */
-const postWriteRateLimiters = config.runtime.isProduction
-  ? [postWriteRateLimiter]
-  : [];
+const postWriteRateLimiters = config.runtime.isProduction ? [postWriteRateLimiter] : [];
 
 /** `PATCH /:id/lane` is a LANE write; see the mount below for why not a post one. */
 const laneWriteRateLimiters = config.runtime.isProduction ? [laneWriteRateLimiter] : [];
@@ -273,7 +284,11 @@ router.put('/:id/postgate', async (req: AuthRequest, res: Response) => {
     const postUri = createPostUri(userId, postId);
     const { disableQuotes, detachedQuoteUris } = req.body ?? {};
 
-    if (disableQuotes !== undefined && disableQuotes !== null && typeof disableQuotes !== 'boolean') {
+    if (
+      disableQuotes !== undefined &&
+      disableQuotes !== null &&
+      typeof disableQuotes !== 'boolean'
+    ) {
       return res.status(400).json({ message: 'disableQuotes must be a boolean' });
     }
     const uris = parseDetachedQuoteUris(detachedQuoteUris);

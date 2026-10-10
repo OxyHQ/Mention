@@ -71,15 +71,17 @@ async function seedReport(options: {
 /** An existing delivery event for `reportId`, in the given state. */
 async function seedOutboxEvent(reportId: string, status: 'pending' | 'dead_letter'): Promise<void> {
   const now = new Date();
-  await getDb().insert(moderationOutbox).values({
-    id: reportSubmitEventId(reportId),
-    kind: 'report.submit',
-    payloadReportId: reportId,
-    status,
-    attempts: 0,
-    availableAt: now,
-    expiresAt: new Date(now.getTime() + 86_400_000),
-  });
+  await getDb()
+    .insert(moderationOutbox)
+    .values({
+      id: reportSubmitEventId(reportId),
+      kind: 'report.submit',
+      payloadReportId: reportId,
+      status,
+      attempts: 0,
+      availableAt: now,
+      expiresAt: new Date(now.getTime() + 86_400_000),
+    });
 }
 
 /** The delivery event for `reportId`, or `undefined`. */
@@ -98,7 +100,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   // The events cascade from their reports, so one delete clears both.
-  await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+  await getDb()
+    .delete(reports)
+    .where(like(reports.reporter, `${PREFIX}%`));
 });
 
 afterAll(async () => {

@@ -26,13 +26,15 @@ export async function replacePostLinkPreviews(
   const write = async (tx: DatabaseOrTransaction) => {
     await tx.delete(postLinkPreviews).where(eq(postLinkPreviews.postId, postId));
     if (previews.length === 0) return;
-    await tx.insert(postLinkPreviews).values(previews.map((preview, position) => ({
-      postId,
-      position,
-      url: preview.url,
-      title: preview.title ?? null,
-      description: preview.description ?? null,
-    })));
+    await tx.insert(postLinkPreviews).values(
+      previews.map((preview, position) => ({
+        postId,
+        position,
+        url: preview.url,
+        title: preview.title ?? null,
+        description: preview.description ?? null,
+      })),
+    );
   };
   if ('transaction' in db) await db.transaction(write);
   else await write(db);

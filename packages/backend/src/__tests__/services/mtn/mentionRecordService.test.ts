@@ -68,7 +68,13 @@ interface MemoryStore extends RecordStore {
   reconcileCalls: number;
   reconcileHead(subject: string): Promise<
     | { kind: 'consistent' }
-    | { kind: 'repaired'; fromSeq: number | null; toSeq: number | null; fastForwarded: number; archived: number }
+    | {
+        kind: 'repaired';
+        fromSeq: number | null;
+        toSeq: number | null;
+        fastForwarded: number;
+        archived: number;
+      }
   >;
   append(
     subject: string,
@@ -127,11 +133,7 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
       }
       if (
         idempotencyKey &&
-        rows.some(
-          (row) =>
-            row.env.subject === subject &&
-            row.idempotencyKey === idempotencyKey,
-        )
+        rows.some((row) => row.env.subject === subject && row.idempotencyKey === idempotencyKey)
       ) {
         return { ok: false, reason: 'chain_conflict' };
       }
@@ -150,23 +152,18 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
     withIdempotencyKey(idempotencyKey) {
       return {
         getHead: (subject) => store.getHead(subject),
-        append: (subject, env, recordId) =>
-          store.append(subject, env, recordId, idempotencyKey),
-        getLogSince: (subject, sinceSeq, limit) =>
-          store.getLogSince(subject, sinceSeq, limit),
-        resolveCursorSeq: (subject, recordId) =>
-          store.resolveCursorSeq(subject, recordId),
+        append: (subject, env, recordId) => store.append(subject, env, recordId, idempotencyKey),
+        getLogSince: (subject, sinceSeq, limit) => store.getLogSince(subject, sinceSeq, limit),
+        resolveCursorSeq: (subject, recordId) => store.resolveCursorSeq(subject, recordId),
         materializeCurrent: (subject, collection, rkey) =>
           store.materializeCurrent(subject, collection, rkey),
-        latestIssuedAtForKey: (subject, env) =>
-          store.latestIssuedAtForKey(subject, env),
+        latestIssuedAtForKey: (subject, env) => store.latestIssuedAtForKey(subject, env),
       };
     },
     async findByIdempotencyKey(subject, idempotencyKey) {
       const row = rows.find(
         (candidate) =>
-          candidate.env.subject === subject &&
-          candidate.idempotencyKey === idempotencyKey,
+          candidate.env.subject === subject && candidate.idempotencyKey === idempotencyKey,
       );
       return row
         ? {
@@ -194,11 +191,17 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
       return matches.length ? matches[matches.length - 1].env : null;
     },
     async latestIssuedAtForKey(subject, env) {
-      if (env.version === 2 && (typeof env.collection !== 'string' || typeof env.rkey !== 'string')) {
+      if (
+        env.version === 2 &&
+        (typeof env.collection !== 'string' || typeof env.rkey !== 'string')
+      ) {
         return null;
       }
       const matches = rows.filter(
-        (r) => r.env.subject === subject && r.env.collection === env.collection && r.env.rkey === env.rkey,
+        (r) =>
+          r.env.subject === subject &&
+          r.env.collection === env.collection &&
+          r.env.rkey === env.rkey,
       );
       const latest = matches[matches.length - 1];
       return typeof latest?.env.issuedAt === 'number' ? latest.env.issuedAt : null;
@@ -206,7 +209,9 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
   };
   // The resolver resolves subject VMs via oxyServices.identity.resolveDid; the subject has
   // NO Oxy keys by default, so only the custodial branch authorizes.
-  const resolveDidMock = vi.fn(async () => ({ verificationMethod: [] as Array<{ publicKeyHex: string }> }));
+  const resolveDidMock = vi.fn(async () => ({
+    verificationMethod: [] as Array<{ publicKeyHex: string }>,
+  }));
   return { memoryStore: store, resolveDid: resolveDidMock };
 });
 
@@ -228,10 +233,7 @@ import {
   mentionVerificationResolver,
   clearVerificationMethodCache,
 } from '../../../services/mtn/mentionVerificationResolver';
-import {
-  emitLikeCreatedStrict,
-  emitPostCreated,
-} from '../../../services/mtn/MentionRecordEmitter';
+import { emitLikeCreatedStrict, emitPostCreated } from '../../../services/mtn/MentionRecordEmitter';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
@@ -540,15 +542,19 @@ describe('MentionRecordService.signAndAppend', () => {
   it('never authorizes a self-issued record through the custodial resolver', async () => {
     const resolved = await mentionCustodialVerificationResolver.resolve(SUBJECT_DID);
     expect(resolved?.currentPublicKeys).toEqual([]);
-    expect(isAuthorizedKey(resolved, {
-      issuer: SUBJECT_DID,
-      subject: SUBJECT_DID,
-      publicKey: CUSTODIAL_PUBLIC,
-    } as Parameters<typeof isAuthorizedKey>[1]).ok).toBe(false);
+    expect(
+      isAuthorizedKey(resolved, {
+        issuer: SUBJECT_DID,
+        subject: SUBJECT_DID,
+        publicKey: CUSTODIAL_PUBLIC,
+      } as Parameters<typeof isAuthorizedKey>[1]).ok,
+    ).toBe(false);
   });
 
   it('shares concurrent DID lookups and remembers a failed one instead of retrying Oxy', async () => {
-    resolveDid.mockRejectedValueOnce(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+    resolveDid.mockRejectedValueOnce(
+      Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
+    );
 
     const [first, second] = await Promise.all([
       mentionVerificationResolver.resolve(SUBJECT_DID),

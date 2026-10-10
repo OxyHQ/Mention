@@ -23,7 +23,10 @@ import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({}) }));
-vi.mock('../../utils/oxyInference', () => ({ inferenceJSON: vi.fn(), isInferenceEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceJSON: vi.fn(),
+  isInferenceEnabled: () => false,
+}));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { topicStats } from '../../db/schema/discovery';
@@ -39,7 +42,10 @@ function topicId(label: string): string {
 }
 
 async function read(id: string) {
-  const [row] = await db.select().from(topicStats).where(inArray(topicStats.topicId, [id]));
+  const [row] = await db
+    .select()
+    .from(topicStats)
+    .where(inArray(topicStats.topicId, [id]));
   return row;
 }
 
@@ -151,11 +157,14 @@ describe('updatePopularityFromTrending', () => {
     const weight = 1 - decay;
 
     await topicService.updatePopularityFromTrending(
-      [{ topicId: id, trendingScore: 100 }, { topicId: id, trendingScore: 20 }],
+      [
+        { topicId: id, trendingScore: 100 },
+        { topicId: id, trendingScore: 20 },
+      ],
       decay,
     );
 
-    const expected = (100 * weight) * decay + 20 * weight;
+    const expected = 100 * weight * decay + 20 * weight;
     expect((await read(id)).popularity).toBeCloseTo(expected, 10);
     // Summing first would give (120 * weight) = 60; the sequence gives 35.
     expect((await read(id)).popularity).not.toBeCloseTo(120 * weight, 10);
@@ -167,7 +176,10 @@ describe('updatePopularityFromTrending', () => {
     const decay = 0.7;
 
     await topicService.updatePopularityFromTrending(
-      [{ topicId: first, trendingScore: 10 }, { topicId: second, trendingScore: 40 }],
+      [
+        { topicId: first, trendingScore: 10 },
+        { topicId: second, trendingScore: 40 },
+      ],
       decay,
     );
 

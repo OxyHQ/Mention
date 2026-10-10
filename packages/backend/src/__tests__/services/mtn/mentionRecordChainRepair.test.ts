@@ -49,7 +49,12 @@ function chainOwner(): string {
 }
 
 /** A ledger row written straight to the table, as the cutover import did. */
-async function importedRow(owner: string, seq: number, prev: string, recordId: string): Promise<void> {
+async function importedRow(
+  owner: string,
+  seq: number,
+  prev: string,
+  recordId: string,
+): Promise<void> {
   const envelope = {
     version: 2,
     type: 'app_record',

@@ -14,7 +14,8 @@ import { isHlsManifestBody, rewriteHlsManifest } from '../../utils/hlsManifest';
 const PROXY_PATH = '/media/proxy';
 
 /** Stand-in for the route's builder, minus the provenance signature. */
-const buildProxyUrl = (absoluteUrl: string): string => `${PROXY_PATH}?url=${encodeURIComponent(absoluteUrl)}`;
+const buildProxyUrl = (absoluteUrl: string): string =>
+  `${PROXY_PATH}?url=${encodeURIComponent(absoluteUrl)}`;
 const MANIFEST_URL = 'https://video.example/watch/did%3Aplc%3Aabc/cid/playlist.m3u8';
 
 /** Every proxied url a rewritten playlist points at, in document order. */
@@ -94,7 +95,9 @@ describe('rewriteHlsManifest — media playlist', () => {
   });
 
   it('rewrites an absolute segment url too (it would otherwise bypass the proxy)', () => {
-    const playlist = ['#EXTM3U', '#EXTINF:6.000,', 'https://cdn.example/other/video0.ts', ''].join('\n');
+    const playlist = ['#EXTM3U', '#EXTINF:6.000,', 'https://cdn.example/other/video0.ts', ''].join(
+      '\n',
+    );
 
     expect(proxiedTargets(rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl))).toEqual([
       'https://cdn.example/other/video0.ts',
@@ -105,7 +108,9 @@ describe('rewriteHlsManifest — media playlist', () => {
     const playlist = '#EXTM3U\r\n#EXTINF:6.000,\r\nvideo0.ts\r\n';
     const out = rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl);
 
-    expect(proxiedTargets(out)).toEqual(['https://video.example/watch/did%3Aplc%3Aabc/cid/video0.ts']);
+    expect(proxiedTargets(out)).toEqual([
+      'https://video.example/watch/did%3Aplc%3Aabc/cid/video0.ts',
+    ]);
     expect(out.includes('%0D')).toBe(false);
     expect(out.split('\n').every((line) => line.length === 0 || line.endsWith('\r'))).toBe(true);
   });
@@ -147,7 +152,9 @@ describe('rewriteHlsManifest — master playlist with nested variants', () => {
     const playlist = ['#EXTM3U', '#EXT-X-MAP:URI="init,part.mp4",BYTERANGE="1@0"', ''].join('\n');
 
     const out = rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl);
-    expect(proxiedTargets(out)).toEqual(['https://video.example/watch/did%3Aplc%3Aabc/cid/init,part.mp4']);
+    expect(proxiedTargets(out)).toEqual([
+      'https://video.example/watch/did%3Aplc%3Aabc/cid/init,part.mp4',
+    ]);
     expect(out).toContain('BYTERANGE="1@0"');
   });
 
@@ -185,7 +192,11 @@ describe('rewriteHlsManifest — master playlist with nested variants', () => {
 
 describe('rewriteHlsManifest — things it must leave alone', () => {
   it('does not touch a client attribute whose name merely ends in URI', () => {
-    const playlist = ['#EXTM3U', '#EXT-X-DATERANGE:ID="ad",X-COM-EXAMPLE-URI="https://ads.example/a"', ''].join('\n');
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-DATERANGE:ID="ad",X-COM-EXAMPLE-URI="https://ads.example/a"',
+      '',
+    ].join('\n');
 
     const out = rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl);
     expect(out).toContain('X-COM-EXAMPLE-URI="https://ads.example/a"');
@@ -193,7 +204,11 @@ describe('rewriteHlsManifest — things it must leave alone', () => {
   });
 
   it('does not proxy a non-http scheme such as a data: key', () => {
-    const playlist = ['#EXTM3U', '#EXT-X-KEY:METHOD=AES-128,URI="data:text/plain;base64,AAAA"', ''].join('\n');
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-KEY:METHOD=AES-128,URI="data:text/plain;base64,AAAA"',
+      '',
+    ].join('\n');
 
     const out = rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl);
     expect(out).toContain('URI="data:text/plain;base64,AAAA"');
@@ -201,15 +216,23 @@ describe('rewriteHlsManifest — things it must leave alone', () => {
   });
 
   it('leaves plain comment lines untouched', () => {
-    const playlist = ['#EXTM3U', '# just a comment, not a tag', '#EXTINF:6.0,', 'a.ts', ''].join('\n');
+    const playlist = ['#EXTM3U', '# just a comment, not a tag', '#EXTINF:6.0,', 'a.ts', ''].join(
+      '\n',
+    );
 
-    expect(rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl)).toContain('# just a comment, not a tag');
+    expect(rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl)).toContain(
+      '# just a comment, not a tag',
+    );
   });
 
   it('emits urls that keep the quoted-string and attribute list well formed', () => {
     // `encodeURIComponent` escapes both `"` and `,`, so a rewritten value can
     // never terminate its own quoted string or split its own attribute list.
-    const playlist = ['#EXTM3U', '#EXT-X-MAP:URI="init.mp4?a=1,2&q=%22x%22",BYTERANGE="1@0"', ''].join('\n');
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-MAP:URI="init.mp4?a=1,2&q=%22x%22",BYTERANGE="1@0"',
+      '',
+    ].join('\n');
 
     const out = rewriteHlsManifest(playlist, MANIFEST_URL, buildProxyUrl);
     const attributes = out.split('\n')[1]?.slice('#EXT-X-MAP:'.length) ?? '';

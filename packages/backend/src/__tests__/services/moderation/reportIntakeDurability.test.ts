@@ -73,8 +73,7 @@ vi.mock('../../../services/moderation/subjects/registry', async () => {
  * mocks between tests and never RESETS them, so that default survives.
  */
 vi.mock('../../../db/moderation/reportRepository', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../db/moderation/reportRepository')>();
+  const actual = await importOriginal<typeof import('../../../db/moderation/reportRepository')>();
   return { ...actual, findDuplicateReport: vi.fn(actual.findDuplicateReport) };
 });
 
@@ -192,13 +191,17 @@ afterAll(async () => {
 describe('report intake — durable reception (§7.1)', () => {
   beforeEach(async () => {
     // The events cascade from their reports, so one delete clears both.
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
     vi.clearAllMocks();
     withSubjectProvider();
   });
 
   afterEach(async () => {
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
   });
 
   it('writes the report and its delivery event together', async () => {
@@ -331,7 +334,7 @@ describe('report intake — durable reception (§7.1)', () => {
 
       expect(await racer).toBeInstanceOf(DuplicateReportError);
       // And the loser learns about the WINNER's row, not about nothing.
-      expect((await racer as DuplicateReportError).existing.reporter).toBe(input.reporter);
+      expect(((await racer) as DuplicateReportError).existing.reporter).toBe(input.reporter);
       expect(await reportRowsFor(input.reporter)).toHaveLength(1);
     },
   );
@@ -450,7 +453,9 @@ describe('report intake — an operator is not an identifier', () => {
   });
 
   afterEach(async () => {
-    await getDb().delete(reports).where(like(reports.reporter, `${PREFIX}%`));
+    await getDb()
+      .delete(reports)
+      .where(like(reports.reporter, `${PREFIX}%`));
   });
 
   /**
@@ -481,7 +486,10 @@ describe('report intake — an operator is not an identifier', () => {
 
     // Nothing reached the table under any of the three spellings.
     expect(
-      await getDb().select().from(reports).where(like(reports.reporter, `${PREFIX}%`)),
+      await getDb()
+        .select()
+        .from(reports)
+        .where(like(reports.reporter, `${PREFIX}%`)),
     ).toHaveLength(0);
   });
 
@@ -490,7 +498,10 @@ describe('report intake — an operator is not an identifier', () => {
 
     await expect(createReport(input)).rejects.toThrow(/not a reportable type/);
     expect(
-      await getDb().select().from(reports).where(like(reports.reporter, `${PREFIX}%`)),
+      await getDb()
+        .select()
+        .from(reports)
+        .where(like(reports.reporter, `${PREFIX}%`)),
     ).toHaveLength(0);
   });
 });

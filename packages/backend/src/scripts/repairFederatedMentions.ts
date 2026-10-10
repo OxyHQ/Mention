@@ -220,17 +220,17 @@ import { posts } from '../db/schema/posts';
 import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
 import { isLiveEntityId } from '@oxy.so/db';
 import { logger } from '../utils/logger';
-import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
+import {
+  applyMentionPlaceholders,
+  resolveInboundMentionsExisting,
+} from '../connectors/activitypub/apMentions';
 import { buildFederatedNoteVariants } from '../connectors/activitypub/apPostContent';
 import { runWithTimeout, signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';
 import { repairVariantText } from './lib/variantTextRepair';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   clearAdminScriptCursor,
   readAdminScriptCursor,
@@ -574,10 +574,7 @@ export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL
      */
     not(
       exists(
-        getDb()
-          .select({ one: sql`1` })
-          .from(postMentions)
-          .where(eq(postMentions.postId, posts.id)),
+        getDb().select({ one: sql`1` }).from(postMentions).where(eq(postMentions.postId, posts.id)),
       ),
     ),
     /**
@@ -661,9 +658,9 @@ function parseIdBound(name: string, value: string | undefined): string | undefin
   if (trimmed.length === 0) return undefined;
   if (!isLiveEntityId(trimmed)) {
     throw new Error(
-      `${name} must be a 24-character hex ObjectId or a uuid v7 (got ${trimmed.length} `
-        + 'characters). Refusing to run: an unparsed bound would silently rescan from the '
-        + 'beginning.',
+      `${name} must be a 24-character hex ObjectId or a uuid v7 (got ${trimmed.length} ` +
+        'characters). Refusing to run: an unparsed bound would silently rescan from the ' +
+        'beginning.',
     );
   }
   return trimmed;
@@ -676,11 +673,7 @@ function parseIdBound(name: string, value: string | undefined): string | undefin
  * column — `parseIdBound` lowercases every bound, so this predicate and the SQL
  * range can never disagree about which side of a bound an id falls on.
  */
-function isWithinRange(
-  id: string,
-  after: string | undefined,
-  before: string | undefined,
-): boolean {
+function isWithinRange(id: string, after: string | undefined, before: string | undefined): boolean {
   if (after && id <= after) return false;
   if (before && id > before) return false;
   return true;
@@ -733,9 +726,7 @@ interface PreparedRepair {
  * The candidate filter already REQUIRES `federation.activityId`, so `url` is a
  * pure fallback for a row whose id is somehow unusable, never the normal path.
  */
-export function resolveSourceUrl(
-  post: CandidatePostRow,
-): { url: string; kind: SourceKind } | null {
+export function resolveSourceUrl(post: CandidatePostRow): { url: string; kind: SourceKind } | null {
   const activityId = post.federation?.activityId;
   if (activityId) return { url: activityId, kind: 'activityId' };
   const url = post.federation?.url;
@@ -807,8 +798,14 @@ async function prepareRepair(
   // Re-derive the body ONLY (no media I/O — the stored media state is reused via
   // `hasMedia`), exactly like the live outbox self-heal.
   const freshVariants = buildFederatedNoteVariants(noteObject, post.hasMedia);
-  if (resolved.ids.length === 0 && !freshVariants.some((variant) =>
-    scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) => /^https?:\/\//i.test(entity.value)))) {
+  if (
+    resolved.ids.length === 0 &&
+    !freshVariants.some((variant) =>
+      scanTextEntities(variant.text, { kinds: ['mentionDisplay'] }).some((entity) =>
+        /^https?:\/\//i.test(entity.value),
+      ),
+    )
+  ) {
     return { outcome: 'unresolved' };
   }
   if (freshVariants.length === 0) return { outcome: 'skipped-empty-body' };
@@ -898,10 +895,7 @@ async function loadCandidatePage(match: SQL, limit: number): Promise<CandidatePo
       .select({ postId: postMentions.postId, oxyUserId: postMentions.oxyUserId })
       .from(postMentions)
       .where(inArray(postMentions.postId, ids)),
-    db
-      .select({ postId: postMedia.postId })
-      .from(postMedia)
-      .where(inArray(postMedia.postId, ids)),
+    db.select({ postId: postMedia.postId }).from(postMedia).where(inArray(postMedia.postId, ids)),
   ]);
 
   const variantsByPost = new Map<string, CandidateVariantRow[]>();
@@ -959,7 +953,10 @@ export async function repairFederatedMentions(
 ): Promise<RepairFederatedMentionsSummary> {
   const dryRun = options.dryRun ?? false;
   const pageSize = options.batchSize ?? DEFAULT_PAGE_SIZE;
-  const concurrency = Math.min(Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY), MAX_CONCURRENCY);
+  const concurrency = Math.min(
+    Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY),
+    MAX_CONCURRENCY,
+  );
   const noteTimeoutMs = options.noteTimeoutMs ?? DEFAULT_NOTE_TIMEOUT_MS;
   const sampleSize = options.sampleSize ?? DEFAULT_SAMPLE_SIZE;
   const failureSampleSize = options.failureSampleSize ?? DEFAULT_FAILURE_SAMPLE_SIZE;
@@ -990,9 +987,9 @@ export async function repairFederatedMentions(
   const resumeId = resumeFrom ? parseIdBound('storedCursor', resumeFrom.cursor) : undefined;
   if (resumeId && !isWithinRange(resumeId, afterId, beforeId)) {
     throw new Error(
-      "the stored resume cursor lies outside this run's declared _id range. "
-        + 'Refusing to run: resuming from it would skip or duplicate a stretch of the corpus. '
-        + 'Re-run with resetCursor to start this shard again.',
+      "the stored resume cursor lies outside this run's declared _id range. " +
+        'Refusing to run: resuming from it would skip or duplicate a stretch of the corpus. ' +
+        'Re-run with resetCursor to start this shard again.',
     );
   }
 
@@ -1372,8 +1369,7 @@ export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary)
       // bucket. If a future path ever increments the total without classifying
       // it, the difference surfaces here and fails the run STRICTLY, rather than
       // disappearing into a tolerated bucket it was never measured against.
-      unclassifiedFetchFailure:
-        summary.fetchFailed - remoteUnavailable - malformedPayload,
+      unclassifiedFetchFailure: summary.fetchFailed - remoteUnavailable - malformedPayload,
     },
     {
       scanned: summary.scanned,
@@ -1381,8 +1377,8 @@ export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary)
         remoteUnavailable: {
           maxFraction: REMOTE_UNAVAILABLE_TOLERANCE,
           reason:
-            'remote origins that are down, rate-limiting or answering 5xx — unavoidable '
-            + 'across the open fediverse and fixed by re-running, not by a code change',
+            'remote origins that are down, rate-limiting or answering 5xx — unavoidable ' +
+            'across the open fediverse and fixed by re-running, not by a code change',
         },
       },
     },

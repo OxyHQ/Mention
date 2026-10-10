@@ -7,7 +7,11 @@ import { starterPacksService, type StarterPackSummary } from '@/services/starter
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SEO } from '@/components/SEO';
-import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
+import {
+  StarterPackCard,
+  StarterPackCardSkeleton,
+  type StarterPackCardData,
+} from '@/components/StarterPackCard';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -43,7 +47,7 @@ export default function StarterPacksScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   // Directory body — identical on both platforms; only the scroll host differs.
@@ -95,10 +99,7 @@ export default function StarterPacksScreen() {
 
   return (
     <>
-      <SEO
-        title="Starter Packs"
-        description="Curated collections of accounts to follow"
-      />
+      <SEO title="Starter Packs" description="Curated collections of accounts to follow" />
       <View className="flex-1">
         <PageHeader
           title={t('starterPacks.title')}

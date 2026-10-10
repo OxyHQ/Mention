@@ -23,7 +23,12 @@
 
 import { asc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../db/schema/lists';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPacks,
+} from '../db/schema/lists';
 import {
   armEndorsementScope,
   clearEndorsementScope,
@@ -53,7 +58,10 @@ export class EndorsementSignalService {
    * Load the owner + current members for a scope. Returns null when the source
    * document no longer exists (deleted) — the caller then handles retraction.
    */
-  private async loadScopeState(source: EndorsementSource, sourceId: string): Promise<ScopeState | null> {
+  private async loadScopeState(
+    source: EndorsementSource,
+    sourceId: string,
+  ): Promise<ScopeState | null> {
     if (source === 'starterPack') {
       // Postgres, matching the account-list branch below and for the same
       // reason: the Mongo `StarterPack` collection now has no writer at all —
@@ -115,7 +123,11 @@ export class EndorsementSignalService {
   }
 
   /** Build `remove` edges for captured, no-longer-current members. */
-  private buildRemoveEdges(ownerId: string | undefined, memberIds: string[] | undefined, sourceId: string): EndorsementEdge[] {
+  private buildRemoveEdges(
+    ownerId: string | undefined,
+    memberIds: string[] | undefined,
+    sourceId: string,
+  ): EndorsementEdge[] {
     if (!ownerId) return [];
     const unique = new Set((memberIds ?? []).filter((id) => id && id !== ownerId));
     return Array.from(unique).map((memberId) => ({
@@ -144,7 +156,11 @@ export class EndorsementSignalService {
   }
 
   /** Record a failed attempt with backoff, leaving the row pending. */
-  private async markFailed(source: EndorsementSource, sourceId: string, error: unknown): Promise<void> {
+  private async markFailed(
+    source: EndorsementSource,
+    sourceId: string,
+    error: unknown,
+  ): Promise<void> {
     // The increment and the backoff it feeds are the repository's, in one
     // transaction: reading `attempts` here and writing the sum back let two
     // overlapping drains compute the same successor, which stopped the backoff
@@ -209,7 +225,11 @@ export class EndorsementSignalService {
         loadPendingRemoval(source, sourceId),
       ]);
       const edges = [
-        ...this.buildRemoveEdges(pending.ownerId ?? ownerId, pending.memberIds ?? removed, sourceId),
+        ...this.buildRemoveEdges(
+          pending.ownerId ?? ownerId,
+          pending.memberIds ?? removed,
+          sourceId,
+        ),
         ...(state ? this.buildAddEdges(state, sourceId) : []),
       ];
       await this.signalsClient.pushEndorsements(edges);
@@ -284,7 +304,9 @@ export class EndorsementSignalService {
     }
 
     if (rows.length > 0) {
-      logger.info(`[EndorsementSignal] flushed ${rows.length} outbox rows: sent=${sent} failed=${failed}`);
+      logger.info(
+        `[EndorsementSignal] flushed ${rows.length} outbox rows: sent=${sent} failed=${failed}`,
+      );
     }
     return { processed: rows.length, sent, failed };
   }

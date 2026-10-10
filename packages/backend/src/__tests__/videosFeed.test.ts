@@ -158,7 +158,9 @@ describe('the videos content predicate', () => {
       type: PostType.IMAGE,
       content: {
         variants: [{ source: 'author', text: 'a photo' }],
-        media: [{ id: 'media-photo', type: 'image', width: 1080, height: 1920, orientation: 'portrait' }],
+        media: [
+          { id: 'media-photo', type: 'image', width: 1080, height: 1920, orientation: 'portrait' },
+        ],
       },
     });
     const followersOnly = await create({ visibility: PostVisibility.FOLLOWERS_ONLY });
@@ -174,7 +176,15 @@ describe('the videos content predicate', () => {
 
     expect(await admitted()).toEqual([native, federated, original].sort());
     // Named so a failure says WHICH exclusion broke rather than just "sets differ".
-    const excluded = [textOnly, missingDimensions, imageOnly, followersOnly, draft, restricted, boost];
+    const excluded = [
+      textOnly,
+      missingDimensions,
+      imageOnly,
+      followersOnly,
+      draft,
+      restricted,
+      boost,
+    ];
     expect((await admitted()).filter((id) => excluded.includes(id))).toEqual([]);
   });
 
@@ -190,8 +200,21 @@ describe('the videos content predicate', () => {
       content: {
         variants: [{ source: 'author', text: 'mixed gallery' }],
         media: [
-          { id: 'media-wide-video', type: 'video', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 },
-          { id: 'media-tall-image', type: 'image', width: 1080, height: 1920, orientation: 'portrait' },
+          {
+            id: 'media-wide-video',
+            type: 'video',
+            width: 1920,
+            height: 1080,
+            orientation: 'landscape',
+            durationSec: 30,
+          },
+          {
+            id: 'media-tall-image',
+            type: 'image',
+            width: 1080,
+            height: 1920,
+            orientation: 'portrait',
+          },
         ],
       },
     });

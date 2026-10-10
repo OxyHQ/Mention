@@ -37,13 +37,16 @@ function sourceFiles(directory: string = SOURCE_ROOT): string[] {
 
 describe('the registry', () => {
   it('agrees with its machine-readable form', () => {
-    const fromMap = [...PROTECTED_COLUMNS_BY_TABLE.values()].reduce((count, set) => count + set.size, 0);
+    const fromMap = [...PROTECTED_COLUMNS_BY_TABLE.values()].reduce(
+      (count, set) => count + set.size,
+      0,
+    );
     expect(fromMap).toBe(PROTECTED_COLUMNS.length);
   });
 
   it('gives every entry a reason', () => {
     const missing = PROTECTED_COLUMNS.filter((entry) => entry.reason.trim().length < 40).map(
-      (entry) => entry.property
+      (entry) => entry.property,
     );
     expect(missing).toEqual([]);
   });
@@ -64,7 +67,9 @@ describe('publicColumns', () => {
   it('returns every column of a table with nothing protected', () => {
     // `actor_key_pairs` lost its only secret in 0061; the helper must stay usable.
     const selection = publicColumns(actorKeyPairs);
-    expect(Object.keys(selection).sort()).toEqual(Object.keys(getTableColumns(actorKeyPairs)).sort());
+    expect(Object.keys(selection).sort()).toEqual(
+      Object.keys(getTableColumns(actorKeyPairs)).sort(),
+    );
   });
 });
 
@@ -79,7 +84,7 @@ describe('no implicit whole-row read of a protected table', () => {
     const tableNames = [...PROTECTED_COLUMNS_BY_TABLE.keys()];
     // `actor_key_pairs` in SQL, `actorKeyPairs` as the drizzle export.
     const propertyNames = tableNames.map((name) =>
-      name.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase())
+      name.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase()),
     );
 
     const offenders: string[] = [];

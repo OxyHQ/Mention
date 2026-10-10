@@ -53,7 +53,9 @@ function setDot(obj: Record<string, unknown>, path: string, value: unknown): voi
 
 vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: CALLER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: CALLER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -135,7 +137,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: vi.fn() })),
 }));
 vi.mock('../../utils/syraPodcast', () => ({ syraClient: {} }));
-vi.mock('../../utils/privacyHelpers', () => ({ canViewProfileDesign: vi.fn().mockResolvedValue(true) }));
+vi.mock('../../utils/privacyHelpers', () => ({
+  canViewProfileDesign: vi.fn().mockResolvedValue(true),
+}));
 vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor: vi.fn() }));
 
 import profileSettingsRoutes from '../../routes/profileSettings';
@@ -167,7 +171,10 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
   });
 
   it('turns signPosts back off', async () => {
-    await request(app).put(`/profile/settings/${CHANNEL}`).send({ channel: { signPosts: true } }).expect(200);
+    await request(app)
+      .put(`/profile/settings/${CHANNEL}`)
+      .send({ channel: { signPosts: true } })
+      .expect(200);
     const res = await request(app)
       .put(`/profile/settings/${CHANNEL}`)
       .send({ channel: { signPosts: false } })
@@ -177,7 +184,7 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
     expect(store.get(CHANNEL)).toMatchObject({ channelAccount: { signPosts: false } });
   });
 
-  it('refuses an account the caller does not operate, with the gate\'s status', async () => {
+  it("refuses an account the caller does not operate, with the gate's status", async () => {
     await request(app)
       .put(`/profile/settings/${OTHER_CHANNEL}`)
       .send({ channel: { signPosts: true } })
@@ -186,7 +193,7 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
     expect(store.has(OTHER_CHANNEL)).toBe(false);
   });
 
-  it('refuses the caller\'s own account — `channel.signPosts` means nothing there', async () => {
+  it("refuses the caller's own account — `channel.signPosts` means nothing there", async () => {
     await request(app)
       .put(`/profile/settings/${CALLER}`)
       .send({ channel: { signPosts: true } })
@@ -338,13 +345,13 @@ describe('GET /profile/settings/:userId/channel — an operated channel', () => 
    * asymmetry between how the two halves authorized is what produced the bug this
    * route fixes, so each refusal is pinned on both.
    */
-  it('refuses an account the caller does not operate, with the gate\'s status', async () => {
+  it("refuses an account the caller does not operate, with the gate's status", async () => {
     store.set(OTHER_CHANNEL, { oxyUserId: OTHER_CHANNEL, channelAccount: { signPosts: true } });
 
     await request(app).get(`/profile/settings/${OTHER_CHANNEL}/channel`).expect(403);
   });
 
-  it('refuses the caller\'s own account — `channel.signPosts` means nothing there', async () => {
+  it("refuses the caller's own account — `channel.signPosts` means nothing there", async () => {
     store.set(CALLER, { oxyUserId: CALLER, channelAccount: { signPosts: true } });
 
     await request(app).get(`/profile/settings/${CALLER}/channel`).expect(400);

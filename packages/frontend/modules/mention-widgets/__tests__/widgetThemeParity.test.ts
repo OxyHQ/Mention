@@ -86,21 +86,41 @@ const ROLE_NAMES = [
 function rgbRoleToKotlin(value: string): string {
   const channels = value.match(/^rgb\((\d+) (\d+) (\d+)\)$/);
   if (!channels) throw new Error(`Unexpected Bloom role color: ${value}`);
-  return `0xFF${channels.slice(1).map((channel) => Number(channel).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  return `0xFF${channels
+    .slice(1)
+    .map((channel) => Number(channel).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`;
 }
 
 function widgetBackground(secondaryContainer: string): string {
-  const source = Hct.fromInt(engine.argbFromHex(`#${rgbRoleToKotlin(secondaryContainer).slice(4)}`));
+  const source = Hct.fromInt(
+    engine.argbFromHex(`#${rgbRoleToKotlin(secondaryContainer).slice(4)}`),
+  );
   const tone = source.tone > 50 ? source.tone + 5 : source.tone - 10;
-  return `0xFF${engine.hexFromArgb(Hct.from(source.hue, source.chroma, tone).toInt()).slice(1).toUpperCase()}`;
+  return `0xFF${engine
+    .hexFromArgb(Hct.from(source.hue, source.chroma, tone).toInt())
+    .slice(1)
+    .toUpperCase()}`;
 }
 
 function expectedRoles(): Record<string, KotlinRole> {
   const preset = APP_COLOR_PRESETS.blue;
-  const light = engine.generateRoleColors({ seed: preset.hex, variant: preset.variant, isDark: false });
-  const dark = engine.generateRoleColors({ seed: preset.hex, variant: preset.variant, isDark: true });
+  const light = engine.generateRoleColors({
+    seed: preset.hex,
+    variant: preset.variant,
+    isDark: false,
+  });
+  const dark = engine.generateRoleColors({
+    seed: preset.hex,
+    variant: preset.variant,
+    isDark: true,
+  });
   const roles = Object.fromEntries(
-    ROLE_NAMES.map((name) => [name, { day: rgbRoleToKotlin(light[name]), night: rgbRoleToKotlin(dark[name]) }]),
+    ROLE_NAMES.map((name) => [
+      name,
+      { day: rgbRoleToKotlin(light[name]), night: rgbRoleToKotlin(dark[name]) },
+    ]),
   );
   roles.widgetBackground = {
     day: widgetBackground(light.secondaryContainer),
@@ -112,7 +132,8 @@ function expectedRoles(): Record<string, KotlinRole> {
 function kotlinRoles(): Record<string, KotlinRole> {
   const source = readFileSync(KOTLIN_THEME, 'utf8');
   const roles: Record<string, KotlinRole> = {};
-  const provider = /(\w+)\s*=\s*ColorProvider\(day\s*=\s*Color\((0x[0-9A-F]+)\),\s*night\s*=\s*Color\((0x[0-9A-F]+)\)\)/g;
+  const provider =
+    /(\w+)\s*=\s*ColorProvider\(day\s*=\s*Color\((0x[0-9A-F]+)\),\s*night\s*=\s*Color\((0x[0-9A-F]+)\)\)/g;
   for (const match of source.matchAll(provider)) {
     roles[match[1]] = { day: match[2], night: match[3] };
   }
@@ -133,6 +154,8 @@ describe('Mention widget Bloom theme parity', () => {
     expect(actual).toEqual(expected);
 
     // Positive control: a stale role from any prior policy must make parity red.
-    expect({ ...actual, primary: { ...actual.primary, night: '0xFF000000' } }).not.toEqual(expected);
+    expect({ ...actual, primary: { ...actual.primary, night: '0xFF000000' } }).not.toEqual(
+      expected,
+    );
   });
 });

@@ -174,9 +174,7 @@ describe('statement timing', () => {
     await expect(db.execute(sql`select * from "table_that_does_not_exist"`)).rejects.toThrow();
 
     const exposition = await metrics.getPrometheusFormat();
-    expect(exposition).toMatch(
-      /^db_query_errors_total\{operation="select",table="other"\} 1$/m,
-    );
+    expect(exposition).toMatch(/^db_query_errors_total\{operation="select",table="other"\} 1$/m);
   });
 });
 

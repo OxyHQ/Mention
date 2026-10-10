@@ -55,105 +55,111 @@ const VIEWPORT = { width: Number(process.env.VW ?? 430), height: Number(process.
  * by construction and cannot cross.
  */
 const INSTRUMENT = ({ pathPattern, marker }) => {
-    window.__nav = {
-        t0: null, tRoute: null, tShell: null, tFMP: null,
-        pathAtRoute: null, sawSkeleton: false,
-    };
-    const nav = window.__nav;
-    const re = new RegExp(pathPattern);
+  window.__nav = {
+    t0: null,
+    tRoute: null,
+    tShell: null,
+    tFMP: null,
+    pathAtRoute: null,
+    sawSkeleton: false,
+  };
+  const nav = window.__nav;
+  const re = new RegExp(pathPattern);
 
-    const mark = (event) => {
-        if (nav.t0 !== null) return;
-        if (event.type === 'keydown' && event.key !== 'Enter') return;
-        nav.t0 = performance.now();
-    };
-    addEventListener('click', mark, true);
-    addEventListener('keydown', mark, true);
+  const mark = (event) => {
+    if (nav.t0 !== null) return;
+    if (event.type === 'keydown' && event.key !== 'Enter') return;
+    nav.t0 = performance.now();
+  };
+  addEventListener('click', mark, true);
+  addEventListener('keydown', mark, true);
 
-    const seeRoute = () => {
-        if (nav.tRoute !== null || nav.t0 === null) return;
-        if (!re.test(location.pathname)) return;
-        nav.tRoute = performance.now();
-        nav.pathAtRoute = location.pathname;
+  const seeRoute = () => {
+    if (nav.tRoute !== null || nav.t0 === null) return;
+    if (!re.test(location.pathname)) return;
+    nav.tRoute = performance.now();
+    nav.pathAtRoute = location.pathname;
+  };
+  for (const name of ['pushState', 'replaceState']) {
+    const original = history[name];
+    history[name] = function patched(...args) {
+      const result = original.apply(this, args);
+      seeRoute();
+      return result;
     };
-    for (const name of ['pushState', 'replaceState']) {
-        const original = history[name];
-        history[name] = function patched(...args) {
-            const result = original.apply(this, args);
-            seeRoute();
-            return result;
-        };
+  }
+  addEventListener('popstate', seeRoute);
+  setInterval(seeRoute, 16);
+
+  // A skeleton is the destination painting something of its own, which is a
+  // DIFFERENT fact from painting content — and the only way to tell a blank
+  // frame from a slow fetch apart.
+  const hasSkeleton = () => document.querySelector('[role="progressbar"]') !== null;
+  const hasContent = () => {
+    for (const element of document.querySelectorAll('[aria-label]')) {
+      if (element.getAttribute('aria-label') === marker) return true;
     }
-    addEventListener('popstate', seeRoute);
-    setInterval(seeRoute, 16);
+    return false;
+  };
 
-    // A skeleton is the destination painting something of its own, which is a
-    // DIFFERENT fact from painting content — and the only way to tell a blank
-    // frame from a slow fetch apart.
-    const hasSkeleton = () => document.querySelector('[role="progressbar"]') !== null;
-    const hasContent = () => {
-        for (const element of document.querySelectorAll('[aria-label]')) {
-            if (element.getAttribute('aria-label') === marker) return true;
-        }
-        return false;
-    };
+  // Whether the wait is the main thread WORKING or the main thread WAITING.
+  // No `PerformanceResourceTiming` can tell those apart, and they have
+  // completely different fixes: one is a render to break up, the other is a
+  // fetch to start earlier.
+  nav.longTasks = [];
+  try {
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (nav.t0 === null) continue;
+        nav.longTasks.push({
+          start: Math.round(entry.startTime - nav.t0),
+          duration: Math.round(entry.duration),
+        });
+      }
+    }).observe({ type: 'longtask', buffered: true });
+  } catch {
+    /* browser without the longtask entry type */
+  }
 
-    // Whether the wait is the main thread WORKING or the main thread WAITING.
-    // No `PerformanceResourceTiming` can tell those apart, and they have
-    // completely different fixes: one is a render to break up, the other is a
-    // fetch to start earlier.
-    nav.longTasks = [];
-    try {
-        new PerformanceObserver((list) => {
-            for (const entry of list.getEntries()) {
-                if (nav.t0 === null) continue;
-                nav.longTasks.push({
-                    start: Math.round(entry.startTime - nav.t0),
-                    duration: Math.round(entry.duration),
-                });
-            }
-        }).observe({ type: 'longtask', buffered: true });
-    } catch { /* browser without the longtask entry type */ }
-
-    // Frame cadence through the wait. Zero long tasks can mean two things — an
-    // idle thread, or work chopped below the 50 ms longtask threshold — and rAF
-    // separates them: a busy thread cannot deliver 60 frames a second.
-    nav.frames = [];
-    nav.census = [];
-    // Name the waiter. The thread is idle and no request is outstanding, so
-    // whatever holds the screen blank is a SCHEDULED callback; this records the
-    // delay it asked for and where it was asked from.
-    nav.timers = [];
-    const originalSetTimeout = window.setTimeout;
-    window.setTimeout = function patchedSetTimeout(handler, delay, ...rest) {
-        if (nav.t0 !== null && nav.tFMP === null && (delay ?? 0) >= 60) {
-            const site = (new Error().stack ?? '').split('\n').slice(2, 4).join(' | ');
-            nav.timers.push({ at: Math.round(performance.now() - nav.t0), delay, site });
-        }
-        return originalSetTimeout.call(this, handler, delay, ...rest);
-    };
-    const sample = () => {
-        if (nav.tRoute !== null && nav.tFMP === null) {
-            nav.frames.push(Math.round(performance.now() - nav.tRoute));
-            // What the DOM is doing while the thread is idle. A tree that is
-            // torn down at once and rebuilt at once, with nothing in between,
-            // is a WAIT; a tree that grows frame by frame is chopped work.
-            nav.census.push({
-                at: Math.round(performance.now() - nav.tRoute),
-                rows: document.querySelectorAll('[data-post-uri]').length,
-                labels: document.querySelectorAll('[aria-label]').length,
-                text: document.body ? document.body.innerText.length : 0,
-            });
-            const content = hasContent();
-            if (nav.tShell === null && (content || hasSkeleton())) {
-                nav.tShell = performance.now();
-                nav.sawSkeleton = !content;
-            }
-            if (content) nav.tFMP = performance.now();
-        }
-        requestAnimationFrame(sample);
-    };
+  // Frame cadence through the wait. Zero long tasks can mean two things — an
+  // idle thread, or work chopped below the 50 ms longtask threshold — and rAF
+  // separates them: a busy thread cannot deliver 60 frames a second.
+  nav.frames = [];
+  nav.census = [];
+  // Name the waiter. The thread is idle and no request is outstanding, so
+  // whatever holds the screen blank is a SCHEDULED callback; this records the
+  // delay it asked for and where it was asked from.
+  nav.timers = [];
+  const originalSetTimeout = window.setTimeout;
+  window.setTimeout = function patchedSetTimeout(handler, delay, ...rest) {
+    if (nav.t0 !== null && nav.tFMP === null && (delay ?? 0) >= 60) {
+      const site = (new Error().stack ?? '').split('\n').slice(2, 4).join(' | ');
+      nav.timers.push({ at: Math.round(performance.now() - nav.t0), delay, site });
+    }
+    return originalSetTimeout.call(this, handler, delay, ...rest);
+  };
+  const sample = () => {
+    if (nav.tRoute !== null && nav.tFMP === null) {
+      nav.frames.push(Math.round(performance.now() - nav.tRoute));
+      // What the DOM is doing while the thread is idle. A tree that is
+      // torn down at once and rebuilt at once, with nothing in between,
+      // is a WAIT; a tree that grows frame by frame is chopped work.
+      nav.census.push({
+        at: Math.round(performance.now() - nav.tRoute),
+        rows: document.querySelectorAll('[data-post-uri]').length,
+        labels: document.querySelectorAll('[aria-label]').length,
+        text: document.body ? document.body.innerText.length : 0,
+      });
+      const content = hasContent();
+      if (nav.tShell === null && (content || hasSkeleton())) {
+        nav.tShell = performance.now();
+        nav.sawSkeleton = !content;
+      }
+      if (content) nav.tFMP = performance.now();
+    }
     requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
 };
 
 /**
@@ -166,20 +172,20 @@ const INSTRUMENT = ({ pathPattern, marker }) => {
  * render, which no `PerformanceResourceTiming` can see.
  */
 const READ_TRANSFERS = () => {
-    const t0 = window.__nav?.t0 ?? 0;
-    const after = performance.getEntriesByType('resource').filter((entry) => entry.startTime >= t0);
-    const shape = (entry) => ({
-        name: entry.name.split('/').slice(-1)[0].split('?')[0],
-        start: Math.round(entry.startTime - t0),
-        end: Math.round(entry.responseEnd - t0),
-        transferred: entry.transferSize,
-    });
-    return {
-        chunks: after.filter((entry) => entry.name.includes('/_expo/static/js/web/')).map(shape),
-        api: after
-            .filter((entry) => /api\.(mention\.earth|oxy\.so)/.test(entry.name))
-            .map((entry) => ({ ...shape(entry), path: new URL(entry.name).pathname })),
-    };
+  const t0 = window.__nav?.t0 ?? 0;
+  const after = performance.getEntriesByType('resource').filter((entry) => entry.startTime >= t0);
+  const shape = (entry) => ({
+    name: entry.name.split('/').slice(-1)[0].split('?')[0],
+    start: Math.round(entry.startTime - t0),
+    end: Math.round(entry.responseEnd - t0),
+    transferred: entry.transferSize,
+  });
+  return {
+    chunks: after.filter((entry) => entry.name.includes('/_expo/static/js/web/')).map(shape),
+    api: after
+      .filter((entry) => /api\.(mention\.earth|oxy\.so)/.test(entry.name))
+      .map((entry) => ({ ...shape(entry), path: new URL(entry.name).pathname })),
+  };
 };
 
 /**
@@ -189,17 +195,23 @@ const READ_TRANSFERS = () => {
  * which is the state worth measuring.
  */
 async function openFeed(page) {
-    await page.addInitScript(() => {
-        try { localStorage.setItem('welcome_modal_seen', 'true'); } catch { /* origin without storage */ }
-    });
-    await page.setViewportSize(VIEWPORT);
-    await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-post-uri]', { timeout: 60_000 });
-    const interstitial = page.getByText('Explore the app', { exact: false }).first();
+  await page.addInitScript(() => {
     try {
-        if (await interstitial.isVisible({ timeout: 2_000 })) await interstitial.click();
-    } catch { /* not shown for a returning visitor */ }
-    await page.waitForTimeout(1_500);
+      localStorage.setItem('welcome_modal_seen', 'true');
+    } catch {
+      /* origin without storage */
+    }
+  });
+  await page.setViewportSize(VIEWPORT);
+  await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-post-uri]', { timeout: 60_000 });
+  const interstitial = page.getByText('Explore the app', { exact: false }).first();
+  try {
+    if (await interstitial.isVisible({ timeout: 2_000 })) await interstitial.click();
+  } catch {
+    /* not shown for a returning visitor */
+  }
+  await page.waitForTimeout(1_500);
 }
 
 /**
@@ -213,15 +225,15 @@ async function openFeed(page) {
  * `tRoute` is the focused post on the detail screen.
  */
 async function pickRow(page, index) {
-    return page.evaluate((rowIndex) => {
-        const rows = [...document.querySelectorAll('[data-post-uri]')];
-        const row = rows[rowIndex];
-        if (!row) return null;
-        const labelled = row.matches('[aria-label]') ? row : row.querySelector('[aria-label]');
-        const focusable = row.matches('[tabindex]') ? row : row.querySelector('[tabindex]');
-        if (!labelled || !focusable) return null;
-        return { label: labelled.getAttribute('aria-label'), uri: row.getAttribute('data-post-uri') };
-    }, index);
+  return page.evaluate((rowIndex) => {
+    const rows = [...document.querySelectorAll('[data-post-uri]')];
+    const row = rows[rowIndex];
+    if (!row) return null;
+    const labelled = row.matches('[aria-label]') ? row : row.querySelector('[aria-label]');
+    const focusable = row.matches('[tabindex]') ? row : row.querySelector('[tabindex]');
+    if (!labelled || !focusable) return null;
+    return { label: labelled.getAttribute('aria-label'), uri: row.getAttribute('data-post-uri') };
+  }, index);
 }
 
 /**
@@ -232,200 +244,252 @@ async function pickRow(page, index) {
  * what works.
  */
 async function activateRow(page, index) {
-    await page.evaluate((rowIndex) => {
-        const rows = [...document.querySelectorAll('[data-post-uri]')];
-        const row = rows[rowIndex];
-        const focusable = row?.matches('[tabindex]') ? row : row?.querySelector('[tabindex]');
-        focusable?.focus();
-    }, index);
-    await page.keyboard.press('Enter');
+  await page.evaluate((rowIndex) => {
+    const rows = [...document.querySelectorAll('[data-post-uri]')];
+    const row = rows[rowIndex];
+    const focusable = row?.matches('[tabindex]') ? row : row?.querySelector('[tabindex]');
+    focusable?.focus();
+  }, index);
+  await page.keyboard.press('Enter');
 }
 
 function percentile(values, fraction) {
-    if (values.length === 0) return null;
-    const sorted = [...values].sort((left, right) => left - right);
-    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))];
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))];
 }
 
 function summarise(label, values) {
-    const present = values.filter((value) => value !== null && Number.isFinite(value));
-    if (present.length === 0) return `${label.padEnd(11)} —      (0/${values.length})`;
-    return `${label.padEnd(11)} p50 ${String(Math.round(percentile(present, 0.5))).padStart(5)}`
-        + `   p90 ${String(Math.round(percentile(present, 0.9))).padStart(5)}`
-        + `   (${present.length}/${values.length})`;
+  const present = values.filter((value) => value !== null && Number.isFinite(value));
+  if (present.length === 0) return `${label.padEnd(11)} —      (0/${values.length})`;
+  return (
+    `${label.padEnd(11)} p50 ${String(Math.round(percentile(present, 0.5))).padStart(5)}` +
+    `   p90 ${String(Math.round(percentile(present, 0.9))).padStart(5)}` +
+    `   (${present.length}/${values.length})`
+  );
 }
 
 const POST_PATH = '^/p/';
 
 async function run(mode, runs) {
-    const browser = await chromium.connectOverCDP(CDP);
-    const context = browser.contexts()[0];
-    const rows = [];
+  const browser = await chromium.connectOverCDP(CDP);
+  const context = browser.contexts()[0];
+  const rows = [];
 
-    for (let attempt = 0; attempt < runs; attempt += 1) {
-        const page = await context.newPage();
+  for (let attempt = 0; attempt < runs; attempt += 1) {
+    const page = await context.newPage();
+    try {
+      await openFeed(page);
+      const row = await pickRow(page, 0);
+      if (!row) throw new Error('no feed row carried both an aria-label and a tabindex');
+
+      await page.evaluate(INSTRUMENT, { pathPattern: POST_PATH, marker: row.label });
+
+      if (mode === 'warm') {
+        // The experiment behind the fix, run against the SHIPPED build so
+        // it needs no local export: evaluate the route's split bundle
+        // before the activation, which is what Metro's `__prefetchImport`
+        // does. If the wait survives this, registering the module is not
+        // enough and `__prefetchImport` would not help either.
+        const warmed = await page.evaluate(async () => {
+          const entry = [...document.querySelectorAll('script[src]')]
+            .map((element) => element.src)
+            .find((source) => source.includes('/_expo/static/js/web/entry-'));
+          if (!entry) return { ok: false, why: 'no entry bundle on the page' };
+          const source = await (await fetch(entry)).text();
+          const match = /\/_expo\/static\/js\/web\/\[id\]-[a-f0-9]+\.js/.exec(source);
+          if (!match) return { ok: false, why: 'entry bundle names no [id] chunk' };
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = match[0];
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          return { ok: true, chunk: match[0] };
+        });
+        if (!warmed.ok) throw new Error(`warm failed: ${warmed.why}`);
+        if (attempt === 0) console.log(`warmed: ${warmed.chunk}`);
+        await page.waitForTimeout(300);
+        await activateRow(page, 0);
+        await page
+          .waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
+          .catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else if (mode === 'hot') {
+        // Navigate once and come back, so the route module is already
+        // registered. If the wait survives that, it is not module
+        // resolution — it is whatever the shell does on every commit.
+        await activateRow(page, 0);
+        await page
+          .waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
+          .catch(() => undefined);
+        await page.goBack({ waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('[data-post-uri]', { timeout: 30_000 });
+        await page.waitForTimeout(1_000);
+        const second = await pickRow(page, 1);
+        if (!second) throw new Error('no second feed row after going back');
+        await page.evaluate(INSTRUMENT, { pathPattern: POST_PATH, marker: second.label });
+        await activateRow(page, 1);
+        await page
+          .waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
+          .catch(() => undefined);
+        await page.waitForTimeout(300);
+      } else if (mode === 'control') {
+        // Activate something that must NOT reach `/p/`. If this produces a
+        // number, every number in `post` is meaningless.
+        await page.keyboard.press('Tab');
+        await page.waitForTimeout(4_000);
+      } else {
+        await activateRow(page, 0);
         try {
-            await openFeed(page);
-            const row = await pickRow(page, 0);
-            if (!row) throw new Error('no feed row carried both an aria-label and a tabindex');
-
-            await page.evaluate(INSTRUMENT, { pathPattern: POST_PATH, marker: row.label });
-
-            if (mode === 'warm') {
-                // The experiment behind the fix, run against the SHIPPED build so
-                // it needs no local export: evaluate the route's split bundle
-                // before the activation, which is what Metro's `__prefetchImport`
-                // does. If the wait survives this, registering the module is not
-                // enough and `__prefetchImport` would not help either.
-                const warmed = await page.evaluate(async () => {
-                    const entry = [...document.querySelectorAll('script[src]')]
-                        .map((element) => element.src)
-                        .find((source) => source.includes('/_expo/static/js/web/entry-'));
-                    if (!entry) return { ok: false, why: 'no entry bundle on the page' };
-                    const source = await (await fetch(entry)).text();
-                    const match = /\/_expo\/static\/js\/web\/\[id\]-[a-f0-9]+\.js/.exec(source);
-                    if (!match) return { ok: false, why: 'entry bundle names no [id] chunk' };
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = match[0];
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                    return { ok: true, chunk: match[0] };
-                });
-                if (!warmed.ok) throw new Error(`warm failed: ${warmed.why}`);
-                if (attempt === 0) console.log(`warmed: ${warmed.chunk}`);
-                await page.waitForTimeout(300);
-                await activateRow(page, 0);
-                await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
-                    .catch(() => undefined);
-                await page.waitForTimeout(300);
-            } else if (mode === 'hot') {
-                // Navigate once and come back, so the route module is already
-                // registered. If the wait survives that, it is not module
-                // resolution — it is whatever the shell does on every commit.
-                await activateRow(page, 0);
-                await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
-                    .catch(() => undefined);
-                await page.goBack({ waitUntil: 'domcontentloaded' });
-                await page.waitForSelector('[data-post-uri]', { timeout: 30_000 });
-                await page.waitForTimeout(1_000);
-                const second = await pickRow(page, 1);
-                if (!second) throw new Error('no second feed row after going back');
-                await page.evaluate(INSTRUMENT, { pathPattern: POST_PATH, marker: second.label });
-                await activateRow(page, 1);
-                await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
-                    .catch(() => undefined);
-                await page.waitForTimeout(300);
-            } else if (mode === 'control') {
-                // Activate something that must NOT reach `/p/`. If this produces a
-                // number, every number in `post` is meaningless.
-                await page.keyboard.press('Tab');
-                await page.waitForTimeout(4_000);
-            } else {
-                await activateRow(page, 0);
-                try {
-                    await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 });
-                } catch { /* recorded as a miss, not thrown */ }
-                await page.waitForTimeout(500);
-            }
-
-            const nav = await page.evaluate(() => window.__nav);
-            const transfers = await page.evaluate(READ_TRANSFERS);
-            rows.push({ ...nav, ...transfers, uri: row.uri });
-        } catch (error) {
-            rows.push({ error: String(error), t0: null, tRoute: null, tShell: null, tFMP: null, chunks: [], api: [] });
-        } finally {
-            await page.close();
+          await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 });
+        } catch {
+          /* recorded as a miss, not thrown */
         }
-    }
+        await page.waitForTimeout(500);
+      }
 
-    report(mode, rows);
-    process.exit(0);
+      const nav = await page.evaluate(() => window.__nav);
+      const transfers = await page.evaluate(READ_TRANSFERS);
+      rows.push({ ...nav, ...transfers, uri: row.uri });
+    } catch (error) {
+      rows.push({
+        error: String(error),
+        t0: null,
+        tRoute: null,
+        tShell: null,
+        tFMP: null,
+        chunks: [],
+        api: [],
+      });
+    } finally {
+      await page.close();
+    }
+  }
+
+  report(mode, rows);
+  process.exit(0);
 }
 
 function report(mode, rows) {
-    const delta = (a, b) => rows.map((row) => (row[a] !== null && row[b] !== null ? row[a] - row[b] : null));
+  const delta = (a, b) =>
+    rows.map((row) => (row[a] !== null && row[b] !== null ? row[a] - row[b] : null));
 
-    console.log(`\n=== nav-latency  mode=${mode}  origin=${ORIGIN}  viewport=${VIEWPORT.width}x${VIEWPORT.height}  n=${rows.length} ===\n`);
-    console.log(summarise('t0→route', delta('tRoute', 't0')));
-    console.log(summarise('blankMs', delta('tShell', 'tRoute')));
-    console.log(summarise('contentMs', delta('tFMP', 'tShell')));
-    console.log(summarise('t0→FMP', delta('tFMP', 't0')));
+  console.log(
+    `\n=== nav-latency  mode=${mode}  origin=${ORIGIN}  viewport=${VIEWPORT.width}x${VIEWPORT.height}  n=${rows.length} ===\n`,
+  );
+  console.log(summarise('t0→route', delta('tRoute', 't0')));
+  console.log(summarise('blankMs', delta('tShell', 'tRoute')));
+  console.log(summarise('contentMs', delta('tFMP', 'tShell')));
+  console.log(summarise('t0→FMP', delta('tFMP', 't0')));
 
-    const skeletons = rows.filter((row) => row.sawSkeleton).length;
-    console.log(`\nskeleton observed before content: ${skeletons}/${rows.length}`
-        + (skeletons === 0 ? '   <- NO SKELETON OBSERVED: tShell == tFMP, blankMs is the whole wait' : ''));
+  const skeletons = rows.filter((row) => row.sawSkeleton).length;
+  console.log(
+    `\nskeleton observed before content: ${skeletons}/${rows.length}` +
+      (skeletons === 0
+        ? '   <- NO SKELETON OBSERVED: tShell == tFMP, blankMs is the whole wait'
+        : ''),
+  );
 
-    // One representative run in full, then the aggregate: ten identical listings
-    // are noise, and the question is which KIND of transfer sits in the window.
-    const sample = rows.find((row) => !row.error) ?? rows[0];
-    console.log('\nattribution — run 0, everything fetched after activation:');
-    for (const chunk of sample?.chunks ?? []) {
-        console.log(`  chunk  ${chunk.name.padEnd(52)} +${chunk.start}ms → +${chunk.end}ms  ${chunk.transferred}B`);
-    }
-    for (const call of sample?.api ?? []) {
-        console.log(`  api    ${call.path.padEnd(52)} +${call.start}ms → +${call.end}ms  ${call.transferred}B`);
-    }
-    if ((sample?.chunks.length ?? 0) + (sample?.api.length ?? 0) === 0) console.log('  none');
+  // One representative run in full, then the aggregate: ten identical listings
+  // are noise, and the question is which KIND of transfer sits in the window.
+  const sample = rows.find((row) => !row.error) ?? rows[0];
+  console.log('\nattribution — run 0, everything fetched after activation:');
+  for (const chunk of sample?.chunks ?? []) {
+    console.log(
+      `  chunk  ${chunk.name.padEnd(52)} +${chunk.start}ms → +${chunk.end}ms  ${chunk.transferred}B`,
+    );
+  }
+  for (const call of sample?.api ?? []) {
+    console.log(
+      `  api    ${call.path.padEnd(52)} +${call.start}ms → +${call.end}ms  ${call.transferred}B`,
+    );
+  }
+  if ((sample?.chunks.length ?? 0) + (sample?.api.length ?? 0) === 0) console.log('  none');
 
-    const inBlankWindow = (row, entries) => entries.filter(
-        (entry) => row.tShell !== null && row.t0 !== null && entry.end <= row.tShell - row.t0,
+  const inBlankWindow = (row, entries) =>
+    entries.filter(
+      (entry) => row.tShell !== null && row.t0 !== null && entry.end <= row.tShell - row.t0,
     ).length;
-    const chunkHits = rows.filter((row) => !row.error && inBlankWindow(row, row.chunks) > 0).length;
-    const apiHits = rows.filter((row) => !row.error && inBlankWindow(row, row.api) > 0).length;
-    console.log(`\nruns whose blank window contains a route chunk: ${chunkHits}/${rows.length}`);
-    console.log(`runs whose blank window contains an API call:   ${apiHits}/${rows.length}`);
+  const chunkHits = rows.filter((row) => !row.error && inBlankWindow(row, row.chunks) > 0).length;
+  const apiHits = rows.filter((row) => !row.error && inBlankWindow(row, row.api) > 0).length;
+  console.log(`\nruns whose blank window contains a route chunk: ${chunkHits}/${rows.length}`);
+  console.log(`runs whose blank window contains an API call:   ${apiHits}/${rows.length}`);
 
-    const blocked = rows.map((row) => (row.longTasks ?? []).reduce((total, task) => total + task.duration, 0));
-    console.log(`\nmain thread BLOCKED after activation: ${summarise('longtask', blocked).slice(11)}`);
-    console.log('  run 0 long tasks: ' + ((sample?.longTasks ?? []).map((task) => `+${task.start}ms for ${task.duration}ms`).join(', ') || 'none'));
+  const blocked = rows.map((row) =>
+    (row.longTasks ?? []).reduce((total, task) => total + task.duration, 0),
+  );
+  console.log(
+    `\nmain thread BLOCKED after activation: ${summarise('longtask', blocked).slice(11)}`,
+  );
+  console.log(
+    '  run 0 long tasks: ' +
+      ((sample?.longTasks ?? [])
+        .map((task) => `+${task.start}ms for ${task.duration}ms`)
+        .join(', ') || 'none'),
+  );
 
-    const gaps = (frames) => frames.slice(1).map((value, index) => value - frames[index]);
-    const frameCounts = rows.map((row) => (row.frames ?? []).length);
-    const maxGaps = rows.map((row) => Math.max(0, ...gaps(row.frames ?? [])));
-    console.log(`\nrAF frames delivered during the blank window: ${summarise('frames', frameCounts).slice(11)}`);
-    console.log(`largest gap between two frames:              ${summarise('gap', maxGaps).slice(11)}`);
-    console.log('\ntimers >= 60ms scheduled during the wait (run 0):');
-    for (const timer of (sample?.timers ?? []).slice(0, 12)) {
-        console.log(`  +${timer.at}ms  delay=${timer.delay}  ${timer.site}`);
-    }
-    if ((sample?.timers ?? []).length === 0) console.log('  none');
+  const gaps = (frames) => frames.slice(1).map((value, index) => value - frames[index]);
+  const frameCounts = rows.map((row) => (row.frames ?? []).length);
+  const maxGaps = rows.map((row) => Math.max(0, ...gaps(row.frames ?? [])));
+  console.log(
+    `\nrAF frames delivered during the blank window: ${summarise('frames', frameCounts).slice(11)}`,
+  );
+  console.log(
+    `largest gap between two frames:              ${summarise('gap', maxGaps).slice(11)}`,
+  );
+  console.log('\ntimers >= 60ms scheduled during the wait (run 0):');
+  for (const timer of (sample?.timers ?? []).slice(0, 12)) {
+    console.log(`  +${timer.at}ms  delay=${timer.delay}  ${timer.site}`);
+  }
+  if ((sample?.timers ?? []).length === 0) console.log('  none');
 
-    console.log('\nDOM through the blank window (run 0) — ms after tRoute: rows/aria-labels/textlen');
-    console.log('  ' + (sample?.census ?? [])
+  console.log('\nDOM through the blank window (run 0) — ms after tRoute: rows/aria-labels/textlen');
+  console.log(
+    '  ' +
+      (sample?.census ?? [])
         .map((point) => `${point.at}:${point.rows}/${point.labels}/${point.text}`)
-        .join('  '));
-    console.log('');
+        .join('  '),
+  );
+  console.log('');
 }
 
 async function selftest() {
-    const browser = await chromium.connectOverCDP(CDP);
-    const page = await browser.contexts()[0].newPage();
-    await openFeed(page);
-    const row = await pickRow(page, 0);
-    console.log(`\nfeed row addressable:      ${row ? 'yes' : 'NO — harness refuses to measure'}`);
-    if (!row) process.exit(1);
-    console.log(`  aria-label:              ${JSON.stringify(row.label)}`);
-    console.log(`  data-post-uri:           ${row.uri}`);
+  const browser = await chromium.connectOverCDP(CDP);
+  const page = await browser.contexts()[0].newPage();
+  await openFeed(page);
+  const row = await pickRow(page, 0);
+  console.log(`\nfeed row addressable:      ${row ? 'yes' : 'NO — harness refuses to measure'}`);
+  if (!row) process.exit(1);
+  console.log(`  aria-label:              ${JSON.stringify(row.label)}`);
+  console.log(`  data-post-uri:           ${row.uri}`);
 
-    // The marker has to hold on a DIRECT load of the destination too, otherwise a
-    // fast number and a probe that never fired are the same output.
-    const id = row.uri.split('/').pop();
-    await page.goto(`${ORIGIN}/p/${id}`, { waitUntil: 'domcontentloaded' });
-    const found = await page.waitForFunction((marker) => {
+  // The marker has to hold on a DIRECT load of the destination too, otherwise a
+  // fast number and a probe that never fired are the same output.
+  const id = row.uri.split('/').pop();
+  await page.goto(`${ORIGIN}/p/${id}`, { waitUntil: 'domcontentloaded' });
+  const found = await page
+    .waitForFunction(
+      (marker) => {
         for (const element of document.querySelectorAll('[aria-label]')) {
-            if (element.getAttribute('aria-label') === marker) return true;
+          if (element.getAttribute('aria-label') === marker) return true;
         }
         return false;
-    }, row.label, { timeout: 30_000 }).then(() => true).catch(() => false);
-    console.log(`  marker on a direct load: ${found ? 'yes' : 'NO — the FMP marker is wrong'}`);
+      },
+      row.label,
+      { timeout: 30_000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  console.log(`  marker on a direct load: ${found ? 'yes' : 'NO — the FMP marker is wrong'}`);
 
-    const skeleton = await page.evaluate(() => document.querySelectorAll('[role="progressbar"]').length);
-    console.log(`  progressbar elements now: ${skeleton}`);
-    await page.close();
-    process.exit(found ? 0 : 1);
+  const skeleton = await page.evaluate(
+    () => document.querySelectorAll('[role="progressbar"]').length,
+  );
+  console.log(`  progressbar elements now: ${skeleton}`);
+  await page.close();
+  process.exit(found ? 0 : 1);
 }
 
 const [, , mode = 'selftest', runsArgument] = process.argv;

@@ -11,13 +11,25 @@ jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
 jest.mock('@oxy.so/bloom/radio', () => ({ RadioGroup: 'RadioGroup' }));
 jest.mock('@oxy.so/bloom/checkbox', () => ({ CheckboxCard: 'CheckboxCard' }));
 jest.mock('@oxy.so/bloom/switch', () => ({ Switch: 'Switch' }));
-jest.mock('@oxy.so/bloom/settings-list', () => ({ SettingsListGroup: 'SettingsListGroup', SettingsListItem: 'SettingsListItem' }));
+jest.mock('@oxy.so/bloom/settings-list', () => ({
+  SettingsListGroup: 'SettingsListGroup',
+  SettingsListItem: 'SettingsListItem',
+}));
 
 it('preserves exclusive permissions and falls back to anyone when the last granular permission is removed', () => {
   const change = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<ReplySettingsSheet onClose={jest.fn()} replyPermission={['followers']}
-    onReplyPermissionChange={change} quotesDisabled={false} onQuotesDisabledChange={jest.fn()} />); });
+  act(() => {
+    renderer = TestRenderer.create(
+      <ReplySettingsSheet
+        onClose={jest.fn()}
+        replyPermission={['followers']}
+        onReplyPermissionChange={change}
+        quotesDisabled={false}
+        onQuotesDisabledChange={jest.fn()}
+      />,
+    );
+  });
   act(() => renderer.root.findAllByType(CheckboxCard)[0]!.props.onCheckedChange(false));
   expect(change).toHaveBeenLastCalledWith(['anyone']);
   act(() => renderer.root.findByType(RadioGroup).props.onValueChange('nobody'));
@@ -30,8 +42,17 @@ it('preserves exclusive permissions and falls back to anyone when the last granu
 it('binds the quote switch to the inverted disabled permission', () => {
   const change = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<ReplySettingsSheet onClose={jest.fn()} replyPermission={['anyone']}
-    onReplyPermissionChange={jest.fn()} quotesDisabled onQuotesDisabledChange={change} />); });
+  act(() => {
+    renderer = TestRenderer.create(
+      <ReplySettingsSheet
+        onClose={jest.fn()}
+        replyPermission={['anyone']}
+        onReplyPermissionChange={jest.fn()}
+        quotesDisabled
+        onQuotesDisabledChange={change}
+      />,
+    );
+  });
   const row = renderer.root.findByType('SettingsListItem' as React.ElementType);
   const control = row.props.rightElement as React.ReactElement<React.ComponentProps<typeof Switch>>;
   expect(control.type).toBe(Switch);

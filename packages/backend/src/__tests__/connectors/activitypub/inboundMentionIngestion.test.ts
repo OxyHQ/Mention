@@ -192,13 +192,16 @@ beforeEach(async () => {
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
   // A local user follows the author, so `handleCreate`'s follower gate passes.
-  await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
+  await seedFollow(scope, {
+    remoteActorUri: AUTHOR_URI,
+    direction: 'outbound',
+    status: 'accepted',
+  });
 });
 
 describe('handleCreate — inbound @mention ingestion', () => {
   it('rewrites a FEDERATED mention anchor to a [mention:<oxyUserId>] placeholder and stores post.mentions', async () => {
-    const content =
-      `<p>hey <span class="h-card"><a href="${REMOTE}/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>`;
+    const content = `<p>hey <span class="h-card"><a href="${REMOTE}/@bob" class="u-url mention">@<span>bob</span></a></span> look</p>`;
     const activity = createActivity(content, [
       { type: 'Mention', href: FED_MENTION_URI, name: `@bob@${scope.domain}` },
     ]);
@@ -291,9 +294,12 @@ describe('handleCreate — inbound @mention ingestion', () => {
     // Only the author resolves; the mentioned actor has no row at all.
     await clearFederationScope(scope);
     await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID });
-    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
-    const content =
-      `<p>hi <a href="${REMOTE}/@ghost" class="u-url mention">@<span>ghost</span></a></p>`;
+    await seedFollow(scope, {
+      remoteActorUri: AUTHOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
+    const content = `<p>hi <a href="${REMOTE}/@ghost" class="u-url mention">@<span>ghost</span></a></p>`;
     const activity = createActivity(content, [
       { type: 'Mention', href: `${REMOTE}/users/ghost`, name: `@ghost@${scope.domain}` },
     ]);
@@ -349,7 +355,11 @@ describe('handleCreate — broadcast notes notify nobody', () => {
       ...Object.fromEntries(remotes.map((r) => [r.uri, r.oxyId])),
     });
     // Re-seeded with the actors: `handleCreate`'s follower gate reads it.
-    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
+    await seedFollow(scope, {
+      remoteActorUri: AUTHOR_URI,
+      direction: 'outbound',
+      status: 'accepted',
+    });
 
     const aliceAnchor = `<a href="${LOCAL_MENTION_PROFILE}" class="u-url mention">@alice</a>`;
     const aliceTag = {
@@ -366,9 +376,8 @@ describe('handleCreate — broadcast notes notify nobody', () => {
       name: `@r${i}@remote.example`,
     }));
 
-    const anchors = alicePosition === 'first'
-      ? [aliceAnchor, ...remoteAnchors]
-      : [...remoteAnchors, aliceAnchor];
+    const anchors =
+      alicePosition === 'first' ? [aliceAnchor, ...remoteAnchors] : [...remoteAnchors, aliceAnchor];
     const tags = alicePosition === 'first' ? [aliceTag, ...remoteTags] : [...remoteTags, aliceTag];
     return createActivity(`<p>${anchors.join(' ')}</p>`, tags);
   }
@@ -445,7 +454,8 @@ describe('handleCreate — broadcast notes notify nobody', () => {
  * author; it used to be acknowledged with a 202 and silently discarded.
  */
 describe('handleCreate — a Note addressed to a local user needs no local follower', () => {
-  const LOCAL_POST_URI = 'https://mention.earth/ap/users/alice/posts/01a0acb7-4cd7-79b8-80b5-8168c265f26a';
+  const LOCAL_POST_URI =
+    'https://mention.earth/ap/users/alice/posts/01a0acb7-4cd7-79b8-80b5-8168c265f26a';
 
   beforeEach(async () => {
     // The outer setup seeds a follow of the author; this block is about its absence.
@@ -477,7 +487,10 @@ describe('handleCreate — a Note addressed to a local user needs no local follo
   });
 
   it('still drops a Note that concerns no local user', async () => {
-    await inboxProcessingService.processInboxActivity(createActivity('<p>hello world</p>', []), AUTHOR_URI);
+    await inboxProcessingService.processInboxActivity(
+      createActivity('<p>hello world</p>', []),
+      AUTHOR_URI,
+    );
 
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
   });

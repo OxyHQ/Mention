@@ -67,7 +67,8 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   );
   return {
     ...actual,
-    fetchUpstreamFollowingRedirects: (...args: unknown[]) => fetchUpstreamFollowingRedirects(...args),
+    fetchUpstreamFollowingRedirects: (...args: unknown[]) =>
+      fetchUpstreamFollowingRedirects(...args),
   };
 });
 
@@ -89,7 +90,11 @@ app.use('/media', mediaRoutes);
  * `setTimeout` on the response, so emitting from there (on the next macrotask)
  * reproduces the real ordering: bytes arrive once a consumer is listening.
  */
-function fakeBodyResponse(statusCode: number, headers: Record<string, string>, body: string | Buffer) {
+function fakeBodyResponse(
+  statusCode: number,
+  headers: Record<string, string>,
+  body: string | Buffer,
+) {
   const response = new EventEmitter() as EventEmitter & {
     statusCode: number;
     headers: Record<string, string>;
@@ -132,9 +137,13 @@ const MASTER_PLAYLIST = [
   '',
 ].join('\n');
 
-const MEDIA_PLAYLIST = ['#EXTM3U', '#EXT-X-TARGETDURATION:6', '#EXTINF:6.000,', 'video0.ts?session_id=abc', ''].join(
-  '\n',
-);
+const MEDIA_PLAYLIST = [
+  '#EXTM3U',
+  '#EXT-X-TARGETDURATION:6',
+  '#EXTINF:6.000,',
+  'video0.ts?session_id=abc',
+  '',
+].join('\n');
 
 /**
  * The response body as text. Supertest only fills `.text` for content types it
@@ -155,7 +164,9 @@ function playableUris(res: { text?: string; body: unknown }): string[] {
 
 /** The upstream url behind each of those, with the proxy wrapper unwrapped. */
 function proxiedTargets(res: { text?: string; body: unknown }): string[] {
-  return playableUris(res).map((uri) => new URLSearchParams(uri.split('?')[1] ?? '').get('url') ?? '');
+  return playableUris(res).map(
+    (uri) => new URLSearchParams(uri.split('?')[1] ?? '').get('url') ?? '',
+  );
 }
 
 describe('GET /media/proxy — HLS playlists', () => {
@@ -233,12 +244,18 @@ describe('GET /media/proxy — HLS playlists', () => {
 
     const res = await request(app).get('/media/proxy').query({ url: PLAYLIST_URL });
 
-    expect(proxiedTargets(res)).toEqual(['https://edge.bsky.app/redirected/cid/video0.ts?session_id=abc']);
+    expect(proxiedTargets(res)).toEqual([
+      'https://edge.bsky.app/redirected/cid/video0.ts?session_id=abc',
+    ]);
   });
 
   it('does not advertise range support on a body it generated', async () => {
     fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE, etag: '"upstream"' }, MEDIA_PLAYLIST),
+      response: fakeBodyResponse(
+        200,
+        { 'content-type': HLS_CONTENT_TYPE, etag: '"upstream"' },
+        MEDIA_PLAYLIST,
+      ),
       finalUrl: PLAYLIST_URL,
     });
 
@@ -253,7 +270,11 @@ describe('GET /media/proxy — HLS playlists', () => {
   it('refetches the whole playlist when the upstream honoured a client Range', async () => {
     fetchUpstreamFollowingRedirects
       .mockResolvedValueOnce({
-        response: fakeBodyResponse(206, { 'content-type': HLS_CONTENT_TYPE }, '#EXTM3U\n#EXTINF:6.0,\nvid'),
+        response: fakeBodyResponse(
+          206,
+          { 'content-type': HLS_CONTENT_TYPE },
+          '#EXTM3U\n#EXTINF:6.0,\nvid',
+        ),
         finalUrl: PLAYLIST_URL,
       })
       .mockResolvedValueOnce({
@@ -261,7 +282,10 @@ describe('GET /media/proxy — HLS playlists', () => {
         finalUrl: PLAYLIST_URL,
       });
 
-    const res = await request(app).get('/media/proxy').set('Range', 'bytes=0-20').query({ url: PLAYLIST_URL });
+    const res = await request(app)
+      .get('/media/proxy')
+      .set('Range', 'bytes=0-20')
+      .query({ url: PLAYLIST_URL });
 
     expect(res.status).toBe(200);
     expect(fetchUpstreamFollowingRedirects).toHaveBeenCalledTimes(2);
@@ -272,7 +296,11 @@ describe('GET /media/proxy — HLS playlists', () => {
 
   it('rejects a body that is not a playlist despite the playlist content type', async () => {
     fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, '<!doctype html><html>nope</html>'),
+      response: fakeBodyResponse(
+        200,
+        { 'content-type': HLS_CONTENT_TYPE },
+        '<!doctype html><html>nope</html>',
+      ),
       finalUrl: PLAYLIST_URL,
     });
 
@@ -296,7 +324,10 @@ describe('GET /media/proxy — HLS playlists', () => {
   });
 
   it('rejects an oversized playlist with 413 rather than buffering it', async () => {
-    const oversized = Buffer.concat([Buffer.from('#EXTM3U\n'), Buffer.alloc(9 * 1024 * 1024, 0x61)]);
+    const oversized = Buffer.concat([
+      Buffer.from('#EXTM3U\n'),
+      Buffer.alloc(9 * 1024 * 1024, 0x61),
+    ]);
     fetchUpstreamFollowingRedirects.mockResolvedValue({
       response: fakeBodyResponse(200, { 'content-type': HLS_CONTENT_TYPE }, oversized),
       finalUrl: PLAYLIST_URL,
@@ -315,7 +346,11 @@ describe('GET /media/proxy — HLS segments served as application/octet-stream',
   beforeEach(() => {
     fetchUpstreamFollowingRedirects.mockReset();
     fetchUpstreamFollowingRedirects.mockResolvedValue({
-      response: fakeBodyResponse(200, { 'content-type': 'application/octet-stream' }, SEGMENT_BYTES),
+      response: fakeBodyResponse(
+        200,
+        { 'content-type': 'application/octet-stream' },
+        SEGMENT_BYTES,
+      ),
       finalUrl: SEGMENT_URL,
     });
   });

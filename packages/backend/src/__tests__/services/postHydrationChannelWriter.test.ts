@@ -93,7 +93,16 @@ vi.mock('../../db/postgres', async () => {
   const builder = () => {
     const q: Record<string, unknown> = {};
     let rows: unknown[] = [];
-    for (const m of ['from', 'where', 'innerJoin', 'leftJoin', 'orderBy', 'limit', 'offset', 'groupBy']) {
+    for (const m of [
+      'from',
+      'where',
+      'innerJoin',
+      'leftJoin',
+      'orderBy',
+      'limit',
+      'offset',
+      'groupBy',
+    ]) {
       q[m] = (arg?: unknown) => {
         // Routed on the TABLE, read through drizzle's own `getTableName` rather
         // than a hand-rolled symbol lookup, so the fake cannot drift from what
@@ -152,7 +161,14 @@ function postRow(authorId: string, writerId?: string) {
     authorship: [{ oxyUserId: authorId, role: 'owner', status: 'accepted' }],
     type: 'post',
     content: { variants: [{ tag: 'en', source: 'author', text: 'a channel note' }] },
-    stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, savesCount: 0, viewsCount: 0 },
+    stats: {
+      likesCount: 0,
+      boostsCount: 0,
+      commentsCount: 0,
+      downvotesCount: 0,
+      savesCount: 0,
+      viewsCount: 0,
+    },
     metadata: { createdAt: new Date('2026-02-01T00:00:00Z') },
     createdAt: new Date('2026-02-01T00:00:00Z'),
     visibility: 'public',
@@ -229,7 +245,9 @@ describe('PostHydrationService — the channel writer byline', () => {
   it('names the writer as a SECOND author when the channel signs its posts', async () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.authors.map((a) => [a.id, a.role])).toEqual([
       [CHANNEL_ID, 'owner'],
@@ -249,7 +267,9 @@ describe('PostHydrationService — the channel writer byline', () => {
   it('discloses NOBODY when the channel has not opted in', async () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: false }]);
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
     // Not merely unrendered: the writer was never even resolved, so no identity
@@ -260,7 +280,9 @@ describe('PostHydrationService — the channel writer byline', () => {
   it('discloses NOBODY when the channel has no settings row at all', async () => {
     userSettingsSelect.mockReturnValue([]);
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
     expect(requestedIds()).not.toContain(WRITER_ID);
@@ -277,7 +299,9 @@ describe('PostHydrationService — the channel writer byline', () => {
   it('refuses a truthy non-boolean signPosts', async () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: 'false' }]);
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
     expect(requestedIds()).not.toContain(WRITER_ID);
@@ -288,7 +312,9 @@ describe('PostHydrationService — the channel writer byline', () => {
       throw new Error('postgres is down');
     });
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated.authors.map((a) => a.id)).toEqual([CHANNEL_ID]);
     expect(requestedIds()).not.toContain(WRITER_ID);
@@ -355,7 +381,7 @@ describe('PostHydrationService — the channel writer byline', () => {
    * So this is the case where the byline check alone stands between a channel
    * that did not opt in and the name of the person who writes for it.
    */
-  it('does not name a non-signing channel\'s writer even when they are already resolved', async () => {
+  it("does not name a non-signing channel's writer even when they are already resolved", async () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: QUIET_CHANNEL_ID, signPosts: false }]);
 
     const hydrated = await service.hydratePosts(
@@ -375,7 +401,9 @@ describe('PostHydrationService — the channel writer byline', () => {
     // assertion above is about the byline refusing to name them and not about
     // an identity that was simply unavailable.
     expect(requestedIds()).toContain(QUIET_WRITER_ID);
-    expect(hydrated.find((post) => post.user.id === QUIET_WRITER_ID)?.user.username).toBe('quietwriter');
+    expect(hydrated.find((post) => post.user.id === QUIET_WRITER_ID)?.user.username).toBe(
+      'quietwriter',
+    );
   });
 
   it('leaves an ordinary channel post with no writer alone', async () => {
@@ -397,7 +425,9 @@ describe('PostHydrationService — the channel writer byline', () => {
   it('never puts writtenByOxyUserId on the DTO', async () => {
     userSettingsSelect.mockReturnValue([{ oxyUserId: CHANNEL_ID, signPosts: true }]);
 
-    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], { maxDepth: 0 });
+    const [hydrated] = await service.hydratePosts([postRow(CHANNEL_ID, WRITER_ID)], {
+      maxDepth: 0,
+    });
 
     expect(hydrated).not.toHaveProperty('writtenByOxyUserId');
     expect(hydrated.metadata).not.toHaveProperty('writtenByOxyUserId');

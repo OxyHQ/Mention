@@ -503,10 +503,7 @@ async function destroyChannelPosts(
     // which is a check that cannot fail. Skipped in a dry run, where every claim is
     // trivially unmet because nothing was deleted.
     if (!dryRun) {
-      const residue = await collectPostCascadeResidue(
-        deletionTargetsOf(batch.rows),
-        RESIDUE_CLAIM,
-      );
+      const residue = await collectPostCascadeResidue(deletionTargetsOf(batch.rows), RESIDUE_CLAIM);
       if (residue.length > 0) {
         logger.error(`${LOG_PREFIX} cascade claimed references it did not remove`, {
           channelOxyUserId,

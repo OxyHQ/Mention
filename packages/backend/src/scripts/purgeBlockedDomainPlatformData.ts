@@ -88,10 +88,7 @@ import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBloc
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { buildBlockedContentDomains } from './purgeBlockedDomainContent';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import {
-  assertAdminRunComplete,
-  closeAdminScriptResources,
-} from './lib/adminScriptLifecycle';
+import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   clearAdminScriptCursor,
   readAdminScriptCursor,
@@ -145,8 +142,6 @@ const MAX_CONSECUTIVE_FAILURES = 5;
  */
 const REQUEST_FAILURE_TOLERANCE = 0.05;
 
-
-
 // --- environment -------------------------------------------------------------
 
 function readBooleanEnv(name: string, fallback: boolean): boolean {
@@ -190,7 +185,12 @@ export function readOptions(): PlatformPurgeOptions {
     // is compared against the policy in exactly the form the policy is held in.
     domain: canonicalFederationHost(process.env.PURGE_DOMAIN || '') || undefined,
     batchLimit: readBoundedIntEnv('PURGE_BATCH_LIMIT', DEFAULT_BATCH_LIMIT, 1, MAX_BATCH_LIMIT),
-    maxPassesPerDomain: readBoundedIntEnv('PURGE_MAX_PASSES', DEFAULT_MAX_PASSES_PER_DOMAIN, 1, 10_000),
+    maxPassesPerDomain: readBoundedIntEnv(
+      'PURGE_MAX_PASSES',
+      DEFAULT_MAX_PASSES_PER_DOMAIN,
+      1,
+      10_000,
+    ),
     resetCursor: readBooleanEnv('RESET_CURSOR', false),
   };
 }
@@ -264,8 +264,8 @@ export class MalformedPurgeResponseError extends Error {
 export class DryRunViolationError extends Error {
   constructor(requested: boolean, reported: boolean) {
     super(
-      `[${SCRIPT_NAME}] requested dryRun=${requested} but Oxy reported dryRun=${reported}. `
-      + 'Stopping the whole run: the two ends disagree about whether this deletes.',
+      `[${SCRIPT_NAME}] requested dryRun=${requested} but Oxy reported dryRun=${reported}. ` +
+        'Stopping the whole run: the two ends disagree about whether this deletes.',
     );
     this.name = 'DryRunViolationError';
   }
@@ -689,10 +689,13 @@ export async function purgeBlockedDomainPlatformData(
     consecutiveFailures = outcome.failed ? consecutiveFailures + 1 : 0;
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
       report.issues.abortedEarly += 1;
-      logger.error(`[${SCRIPT_NAME}] stopping: ${MAX_CONSECUTIVE_FAILURES} domains failed in a row`, {
-        domainsVisited: report.domainsVisited,
-        domainsRemaining: domains.size - report.domainsVisited,
-      });
+      logger.error(
+        `[${SCRIPT_NAME}] stopping: ${MAX_CONSECUTIVE_FAILURES} domains failed in a row`,
+        {
+          domainsVisited: report.domainsVisited,
+          domainsRemaining: domains.size - report.domainsVisited,
+        },
+      );
       break;
     }
   }
@@ -734,8 +737,8 @@ export function assertPlatformPurgeRunComplete(report: PlatformPurgeReport): voi
       requestFailed: {
         maxFraction: REQUEST_FAILURE_TOLERANCE,
         reason:
-          'oxy-api rolls deploys, so an individual call can 502 or lose its token mid-flight; '
-          + 'the purge is idempotent and the domain keeps its cursor, so the next run resumes it',
+          'oxy-api rolls deploys, so an individual call can 502 or lose its token mid-flight; ' +
+          'the purge is idempotent and the domain keeps its cursor, so the next run resumes it',
       },
     },
   });
@@ -758,15 +761,16 @@ function stateOf(outcome: DomainPurgeOutcome): string {
  */
 export function renderDomainTable(report: PlatformPurgeReport): string[] {
   const rows = report.outcomes
-    .filter((outcome) =>
-      outcome.failed
-      || !outcome.done
-      || outcome.actorsProcessed > 0
-      || outcome.remaining > 0)
-    .sort((a, b) =>
-      b.localFollowersAffected - a.localFollowersAffected
-      || b.actorsDeleted - a.actorsDeleted
-      || a.domain.localeCompare(b.domain));
+    .filter(
+      (outcome) =>
+        outcome.failed || !outcome.done || outcome.actorsProcessed > 0 || outcome.remaining > 0,
+    )
+    .sort(
+      (a, b) =>
+        b.localFollowersAffected - a.localFollowersAffected ||
+        b.actorsDeleted - a.actorsDeleted ||
+        a.domain.localeCompare(b.domain),
+    );
 
   if (rows.length === 0) return ['no blocked domain had anything left on the platform'];
 
@@ -803,7 +807,10 @@ export function renderDomainTable(report: PlatformPurgeReport): string[] {
     ]),
   );
   const renderRow = (row: Record<string, string>): string =>
-    columns.map((column) => row[column].padEnd(widths.get(column) ?? 0)).join('  ').trimEnd();
+    columns
+      .map((column) => row[column].padEnd(widths.get(column) ?? 0))
+      .join('  ')
+      .trimEnd();
 
   return [renderRow(header), ...cells.map(renderRow)];
 }
@@ -837,9 +844,9 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
 function assertServiceCredentialConfigured(): void {
   if (canAuthenticateAsService()) return;
   throw new Error(
-    `[${SCRIPT_NAME}] this process cannot authenticate as Mention: it can neither `
-    + 'attest its task role nor read an OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET pair. '
-    + 'The purge endpoint resolves whose data may be deleted from that identity.',
+    `[${SCRIPT_NAME}] this process cannot authenticate as Mention: it can neither ` +
+      'attest its task role nor read an OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET pair. ' +
+      'The purge endpoint resolves whose data may be deleted from that identity.',
   );
 }
 

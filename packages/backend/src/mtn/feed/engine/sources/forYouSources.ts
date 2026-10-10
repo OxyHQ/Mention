@@ -45,7 +45,11 @@ export function buildFollowingVisibilitySql(
 ): SQL {
   const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
   const publicOnlyListIds = Array.from(
-    new Set(subscribedListMemberIds.filter((id) => id !== currentUserId && !followAuthorizedIds.includes(id))),
+    new Set(
+      subscribedListMemberIds.filter(
+        (id) => id !== currentUserId && !followAuthorizedIds.includes(id),
+      ),
+    ),
   );
 
   const followed = and(
@@ -57,10 +61,7 @@ export function buildFollowingVisibilitySql(
 
   return or(
     followed,
-    and(
-      followedAuthorsSql(publicOnlyListIds),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-    ) as SQL,
+    and(followedAuthorsSql(publicOnlyListIds), eq(posts.visibility, PostVisibility.PUBLIC)) as SQL,
   ) as SQL;
 }
 
@@ -111,7 +112,8 @@ async function gatherFollowingTimeline(
   return fetchChrono(
     [
       buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
     ],
     ctx.cursor,
     cap,
@@ -124,7 +126,11 @@ async function gatherFollowingTimeline(
  * Members are a junction TABLE, not the embedded id array Mongo held, so this
  * reads `account_list_members` rather than the list row.
  */
-async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
+async function gatherListTimeline(
+  listId: string,
+  ctx: FeedEngineContext,
+  cap: number,
+): Promise<CandidatePost[]> {
   let memberIds: string[] = [];
   try {
     const rows = await getDb()
@@ -143,7 +149,8 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
     [
       inArray(posts.oxyUserId, memberIds),
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
     ],
     ctx.cursor,
     cap,
@@ -159,9 +166,18 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
  * classified with a canonical ref but no matching slug in the array was counted
  * as trending yet never returned by this feed.
  */
-async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
+async function gatherTopicTimeline(
+  slug: string,
+  ctx: FeedEngineContext,
+  cap: number,
+): Promise<CandidatePost[]> {
   return fetchChrono(
-    [topicSlugSql(slug), eq(posts.visibility, 'public'), eq(posts.status, 'published'), notCollapsedCrosspostSql()],
+    [
+      topicSlugSql(slug),
+      eq(posts.visibility, 'public'),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
+    ],
     ctx.cursor,
     cap,
   );

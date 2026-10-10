@@ -77,7 +77,8 @@ function deliveredInboxes(): string[] {
 
 /** The activity enqueued. */
 function deliveredActivity(): Record<string, unknown> {
-  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> }).activityJson;
+  return (enqueueDelivery.mock.calls[0]?.[0] as { activityJson: Record<string, unknown> })
+    .activityJson;
 }
 
 const scope = federationScope('actor-update-federation');

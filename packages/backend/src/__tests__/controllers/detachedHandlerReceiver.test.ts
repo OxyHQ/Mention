@@ -18,7 +18,8 @@ const ROUTES = join(__dirname, '..', '..', 'routes');
 const CONTROLLERS = join(__dirname, '..', '..', 'controllers');
 
 /** `router.get('/x', somethingController.handler)` — the unbound form. */
-const UNBOUND = /router\.(?:get|post|put|patch|delete|all)\([^)]*?\b([A-Za-z_$][\w$]*[Cc]ontroller)\.([\w$]+)\s*[,)]/g;
+const UNBOUND =
+  /router\.(?:get|post|put|patch|delete|all)\([^)]*?\b([A-Za-z_$][\w$]*[Cc]ontroller)\.([\w$]+)\s*[,)]/g;
 
 function routeFiles(): string[] {
   return readdirSync(ROUTES)

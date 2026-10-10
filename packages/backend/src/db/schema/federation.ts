@@ -23,16 +23,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import {
-  boolean,
-  check,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
@@ -46,7 +37,13 @@ import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/
 export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto', 'instagram-graph'] as const;
 
 /** The outcome of the last Instagram Graph post sync of an actor. */
-export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'identity_mismatch', 'error', 'deadline'] as const;
+export const INSTAGRAM_GRAPH_SYNC_RESULTS = [
+  'ok',
+  'not_business',
+  'identity_mismatch',
+  'error',
+  'deadline',
+] as const;
 
 /** ActivityPub actor types Mention accepts. */
 export const FEDERATED_ACTOR_TYPES = [
@@ -78,19 +75,16 @@ export const DELIVERY_STATUSES = ['pending', 'delivered', 'failed'] as const;
  * oxy-api, which does the signing; a row here also marks the account as a local
  * federated actor (`hasActorKeyPair`).
  */
-export const actorKeyPairs = pgTable(
-  'actor_key_pairs',
-  {
-    id: generatedId(),
-    /** An Oxy account id — no foreign key. One keypair per user. */
-    oxyUserId: text().notNull().unique('actor_key_pairs_oxy_user_id_key'),
-    publicKeyPem: text().notNull(),
-    /** The advertised `keyId` URI (`https://<domain>/ap/users/<name>#main-key`). */
-    keyId: text().notNull(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  }
-);
+export const actorKeyPairs = pgTable('actor_key_pairs', {
+  id: generatedId(),
+  /** An Oxy account id — no foreign key. One keypair per user. */
+  oxyUserId: text().notNull().unique('actor_key_pairs_oxy_user_id_key'),
+  publicKeyPem: text().notNull(),
+  /** The advertised `keyId` URI (`https://<domain>/ap/users/<name>#main-key`). */
+  keyId: text().notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 /**
  * `federated_actors` — a remote account Mention knows about.
@@ -248,19 +242,19 @@ export const federatedActors = pgTable(
   (t) => [
     check(
       'federated_actors_protocol_check',
-      sql`${t.protocol} in (${sql.raw(inList(FEDERATION_PROTOCOLS))})`
+      sql`${t.protocol} in (${sql.raw(inList(FEDERATION_PROTOCOLS))})`,
     ),
     check(
       'federated_actors_type_check',
-      sql`${t.type} in (${sql.raw(inList(FEDERATED_ACTOR_TYPES))})`
+      sql`${t.type} in (${sql.raw(inList(FEDERATED_ACTOR_TYPES))})`,
     ),
     check(
       'federated_actors_instagram_graph_last_result_check',
-      sql`${t.instagramGraphLastResult} is null or ${t.instagramGraphLastResult} in (${sql.raw(inList(INSTAGRAM_GRAPH_SYNC_RESULTS))})`
+      sql`${t.instagramGraphLastResult} is null or ${t.instagramGraphLastResult} in (${sql.raw(inList(INSTAGRAM_GRAPH_SYNC_RESULTS))})`,
     ),
     check(
       'federated_actors_outbox_backfill_status_check',
-      sql`${t.outboxBackfillStatus} is null or ${t.outboxBackfillStatus} in (${sql.raw(inList(OUTBOX_BACKFILL_STATUSES))})`
+      sql`${t.outboxBackfillStatus} is null or ${t.outboxBackfillStatus} in (${sql.raw(inList(OUTBOX_BACKFILL_STATUSES))})`,
     ),
     unique('federated_actors_domain_username_key').on(t.domain, t.username),
     index('federated_actors_protocol_idx').on(t.protocol),
@@ -274,7 +268,7 @@ export const federatedActors = pgTable(
     // The backfill worker's claim query.
     index('federated_actors_backfill_claim_idx').on(
       t.outboxBackfillStatus,
-      t.outboxBackfillLockedUntil
+      t.outboxBackfillLockedUntil,
     ),
     // Resolving an actor from the Oxy account it is linked to.
     index('federated_actors_oxy_user_id_idx')
@@ -284,7 +278,7 @@ export const federatedActors = pgTable(
     index('federated_actors_network_acct_idx')
       .on(t.networkAcct)
       .where(sql`${t.networkAcct} is not null`),
-  ]
+  ],
 );
 
 /**
@@ -308,7 +302,7 @@ export const federatedActorFields = pgTable(
   (t) => [
     check('federated_actor_fields_position_check', sql`${t.position} >= 0`),
     unique('federated_actor_fields_actor_id_position_key').on(t.actorId, t.position),
-  ]
+  ],
 );
 
 /** `federated_media_deletions.state`. */
@@ -366,13 +360,13 @@ export const federatedMediaDeletions = pgTable(
   (t) => [
     check(
       'federated_media_deletions_state_check',
-      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_DELETION_STATES))})`
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_DELETION_STATES))})`,
     ),
     // The drain's claim: due rows of the two live states only.
     index('federated_media_deletions_due_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.state} in ('pending', 'deleting')`),
-  ]
+  ],
 );
 
 /**
@@ -393,7 +387,7 @@ export const federatedMediaPosters = pgTable(
   (t) => [
     unique('federated_media_posters_video_poster_key').on(t.videoFileId, t.posterFileId),
     index('federated_media_posters_poster_file_id_idx').on(t.posterFileId),
-  ]
+  ],
 );
 
 /**
@@ -436,11 +430,11 @@ export const federatedBannerMirrors = pgTable(
   (t) => [
     check(
       'federated_banner_mirrors_state_check',
-      sql`${t.state} in (${sql.raw(inList(FEDERATED_BANNER_MIRROR_STATES))})`
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_BANNER_MIRROR_STATES))})`,
     ),
     // The sweep's claim: rows still owed a mirror, by due time.
     index('federated_banner_mirrors_due_idx').on(t.retryAt).where(sql`${t.state} <> 'mirrored'`),
-  ]
+  ],
 );
 
 /**
@@ -474,28 +468,24 @@ export const federatedFollows = pgTable(
   (t) => [
     check(
       'federated_follows_direction_check',
-      sql`${t.direction} in (${sql.raw(inList(FOLLOW_DIRECTIONS))})`
+      sql`${t.direction} in (${sql.raw(inList(FOLLOW_DIRECTIONS))})`,
     ),
     check(
       'federated_follows_status_check',
-      sql`${t.status} in (${sql.raw(inList(FOLLOW_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(FOLLOW_STATUSES))})`,
     ),
     check(
       'federated_follows_network_check',
-      sql`${t.network} in (${sql.raw(inList(FEDERATION_PROTOCOLS))})`
+      sql`${t.network} in (${sql.raw(inList(FEDERATION_PROTOCOLS))})`,
     ),
     unique('federated_follows_local_remote_direction_key').on(
       t.localUserId,
       t.remoteActorUri,
-      t.direction
-    ),
-    index('federated_follows_local_direction_status_idx').on(
-      t.localUserId,
       t.direction,
-      t.status
     ),
+    index('federated_follows_local_direction_status_idx').on(t.localUserId, t.direction, t.status),
     index('federated_follows_remote_direction_idx').on(t.remoteActorUri, t.direction),
-  ]
+  ],
 );
 
 /**
@@ -529,14 +519,14 @@ export const federatedMediaCache = pgTable(
   (t) => [
     check(
       'federated_media_cache_state_check',
-      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_CACHE_STATES))})`
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_CACHE_STATES))})`,
     ),
     check('federated_media_cache_fail_count_check', sql`${t.failCount} >= 0`),
     // The eviction job: cached entries idle past the TTL, oldest access first.
     index('federated_media_cache_state_accessed_idx').on(t.state, t.lastAccessedAt),
     // The worker claim: pending entries that are due.
     index('federated_media_cache_state_next_attempt_idx').on(t.state, t.nextAttemptAt),
-  ]
+  ],
 );
 
 /**
@@ -572,9 +562,9 @@ export const federationDeliveryQueue = pgTable(
   (t) => [
     check(
       'federation_delivery_queue_status_check',
-      sql`${t.status} in (${sql.raw(inList(DELIVERY_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(DELIVERY_STATUSES))})`,
     ),
     check('federation_delivery_queue_attempts_check', sql`${t.attempts} >= 0`),
     index('federation_delivery_queue_drain_idx').on(t.status, t.nextAttemptAt),
-  ]
+  ],
 );

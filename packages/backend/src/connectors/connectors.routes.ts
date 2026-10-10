@@ -11,22 +11,25 @@ import {
   type PostContent,
 } from '@mention/shared-types';
 import { logger } from '../utils/logger';
-import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
+import {
+  activityPubConnector,
+  isPermanentlyUnavailableOutboxReason,
+} from './activitypub/ActivityPubConnector';
 import {
   findActorByUri,
   findActorByUriOrAcct,
   findActorsByUris,
 } from '../db/federation/actorRepository';
-import {
-  existsFollow,
-  findFollows,
-} from '../db/federation/followRepository';
+import { existsFollow, findFollows } from '../db/federation/followRepository';
 import { and, eq, isNotNull, lt, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
-import { instagramGraphConnector, isInstagramGraphEnabled } from './instagram/InstagramGraphConnector';
+import {
+  instagramGraphConnector,
+  isInstagramGraphEnabled,
+} from './instagram/InstagramGraphConnector';
 import { isInstagramGraphActorUri } from './instagram/constants';
 import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
 import { resolveOxyIdentity } from './oxyIdentity';
@@ -39,9 +42,16 @@ import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers'
 import { extractBearerToken } from '@oxy.so/mcp';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { invalidateViewerRelations } from '../utils/privacyHelpers';
-import { followThroughConnection, parseLocalFollowRef, resolveLocalFollowTarget } from './localFollow';
+import {
+  followThroughConnection,
+  parseLocalFollowRef,
+  resolveLocalFollowTarget,
+} from './localFollow';
 import { apiRateLimiter } from '../middleware/rateLimiter';
-import { isFediverseSharingEnabled, invalidateFediverseSharing } from '../services/fediverseSharing';
+import {
+  isFediverseSharingEnabled,
+  invalidateFediverseSharing,
+} from '../services/fediverseSharing';
 import { invalidateWebfingerCache } from './activitypub/webfingerCache';
 import { enqueueSharingCleanup } from '../queue/producers';
 import { runSharingCleanup } from './activitypub/sharingCleanup.service';
@@ -71,12 +81,12 @@ router.use(apiRateLimiter);
  */
 function isFollowableActorRef(value: string): boolean {
   return (
-    isAbsoluteHttpUrl(value)
-    || Boolean(normalizeFederatedAcct(value))
-    || isDid(value)
-    || isAtUri(value)
-    || isAtprotoHandle(value)
-    || isInstagramGraphActorUri(value)
+    isAbsoluteHttpUrl(value) ||
+    Boolean(normalizeFederatedAcct(value)) ||
+    isDid(value) ||
+    isAtUri(value) ||
+    isAtprotoHandle(value) ||
+    isInstagramGraphActorUri(value)
   );
 }
 
@@ -112,12 +122,12 @@ const LOCAL_USERNAME_RE = /^@?[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,62}$/;
  */
 function isResolvableQuery(value: string): boolean {
   return (
-    Boolean(normalizeFederatedAcct(value))
-    || isAtprotoHandle(value)
-    || isDid(value)
-    || isAtUri(value)
-    || isAbsoluteHttpUrl(value)
-    || LOCAL_USERNAME_RE.test(value)
+    Boolean(normalizeFederatedAcct(value)) ||
+    isAtprotoHandle(value) ||
+    isDid(value) ||
+    isAtUri(value) ||
+    isAbsoluteHttpUrl(value) ||
+    LOCAL_USERNAME_RE.test(value)
   );
 }
 
@@ -172,20 +182,27 @@ function resolveUserOr401(req: AuthRequest, res: Response): string | null {
  * `federated_actors.protocol` (authoritative once an actor is known), falling back
  * to shape-based `matches` (an http URI → ActivityPub, a DID → atproto).
  */
-async function resolveTargetConnector(target: string): Promise<NetworkConnector<PostContent> | undefined> {
+async function resolveTargetConnector(
+  target: string,
+): Promise<NetworkConnector<PostContent> | undefined> {
   const stored = await findActorByUri(target);
   if (stored?.protocol) {
-    const byProtocol = connectorRegistry.list().find((connector) => connector.id === stored.protocol);
+    const byProtocol = connectorRegistry
+      .list()
+      .find((connector) => connector.id === stored.protocol);
     if (byProtocol) return byProtocol;
   }
   return connectorRegistry.connectorFor(target);
 }
 
-function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill?: { outboxUrl?: string; status?: string } }): boolean {
+function hasUnavailableCurrentOutbox(actor: {
+  outboxUrl?: string;
+  outboxBackfill?: { outboxUrl?: string; status?: string };
+}): boolean {
   return Boolean(
-    actor.outboxUrl
-    && actor.outboxBackfill?.outboxUrl === actor.outboxUrl
-    && actor.outboxBackfill.status === 'unavailable',
+    actor.outboxUrl &&
+      actor.outboxBackfill?.outboxUrl === actor.outboxUrl &&
+      actor.outboxBackfill.status === 'unavailable',
   );
 }
 
@@ -287,8 +304,12 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     const connector = connectorRegistry.connectorFor(source.actorUri);
     if (!connector?.enabled || connector.id !== source.protocol) return res.json({ actor: null });
     const actor = await connector.fetchProfile(source.actorUri);
-    if (!actor || actor.externalId !== source.actorUri
-      || (actor.oxyUserId && actor.oxyUserId !== resolved.user.id)) return res.json({ actor: null });
+    if (
+      !actor ||
+      actor.externalId !== source.actorUri ||
+      (actor.oxyUserId && actor.oxyUserId !== resolved.user.id)
+    )
+      return res.json({ actor: null });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.
     let followed = false;
@@ -361,7 +382,9 @@ async function handleLocalFollow(
     return true;
   }
   if (target.federated) {
-    res.status(400).json({ error: 'That is a federated account: follow it by its actor handle or URI' });
+    res
+      .status(400)
+      .json({ error: 'That is a federated account: follow it by its actor handle or URI' });
     return true;
   }
   if (target.id === userId) {
@@ -372,7 +395,9 @@ async function handleLocalFollow(
   const mcp = (req as OxyAuthRequestWithMcp).mcp;
   const connectionToken = mcp ? extractBearerToken(req.headers) : undefined;
   if (!connectionToken) {
-    res.status(400).json({ error: 'Local accounts are followed through Oxy with your own session' });
+    res
+      .status(400)
+      .json({ error: 'Local accounts are followed through Oxy with your own session' });
     return true;
   }
 
@@ -546,7 +571,11 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
       if (!enabled) {
         cleanupQueued = true;
         const nonce = String(Date.now());
-        const queued = await enqueueSharingCleanup({ oxyUserId: userId, username: user.username, nonce });
+        const queued = await enqueueSharingCleanup({
+          oxyUserId: userId,
+          username: user.username,
+          nonce,
+        });
         if (!queued) {
           runSharingCleanup(userId, user.username).catch((err) => {
             logger.error('sharing cleanup inline failed:', err);
@@ -594,7 +623,8 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
         handle: separator > 0 ? username.slice(0, separator) : username,
         instance: separator > 0 ? username.slice(separator + 1) : '',
         fullHandle: username ? `@${username}` : '',
-        displayName: profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
+        displayName:
+          profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
         avatarUrl: resolveAvatarUrl(profile?.avatar),
         oxyUserId: profile?.id,
         isFollowing: f.status === 'accepted',
@@ -641,7 +671,8 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
         handle: separator > 0 ? username.slice(0, separator) : username,
         instance: separator > 0 ? username.slice(separator + 1) : '',
         fullHandle: username ? `@${username}` : '',
-        displayName: profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
+        displayName:
+          profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
         avatarUrl: resolveAvatarUrl(profile?.avatar),
         oxyUserId: profile?.id,
       };
@@ -679,15 +710,13 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
  * exactly where both halves can reach one page. The prefix branch is scoped to a
  * single actor URI, where at most one half can match at all.
  */
-export function buildActorPostsScopeSql(
-  actor: { uri: string; oxyUserId?: string | null },
-): SQL {
+export function buildActorPostsScopeSql(actor: { uri: string; oxyUserId?: string | null }): SQL {
   const reachedBy = actor.oxyUserId
     ? [
-      eq(postsTable.oxyUserId, actor.oxyUserId),
-      isNotNull(postsTable.federationActivityId),
-      notCollapsedCrosspostSql(),
-    ]
+        eq(postsTable.oxyUserId, actor.oxyUserId),
+        isNotNull(postsTable.federationActivityId),
+        notCollapsedCrosspostSql(),
+      ]
     : [activityIdUnderActor(actor.uri)];
   return and(eq(postsTable.visibility, PostVisibility.PUBLIC), ...reachedBy) as SQL;
 }
@@ -754,7 +783,8 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
         }
 
         // Fire-and-forget: sync in background, return syncing flag to client
-        activityPubConnector.syncOutboxPostsDetailed(actor, limit)
+        activityPubConnector
+          .syncOutboxPostsDetailed(actor, limit)
           .then(async (result) => {
             if (isPermanentlyUnavailableOutboxReason(result.reason)) {
               await activityPubConnector.markOutboxBackfillUnavailable(actor, result.reason);

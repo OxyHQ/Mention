@@ -39,51 +39,34 @@ describe('entityFollowStore viewer isolation', () => {
   it('discards A status when it resolves after B owns the store', async () => {
     const pendingA = deferred<boolean>();
     const pendingB = deferred<boolean>();
-    mockGetStatus
-      .mockReturnValueOnce(pendingA.promise)
-      .mockReturnValueOnce(pendingB.promise);
+    mockGetStatus.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise);
 
-    const requestA = useEntityFollowStore
-      .getState()
-      .fetchStatus('list', 'shared-list');
+    const requestA = useEntityFollowStore.getState().fetchStatus('list', 'shared-list');
 
     useEntityFollowStore.getState().reset();
-    const requestB = useEntityFollowStore
-      .getState()
-      .fetchStatus('list', 'shared-list');
+    const requestB = useEntityFollowStore.getState().fetchStatus('list', 'shared-list');
 
     pendingB.resolve(false);
     await requestB;
-    expect(useEntityFollowStore.getState().following['list:shared-list'])
-      .toBe(false);
+    expect(useEntityFollowStore.getState().following['list:shared-list']).toBe(false);
 
     pendingA.resolve(true);
     await requestA;
-    expect(useEntityFollowStore.getState().following['list:shared-list'])
-      .toBe(false);
+    expect(useEntityFollowStore.getState().following['list:shared-list']).toBe(false);
   });
 
   it('does not let an A mutation rollback overwrite B state', async () => {
     const pendingA = deferred<void>();
     mockFollow.mockReturnValueOnce(pendingA.promise);
 
-    const requestA = useEntityFollowStore
-      .getState()
-      .toggleFollow('hashtag', 'shared-hashtag');
+    const requestA = useEntityFollowStore.getState().toggleFollow('hashtag', 'shared-hashtag');
 
     useEntityFollowStore.getState().reset();
-    useEntityFollowStore
-      .getState()
-      .setStatus('hashtag', 'shared-hashtag', true);
+    useEntityFollowStore.getState().setStatus('hashtag', 'shared-hashtag', true);
 
     pendingA.reject(new Error('late A failure'));
     await requestA;
 
-    expect(
-      useEntityFollowStore.getState().following[
-        'hashtag:shared-hashtag'
-      ],
-    )
-      .toBe(true);
+    expect(useEntityFollowStore.getState().following['hashtag:shared-hashtag']).toBe(true);
   });
 });

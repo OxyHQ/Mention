@@ -77,7 +77,12 @@ function buildSources(post: PostRecord): MtnSourceLink[] | undefined {
 
 function buildLocation(post: PostRecord): MtnGeoPoint | undefined {
   const loc = post.content?.location;
-  if (!loc || loc.type !== 'Point' || !Array.isArray(loc.coordinates) || loc.coordinates.length !== 2) {
+  if (
+    !loc ||
+    loc.type !== 'Point' ||
+    !Array.isArray(loc.coordinates) ||
+    loc.coordinates.length !== 2
+  ) {
     return undefined;
   }
   return { type: 'Point', coordinates: [loc.coordinates[0], loc.coordinates[1]] };
@@ -108,7 +113,10 @@ function buildLangs(post: PostRecord): string[] | undefined {
 }
 
 /** Map a native MediaItem `type` to the lexicon blob `mediaType` (same enum). */
-const MEDIA_TYPE_TO_BLOB_KIND: Record<'image' | 'video' | 'gif', MtnEmbedMediaItem['blob']['mediaType']> = {
+const MEDIA_TYPE_TO_BLOB_KIND: Record<
+  'image' | 'video' | 'gif',
+  MtnEmbedMediaItem['blob']['mediaType']
+> = {
   image: 'image',
   video: 'video',
   gif: 'gif',
@@ -154,7 +162,8 @@ function buildEmbedFromMedia(
       mediaType: MEDIA_TYPE_TO_BLOB_KIND[m.type],
     };
     if (typeof meta.mime === 'string' && meta.mime.length > 0) blob.mime = meta.mime;
-    if (typeof meta.size === 'number' && Number.isFinite(meta.size) && meta.size >= 0) blob.size = meta.size;
+    if (typeof meta.size === 'number' && Number.isFinite(meta.size) && meta.size >= 0)
+      blob.size = meta.size;
     const item: MtnEmbedMediaItem = { blob };
     if (typeof m.alt === 'string' && m.alt.length > 0) item.alt = m.alt;
     items.push(item);
@@ -215,11 +224,14 @@ export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRec
   } catch (error) {
     // Best-effort: a failed asset-metadata lookup must never block emitting the
     // record. The federation credential may not yet have the `files:read` scope.
-    logger.warn('mentionRecordBuilders: resolvePostRecordEmbeds failed; emitting record without media embed', {
-      postId: post.id,
-      mediaCount: fileIds.length,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.warn(
+      'mentionRecordBuilders: resolvePostRecordEmbeds failed; emitting record without media embed',
+      {
+        postId: post.id,
+        mediaCount: fileIds.length,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return empty;
   }
 }
@@ -240,7 +252,10 @@ export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRec
  * whose media did not resolve is dropped rather than emitted against a key no
  * reader can match.
  */
-function buildRecordVariants(post: PostRecord, embeds: PostRecordEmbeds): MentionPostVariant[] | undefined {
+function buildRecordVariants(
+  post: PostRecord,
+  embeds: PostRecordEmbeds,
+): MentionPostVariant[] | undefined {
   const authored = authorVariants(post.content);
   if (authored.length === 0) return undefined;
 

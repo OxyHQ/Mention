@@ -54,17 +54,19 @@ export function emitRequestMetrics(fields: RequestMetricFields): void {
   const line = {
     _aws: {
       Timestamp: Date.now(),
-      CloudWatchMetrics: [{
-        Namespace: NAMESPACE,
-        // By METHOD only. Every distinct dimension set is a billed custom
-        // metric (0.30 $/month each): `route` × `method` measured 135
-        // combinations × 3 metrics = 405 metrics, ~80 % of the account's
-        // CloudWatch bill on 2026-10-10. The route stays a property of this
-        // line, so a per-route breakdown is a Logs Insights query
-        // (`stats pct(HttpRequestDurationMs, 95) by route`) at no metric cost.
-        Dimensions: [['method']],
-        Metrics: metricDefinitions,
-      }],
+      CloudWatchMetrics: [
+        {
+          Namespace: NAMESPACE,
+          // By METHOD only. Every distinct dimension set is a billed custom
+          // metric (0.30 $/month each): `route` × `method` measured 135
+          // combinations × 3 metrics = 405 metrics, ~80 % of the account's
+          // CloudWatch bill on 2026-10-10. The route stays a property of this
+          // line, so a per-route breakdown is a Logs Insights query
+          // (`stats pct(HttpRequestDurationMs, 95) by route`) at no metric cost.
+          Dimensions: [['method']],
+          Metrics: metricDefinitions,
+        },
+      ],
     },
     route: fields.route,
     method: fields.method,

@@ -91,8 +91,8 @@ async function waitForBlockedInsert(): Promise<void> {
     if (waiting.length > 0) return;
     if (Date.now() > deadline) {
       throw new Error(
-        'the racing insert never blocked on the unique index, so this test never '
-        + 'reached the ON CONFLICT path it exists to cover',
+        'the racing insert never blocked on the unique index, so this test never ' +
+          'reached the ON CONFLICT path it exists to cover',
       );
     }
     await new Promise((resolve) => setTimeout(resolve, BLOCK_POLL_INTERVAL_MS));

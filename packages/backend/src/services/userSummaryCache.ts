@@ -151,9 +151,7 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
     return;
   }
 
-  await cache.setMany(
-    [...entries].map(([userId, value]) => [keyFor(userId), value] as const),
-  );
+  await cache.setMany([...entries].map(([userId, value]) => [keyFor(userId), value] as const));
 }
 
 /**

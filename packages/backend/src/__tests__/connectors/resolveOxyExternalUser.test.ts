@@ -46,18 +46,38 @@ beforeEach(() => {
 
 describe('resolveOxyExternalUser', () => {
   it('uses Oxy profile ownership without running Mention banner persistence', async () => {
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId, transportAcct: actor.handle, canonicalAcct: actor.federatedUsername, network: actor.instanceDomain, userId: 'oxy-user-1' }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: actor.externalId,
+        transportAcct: actor.handle,
+        canonicalAcct: actor.federatedUsername,
+        network: actor.instanceDomain,
+        userId: 'oxy-user-1',
+      }),
+    );
     mocks.persistRemoteMedia.mockRejectedValue(new Error('S3 upload timeout'));
 
     const result = await resolveOxyExternalUser(actor);
 
     // The user was resolved; a banner-mirror failure must not drop it.
     expect(result).toBe('oxy-user-1');
-    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { actorUri: actor.externalId, transportAcct: actor.handle, protocol: 'activitypub' });
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri: actor.externalId,
+      transportAcct: actor.handle,
+      protocol: 'activitypub',
+    });
   });
 
   it('resolves without writing Mention profile settings', async () => {
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId, transportAcct: actor.handle, canonicalAcct: actor.federatedUsername, network: actor.instanceDomain, userId: 'oxy-user-2' }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: actor.externalId,
+        transportAcct: actor.handle,
+        canonicalAcct: actor.federatedUsername,
+        network: actor.instanceDomain,
+        userId: 'oxy-user-2',
+      }),
+    );
     mocks.persistRemoteMedia.mockResolvedValue({
       ok: true,
       media: { oxyFileId: 'banner_file', contentType: 'image/png', sizeBytes: 10 },
@@ -78,14 +98,22 @@ describe('resolveOxyExternalUser', () => {
       federatedUsername: 'zuck@instagram.com',
       instanceDomain: 'instagram.com',
     };
-    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
-      actorUri: graphActor.externalId, transportAcct: graphActor.handle, canonicalAcct: graphActor.handle,
-      network: 'instagram.com', protocol: 'instagram-graph', userId: 'oxy-zuck',
-    }));
+    mocks.serviceRequest.mockResolvedValue(
+      oxyIdentityFixture({
+        actorUri: graphActor.externalId,
+        transportAcct: graphActor.handle,
+        canonicalAcct: graphActor.handle,
+        network: 'instagram.com',
+        protocol: 'instagram-graph',
+        userId: 'oxy-zuck',
+      }),
+    );
 
     expect(await resolveOxyExternalUser(graphActor)).toBe('oxy-zuck');
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
-      actorUri: graphActor.externalId, transportAcct: graphActor.handle, protocol: 'instagram-graph',
+      actorUri: graphActor.externalId,
+      transportAcct: graphActor.handle,
+      protocol: 'instagram-graph',
     });
   });
 

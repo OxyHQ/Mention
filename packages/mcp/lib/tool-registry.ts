@@ -1,27 +1,30 @@
-import { mcpDeploymentIdentity, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
+import {
+  mcpDeploymentIdentity,
+  type McpDeploymentIdentity,
+} from '@mention/shared-types/deployment';
 import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
   type CatalogTool,
-} from "@oxy.so/contracts";
-import { createHash } from "node:crypto";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod/v4";
-import { toJSONSchema } from "zod/v4-mini";
-import { requestContext } from "./context.js";
+} from '@oxy.so/contracts';
+import { createHash } from 'node:crypto';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod/v4';
+import { toJSONSchema } from 'zod/v4-mini';
+import { requestContext } from './context.js';
 
 export type MentionToolPolicy = Pick<
   CatalogTool,
-  | "capabilityPackage"
-  | "requiredCapabilities"
-  | "resourceTypes"
-  | "effect"
-  | "idempotency"
-  | "rollback"
-  | "exposure"
-  | "limitKeys"
-  | "invocation"
+  | 'capabilityPackage'
+  | 'requiredCapabilities'
+  | 'resourceTypes'
+  | 'effect'
+  | 'idempotency'
+  | 'rollback'
+  | 'exposure'
+  | 'limitKeys'
+  | 'invocation'
 >;
 
 // The MCP SDK models raw shapes as mutable records. Zod 4.5 made its public
@@ -79,13 +82,15 @@ export class MentionToolRegistry implements MentionToolRegistrar {
     }
 
     this.#names.add(name);
-    this.#definitions.push(Object.freeze({
-      name,
-      description,
-      inputShape,
-      handler: handler as MentionToolHandler<MentionToolShape>,
-      policy,
-    }));
+    this.#definitions.push(
+      Object.freeze({
+        name,
+        description,
+        inputShape,
+        handler: handler as MentionToolHandler<MentionToolShape>,
+        policy,
+      }),
+    );
   }
 
   definitions(): readonly MentionToolDefinition[] {
@@ -95,7 +100,7 @@ export class MentionToolRegistry implements MentionToolRegistrar {
   assertComplete(): void {
     const unusedPolicies = Object.keys(this.policies).filter((name) => !this.#names.has(name));
     if (unusedPolicies.length > 0) {
-      throw new Error(`Capability policies without Mention tools: ${unusedPolicies.join(", ")}`);
+      throw new Error(`Capability policies without Mention tools: ${unusedPolicies.join(', ')}`);
     }
   }
 
@@ -107,35 +112,37 @@ export class MentionToolRegistry implements MentionToolRegistrar {
           description: definition.description,
           inputSchema: definition.inputShape,
           annotations: {
-            readOnlyHint: definition.policy.effect === "read",
+            readOnlyHint: definition.policy.effect === 'read',
             destructiveHint:
-              definition.policy.effect !== "read" && definition.policy.rollback === "none",
-            idempotentHint: definition.policy.idempotency !== "none",
+              definition.policy.effect !== 'read' && definition.policy.rollback === 'none',
+            idempotentHint: definition.policy.idempotency !== 'none',
           },
           _meta: {
-            "oxy/appId": this.deployment.appId,
-            "oxy/toolVersion": "1.0.0",
-            "oxy/requiredCapabilities": definition.policy.requiredCapabilities,
-            "oxy/resourceTypes": definition.policy.resourceTypes,
+            'oxy/appId': this.deployment.appId,
+            'oxy/toolVersion': '1.0.0',
+            'oxy/requiredCapabilities': definition.policy.requiredCapabilities,
+            'oxy/resourceTypes': definition.policy.resourceTypes,
           },
         },
         async (args, extra) => {
           const context = requestContext.getStore();
           if (
-            context?.authMode === "central" &&
+            context?.authMode === 'central' &&
             !definition.policy.requiredCapabilities.every((capability: string) =>
-              context.scopes.has(capability)
+              context.scopes.has(capability),
             )
           ) {
             return {
-              content: [{
-                type: "text" as const,
-                text: `This tool requires: ${definition.policy.requiredCapabilities.join(", ")}.`,
-              }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `This tool requires: ${definition.policy.requiredCapabilities.join(', ')}.`,
+                },
+              ],
               isError: true,
             };
           }
-          if (definition.policy.effect === "read" || !context) {
+          if (definition.policy.effect === 'read' || !context) {
             return definition.handler(args);
           }
 
@@ -146,10 +153,12 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             extra.requestId === undefined
           ) {
             return {
-              content: [{
-                type: "text" as const,
-                text: "This write could not be bound to an authenticated MCP request. Start a new connection and try again.",
-              }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'This write could not be bound to an authenticated MCP request. Start a new connection and try again.',
+                },
+              ],
               isError: true,
             };
           }
@@ -164,19 +173,15 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             requestId: extra.requestId,
             toolName: definition.name,
           });
-          return requestContext.run(
-            { ...context, idempotencyKey, toolName: definition.name },
-            () => definition.handler(args),
+          return requestContext.run({ ...context, idempotencyKey, toolName: definition.name }, () =>
+            definition.handler(args),
           );
         },
       );
     }
   }
 
-  async invoke(
-    name: string,
-    input: Readonly<Record<string, unknown>>,
-  ): Promise<CallToolResult> {
+  async invoke(name: string, input: Readonly<Record<string, unknown>>): Promise<CallToolResult> {
     const definition = this.#definitions.find((candidate) => candidate.name === name);
     if (!definition) throw new Error(`Unknown Mention tool: ${name}`);
     const parsed = z.object(definition.inputShape).parse(input);
@@ -185,34 +190,34 @@ export class MentionToolRegistry implements MentionToolRegistrar {
 
   capabilityCatalog(): AppCapabilityCatalog {
     const tools: CatalogTool[] = this.#definitions.map((definition) => {
-      const { "~standard": _standard, ...inputSchema } = toJSONSchema(
+      const { '~standard': _standard, ...inputSchema } = toJSONSchema(
         z.object(definition.inputShape),
         {
-          target: "draft-7",
-          io: "input",
+          target: 'draft-7',
+          io: 'input',
         },
       );
       return {
         name: definition.name,
-        version: "1.0.0",
+        version: '1.0.0',
         description: definition.description,
         inputSchema,
         ...definition.policy,
         invocation: {
-          method: "POST",
+          method: 'POST',
           path: `/_oxy/capabilities/${definition.name}`,
         },
       };
     });
 
     return appCapabilityCatalogSchema.parse({
-      schemaVersion: "1",
+      schemaVersion: '1',
       appId: this.deployment.appId,
-      version: "1.3.0",
+      version: '1.3.0',
       audience: this.deployment.audience,
       internalBaseUrl: this.deployment.resource,
       externalMcp: { resource: this.deployment.resource },
-      accountResourceType: "mention_account",
+      accountResourceType: 'mention_account',
       tools,
       events: [],
     });
@@ -226,18 +231,18 @@ export function effectIdempotencyKey(input: {
   requestId: string | number;
   toolName: string;
 }): string {
-  const digest = createHash("sha256")
+  const digest = createHash('sha256')
     .update(input.accountId)
-    .update("\0")
+    .update('\0')
     .update(input.clientId)
-    .update("\0")
+    .update('\0')
     .update(input.transportId)
-    .update("\0")
+    .update('\0')
     .update(typeof input.requestId)
-    .update(":")
+    .update(':')
     .update(String(input.requestId))
-    .update("\0")
+    .update('\0')
     .update(input.toolName)
-    .digest("hex");
+    .digest('hex');
   return `mcp:${digest}`;
 }

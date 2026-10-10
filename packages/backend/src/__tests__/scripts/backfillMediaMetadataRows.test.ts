@@ -256,7 +256,12 @@ describe('backfillMediaMetadata', () => {
     await backfillMediaMetadata({ dryRun: false });
 
     const after = await db
-      .select({ id: postMedia.id, mediaId: postMedia.mediaId, alt: postMedia.alt, width: postMedia.width })
+      .select({
+        id: postMedia.id,
+        mediaId: postMedia.mediaId,
+        alt: postMedia.alt,
+        width: postMedia.width,
+      })
       .from(postMedia)
       .where(eq(postMedia.postId, postId));
     const variantsAfter = await db

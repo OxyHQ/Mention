@@ -7,7 +7,9 @@ vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: false,
     isOpen: false,
-    connect: vi.fn().mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
+    connect: vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('ECONNREFUSED'), { code: 'ECONNREFUSED' })),
     ping: vi.fn().mockRejectedValue(new Error('not connected')),
     get: vi.fn(),
     set: vi.fn(),
@@ -59,7 +61,9 @@ describe('localBoost scorer', () => {
   });
 
   it('is neutral (1.0) for a FEDERATED post', () => {
-    expect(service.calculateLocalBoost(makePost({ federation: { actorUri: 'https://x/u/1' } }))).toBe(1.0);
+    expect(
+      service.calculateLocalBoost(makePost({ federation: { actorUri: 'https://x/u/1' } })),
+    ).toBe(1.0);
   });
 });
 
@@ -68,14 +72,20 @@ describe('portraitBoost scorer', () => {
     makePost({ content: { media: [{ type: 'video', orientation }] } });
 
   it('lifts a portrait video', async () => {
-    const portrait = await scoreWith(withVideo('portrait'), { enabledSignals: new Set(['portraitBoost']) });
-    const landscape = await scoreWith(withVideo('landscape'), { enabledSignals: new Set(['portraitBoost']) });
+    const portrait = await scoreWith(withVideo('portrait'), {
+      enabledSignals: new Set(['portraitBoost']),
+    });
+    const landscape = await scoreWith(withVideo('landscape'), {
+      enabledSignals: new Set(['portraitBoost']),
+    });
     expect(portrait / landscape).toBeCloseTo(R.portraitBoost.boost, 5);
   });
 
   it('is neutral for a post with no video at all', async () => {
     const noMedia = await scoreWith(makePost(), { enabledSignals: new Set(['portraitBoost']) });
-    const landscape = await scoreWith(withVideo('landscape'), { enabledSignals: new Set(['portraitBoost']) });
+    const landscape = await scoreWith(withVideo('landscape'), {
+      enabledSignals: new Set(['portraitBoost']),
+    });
     expect(noMedia).toBeCloseTo(landscape, 10);
   });
 
@@ -125,7 +135,9 @@ describe('languageMismatchPenalty scorer', () => {
   });
 
   it('is neutral when the post declares no language', () => {
-    expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), ['en'])).toBe(1.0);
+    expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), ['en'])).toBe(
+      1.0,
+    );
     expect(service.calculateLanguageMismatchPenalty(discovery([]), ['en'])).toBe(1.0);
   });
 
@@ -185,9 +197,10 @@ describe('languageMismatchPenalty scorer', () => {
     it('stays neutral when either side is unknown', () => {
       expect(service.calculateLanguageMismatchPenalty(discovery(['de']), [])).toBe(1.0);
       expect(service.calculateLanguageMismatchPenalty(discovery([]), viewer)).toBe(1.0);
-      expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), viewer)).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), viewer)).toBe(
+        1.0,
+      );
     });
-
   });
 });
 

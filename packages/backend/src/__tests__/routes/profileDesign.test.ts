@@ -43,7 +43,11 @@ vi.mock('../../utils/privacyHelpers', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { deleteActorsByUris, setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
+import {
+  deleteActorsByUris,
+  setActorOxyUserId,
+  upsertActor,
+} from '../../db/federation/actorRepository';
 import profileDesignRoutes from '../../routes/profileDesign';
 import { accountErasures } from '../../db/schema/accountErasures';
 import { recordAccountErasureRequest } from '../../db/accountErasures/accountErasureRepository';
@@ -96,7 +100,9 @@ describe('profile design public counts', () => {
     await getDb().update(posts).set({ crosspostCollapsed: true }).where(eq(posts.id, sibling));
     const response = await request(app).get(`/profile/design/${AUTHOR}`).expect(200);
     expect(response.body.data.postsCount).toBe(1);
-    expect(await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, sibling))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, sibling)),
+    ).toHaveLength(1);
   });
 
   it('counts only published public posts, boosts, and replies of THIS author', async () => {

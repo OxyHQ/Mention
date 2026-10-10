@@ -2,7 +2,8 @@ import type { Socket } from 'socket.io';
 import { postEngagementRoom, feedRoom } from '@mention/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const canViewerReadPostId = vi.fn<(postId: string, viewerId: string, options?: unknown) => Promise<boolean>>();
+const canViewerReadPostId =
+  vi.fn<(postId: string, viewerId: string, options?: unknown) => Promise<boolean>>();
 
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: {
@@ -15,10 +16,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: (...args: unknown[]) => createScopedOxyClient(...args),
 }));
 
-const {
-  registerContentRoomHandlers,
-  MAX_POST_ROOMS_PER_SOCKET,
-} = await import('../../services/ContentRoomLifecycle');
+const { registerContentRoomHandlers, MAX_POST_ROOMS_PER_SOCKET } = await import(
+  '../../services/ContentRoomLifecycle'
+);
 
 type Handler = (...args: unknown[]) => void;
 
@@ -56,18 +56,23 @@ class FakeSocket {
 
 /** The real limiter's shape, with the limit itself out of the way. */
 const passThroughLimiter = {
-  wrap: <A extends unknown[]>(
-    _socket: { id: string },
-    _eventName: string,
-    handler: (...args: A) => unknown,
-  ) => (...args: A): void => {
-    handler(...args);
-  },
+  wrap:
+    <A extends unknown[]>(
+      _socket: { id: string },
+      _eventName: string,
+      handler: (...args: A) => unknown,
+    ) =>
+    (...args: A): void => {
+      handler(...args);
+    },
 };
 
 function setup(): FakeSocket {
   const socket = new FakeSocket();
-  registerContentRoomHandlers(socket as unknown as Socket & { user?: { id: string } }, passThroughLimiter);
+  registerContentRoomHandlers(
+    socket as unknown as Socket & { user?: { id: string } },
+    passThroughLimiter,
+  );
   return socket;
 }
 
@@ -126,7 +131,11 @@ describe('post room membership', () => {
 
   it('does not join a socket that closed while the check was running', async () => {
     let release: (allowed: boolean) => void = () => undefined;
-    canViewerReadPostId.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    canViewerReadPostId.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
     const socket = setup();
 
     socket.send('joinPost', '507f1f77bcf86cd799439011');
@@ -139,7 +148,11 @@ describe('post room membership', () => {
 
   it('asks once when the same post is requested twice in flight', async () => {
     let release: (allowed: boolean) => void = () => undefined;
-    canViewerReadPostId.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    canViewerReadPostId.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
     const socket = setup();
 
     socket.send('joinPost', '507f1f77bcf86cd799439011');
@@ -163,7 +176,11 @@ describe('post room membership', () => {
 
   it('does not land in a room the client already left', async () => {
     let release: (allowed: boolean) => void = () => undefined;
-    canViewerReadPostId.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    canViewerReadPostId.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
     const socket = setup();
 
     // Open and close a post faster than the visibility check answers.
@@ -214,8 +231,16 @@ describe('post room membership', () => {
     let releaseFirst: (allowed: boolean) => void = () => undefined;
     let releaseSecond: (allowed: boolean) => void = () => undefined;
     canViewerReadPostId
-      .mockReturnValueOnce(new Promise((resolve) => { releaseFirst = resolve; }))
-      .mockReturnValueOnce(new Promise((resolve) => { releaseSecond = resolve; }));
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseSecond = resolve;
+        }),
+      );
     const socket = setup();
 
     socket.send('joinPost', '507f1f77bcf86cd799439011');
@@ -233,7 +258,7 @@ describe('post room membership', () => {
 });
 
 describe('feed room membership', () => {
-  it('joins the room for an allow-listed feed type, plus the caller\'s own room', () => {
+  it("joins the room for an allow-listed feed type, plus the caller's own room", () => {
     const socket = setup();
 
     socket.send('joinFeed', { feedType: 'for_you' });

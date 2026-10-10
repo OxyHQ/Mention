@@ -48,13 +48,15 @@ describe('deriveTrendLabel — casing comes from the corpus', () => {
 
   it('picks the MAJORITY spelling of a mixed-case tag', () => {
     // Three posts say `#FrightClub`, one says `#frightclub`.
-    expect(deriveTrendLabel({ term: 'frightclub', excerpts: FRIGHTCLUB_POSTS }).displayName)
-      .toBe('FrightClub');
+    expect(deriveTrendLabel({ term: 'frightclub', excerpts: FRIGHTCLUB_POSTS }).displayName).toBe(
+      'FrightClub',
+    );
   });
 
   it('strips the hashtag marker from the surface form it keeps', () => {
-    expect(deriveTrendLabel({ term: 'frightclub', excerpts: FRIGHTCLUB_POSTS }).displayName)
-      .not.toContain('#');
+    expect(
+      deriveTrendLabel({ term: 'frightclub', excerpts: FRIGHTCLUB_POSTS }).displayName,
+    ).not.toContain('#');
   });
 
   it('renders a multi-word name as written', () => {
@@ -62,8 +64,9 @@ describe('deriveTrendLabel — casing comes from the corpus', () => {
       'Todd Blanche testified this morning about the memo.',
       'Everyone is talking about Todd Blanche again.',
     ];
-    expect(deriveTrendLabel({ term: 'todd blanche', excerpts: posts }).displayName)
-      .toBe('Todd Blanche');
+    expect(deriveTrendLabel({ term: 'todd blanche', excerpts: posts }).displayName).toBe(
+      'Todd Blanche',
+    );
   });
 });
 
@@ -91,8 +94,9 @@ describe('deriveTrendLabel — a corpus spelling has to earn its place', () => {
 describe('deriveTrendLabel — a shared phrase beats the term', () => {
   it('names the trend after the phrase most posts share', () => {
     // The term is `orioles`; what the posts are ABOUT is Dean Kremer.
-    expect(deriveTrendLabel({ term: 'orioles', excerpts: ORIOLES_POSTS }).displayName)
-      .toBe('Dean Kremer');
+    expect(deriveTrendLabel({ term: 'orioles', excerpts: ORIOLES_POSTS }).displayName).toBe(
+      'Dean Kremer',
+    );
   });
 
   it('keeps the term when no phrase reaches a majority', () => {
@@ -179,7 +183,9 @@ describe('deriveTrendLabel — no evidence', () => {
 
   it('title-cases a term that never appears in the bodies (tag-only arrival)', () => {
     const posts = ['a post that carried the tag in its tag array, never in its text'];
-    expect(deriveTrendLabel({ term: 'frightclub', excerpts: posts }).displayName).toBe('Frightclub');
+    expect(deriveTrendLabel({ term: 'frightclub', excerpts: posts }).displayName).toBe(
+      'Frightclub',
+    );
   });
 
   it('is total — an empty term still answers', () => {
@@ -282,7 +288,7 @@ describe('deriveTrendLabel — a name written out in full', () => {
     expect(deriveTrendLabel({ term: 'smith', excerpts: posts }).displayName).toBe('Smith');
   });
 
-  it('does not expand on one post\'s say-so', () => {
+  it("does not expand on one post's say-so", () => {
     const posts = [
       'i think Donald Trump said it',
       'trump again today',
@@ -350,7 +356,9 @@ describe('a phrase is not a restatement just because the letters line up', () =>
       'more from the Justice Department this morning',
       'the Justice Department says otherwise',
     ];
-    expect(deriveTrendLabel({ term: 'us', excerpts: posts }).displayName).toBe('Justice Department');
+    expect(deriveTrendLabel({ term: 'us', excerpts: posts }).displayName).toBe(
+      'Justice Department',
+    );
   });
 });
 

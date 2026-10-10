@@ -46,10 +46,7 @@
  * one that eventually gets an exception carved into it.
  */
 
-import {
-  HASHTAG_BODY_SOURCE,
-  HASHTAG_BOUNDARY_SOURCE,
-} from './hashtags';
+import { HASHTAG_BODY_SOURCE, HASHTAG_BOUNDARY_SOURCE } from './hashtags';
 import {
   UNICODE_LETTER_RANGES,
   UNICODE_MARK_RANGES,
@@ -199,8 +196,7 @@ const CASHTAG_SOURCE = '\\$(?<cashtag>[A-Z]{1,6}(?:\\.[A-Z]{1,2})?)';
  *
  * `-` is last in the class body so it reads as a literal, not a range.
  */
-const HANDLE_BODY_SOURCE =
-  `[${UNICODE_LETTER_RANGES}${UNICODE_NUMBER_RANGES}${UNICODE_MARK_RANGES}_.-]+`;
+const HANDLE_BODY_SOURCE = `[${UNICODE_LETTER_RANGES}${UNICODE_NUMBER_RANGES}${UNICODE_MARK_RANGES}_.-]+`;
 
 /** Build the URL alternative for the requested terminator and `www.` policy. */
 function urlSource(terminator: 'whitespace' | 'html', bareWww: boolean): string {
@@ -257,11 +253,7 @@ function sigilSource(kinds: ReadonlySet<TextEntityKind>): string {
  * {@link createTextEntityPattern}.
  */
 export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): RegExp {
-  const {
-    kinds = DEFAULT_ENTITY_KINDS,
-    urlTerminator = 'whitespace',
-    bareWww = true,
-  } = options;
+  const { kinds = DEFAULT_ENTITY_KINDS, urlTerminator = 'whitespace', bareWww = true } = options;
 
   const wanted = new Set(kinds);
   const alternatives: string[] = [];
@@ -333,11 +325,7 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
 const patternCache = new Map<string, RegExp>();
 
 function cachedTextEntityPattern(options: ScanTextEntitiesOptions): RegExp {
-  const {
-    kinds = DEFAULT_ENTITY_KINDS,
-    urlTerminator = 'whitespace',
-    bareWww = true,
-  } = options;
+  const { kinds = DEFAULT_ENTITY_KINDS, urlTerminator = 'whitespace', bareWww = true } = options;
   const key = `${[...kinds].join(',')}|${urlTerminator}|${bareWww}`;
 
   const hit = patternCache.get(key);
@@ -407,7 +395,13 @@ function classify(
     const domain = trimHandleEnding(groups.fedDomain);
     if (!domain.includes('.')) return null;
     const value = `${groups.fedLocal}@${domain}`;
-    return { kind: 'federatedHandle', raw: `@${value}`, start, end: start + value.length + 1, value };
+    return {
+      kind: 'federatedHandle',
+      raw: `@${value}`,
+      start,
+      end: start + value.length + 1,
+      value,
+    };
   }
   if (groups.handle !== undefined) {
     // `.` and `-` are in the handle class because a handle can legitimately
@@ -423,7 +417,13 @@ function classify(
     const handle = trimHandleEnding(groups.handle);
     // A handle of nothing but punctuation (`@...`) is not a handle at all.
     if (handle.length === 0) return null;
-    return { kind: 'bareHandle', raw: `@${handle}`, start, end: start + handle.length + 1, value: handle };
+    return {
+      kind: 'bareHandle',
+      raw: `@${handle}`,
+      start,
+      end: start + handle.length + 1,
+      value: handle,
+    };
   }
   if (groups.hashtag !== undefined) {
     return { kind: 'hashtag', raw, start, end, value: groups.hashtag };
@@ -481,10 +481,7 @@ export function stripTextEntities(text: string, options: StripTextEntitiesOption
 }
 
 /** Count located entities by kind, for callers that need both the strip and the tally. */
-export function countTextEntities(
-  entities: readonly TextEntity[],
-  kind: TextEntityKind,
-): number {
+export function countTextEntities(entities: readonly TextEntity[], kind: TextEntityKind): number {
   let total = 0;
   for (const entity of entities) if (entity.kind === kind) total += 1;
   return total;
@@ -497,9 +494,7 @@ export function countTextEntities(
  * legitimately end in most characters; deciding what actually belongs to the
  * SENTENCE rather than the link is a separate judgement, made here.
  */
-const TRAILING_URL_PUNCTUATION = new Set([
-  '.', ',', ';', ':', '!', '?', '"', "'", '’', '”', '»',
-]);
+const TRAILING_URL_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '"', "'", '’', '”', '»']);
 
 /**
  * Closing brackets, which are trimmed only when UNBALANCED.

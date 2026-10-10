@@ -65,7 +65,8 @@ export function useSearchAllSources({
   const combine = useCallback(
     (queries: UseQueryResult<SearchResults>[]): SearchAllSourcesState => {
       const answered = queries.flatMap((q) => (q.data === undefined ? [] : [q.data]));
-      const failed = enabled && queries.length > 0 && queries.every((q) => q.isError && q.data === undefined);
+      const failed =
+        enabled && queries.length > 0 && queries.every((q) => q.isError && q.data === undefined);
       return {
         results: mergeSearchResults(answered),
         loading: enabled && answered.length === 0 && !failed,

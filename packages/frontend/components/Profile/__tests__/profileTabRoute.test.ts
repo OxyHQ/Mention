@@ -1,10 +1,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import {
-  profileTabHref,
-  profileTabSelectionFromPathname,
-} from '../profileTabRoute';
+import { profileTabHref, profileTabSelectionFromPathname } from '../profileTabRoute';
 import { ORGANIZATION_ONLY_TAB_NAMES, TAB_NAMES, laneTabKey } from '../types';
 
 /**

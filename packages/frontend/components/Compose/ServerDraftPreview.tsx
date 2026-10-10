@@ -9,7 +9,11 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostPreviewSurface from './PostPreviewSurface';
-import { confirmAndDeleteServerDraft, confirmAndPublishDraft, otherDraftLanguages } from './serverDraftActions';
+import {
+  confirmAndDeleteServerDraft,
+  confirmAndPublishDraft,
+  otherDraftLanguages,
+} from './serverDraftActions';
 
 export interface ServerDraftPreviewProps {
   post: HydratedPost;
@@ -69,7 +73,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
-      subtitle={(
+      subtitle={
         <View className="flex-row items-center gap-1.5 mt-0.5">
           <RiCloudLine size="xs" fill={theme.colors.textSecondary} />
           <Text className="text-xs text-muted-foreground" numberOfLines={1}>
@@ -81,7 +85,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
               : t('compose.serverDrafts.title', { defaultValue: 'Saved to your account' })}
           </Text>
         </View>
-      )}
+      }
       onBack={onBack}
     >
       <View className="px-4 pt-3 border-t border-border">
@@ -91,7 +95,9 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
           onPress={handlePublish}
           disabled={busy}
           loading={isPublishing}
-          accessibilityLabel={t('compose.serverDrafts.publishTitle', { defaultValue: 'Publish draft' })}
+          accessibilityLabel={t('compose.serverDrafts.publishTitle', {
+            defaultValue: 'Publish draft',
+          })}
         >
           {t('compose.serverDrafts.publish', { defaultValue: 'Publish' })}
         </Button>
@@ -100,7 +106,8 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
       <View className="flex-row items-center gap-2 px-4 py-3">
         <Button
           className="flex-1"
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="lg"
           leadingIcon={RiEditLine}
           onPress={onEdit}
@@ -111,7 +118,8 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
         </Button>
         <Button
           className="flex-1"
-          appearance="solid" tone="danger"
+          appearance="solid"
+          tone="danger"
           size="lg"
           leadingIcon={RiDeleteBinLine}
           onPress={handleDelete}

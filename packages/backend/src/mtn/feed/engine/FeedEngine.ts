@@ -31,7 +31,12 @@ import {
   toRankedCandidate,
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
-import { recordAuthorGateNeutral, recordDiscoveryGated, recordFederatedShare, originForFederation } from '../feedMetrics';
+import {
+  recordAuthorGateNeutral,
+  recordDiscoveryGated,
+  recordFederatedShare,
+  originForFederation,
+} from '../feedMetrics';
 import { resolveAuthorQuality } from '../authorQuality';
 import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
 import type {
@@ -77,7 +82,10 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
  * `asOf` is unconditional here (inherited, else now), so a minted cursor is always
  * stamped.
  */
-function buildPopularCursor(last: CandidatePost | undefined, incomingCursor?: string): string | undefined {
+function buildPopularCursor(
+  last: CandidatePost | undefined,
+  incomingCursor?: string,
+): string | undefined {
   if (!last) return undefined;
 
   const ranked = toRankedCandidate(last);
@@ -99,7 +107,6 @@ function buildPopularCursor(last: CandidatePost | undefined, incomingCursor?: st
     fromPopularFallback: true,
   });
 }
-
 
 /**
  * The reader's muted-lane predicate, or `undefined` when they have muted none.
@@ -220,7 +227,15 @@ export class FeedEngine {
     // returns the page in `items` with an EMPTY `slices` — see
     // `runPopularFallback`, because it makes a working feed look empty.
     if (definition.mode === 'ranked' && exec.popularFallback && !ctx.currentUserId) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
+      return this.runPopularFallback(
+        definition,
+        exec.popularFallback,
+        ctx,
+        exec,
+        cursor,
+        limit,
+        measureOnly,
+      );
     }
 
     // A cursor MINTED BY the fallback keeps the session in the fallback, for the
@@ -243,8 +258,20 @@ export class FeedEngine {
     //
     // The door is one-way per CURSOR CHAIN, never per viewer: a refresh sends no
     // cursor and starts ranked at page one again.
-    if (definition.mode === 'ranked' && exec.popularFallback && parsedScoreCursor?.fromPopularFallback) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
+    if (
+      definition.mode === 'ranked' &&
+      exec.popularFallback &&
+      parsedScoreCursor?.fromPopularFallback
+    ) {
+      return this.runPopularFallback(
+        definition,
+        exec.popularFallback,
+        ctx,
+        exec,
+        cursor,
+        limit,
+        measureOnly,
+      );
     }
 
     // Seen-post de-prioritization for ranked personalized/discovery feeds.
@@ -252,9 +279,11 @@ export class FeedEngine {
       const seenPostIds = await feedSeenPostsService.getSeenPostIds(ctx.currentUserId);
       if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
         seenPostIds.push(parsedScoreCursor.id);
-        feedSeenPostsService.markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id]).catch((e) => {
-          logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
-        });
+        feedSeenPostsService
+          .markPostsAsSeen(ctx.currentUserId, [parsedScoreCursor.id])
+          .catch((e) => {
+            logger.warn('[FeedEngine] Failed to mark cursor post as seen', e);
+          });
       }
       ctx.seenPostIds = seenPostIds;
     }
@@ -274,7 +303,16 @@ export class FeedEngine {
     }
 
     return definition.mode === 'ranked'
-      ? this.finalizeRanked(definition, ctx, exec, pool, cursor, limit, parsedScoreCursor, measureOnly)
+      ? this.finalizeRanked(
+          definition,
+          ctx,
+          exec,
+          pool,
+          cursor,
+          limit,
+          parsedScoreCursor,
+          measureOnly,
+        )
       : this.finalizeChronological(ctx, exec, pool, cursor, limit);
   }
 
@@ -284,7 +322,10 @@ export class FeedEngine {
    * exclusion, no ranking, no slicing) and returns the single newest candidate,
    * hydrated. The safety filter still applies via the merge.
    */
-  async peekLatest(definition: FeedDefinition, context: FeedEngineContext): Promise<HydratedPost | undefined> {
+  async peekLatest(
+    definition: FeedDefinition,
+    context: FeedEngineContext,
+  ): Promise<HydratedPost | undefined> {
     const exec: FeedExecution = definition.execution ?? {};
     const ctx: FeedEngineContext = {
       ...context,
@@ -382,8 +423,10 @@ export class FeedEngine {
    */
   private gateIsMeasureOnly(ctx: FeedEngineContext): boolean {
     const rolloutMode = getDiscoveryGateRolloutMode();
-    return rolloutMode === 'shadow'
-      || (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on');
+    return (
+      rolloutMode === 'shadow' ||
+      (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on')
+    );
   }
 
   private async gatherPool(
@@ -691,7 +734,15 @@ export class FeedEngine {
     // Never-blank: an authenticated ranked personalized feed that exhausts its
     // unseen pool falls back to popular discovery instead of returning blank.
     if (deduped.length === 0 && exec.neverBlank && exec.popularFallback && ctx.currentUserId) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
+      return this.runPopularFallback(
+        definition,
+        exec.popularFallback,
+        ctx,
+        exec,
+        cursor,
+        limit,
+        measureOnly,
+      );
     }
 
     const { slices: rawSlices } = await threadSlicingService.sliceFeed(deduped, {
@@ -773,8 +824,8 @@ export class FeedEngine {
         if (!anchor) continue;
         pageAnchorIds.push(anchor.id);
         if (
-          anchor.score < anchorScore
-          || (anchor.score === anchorScore && (anchorId === undefined || anchor.id < anchorId))
+          anchor.score < anchorScore ||
+          (anchor.score === anchorScore && (anchorId === undefined || anchor.id < anchorId))
         ) {
           anchorScore = anchor.score;
           anchorId = anchor.id;
@@ -787,15 +838,18 @@ export class FeedEngine {
           ctx.rankingAsOf === undefined
             ? undefined
             : {
-              asOf: ctx.rankingAsOf,
-              // Keep a bounded rolling guard rather than only the cursor row.
-              // Current-page ids come first so the most recent boundary is
-              // always protected when the 100-id cap is reached.
-              excludeIds: [...pageAnchorIds, ...(parsedCursor?.excludeIds ?? [])],
-            },
+                asOf: ctx.rankingAsOf,
+                // Keep a bounded rolling guard rather than only the cursor row.
+                // Current-page ids come first so the most recent boundary is
+                // always protected when the 100-id cap is reached.
+                excludeIds: [...pageAnchorIds, ...(parsedCursor?.excludeIds ?? [])],
+              },
         );
         if (!didCursorAdvance(sliceCursor, cursor)) {
-          logger.warn('[FeedEngine] Ranked cursor did not advance', { cursor, nextCursor: sliceCursor });
+          logger.warn('[FeedEngine] Ranked cursor did not advance', {
+            cursor,
+            nextCursor: sliceCursor,
+          });
           sliceCursor = undefined;
         }
       }

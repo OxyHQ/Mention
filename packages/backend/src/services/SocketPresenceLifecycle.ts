@@ -16,10 +16,7 @@ interface SocketPresenceOptions {
   broadcastPresence(userId: string, online: boolean): void;
 }
 
-function isLocallyOnline(
-  onlineUsers: Map<string, Set<string>>,
-  userId: string,
-): boolean {
+function isLocallyOnline(onlineUsers: Map<string, Set<string>>, userId: string): boolean {
   return (onlineUsers.get(userId)?.size ?? 0) > 0;
 }
 
@@ -69,10 +66,7 @@ export async function registerSocketPresence(
       // second idempotent removal guarantees a late Redis write cannot leave a
       // ghost online member.
       await options.distributedPresence.markOffline(userId);
-      if (
-        !offlineBroadcasted &&
-        !(await options.distributedPresence.isOnline(userId, false))
-      ) {
+      if (!offlineBroadcasted && !(await options.distributedPresence.isOnline(userId, false))) {
         offlineBroadcasted = true;
         options.broadcastPresence(userId, false);
       }

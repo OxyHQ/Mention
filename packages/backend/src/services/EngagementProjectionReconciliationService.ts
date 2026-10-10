@@ -50,10 +50,7 @@ import {
 import { bookmarks } from '../db/schema/engagement';
 import { postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import {
-  ELIGIBLE_REPLY_MATCH,
-  recomputeRecentRepliers,
-} from './PostRecentReplierService';
+import { ELIGIBLE_REPLY_MATCH, recomputeRecentRepliers } from './PostRecentReplierService';
 import { logger } from '../utils/logger';
 
 /** Posts repaired per transaction. Bounded so one sweep cannot hold a long transaction open. */
@@ -103,9 +100,7 @@ export function isRetryableTransactionError(error: unknown): boolean {
   return sqlState === SERIALIZATION_FAILURE || sqlState === DEADLOCK_DETECTED;
 }
 
-async function runTransactionWithRetry(
-  work: (tx: Transaction) => Promise<void>,
-): Promise<void> {
+async function runTransactionWithRetry(work: (tx: Transaction) => Promise<void>): Promise<void> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     try {
@@ -113,10 +108,7 @@ async function runTransactionWithRetry(
       return;
     } catch (error) {
       lastError = error;
-      if (
-        attempt === MAX_TRANSACTION_ATTEMPTS ||
-        !isRetryableTransactionError(error)
-      ) {
+      if (attempt === MAX_TRANSACTION_ATTEMPTS || !isRetryableTransactionError(error)) {
         throw error;
       }
     }
@@ -181,12 +173,7 @@ const staleSaveCountPage: CandidatePage = async (afterId) => {
   const rows = await getDb()
     .select({ id: posts.id })
     .from(posts)
-    .where(
-      and(
-        gt(posts.statsSavesCount, 0),
-        afterId === null ? undefined : gt(posts.id, afterId),
-      ),
-    )
+    .where(and(gt(posts.statsSavesCount, 0), afterId === null ? undefined : gt(posts.id, afterId)))
     .orderBy(asc(posts.id))
     .limit(RECONCILIATION_BATCH_SIZE);
   return rows.map((row) => row.id);

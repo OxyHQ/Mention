@@ -1,5 +1,5 @@
-import { api } from "./api-client.js";
-import type { MediaInput, PostContentInput } from "./post-content-schema.js";
+import { api } from './api-client.js';
+import type { MediaInput, PostContentInput } from './post-content-schema.js';
 
 interface IntentMediaResponse {
   fileId: string;
@@ -8,24 +8,31 @@ interface IntentMediaResponse {
 
 export interface ResolvedMediaItem {
   id: string;
-  type?: "image" | "video" | "gif";
+  type?: 'image' | 'video' | 'gif';
   alt?: string;
 }
 
-function mediaTypeFromMime(mime?: string, hint?: "image" | "video" | "gif"): "image" | "video" | "gif" {
+function mediaTypeFromMime(
+  mime?: string,
+  hint?: 'image' | 'video' | 'gif',
+): 'image' | 'video' | 'gif' {
   if (hint) return hint;
-  if (!mime) return "image";
-  if (mime === "image/gif" || mime.endsWith("/gif")) return "gif";
-  if (mime.startsWith("video/")) return "video";
-  return "image";
+  if (!mime) return 'image';
+  if (mime === 'image/gif' || mime.endsWith('/gif')) return 'gif';
+  if (mime.startsWith('video/')) return 'video';
+  return 'image';
 }
 
 async function uploadFromUrl(url: string): Promise<IntentMediaResponse> {
-  return api.post<IntentMediaResponse>("/posts/intent-media", { url });
+  return api.post<IntentMediaResponse>('/posts/intent-media', { url });
 }
 
-async function uploadFromBase64(base64: string, mimeType: string, filename?: string): Promise<IntentMediaResponse> {
-  return api.post<IntentMediaResponse>("/posts/intent-media", {
+async function uploadFromBase64(
+  base64: string,
+  mimeType: string,
+  filename?: string,
+): Promise<IntentMediaResponse> {
+  return api.post<IntentMediaResponse>('/posts/intent-media', {
     base64,
     mimeType,
     ...(filename ? { filename } : {}),
@@ -36,7 +43,7 @@ async function uploadFromBase64(base64: string, mimeType: string, filename?: str
 export async function resolveMediaInputs(items: MediaInput[]): Promise<ResolvedMediaItem[]> {
   return Promise.all(
     items.map(async (item): Promise<ResolvedMediaItem> => {
-      if (item.kind === "fileId") {
+      if (item.kind === 'fileId') {
         return {
           id: item.fileId,
           ...(item.type ? { type: item.type } : {}),
@@ -44,7 +51,7 @@ export async function resolveMediaInputs(items: MediaInput[]): Promise<ResolvedM
         };
       }
 
-      if (item.kind === "url") {
+      if (item.kind === 'url') {
         const uploaded = await uploadFromUrl(item.url);
         return {
           id: uploaded.fileId,
@@ -76,7 +83,7 @@ export async function buildPostContentPayload(
   if (content.poll) payload.poll = content.poll;
   if (content.location) {
     payload.location = {
-      type: "Point",
+      type: 'Point',
       coordinates: [content.location.longitude, content.location.latitude],
       ...(content.location.address ? { address: content.location.address } : {}),
     };

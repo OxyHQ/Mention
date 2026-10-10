@@ -34,7 +34,9 @@ jest.mock('@oxy.so/bloom/button', () => {
   const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Button: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) => (
-      <Pressable {...props}><Text>{children}</Text></Pressable>
+      <Pressable {...props}>
+        <Text>{children}</Text>
+      </Pressable>
     ),
   };
 });
@@ -74,8 +76,15 @@ const pressApply = (tree: TestRenderer.ReactTestRenderer) => {
 describe('parseDateTime', () => {
   it('merges a local day and a 24h time into one local timestamp', () => {
     const parsed = parseDateTime(new Date(2030, 0, 2), '07:05');
-    expect(parsed && [parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), parsed.getHours(), parsed.getMinutes()])
-      .toEqual([2030, 0, 2, 7, 5]);
+    expect(
+      parsed && [
+        parsed.getFullYear(),
+        parsed.getMonth(),
+        parsed.getDate(),
+        parsed.getHours(),
+        parsed.getMinutes(),
+      ],
+    ).toEqual([2030, 0, 2, 7, 5]);
   });
 
   it('needs both halves', () => {
@@ -91,7 +100,9 @@ describe('ScheduleSheet custom time', () => {
     const scheduledAt = new Date(2030, 5, 7, 9, 45);
     const tree = renderSheet(jest.fn(), scheduledAt);
     const day = byTestID(tree, 'scheduleSheetDatePicker').props.value as Date;
-    expect([day.getFullYear(), day.getMonth(), day.getDate(), day.getHours()]).toEqual([2030, 5, 7, 0]);
+    expect([day.getFullYear(), day.getMonth(), day.getDate(), day.getHours()]).toEqual([
+      2030, 5, 7, 0,
+    ]);
     expect(byTestID(tree, 'scheduleSheetTimeField').props.value).toBe('09:45');
     // Past days cannot be picked.
     const minDate = byTestID(tree, 'scheduleSheetDatePicker').props.minDate as Date;
@@ -108,8 +119,13 @@ describe('ScheduleSheet custom time', () => {
     expect(mockToast).not.toHaveBeenCalled();
     expect(onSelect).toHaveBeenCalledTimes(1);
     const picked = onSelect.mock.calls[0][0] as Date;
-    expect([picked.getFullYear(), picked.getMonth(), picked.getDate(), picked.getHours(), picked.getMinutes()])
-      .toEqual([2099, 2, 4, 18, 30]);
+    expect([
+      picked.getFullYear(),
+      picked.getMonth(),
+      picked.getDate(),
+      picked.getHours(),
+      picked.getMinutes(),
+    ]).toEqual([2099, 2, 4, 18, 30]);
     act(() => tree.unmount());
   });
 

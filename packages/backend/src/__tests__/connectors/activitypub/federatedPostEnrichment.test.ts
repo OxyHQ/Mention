@@ -171,7 +171,11 @@ function stubOutbox(orderedItems: unknown[]): void {
     'fetch',
     vi.fn(async (url: string) => {
       if (url === OUTBOX_URL) {
-        return jsonResponse({ type: 'OrderedCollection', totalItems: orderedItems.length, orderedItems });
+        return jsonResponse({
+          type: 'OrderedCollection',
+          totalItems: orderedItems.length,
+          orderedItems,
+        });
       }
       throw new Error(`unexpected fetch ${url}`);
     }),
@@ -187,12 +191,19 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  await getDb()
+    .delete(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
 });
 
 function runOutboxSync() {
   return outboxSyncService.syncOutboxPostsDetailed(
-    { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
+    {
+      uri: ACTOR_URI,
+      acct: 'alice@mastodon.social',
+      outboxUrl: OUTBOX_URL,
+      oxyUserId: ALICE_OXY_ID,
+    },
     { limit: 10, maxPages: 1 },
   );
 }
@@ -256,7 +267,9 @@ beforeEach(() => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
     async (url: string, options: { headers: Record<string, string> }) => {
-      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, {
+        headers: options.headers,
+      });
       const bodyBuffer = Buffer.from(await res.arrayBuffer());
       const headers: Record<string, string> = {};
       res.headers.forEach((value, key) => {
@@ -267,7 +280,11 @@ beforeEach(() => {
       return { response: stream, status: res.status, headers };
     },
   );
-  mocks.getOrFetchActor.mockResolvedValue({ uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' });
+  mocks.getOrFetchActor.mockResolvedValue({
+    uri: ACTOR_URI,
+    oxyUserId: ALICE_OXY_ID,
+    type: 'Person',
+  });
 });
 
 describe('Federated ingest — outbox backfill runs post-ingest enrichment', () => {
@@ -388,7 +405,11 @@ describe('Federated ingest — outbox backfill keeps the FEP-8967 cards', () => 
     const note = createNote('withcard', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`);
     Object.assign(note.object, {
       attachment: [
-        { type: 'Link', href: ARTICLE_URL, preview: { type: 'Article', name: 'Article one', summary: '<p>What it says</p>' } },
+        {
+          type: 'Link',
+          href: ARTICLE_URL,
+          preview: { type: 'Article', name: 'Article one', summary: '<p>What it says</p>' },
+        },
       ],
     });
     stubOutbox([note, createNote('nocard', `<p>No card ${linkAnchor(SECOND_ARTICLE_URL)}</p>`)]);
@@ -401,7 +422,9 @@ describe('Federated ingest — outbox backfill keeps the FEP-8967 cards', () => 
       .where(like(posts.federationActivityId, `${ACTOR_URI}%`));
     const cards = await findPostLinkPreviews(stored.map((row) => row.id));
     const withCard = stored.find((row) => row.activityId?.includes('withcard'));
-    expect(cards.get(withCard!.id)).toEqual([{ url: ARTICLE_URL, title: 'Article one', description: 'What it says' }]);
+    expect(cards.get(withCard!.id)).toEqual([
+      { url: ARTICLE_URL, title: 'Article one', description: 'What it says' },
+    ]);
     expect(cards.size).toBe(1);
   });
 });

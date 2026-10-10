@@ -24,7 +24,11 @@ import { getDb } from '../../../db/postgres';
 import { feedGenerators, posts } from '../../../db/schema';
 import { assemblePostRecords } from '../../../db/posts/postRepository';
 import type { PostRecord } from '../../../db/posts/postRecord';
-import { getFeed, importPostViews, type AtprotoPostView } from '../../../connectors/atproto/post.mapper';
+import {
+  getFeed,
+  importPostViews,
+  type AtprotoPostView,
+} from '../../../connectors/atproto/post.mapper';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { logger } from '../../../utils/logger';
 
@@ -54,9 +58,12 @@ export class FeedGeneratorFeed implements FeedAPI {
   async peekLatest(context: FeedContext): Promise<HydratedPost | undefined> {
     try {
       if (!context.currentUserId) {
-        logger.info('[FeedGeneratorFeed] anonymous peek suppressed for side-effectful feedgen import', {
-          uri: this.generatorUri,
-        });
+        logger.info(
+          '[FeedGeneratorFeed] anonymous peek suppressed for side-effectful feedgen import',
+          {
+            uri: this.generatorUri,
+          },
+        );
         return undefined;
       }
       if (!(await this.isAtprotoBacked())) return undefined;
@@ -81,9 +88,12 @@ export class FeedGeneratorFeed implements FeedAPI {
   async fetch(options: FeedFetchOptions, context: FeedContext): Promise<FeedAPIResponse> {
     try {
       if (!context.currentUserId) {
-        logger.info('[FeedGeneratorFeed] anonymous fetch suppressed for side-effectful feedgen import', {
-          uri: this.generatorUri,
-        });
+        logger.info(
+          '[FeedGeneratorFeed] anonymous fetch suppressed for side-effectful feedgen import',
+          {
+            uri: this.generatorUri,
+          },
+        );
         return { ...EMPTY_RESPONSE };
       }
       if (!(await this.isAtprotoBacked())) return { ...EMPTY_RESPONSE };
@@ -134,7 +144,9 @@ export class FeedGeneratorFeed implements FeedAPI {
       .where(eq(feedGenerators.uri, this.generatorUri))
       .limit(1);
     if (generator?.sourceNetwork === 'atproto') return true;
-    logger.info('[FeedGeneratorFeed] no atproto-backed generator for descriptor', { uri: this.generatorUri });
+    logger.info('[FeedGeneratorFeed] no atproto-backed generator for descriptor', {
+      uri: this.generatorUri,
+    });
     return false;
   }
 
@@ -143,7 +155,9 @@ export class FeedGeneratorFeed implements FeedAPI {
    * `Post` documents back in the generator's ranking order. A URI whose import
    * genuinely failed has no document and is dropped (never rendered blank).
    */
-  private async importAndLoad(postViews: ReadonlyArray<AtprotoPostView>): Promise<OrderedPostDoc[]> {
+  private async importAndLoad(
+    postViews: ReadonlyArray<AtprotoPostView>,
+  ): Promise<OrderedPostDoc[]> {
     const uris = await importPostViews(postViews);
     if (uris.length === 0) return [];
 
@@ -151,9 +165,7 @@ export class FeedGeneratorFeed implements FeedAPI {
     const rows = await db
       .select()
       .from(posts)
-      .where(
-        and(isNotNull(posts.federationActivityId), inArray(posts.federationActivityId, uris)),
-      );
+      .where(and(isNotNull(posts.federationActivityId), inArray(posts.federationActivityId, uris)));
     const docs = await assemblePostRecords(rows, db);
 
     const byUri = new Map<string, OrderedPostDoc>();
@@ -175,7 +187,9 @@ export class FeedGeneratorFeed implements FeedAPI {
    * follow graph from Oxy. Returns `undefined` (live-fetch fallback) unless BOTH id
    * lists are present, matching `FeedEngine`'s own `viewerGraphOption`.
    */
-  private viewerGraph(context: FeedContext): { followingIds: string[]; followerIds: string[] } | undefined {
+  private viewerGraph(
+    context: FeedContext,
+  ): { followingIds: string[]; followerIds: string[] } | undefined {
     if (!context.currentUserId) return undefined;
     if (context.followingIds === undefined || context.followerIds === undefined) return undefined;
     return { followingIds: context.followingIds, followerIds: context.followerIds };

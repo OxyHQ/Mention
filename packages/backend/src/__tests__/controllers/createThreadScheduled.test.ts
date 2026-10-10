@@ -264,7 +264,9 @@ describe('createThread — a scheduled batch stays invisible until it publishes'
   it('DOES notify for an unscheduled batch, so the suppression is about scheduling', async () => {
     const { res } = buildResponse();
     await createThread(
-      buildRequest(beastBody({ posts: [{ content: { text: 'Hi @someone' }, mentions: ['user_2'] }] })) as never,
+      buildRequest(
+        beastBody({ posts: [{ content: { text: 'Hi @someone' }, mentions: ['user_2'] }] }),
+      ) as never,
       res as never,
     );
 

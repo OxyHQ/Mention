@@ -16,10 +16,7 @@ initLiveKit();
 function LiveRoomControllerBridge() {
   const syraController = useSyraLiveRoom();
 
-  useEffect(
-    () => liveRoomRuntimeController.bindRuntime(syraController),
-    [syraController]
-  );
+  useEffect(() => liveRoomRuntimeController.bindRuntime(syraController), [syraController]);
 
   return null;
 }

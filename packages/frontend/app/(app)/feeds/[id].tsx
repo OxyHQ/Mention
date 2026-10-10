@@ -108,7 +108,8 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
     >
       <Button
-        appearance="subtle" tone="neutral"
+        appearance="subtle"
+        tone="neutral"
         iconOnly
         leadingIcon={RiArrowLeftLine}
         onPress={safeBack}
@@ -123,16 +124,25 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       >
         {({ pressed }) => (
           <>
-            <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-muted" />
+            <View
+              style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]}
+              className="bg-muted"
+            />
             <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
             <View className="flex-1">
-              <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
+              <Text
+                className="text-[15px] font-bold leading-snug text-foreground"
+                numberOfLines={2}
+              >
                 {feed.title}
               </Text>
               <View className="flex-row items-center" style={{ gap: 6 }}>
                 {creatorHandle ? (
                   <ProfileHoverCard username={ownerHandle}>
-                    <Text className="text-sm leading-snug text-muted-foreground shrink" numberOfLines={1}>
+                    <Text
+                      className="text-sm leading-snug text-muted-foreground shrink"
+                      numberOfLines={1}
+                    >
                       {creatorHandle}
                     </Text>
                   </ProfileHoverCard>
@@ -159,11 +169,16 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       />
 
       <Button
-        appearance="subtle" tone="neutral"
+        appearance="subtle"
+        tone="neutral"
         iconOnly
-        icon={isPinned
-          ? <RiPushpinFill size="md" fill={theme.colors.primary} />
-          : <RiPushpinLine size="md" fill={theme.colors.text} />}
+        icon={
+          isPinned ? (
+            <RiPushpinFill size="md" fill={theme.colors.primary} />
+          ) : (
+            <RiPushpinLine size="md" fill={theme.colors.text} />
+          )
+        }
         onPress={onTogglePin}
         accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
       />
@@ -219,14 +234,14 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
               activeOpacity={0.7}
             >
               <Text className="text-sm leading-relaxed text-muted-foreground">
-                By{' '}
-                <Text className="underline text-muted-foreground">{creatorHandle}</Text>
+                By <Text className="underline text-muted-foreground">{creatorHandle}</Text>
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           iconOnly
           leadingIcon={RiShare2Line}
           onPress={onShare}
@@ -236,9 +251,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 
       {/* Description */}
       {feed.description ? (
-        <Text className="text-base leading-relaxed text-foreground">
-          {feed.description}
-        </Text>
+        <Text className="text-base leading-relaxed text-foreground">{feed.description}</Text>
       ) : null}
 
       {/* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */}
@@ -276,7 +289,9 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
         </TouchableOpacity>
         <TouchableOpacity
           className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: isPinned ? theme.colors.primary : theme.colors.backgroundSecondary }}
+          style={{
+            backgroundColor: isPinned ? theme.colors.primary : theme.colors.backgroundSecondary,
+          }}
           onPress={onTogglePin}
           activeOpacity={0.7}
         >
@@ -313,9 +328,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
       {/* Divider + report */}
       <Divider />
       <View className="flex-row items-center justify-between">
-        <Text className="text-sm italic text-muted-foreground">
-          Something wrong? Let us know.
-        </Text>
+        <Text className="text-sm italic text-muted-foreground">Something wrong? Let us know.</Text>
         <TouchableOpacity
           className="px-3 h-8 rounded-lg items-center justify-center"
           style={{ backgroundColor: theme.colors.backgroundSecondary }}
@@ -335,9 +348,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 // Profiles tab
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
   if (members.length === 0) {
-    return (
-      <EmptyState title="No profiles yet" sticker="feedPageEmpty" />
-    );
+    return <EmptyState title="No profiles yet" sticker="feedPageEmpty" />;
   }
 
   return (
@@ -383,12 +394,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
   const theme = useTheme();
 
   if (keywords.length === 0) {
-    return (
-      <EmptyState
-        title="No topics yet"
-        sticker="feedPageEmpty"
-      />
-    );
+    return <EmptyState title="No topics yet" sticker="feedPageEmpty" />;
   }
 
   return (
@@ -489,10 +495,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   const queryClient = useQueryClient();
   const reviewSheetRef = useRef<BottomSheetRef>(null);
 
-  const reviewsQueryKey = useMemo(
-    () => publicQueryKeys.customFeedReviews(feedId),
-    [feedId],
-  );
+  const reviewsQueryKey = useMemo(() => publicQueryKeys.customFeedReviews(feedId), [feedId]);
 
   const reviewsQuery = useInfiniteQuery({
     queryKey: reviewsQueryKey,
@@ -589,7 +592,11 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
               <View className="flex-row items-start gap-2.5">
-                <Avatar source={review.reviewer?.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
+                <Avatar
+                  source={review.reviewer?.avatar ?? undefined}
+                  size={36}
+                  variant={MEDIA_VARIANT_AVATAR}
+                />
                 <View className="flex-1 gap-[3px]">
                   <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}
@@ -601,18 +608,12 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
                       value={review.rating || 0}
                       starColor={theme.colors.primary}
                     />
-                    {date ? (
-                      <Text className="text-xs text-muted-foreground">
-                        {date}
-                      </Text>
-                    ) : null}
+                    {date ? <Text className="text-xs text-muted-foreground">{date}</Text> : null}
                   </View>
                 </View>
               </View>
               {review.reviewText ? (
-                <Text className="text-sm leading-5 text-foreground">
-                  {review.reviewText}
-                </Text>
+                <Text className="text-sm leading-5 text-foreground">{review.reviewText}</Text>
               ) : null}
             </View>
           );
@@ -629,9 +630,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
           {isFetchingNextPage ? (
             <SpinnerIcon size={20} className="text-primary" />
           ) : (
-            <Text className="text-sm font-semibold text-primary">
-              Load more reviews
-            </Text>
+            <Text className="text-sm font-semibold text-primary">Load more reviews</Text>
           )}
         </TouchableOpacity>
       )}
@@ -682,7 +681,10 @@ export default function CustomFeedTimelineScreen() {
   const isPinned = isFeedPinned(pinKey);
   const isOwner = Boolean(feed?.ownerOxyUserId && user?.id && feed.ownerOxyUserId === user.id);
 
-  const TABS = useMemo(() => TABS_CONFIG.map((tab) => ({ id: tab.id, label: t(tab.labelKey) })), [t]);
+  const TABS = useMemo(
+    () => TABS_CONFIG.map((tab) => ({ id: tab.id, label: t(tab.labelKey) })),
+    [t],
+  );
 
   const infoSheetRef = useRef<BottomSheetRef>(null);
 
@@ -770,9 +772,16 @@ export default function CustomFeedTimelineScreen() {
   const members: FeedProfile[] = feed?.members ?? [];
   const keywords: string[] = feed?.keywords ?? [];
 
-  const tabBar = useMemo(() => (
-    <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-  ), [TABS, activeTab, handleTabPress, feedId]);
+  const tabBar = useMemo(
+    () => (
+      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+        {TABS.map((tab: { id: string; label: string; count?: number }) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+        ))}
+      </Tabs>
+    ),
+    [TABS, activeTab, handleTabPress, feedId],
+  );
 
   const listHeader = useMemo(() => {
     if (!feed) return null;
@@ -804,7 +813,8 @@ export default function CustomFeedTimelineScreen() {
           style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
         >
           <Button
-            appearance="subtle" tone="neutral"
+            appearance="subtle"
+            tone="neutral"
             iconOnly
             leadingIcon={RiArrowLeftLine}
             onPress={safeBack}
@@ -858,10 +868,7 @@ export default function CustomFeedTimelineScreen() {
 
       {/* Feed info bottom sheet */}
       {feed && (
-        <BottomSheet
-          ref={infoSheetRef}
-          enablePanDownToClose
-        >
+        <BottomSheet ref={infoSheetRef} enablePanDownToClose>
           <FeedInfoContent
             feed={feed}
             subscriberCount={subscriberCount}

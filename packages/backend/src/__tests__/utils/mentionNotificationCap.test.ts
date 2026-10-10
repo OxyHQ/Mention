@@ -42,7 +42,9 @@ vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 // No socket server → the real-time emit branch is skipped entirely.
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   formatPushForNotification: mocks.formatPushForNotification,
   sendPushToTokens: mocks.sendPushToTokens,
 }));

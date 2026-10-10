@@ -1,7 +1,7 @@
 /**
  * Format number with K, M, B suffixes (Twitter-style)
  * Optimized and efficient number formatting utility
- * 
+ *
  * Examples:
  * - 999 -> "999"
  * - 1,000 -> "1K"

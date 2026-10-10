@@ -7,7 +7,9 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { TICK_MS, timeAgoSubscriberCount, useTimeAgo } from '../useTimeAgo';
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const renders = new Map<string, number>();
 

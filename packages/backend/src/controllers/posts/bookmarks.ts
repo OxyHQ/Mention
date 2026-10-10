@@ -11,7 +11,10 @@ import { posts as postsTable } from '../../db/schema/posts';
 import { postContentVariants } from '../../db/schema/postContent';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { userPreferenceService, readInteractionSurface } from '../../services/UserPreferenceService';
+import {
+  userPreferenceService,
+  readInteractionSurface,
+} from '../../services/UserPreferenceService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
@@ -147,14 +150,11 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
           .where(
             folderFilter
               ? and(
-                eq(bookmarksTable.postId, postsTable.id),
-                eq(bookmarksTable.userId, userId),
-                eq(bookmarksTable.folder, folderFilter),
-              )
-              : and(
-                eq(bookmarksTable.postId, postsTable.id),
-                eq(bookmarksTable.userId, userId),
-              ),
+                  eq(bookmarksTable.postId, postsTable.id),
+                  eq(bookmarksTable.userId, userId),
+                  eq(bookmarksTable.folder, folderFilter),
+                )
+              : and(eq(bookmarksTable.postId, postsTable.id), eq(bookmarksTable.userId, userId)),
           ),
       ) as SQL,
     ];
@@ -212,7 +212,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       posts: hydratedPosts,
       hasMore: posts.length === limit,
       page,
-      limit
+      limit,
     });
   } catch (error) {
     logger.error('Error fetching saved posts', error);
@@ -303,10 +303,7 @@ export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) =>
  * Preferred app contract: saved-post DTOs expose the post id, not the private
  * Bookmark document id, so update the viewer's relation by `{ userId, postId }`.
  */
-export const moveBookmarkToFolderByPostId = async (
-  req: AuthRequest,
-  res: Response,
-) =>
+export const moveBookmarkToFolderByPostId = async (req: AuthRequest, res: Response) =>
   moveBookmarkFolder(req, res, {
     kind: 'postId',
     id: String(req.params.postId ?? ''),

@@ -81,21 +81,21 @@ function reportRequest(
     durationMs: round(durationMs),
     ...(tally
       ? {
-        queryCount: tally.count,
-        queryDurationMs: round(tally.totalDurationMs),
-        slowQueryCount: tally.slowCount,
-        failedQueryCount: tally.errorCount,
-      }
+          queryCount: tally.count,
+          queryDurationMs: round(tally.totalDurationMs),
+          slowQueryCount: tally.slowCount,
+          failedQueryCount: tally.errorCount,
+        }
       : {}),
     // Read beside `queryCount`, these two say whether a slow route is slow in
     // Postgres or slow waiting on Oxy — which no existing signal could
     // distinguish.
     ...(oxyTally
       ? {
-        oxyCallCount: oxyTally.count,
-        oxyDurationMs: round(oxyTally.totalDurationMs),
-        failedOxyCallCount: oxyTally.errorCount,
-      }
+          oxyCallCount: oxyTally.count,
+          oxyDurationMs: round(oxyTally.totalDurationMs),
+          failedOxyCallCount: oxyTally.errorCount,
+        }
       : {}),
   });
 
@@ -122,11 +122,7 @@ function reportRequest(
  * only its own wall clock. With it disabled the request never enters that
  * context at all.
  */
-export function requestObservability(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function requestObservability(req: Request, res: Response, next: NextFunction): void {
   const id = requestId(req);
   const startedAt = process.hrtime.bigint();
   res.setHeader('X-Request-ID', id);

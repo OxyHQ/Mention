@@ -56,7 +56,9 @@ export function getApContentMap(
  * AP objects are untyped JSON, so the parameter is a record of unknown values
  * and every field is narrowed defensively (no unchecked casts).
  */
-export function extractApLanguage(object: Record<string, unknown> | null | undefined): string | undefined {
+export function extractApLanguage(
+  object: Record<string, unknown> | null | undefined,
+): string | undefined {
   if (!object || typeof object !== 'object') return undefined;
 
   const fromLanguage = toIso6391(object.language);

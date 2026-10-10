@@ -155,7 +155,9 @@ describe('url', () => {
 
   it('does not match a bare www. form when bareWww is off', () => {
     expect(kinds('visit www.example.com today', { bareWww: false })).toEqual([]);
-    expect(values('visit https://example.com', { bareWww: false })).toEqual(['https://example.com']);
+    expect(values('visit https://example.com', { bareWww: false })).toEqual([
+      'https://example.com',
+    ]);
   });
 
   it('runs to whitespace by default, swallowing a following tag', () => {
@@ -259,8 +261,9 @@ describe('bareHandle', () => {
    * linkified, stored or qualified as if somebody had typed it.
    */
   it('does not take the sentence punctuation that follows a handle', () => {
-    expect(values('Now building @thinkymachines. Previously CTO @openai', { kinds: ['bareHandle'] }))
-      .toEqual(['thinkymachines', 'openai']);
+    expect(
+      values('Now building @thinkymachines. Previously CTO @openai', { kinds: ['bareHandle'] }),
+    ).toEqual(['thinkymachines', 'openai']);
     expect(values('@other- and @name.', { kinds: ['bareHandle'] })).toEqual(['other', 'name']);
   });
 
@@ -270,7 +273,9 @@ describe('bareHandle', () => {
    * rule that removed interior dots would break every Bluesky handle we hold.
    */
   it('keeps the dots INSIDE a handle that legitimately has them', () => {
-    expect(values('@alice.bsky.social posts', { kinds: ['bareHandle'] })).toEqual(['alice.bsky.social']);
+    expect(values('@alice.bsky.social posts', { kinds: ['bareHandle'] })).toEqual([
+      'alice.bsky.social',
+    ]);
     expect(values('@some-name here', { kinds: ['bareHandle'] })).toEqual(['some-name']);
   });
 
@@ -370,9 +375,7 @@ describe('spans', () => {
   });
 
   it('finds every kind in one ordered pass', () => {
-    expect(
-      kinds('[@Ada](ada) [mention:x1] https://x.com @bob #tag $AAPL'),
-    ).toEqual([
+    expect(kinds('[@Ada](ada) [mention:x1] https://x.com @bob #tag $AAPL')).toEqual([
       'mentionDisplay',
       'mentionPlaceholder',
       'url',
@@ -555,8 +558,9 @@ describe('TextEntity shape', () => {
  */
 describe('qualifyBareHandles', () => {
   it('qualifies the bare handles in a real synced bio', () => {
-    expect(qualifyBareHandles('Now building @thinkymachines. Previously CTO @openai', 'x.com'))
-      .toBe('Now building @thinkymachines@x.com. Previously CTO @openai@x.com');
+    expect(
+      qualifyBareHandles('Now building @thinkymachines. Previously CTO @openai', 'x.com'),
+    ).toBe('Now building @thinkymachines@x.com. Previously CTO @openai@x.com');
   });
 
   /**
@@ -567,17 +571,17 @@ describe('qualifyBareHandles', () => {
    * database.
    */
   it('leaves an already-qualified handle exactly as it is', () => {
-    expect(qualifyBareHandles('ping @alice@mastodon.social ok', 'x.com'))
-      .toBe('ping @alice@mastodon.social ok');
-    expect(qualifyBareHandles('@a@b.com and @c', 'x.com'))
-      .toBe('@a@b.com and @c@x.com');
+    expect(qualifyBareHandles('ping @alice@mastodon.social ok', 'x.com')).toBe(
+      'ping @alice@mastodon.social ok',
+    );
+    expect(qualifyBareHandles('@a@b.com and @c', 'x.com')).toBe('@a@b.com and @c@x.com');
   });
 
   it('never touches a handle inside a URL, or an email', () => {
-    expect(qualifyBareHandles('see https://x.com/@handle now', 'x.com'))
-      .toBe('see https://x.com/@handle now');
-    expect(qualifyBareHandles('mail nate@oxy.so please', 'x.com'))
-      .toBe('mail nate@oxy.so please');
+    expect(qualifyBareHandles('see https://x.com/@handle now', 'x.com')).toBe(
+      'see https://x.com/@handle now',
+    );
+    expect(qualifyBareHandles('mail nate@oxy.so please', 'x.com')).toBe('mail nate@oxy.so please');
   });
 
   it('returns the original string when there is nothing to qualify', () => {
@@ -605,8 +609,9 @@ describe('qualifyBareHandles', () => {
   it('keeps the punctuation that follows a handle', () => {
     // The trailing-dot trim above is what makes this work: without it the
     // sentence's period ends up INSIDE the qualified handle.
-    expect(qualifyBareHandles('building @thinkymachines. done', 'x.com'))
-      .toBe('building @thinkymachines@x.com. done');
+    expect(qualifyBareHandles('building @thinkymachines. done', 'x.com')).toBe(
+      'building @thinkymachines@x.com. done',
+    );
   });
 });
 
@@ -654,21 +659,29 @@ describe('federatedHandle', () => {
   });
 });
 
-
 describe('labelled source mentions', () => {
   const mention = '[@@leadership-forbes](https://flipboard.com/@forbes/leadership-bs0je34pz)';
 
   it('keeps the label and source destination together', () => {
-    expect(scanTextEntities(mention)).toEqual([{
-      kind: 'mentionDisplay', raw: mention, start: 0, end: mention.length,
-      label: '@leadership-forbes', value: 'https://flipboard.com/@forbes/leadership-bs0je34pz',
-    }]);
+    expect(scanTextEntities(mention)).toEqual([
+      {
+        kind: 'mentionDisplay',
+        raw: mention,
+        start: 0,
+        end: mention.length,
+        label: '@leadership-forbes',
+        value: 'https://flipboard.com/@forbes/leadership-bs0je34pz',
+      },
+    ]);
   });
 
   it('does not extract a source mention as a preview URL or a bare handle', () => {
     expect(scanTextEntities(mention, { kinds: ['url'] })).toEqual([]);
     expect(scanTextEntities(mention, { kinds: ['bareHandle'] })).toEqual([]);
-    expect(scanTextEntities(`${mention} https://example.org/story`, { kinds: ['url'] }).map((entity) => entity.value))
-      .toEqual(['https://example.org/story']);
+    expect(
+      scanTextEntities(`${mention} https://example.org/story`, { kinds: ['url'] }).map(
+        (entity) => entity.value,
+      ),
+    ).toEqual(['https://example.org/story']);
   });
 });

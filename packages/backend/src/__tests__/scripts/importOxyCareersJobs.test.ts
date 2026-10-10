@@ -93,10 +93,7 @@ function entry(overrides: Partial<OxyCareersJobEntry> = {}): OxyCareersJobEntry 
 }
 
 async function rowsFor(employer: string) {
-  return db
-    .select()
-    .from(mentionJobs)
-    .where(eq(mentionJobs.employerOxyUserId, employer));
+  return db.select().from(mentionJobs).where(eq(mentionJobs.employerOxyUserId, employer));
 }
 
 beforeAll(async () => {
@@ -148,7 +145,10 @@ describe('the committed fixture', () => {
     ['an unknown key', { note: 'ride-along' }],
     ['a workplace type outside the vocabulary', { workplaceType: 'hyperspace' }],
     ['an application mode the schema does not know', { applicationMode: 'carrier_pigeon' }],
-    ['a location naming both a place and a country', { location: { placeId: '1', countryCode: 'ES' } }],
+    [
+      'a location naming both a place and a country',
+      { location: { placeId: '1', countryCode: 'ES' } },
+    ],
     ['an unpublished entry', { publish: false }],
     ['an empty description', { description: '' }],
   ])('rejects %s', (_shape, override) => {
@@ -169,7 +169,11 @@ describe('importing', () => {
     const employer = nextEmployer();
     const entries = [entry(), entry({ sourceSlug: 'data-analyst-remote', title: 'Data Analyst' })];
 
-    const summary = await importOxyCareersJobs({ dryRun: false, employerOxyUserId: employer, entries });
+    const summary = await importOxyCareersJobs({
+      dryRun: false,
+      employerOxyUserId: employer,
+      entries,
+    });
 
     expect(summary).toMatchObject({
       dryRun: false,
@@ -227,7 +231,11 @@ describe('importing', () => {
       .sort((a, b) => a.id.localeCompare(b.id));
     jobsIngest.mockClear();
 
-    const second = await importOxyCareersJobs({ dryRun: false, employerOxyUserId: employer, entries });
+    const second = await importOxyCareersJobs({
+      dryRun: false,
+      employerOxyUserId: employer,
+      entries,
+    });
 
     expect(second).toMatchObject({
       planned: 2,

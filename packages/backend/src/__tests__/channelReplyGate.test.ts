@@ -82,7 +82,9 @@ describe('postIsAuthoredByChannel', () => {
     ['a null post', null],
     ['an undefined post', undefined],
   ])('is false for %s', async (_label, input) => {
-    expect(await postIsAuthoredByChannel(input as { oxyUserId?: string | null } | null)).toBe(false);
+    expect(await postIsAuthoredByChannel(input as { oxyUserId?: string | null } | null)).toBe(
+      false,
+    );
   });
 
   it('answers false — never true — when the author will not resolve', async () => {

@@ -56,9 +56,9 @@ async function seedPack(ownerId: string, memberIds: string[]): Promise<string> {
     .returning({ id: starterPacks.id });
   seededPackIds.push(pack.id);
   if (memberIds.length > 0) {
-    await getDb().insert(starterPackMembers).values(
-      memberIds.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })),
-    );
+    await getDb()
+      .insert(starterPackMembers)
+      .values(memberIds.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })));
   }
   return pack.id;
 }
@@ -71,9 +71,9 @@ async function seedList(ownerId: string, memberIds: string[]): Promise<string> {
     .returning({ id: accountLists.id });
   seededListIds.push(list.id);
   if (memberIds.length > 0) {
-    await getDb().insert(accountListMembers).values(
-      memberIds.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })),
-    );
+    await getDb()
+      .insert(accountListMembers)
+      .values(memberIds.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })));
   }
   return list.id;
 }
@@ -104,7 +104,9 @@ afterEach(async () => {
   // drain and counted as its work.
   await getDb()
     .delete(endorsementOutbox)
-    .where(inArray(endorsementOutbox.sourceId, [...seededListIds, ...seededPackIds, ...EXTRA_SCOPE_IDS]));
+    .where(
+      inArray(endorsementOutbox.sourceId, [...seededListIds, ...seededPackIds, ...EXTRA_SCOPE_IDS]),
+    );
   if (seededListIds.length === 0 && seededPackIds.length === 0) return;
   // `accountListMembers` cascades from `accountLists`, so one delete is enough.
   await getDb().delete(accountLists).where(inArray(accountLists.id, seededListIds));
@@ -155,7 +157,9 @@ describe('EndorsementSignalService.syncScope', () => {
     await service.syncScope('starterPack', packId);
 
     expect(mocks.pushEndorsements).toHaveBeenCalledTimes(2);
-    expect(mocks.pushEndorsements.mock.calls[0][0]).toEqual(mocks.pushEndorsements.mock.calls[1][0]);
+    expect(mocks.pushEndorsements.mock.calls[0][0]).toEqual(
+      mocks.pushEndorsements.mock.calls[1][0],
+    );
   });
 
   it('leaves the outbox row PENDING with backoff when Oxy is down', async () => {
@@ -176,13 +180,15 @@ describe('EndorsementSignalService.syncScope', () => {
   it('retries pending remove edges captured from an earlier failed membership change', async () => {
     const listId = await seedList('owner', ['keep']);
     // A real captured removal from an earlier failed change, not a stubbed read.
-    await getDb().insert(endorsementOutbox).values({
-      source: 'accountList',
-      sourceId: listId,
-      status: 'pending',
-      pendingRemoveOwnerId: 'owner',
-      pendingRemoveMemberIds: ['removed', 'owner'],
-    });
+    await getDb()
+      .insert(endorsementOutbox)
+      .values({
+        source: 'accountList',
+        sourceId: listId,
+        status: 'pending',
+        pendingRemoveOwnerId: 'owner',
+        pendingRemoveMemberIds: ['removed', 'owner'],
+      });
 
     const service = makeService();
     await service.syncScope('accountList', listId);
@@ -235,7 +241,13 @@ describe('EndorsementSignalService.syncScopeMembershipChange', () => {
     mocks.pushEndorsements.mockRejectedValue(new Error('oxy down'));
 
     const service = makeService();
-    await service.syncScopeMembershipChange('starterPack', 'pack_1', 'owner', ['removed', 'keep'], ['keep']);
+    await service.syncScopeMembershipChange(
+      'starterPack',
+      'pack_1',
+      'owner',
+      ['removed', 'keep'],
+      ['keep'],
+    );
 
     const row = await outboxRow('starterPack', 'pack_1');
     // The pruned member is RETAINED on the row so the next drain retracts it —
@@ -272,12 +284,14 @@ describe('EndorsementSignalService.flushOutbox', () => {
     const packId = await seedPack('owner', ['m1']);
     // A REAL due row, rather than a stubbed page: the drain's own query decides
     // what it picks up, including the `next_attempt_at <= now` gate.
-    await getDb().insert(endorsementOutbox).values({
-      source: 'starterPack',
-      sourceId: packId,
-      status: 'pending',
-      nextAttemptAt: new Date(Date.now() - 60_000),
-    });
+    await getDb()
+      .insert(endorsementOutbox)
+      .values({
+        source: 'starterPack',
+        sourceId: packId,
+        status: 'pending',
+        nextAttemptAt: new Date(Date.now() - 60_000),
+      });
 
     const service = makeService();
     const result = await service.flushOutbox();

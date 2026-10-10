@@ -107,7 +107,11 @@ function node(
     parentAccountId: null,
     // The Oxy user behind the account. Only `accountId`/`kind`/`callerMembership`
     // are read here; the DTO is filled in enough to be a real node.
-    account: { id: accountId, username: accountId, name: { displayName: accountId } } as AccountNode['account'],
+    account: {
+      id: accountId,
+      username: accountId,
+      name: { displayName: accountId },
+    } as AccountNode['account'],
     relationship: callerMembership ? 'member' : 'self',
     callerMembership,
   };
@@ -125,9 +129,17 @@ function forest(): AccountNode[] {
     // INCLUDED — active member, and pointedly WITHOUT `account:act_as`.
     node(CHANNEL_ONE, 'channel', membership({ accountId: CHANNEL_ONE })),
     // INCLUDED — a SECOND channel, so "all of them" ≠ "the first one".
-    node(CHANNEL_TWO, 'channel', membership({ accountId: CHANNEL_TWO, role: 'owner', permissions: OWNER_PERMISSIONS })),
+    node(
+      CHANNEL_TWO,
+      'channel',
+      membership({ accountId: CHANNEL_TWO, role: 'owner', permissions: OWNER_PERMISSIONS }),
+    ),
     // EXCLUDED — an act-as-eligible kind whose membership DOES carry act_as.
-    node(ORGANIZATION, 'organization', membership({ accountId: ORGANIZATION, role: 'owner', permissions: OWNER_PERMISSIONS })),
+    node(
+      ORGANIZATION,
+      'organization',
+      membership({ accountId: ORGANIZATION, role: 'owner', permissions: OWNER_PERMISSIONS }),
+    ),
     // EXCLUDED — a channel whose membership was never accepted.
     node(CHANNEL_INVITED, 'channel', membership({ accountId: CHANNEL_INVITED, status: 'invited' })),
     // EXCLUDED — a channel this person was removed from.
@@ -198,22 +210,31 @@ describe('membershipAuthorizesActingFor', () => {
     expect(
       membershipAuthorizesActingFor('organization', membership({ permissions: OWNER_PERMISSIONS })),
     ).toBe(true);
-    expect(membershipAuthorizesActingFor('bot', membership({ permissions: OWNER_PERMISSIONS }))).toBe(true);
+    expect(
+      membershipAuthorizesActingFor('bot', membership({ permissions: OWNER_PERMISSIONS })),
+    ).toBe(true);
   });
 
   it('refuses a membership that is not active, whatever the kind', () => {
     expect(membershipAuthorizesActingFor('channel', membership({ status: 'invited' }))).toBe(false);
     expect(membershipAuthorizesActingFor('channel', membership({ status: 'removed' }))).toBe(false);
     expect(
-      membershipAuthorizesActingFor('organization', membership({ status: 'invited', permissions: OWNER_PERMISSIONS })),
+      membershipAuthorizesActingFor(
+        'organization',
+        membership({ status: 'invited', permissions: OWNER_PERMISSIONS }),
+      ),
     ).toBe(false);
   });
 
   it('refuses a missing membership and a kind neither family covers', () => {
     expect(membershipAuthorizesActingFor('channel', null)).toBe(false);
     expect(membershipAuthorizesActingFor('channel', undefined)).toBe(false);
-    expect(membershipAuthorizesActingFor('personal', membership({ permissions: OWNER_PERMISSIONS }))).toBe(false);
-    expect(membershipAuthorizesActingFor(null, membership({ permissions: OWNER_PERMISSIONS }))).toBe(false);
+    expect(
+      membershipAuthorizesActingFor('personal', membership({ permissions: OWNER_PERMISSIONS })),
+    ).toBe(false);
+    expect(
+      membershipAuthorizesActingFor(null, membership({ permissions: OWNER_PERMISSIONS })),
+    ).toBe(false);
   });
 });
 
@@ -250,8 +271,16 @@ describe('listOperatedChannelIds', () => {
     // them — no post, no writer, no order.
     const forOther = [
       node(OTHER_OPERATOR, 'personal', null),
-      node(CHANNEL_ONE, 'channel', membership({ accountId: CHANNEL_ONE, memberUserId: OTHER_OPERATOR })),
-      node(CHANNEL_TWO, 'channel', membership({ accountId: CHANNEL_TWO, memberUserId: OTHER_OPERATOR })),
+      node(
+        CHANNEL_ONE,
+        'channel',
+        membership({ accountId: CHANNEL_ONE, memberUserId: OTHER_OPERATOR }),
+      ),
+      node(
+        CHANNEL_TWO,
+        'channel',
+        membership({ accountId: CHANNEL_TWO, memberUserId: OTHER_OPERATOR }),
+      ),
     ];
 
     const mine = await listOperatedChannelIds(readerReturning(forest()));

@@ -60,12 +60,14 @@ async function seedNode(
   oxyUserId: string,
   overrides: Partial<typeof mentionUserNodes.$inferInsert> = {},
 ): Promise<void> {
-  await getDb().insert(mentionUserNodes).values({
-    oxyUserId,
-    endpoint: 'https://node.example',
-    nodePublicKey: 'pub-key-hex',
-    ...overrides,
-  });
+  await getDb()
+    .insert(mentionUserNodes)
+    .values({
+      oxyUserId,
+      endpoint: 'https://node.example',
+      nodePublicKey: 'pub-key-hex',
+      ...overrides,
+    });
 }
 
 async function readNode(oxyUserId: string) {
@@ -129,7 +131,12 @@ describe('registering a node', () => {
       registration({ managed: true, controller: 'oxy', mode: 'push' }),
     );
 
-    expect(node).toMatchObject({ managed: true, controller: 'oxy', mode: 'push', status: 'active' });
+    expect(node).toMatchObject({
+      managed: true,
+      controller: 'oxy',
+      mode: 'push',
+      status: 'active',
+    });
     expect(node?.lastError).toBeUndefined();
   });
 

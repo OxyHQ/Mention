@@ -56,9 +56,7 @@ export function buildPipTransportActions(
   maxActions: number,
 ): PipTransportAction[] {
   const kept = new Set(ACTION_PRIORITY.slice(0, Math.max(0, maxActions)));
-  return ACTION_DISPLAY_ORDER
-    .filter((id) => kept.has(id))
-    .map((id) => ({ id, title: labels[id] }));
+  return ACTION_DISPLAY_ORDER.filter((id) => kept.has(id)).map((id) => ({ id, title: labels[id] }));
 }
 
 export interface UsePipTransportActionsOptions {

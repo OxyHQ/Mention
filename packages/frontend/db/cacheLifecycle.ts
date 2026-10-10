@@ -31,19 +31,19 @@ function normalizeViewerId(viewerId: string | null | undefined): string {
 
 function getBrowserStorage(): Storage | null {
   try {
-    return typeof globalThis.localStorage === 'undefined'
-      ? null
-      : globalThis.localStorage;
+    return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
   } catch {
     return null;
   }
 }
 
 function readViewerOwner(db: SQLiteDb): string | null {
-  return db.getFirstSync<{ value: string }>(
-    'SELECT value FROM cache_metadata WHERE key = ?',
-    VIEWER_OWNER_KEY,
-  )?.value ?? null;
+  return (
+    db.getFirstSync<{ value: string }>(
+      'SELECT value FROM cache_metadata WHERE key = ?',
+      VIEWER_OWNER_KEY,
+    )?.value ?? null
+  );
 }
 
 function writeViewerOwner(db: SQLiteDb, viewerId: string): void {
@@ -90,9 +90,7 @@ function replaceViewerOwner(db: SQLiteDb, viewerId: string): void {
  * This function is synchronous so AccountSwitchReset can call it from a layout
  * effect while descendants remain unmounted.
  */
-export function claimViewerCache(
-  viewerId: string | null | undefined,
-): ViewerCacheClaim {
+export function claimViewerCache(viewerId: string | null | undefined): ViewerCacheClaim {
   const nextViewerId = normalizeViewerId(viewerId);
   const db = getDb();
 
@@ -104,8 +102,7 @@ export function claimViewerCache(
     let previousViewerId = activeViewerId;
     if (browserStorage) {
       try {
-        previousViewerId =
-          browserStorage.getItem(BROWSER_VIEWER_OWNER_KEY);
+        previousViewerId = browserStorage.getItem(BROWSER_VIEWER_OWNER_KEY);
       } catch {
         // Fall back to the process marker below.
       }

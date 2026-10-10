@@ -20,7 +20,13 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Muted } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Stop,
+  Text as SvgText,
+  TSpan,
+} from 'react-native-svg';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 interface WelcomeModalProps {
@@ -65,14 +71,19 @@ const GradientText: React.FC<{
   // SVG clips descenders ("y", "g", "p") on the final line.
   const descender = fontSize * 0.3;
   const totalHeight = lines.length * lineHeight + descender;
-  
+
   // Estimate text width based on longest line
   const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
   const estimatedWidth = Math.max(longestLine.length * fontSize * 0.7, 300);
 
   // Use SVG with gradient applied to all lines together
   return (
-    <View style={[{ alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 4 }, style]}>
+    <View
+      style={[
+        { alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 4 },
+        style,
+      ]}
+    >
       <Svg width={estimatedWidth} height={totalHeight}>
         <Defs>
           {/* Gradient runs from 10% to 90% of the text block's height */}
@@ -91,11 +102,7 @@ const GradientText: React.FC<{
           textAnchor="middle"
         >
           {lines.map((line, index) => (
-            <TSpan
-              key={index}
-              x="50%"
-              dy={index === 0 ? 0 : lineHeight}
-            >
+            <TSpan key={index} x="50%" dy={index === 0 ? 0 : lineHeight}>
               {line}
             </TSpan>
           ))}
@@ -105,10 +112,7 @@ const GradientText: React.FC<{
   );
 };
 
-const WelcomeModal: React.FC<WelcomeModalProps> = ({
-  visible,
-  onClose,
-}) => {
+const WelcomeModal: React.FC<WelcomeModalProps> = ({ visible, onClose }) => {
   const { signIn } = useAuth();
   const router = useRouter();
   const theme = useTheme();
@@ -129,10 +133,11 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   }, [onClose, signIn]);
 
   const backgroundImage: ImageSourcePropType = useMemo(
-    () => theme.isDark
-      ? require('@/assets/images/welcome-modal-bg-dark.jpg')
-      : require('@/assets/images/welcome-modal-bg.jpg'),
-    [theme.isDark]
+    () =>
+      theme.isDark
+        ? require('@/assets/images/welcome-modal-bg-dark.jpg')
+        : require('@/assets/images/welcome-modal-bg.jpg'),
+    [theme.isDark],
   );
 
   // Bloom's `Dialog` owns the surface: the shared backdrop (tap to dismiss),
@@ -171,23 +176,26 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
         {/* Logo */}
         <View style={styles.logoContainer}>
           {INSTANCE_LOGO_URL ? (
-            <Image source={{ uri: INSTANCE_LOGO_URL }} className="w-12 h-12" resizeMode="contain" accessibilityLabel={INSTANCE_NAME} />
-          ) : <LogoIcon
-            className={theme.isDark ? undefined : 'text-primary'}
-            color={theme.isDark ? '#FFFFFF' : undefined}
-            size={40}
-          />}
+            <Image
+              source={{ uri: INSTANCE_LOGO_URL }}
+              className="w-12 h-12"
+              resizeMode="contain"
+              accessibilityLabel={INSTANCE_NAME}
+            />
+          ) : (
+            <LogoIcon
+              className={theme.isDark ? undefined : 'text-primary'}
+              color={theme.isDark ? '#FFFFFF' : undefined}
+              size={40}
+            />
+          )}
           {INSTANCE_NAME !== 'Mention' ? <Muted>{INSTANCE_NAME}</Muted> : null}
         </View>
 
         {/* Tagline with single gradient for all lines */}
         <View style={styles.taglineContainer}>
           <GradientText
-            lines={[
-              'Real people.',
-              'Real conversations.',
-              'Social media you control.',
-            ]}
+            lines={['Real people.', 'Real conversations.', 'Social media you control.']}
             fontSize={32}
             fontWeight="600"
             {...(theme.isDark ? TAGLINE_GRADIENT.dark : TAGLINE_GRADIENT.light)}
@@ -217,9 +225,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
           {/* Sign in prompt */}
           <View style={styles.signInContainer}>
             <Muted>Already have an account? </Muted>
-            <LinkButton onPress={handleSignIn}>
-              Sign in
-            </LinkButton>
+            <LinkButton onPress={handleSignIn}>Sign in</LinkButton>
           </View>
         </View>
       </ImageBackground>

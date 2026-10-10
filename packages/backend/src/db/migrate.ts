@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   if (!url) {
     throw new Error(
       'DATABASE_URL is not set. Start a local Postgres with: ' +
-      'docker compose -f docker-compose.postgres.yml up -d postgres'
+        'docker compose -f docker-compose.postgres.yml up -d postgres',
     );
   }
 
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
     if (dryRun) {
       logger.info(
         `DRY RUN — ${pending.length} migration(s) would be applied; nothing was written`,
-        { pending: tags, journalEntries: entries.length }
+        { pending: tags, journalEntries: entries.length },
       );
       return;
     }
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
     if (remaining.length > 0) {
       throw new Error(
         `Migration reported success but ${remaining.length} migration(s) are still ` +
-        `pending: ${remaining.map((entry) => entry.tag).join(', ')}`
+          `pending: ${remaining.map((entry) => entry.tag).join(', ')}`,
       );
     }
 

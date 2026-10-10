@@ -1,13 +1,10 @@
+import { canonicalizeLanguageTag, MAX_AUTHOR_VARIANTS } from '@mention/shared-types/language';
+import type { MediaItem, PostContent, PostContentVariant } from '@mention/shared-types/post';
 import {
-  canonicalizeLanguageTag,
-  MAX_AUTHOR_VARIANTS,
-} from '@mention/shared-types/language';
-import type {
-  MediaItem,
-  PostContent,
-  PostContentVariant,
-} from '@mention/shared-types/post';
-import { toComposerMediaType, type ComposerMediaItem, type ComposerMediaType } from './composeUtils';
+  toComposerMediaType,
+  type ComposerMediaItem,
+  type ComposerMediaType,
+} from './composeUtils';
 
 /**
  * The multilingual compose buffer.
@@ -120,16 +117,15 @@ export function variantTextsForItem(
   override?: { tag: string; text: string },
 ): string[] {
   return state.variantTags.map((tag) =>
-    override?.tag === tag
-      ? override.text
-      : (state.entries[tag]?.[itemId]?.text ?? ''),
+    override?.tag === tag ? override.text : (state.entries[tag]?.[itemId]?.text ?? ''),
   );
 }
 
 /** Whether a rendition holds anything at all. An untouched tab is not content. */
 export function hasVariantContent(item: ComposeVariantItem): boolean {
   if (item.text.trim().length > 0) return true;
-  if (item.article && (item.article.title.trim().length > 0 || item.article.body.trim().length > 0)) return true;
+  if (item.article && (item.article.title.trim().length > 0 || item.article.body.trim().length > 0))
+    return true;
   if (item.media.mode === 'override') return item.media.media.length > 0;
   return Object.values(item.media.alt).some((alt) => alt.trim().length > 0);
 }
@@ -270,7 +266,8 @@ export function variantsReducer(
 
     case 'rename-language': {
       const to = canonicalizeLanguageTag(action.to);
-      if (to === null || !state.variantTags.includes(action.from) || isTagInUse(state, to)) return state;
+      if (to === null || !state.variantTags.includes(action.from) || isTagInUse(state, to))
+        return state;
       const { [action.from]: items, ...rest } = state.entries;
       return {
         ...state,
@@ -356,7 +353,10 @@ export function variantsReducer(
       }));
 
     case 'set-article':
-      return withItem(state, action.tag, action.itemId, (item) => ({ ...item, article: action.article }));
+      return withItem(state, action.tag, action.itemId, (item) => ({
+        ...item,
+        article: action.article,
+      }));
 
     case 'remove-item': {
       const entries: ComposeVariantsState['entries'] = {};
@@ -738,7 +738,13 @@ export function serializeVariants(state: ComposeVariantsState): DraftVariants {
           itemId,
           text: item.text,
           ...(item.media.mode === 'override'
-            ? { media: item.media.media.map((media) => ({ id: media.id, type: media.type, ...(media.alt ? { alt: media.alt } : {}) })) }
+            ? {
+                media: item.media.media.map((media) => ({
+                  id: media.id,
+                  type: media.type,
+                  ...(media.alt ? { alt: media.alt } : {}),
+                })),
+              }
             : { alt: item.media.alt }),
           ...(item.article ? { article: item.article } : {}),
         })),
@@ -762,11 +768,7 @@ export function draftVariantTextsForItem(raw: unknown, itemId: string): string[]
   for (const rawLanguage of raw.languages) {
     if (!isRecord(rawLanguage) || !Array.isArray(rawLanguage.items)) continue;
     for (const rawItem of rawLanguage.items) {
-      if (
-        isRecord(rawItem) &&
-        rawItem.itemId === itemId &&
-        typeof rawItem.text === 'string'
-      ) {
+      if (isRecord(rawItem) && rawItem.itemId === itemId && typeof rawItem.text === 'string') {
         texts.push(rawItem.text);
       }
     }
@@ -802,7 +804,10 @@ function readDraftMedia(value: unknown): ComposerMediaItem[] | null {
  * flat draft, a truncated write, or a hand-edited storage entry all degrade to a
  * clean single-language buffer rather than costing the author their draft.
  */
-export function deserializeVariants(value: unknown, fallbackPrimaryTag: string): ComposeVariantsState {
+export function deserializeVariants(
+  value: unknown,
+  fallbackPrimaryTag: string,
+): ComposeVariantsState {
   if (!isRecord(value)) return createVariantsState(fallbackPrimaryTag);
 
   const primaryTag = canonicalizeLanguageTag(value.primaryTag) ?? fallbackPrimaryTag;
@@ -819,7 +824,8 @@ export function deserializeVariants(value: unknown, fallbackPrimaryTag: string):
     const items: Record<string, ComposeVariantItem> = {};
     const rawItems = Array.isArray(language.items) ? language.items : [];
     for (const rawItem of rawItems) {
-      if (!isRecord(rawItem) || typeof rawItem.itemId !== 'string' || rawItem.itemId.length === 0) continue;
+      if (!isRecord(rawItem) || typeof rawItem.itemId !== 'string' || rawItem.itemId.length === 0)
+        continue;
       const override = readDraftMedia(rawItem.media);
       const article = isRecord(rawItem.article)
         ? {
@@ -829,7 +835,9 @@ export function deserializeVariants(value: unknown, fallbackPrimaryTag: string):
         : null;
       items[rawItem.itemId] = {
         text: typeof rawItem.text === 'string' ? rawItem.text : '',
-        media: override ? { mode: 'override', media: override } : { mode: 'inherit', alt: readStringMap(rawItem.alt) },
+        media: override
+          ? { mode: 'override', media: override }
+          : { mode: 'inherit', alt: readStringMap(rawItem.alt) },
         article: article && (article.title || article.body) ? article : null,
       };
     }

@@ -58,11 +58,11 @@ export function pastSweepWindow(now: Date): Date {
     throw new Error(
       `publishDuePosts was handed ${now.toISOString()}, which is not meaningfully ` +
         'in the past. ' +
-        'The sweep is scoped to nothing — `status = \'scheduled\' and ' +
+        "The sweep is scoped to nothing — `status = 'scheduled' and " +
         'scheduled_for <= now` — so a window reaching the present publishes ' +
         "every other test file's due scheduled posts, sending their " +
         'notifications and federating their content. Keep the injected date ' +
-        'behind real time, or give this suite its own database.'
+        'behind real time, or give this suite its own database.',
     );
   }
   return now;

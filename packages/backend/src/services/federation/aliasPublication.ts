@@ -60,7 +60,10 @@ export function aliasFingerprint(values: readonly string[] | null | undefined): 
 }
 
 /** Handle one Oxy `profile` invalidation. Never throws. */
-export async function publishAliasChange(event: { userId: string; at: number }): Promise<AliasPublicationOutcome> {
+export async function publishAliasChange(event: {
+  userId: string;
+  at: number;
+}): Promise<AliasPublicationOutcome> {
   try {
     return await checkAndPublish(event);
   } catch (error) {
@@ -72,10 +75,16 @@ export async function publishAliasChange(event: { userId: string; at: number }):
   }
 }
 
-async function checkAndPublish(event: { userId: string; at: number }): Promise<AliasPublicationOutcome> {
+async function checkAndPublish(event: {
+  userId: string;
+  at: number;
+}): Promise<AliasPublicationOutcome> {
   const redis = getRedisClient();
   if (!redis.isReady) return 'no_redis';
-  const claimed = await redis.set(claimKey(event.userId, event.at), '1', { NX: true, EX: CLAIM_TTL_SECONDS });
+  const claimed = await redis.set(claimKey(event.userId, event.at), '1', {
+    NX: true,
+    EX: CLAIM_TTL_SECONDS,
+  });
   if (claimed !== 'OK') return 'claimed_elsewhere';
   if (!(await hasActorKeyPair(event.userId))) return 'not_local';
 
@@ -87,14 +96,19 @@ async function checkAndPublish(event: { userId: string; at: number }): Promise<A
   const profile = await oxy.users.byUsername(username);
   const current = aliasFingerprint(profile?.alsoKnownAs);
 
-  const previous = await redis.set(snapshotKey(event.userId), current, { GET: true, EX: SNAPSHOT_TTL_SECONDS });
+  const previous = await redis.set(snapshotKey(event.userId), current, {
+    GET: true,
+    EX: SNAPSHOT_TTL_SECONDS,
+  });
   const empty = aliasFingerprint([]);
   if (previous === current || (previous === null && current === empty)) return 'unchanged';
 
   try {
     // Lazy: the connector registry reaches the server singleton, and this module
     // is loaded by the subscriber at boot.
-    const { federateAsResolvedActorAndWait } = await import('../../connectors/outboundFederation.js');
+    const { federateAsResolvedActorAndWait } = await import(
+      '../../connectors/outboundFederation.js'
+    );
     await federateAsResolvedActorAndWait(
       event.userId,
       'actor alias update',
@@ -107,6 +121,8 @@ async function checkAndPublish(event: { userId: string; at: number }): Promise<A
     else await redis.set(snapshotKey(event.userId), previous, { EX: SNAPSHOT_TTL_SECONDS });
     throw error;
   }
-  logger.info('[AliasPublication] alsoKnownAs changed; actor Update sent', { userId: event.userId });
+  logger.info('[AliasPublication] alsoKnownAs changed; actor Update sent', {
+    userId: event.userId,
+  });
   return 'published';
 }

@@ -56,7 +56,9 @@ vi.mock('../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../services/userSummaryCache', () => ({ invalidate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../services/userSummaryCache', () => ({
+  invalidate: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),

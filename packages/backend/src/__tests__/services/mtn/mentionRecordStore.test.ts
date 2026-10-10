@@ -34,10 +34,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
 import { mentionRepoHeads, mentionSignedRecords } from '../../../db/schema/mtn';
-import {
-  MTN_CHAIN_STATUS,
-  MentionRecordStoreImpl,
-} from '../../../services/mtn/MentionRecordStore';
+import { MTN_CHAIN_STATUS, MentionRecordStoreImpl } from '../../../services/mtn/MentionRecordStore';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 
 let db: Database;
@@ -93,10 +90,7 @@ async function readRecord(owner: string, recordId: string) {
     .select()
     .from(mentionSignedRecords)
     .where(
-      and(
-        eq(mentionSignedRecords.oxyUserId, owner),
-        eq(mentionSignedRecords.recordId, recordId),
-      ),
+      and(eq(mentionSignedRecords.oxyUserId, owner), eq(mentionSignedRecords.recordId, recordId)),
     )
     .limit(1);
   return row;
@@ -263,14 +257,21 @@ describe('append — the record row and the head advance', () => {
   it('refuses a subject DID that names no user', async () => {
     const owner = chainOwner();
     await expect(
-      store.append('did:web:example.com:not-a-user', envelopeV2(owner, { seq: 0, prev: null }), 'x'),
+      store.append(
+        'did:web:example.com:not-a-user',
+        envelopeV2(owner, { seq: 0, prev: null }),
+        'x',
+      ),
     ).resolves.toEqual({ ok: false, reason: 'chain_gap' });
   });
 
   it('refuses a v2 envelope with no numeric seq', async () => {
     const owner = chainOwner();
     const subject = buildUserDid(owner);
-    const malformed = { ...envelopeV2(owner, { seq: 0, prev: null }), seq: undefined } as unknown as SignedRecordEnvelope;
+    const malformed = {
+      ...envelopeV2(owner, { seq: 0, prev: null }),
+      seq: undefined,
+    } as unknown as SignedRecordEnvelope;
     await expect(store.append(subject, malformed, R(`record-x`))).resolves.toEqual({
       ok: false,
       reason: 'bad_seq',
@@ -283,7 +284,12 @@ describe('the durable producer event', () => {
   it('stores the key with the record and resolves the committed append', async () => {
     const owner = chainOwner();
     const subject = buildUserDid(owner);
-    const envelope = envelopeV2(owner, { seq: 0, prev: null, collection: 'app.mention.feed.like', rkey: 'relation-1' });
+    const envelope = envelopeV2(owner, {
+      seq: 0,
+      prev: null,
+      collection: 'app.mention.feed.like',
+      rkey: 'relation-1',
+    });
     const idempotencyKey = 'engagement:post.like:relation-1:v1';
 
     await expect(
@@ -302,7 +308,9 @@ describe('the durable producer event', () => {
     const owner = chainOwner();
     const subject = buildUserDid(owner);
     const key = 'engagement:post.like:relation-1:v1';
-    await store.withIdempotencyKey(key).append(subject, envelopeV2(owner, { seq: 0, prev: null }), R(`record-0`));
+    await store
+      .withIdempotencyKey(key)
+      .append(subject, envelopeV2(owner, { seq: 0, prev: null }), R(`record-0`));
 
     // A redelivered producer event, built against the same head.
     const outcome = await store
@@ -423,9 +431,21 @@ describe('log and cursor reads', () => {
   it('returns the ordered slice after a seq, keeping legacy rows and dropping forks', async () => {
     const owner = chainOwner();
     const subject = buildUserDid(owner);
-    await store.append(subject, envelopeV2(owner, { seq: 0, prev: null, record: { text: 'zero' } }), R(`record-0`));
-    await store.append(subject, envelopeV2(owner, { seq: 1, prev: R(`record-0`), record: { text: 'one' } }), R(`record-1`));
-    await store.append(subject, envelopeV2(owner, { seq: 2, prev: R(`record-1`), record: { text: 'two' } }), R(`record-2`));
+    await store.append(
+      subject,
+      envelopeV2(owner, { seq: 0, prev: null, record: { text: 'zero' } }),
+      R(`record-0`),
+    );
+    await store.append(
+      subject,
+      envelopeV2(owner, { seq: 1, prev: R(`record-0`), record: { text: 'one' } }),
+      R(`record-1`),
+    );
+    await store.append(
+      subject,
+      envelopeV2(owner, { seq: 2, prev: R(`record-1`), record: { text: 'two' } }),
+      R(`record-2`),
+    );
     // A legacy row (no chain_status) at seq 3 and a fork archive at seq 4.
     await db.insert(mentionSignedRecords).values([
       {
@@ -468,7 +488,11 @@ describe('log and cursor reads', () => {
     for (let seq = 0; seq < 4; seq += 1) {
       await store.append(
         subject,
-        envelopeV2(owner, { seq, prev: seq === 0 ? null : R(`record-${seq - 1}`), record: { text: String(seq) } }),
+        envelopeV2(owner, {
+          seq,
+          prev: seq === 0 ? null : R(`record-${seq - 1}`),
+          record: { text: String(seq) },
+        }),
         R(`record-${seq}`),
       );
     }
@@ -505,10 +529,20 @@ describe('per-key materialization keeps fork archives eligible', () => {
   it('serves the newest record for a key even when it is off the linear chain', async () => {
     const owner = chainOwner();
     const subject = buildUserDid(owner);
-    const chained = envelopeV2(owner, { seq: 0, prev: null, issuedAt: 10, record: { text: 'chained' } });
+    const chained = envelopeV2(owner, {
+      seq: 0,
+      prev: null,
+      issuedAt: 10,
+      record: { text: 'chained' },
+    });
     await store.append(subject, chained, R(`record-0`));
 
-    const fork = envelopeV2(owner, { seq: 1, prev: R(`record-0`), issuedAt: 42, record: { text: 'fork' } });
+    const fork = envelopeV2(owner, {
+      seq: 1,
+      prev: R(`record-0`),
+      issuedAt: 42,
+      record: { text: 'fork' },
+    });
     await db.insert(mentionSignedRecords).values({
       subjectDid: subject,
       oxyUserId: owner,
@@ -541,7 +575,12 @@ describe('per-key materialization keeps fork archives eligible', () => {
 
     // A first append on a DIFFERENT key must see no frontier at all — otherwise a
     // valid record is rejected as a replay because an unrelated key is newer.
-    const incoming = envelopeV2(owner, { seq: 1, prev: R(`record-0`), issuedAt: 100, rkey: 'post-new' });
+    const incoming = envelopeV2(owner, {
+      seq: 1,
+      prev: R(`record-0`),
+      issuedAt: 100,
+      rkey: 'post-new',
+    });
     await expect(store.latestIssuedAtForKey(subject, incoming)).resolves.toBeNull();
   });
 
@@ -644,7 +683,10 @@ describe('reconcileHead — a head that fell behind the ledger', () => {
     );
     expect(blocked).toEqual({ ok: false, reason: 'chain_conflict' });
     // A re-read cannot help: the head still says seq 0.
-    await expect(store.getHead(subject)).resolves.toMatchObject({ seq: 0, headRecordId: R('genesis') });
+    await expect(store.getHead(subject)).resolves.toMatchObject({
+      seq: 0,
+      headRecordId: R('genesis'),
+    });
 
     await expect(store.reconcileHead(subject)).resolves.toEqual({
       kind: 'repaired',
@@ -732,7 +774,11 @@ describe('reconcileHead — a head that fell behind the ledger', () => {
     const owner = chainOwner();
     const bystander = chainOwner();
     await insertLedgerRow(owner, { seq: 1, prev: R('lost'), recordId: R('orphan') });
-    await insertLedgerRow(bystander, { seq: 1, prev: R('lost-b'), recordId: R('bystander-orphan') });
+    await insertLedgerRow(bystander, {
+      seq: 1,
+      prev: R('lost-b'),
+      recordId: R('bystander-orphan'),
+    });
 
     await store.reconcileHead(buildUserDid(owner));
 

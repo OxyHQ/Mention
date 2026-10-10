@@ -61,7 +61,9 @@ const refs = (postContent: string): ComposeDraftRefs => ({
 });
 
 beforeAll(() => {
-  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 beforeEach(() => {
@@ -94,7 +96,9 @@ describe('useDraftManager across a publish', () => {
     jest.useFakeTimers();
     try {
       const fired = jest.fn();
-      manager().autoSaveTimeoutRef.current = setTimeout(fired, 2000) as unknown as ReturnType<typeof setTimeout>;
+      manager().autoSaveTimeoutRef.current = setTimeout(fired, 2000) as unknown as ReturnType<
+        typeof setTimeout
+      >;
 
       manager().beginPublish();
       jest.advanceTimersByTime(5000);
@@ -123,7 +127,10 @@ describe('useDraftManager across a publish', () => {
   it('deletes a draft that an autosave created while the request was in flight', async () => {
     let finishSave: (id: string) => void = () => {};
     saveDraft.mockImplementation(
-      () => new Promise<string>((resolve) => { finishSave = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          finishSave = resolve;
+        }),
     );
 
     let inFlight: Promise<void> = Promise.resolve();
@@ -195,4 +202,3 @@ describe('useDraftManager across a publish', () => {
     expect(manager().currentDraftId).toBeNull();
   });
 });
-

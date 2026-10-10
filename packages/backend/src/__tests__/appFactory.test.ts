@@ -1,7 +1,4 @@
-import express, {
-  type ErrorRequestHandler,
-  type RequestHandler,
-} from 'express';
+import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CreateAppDependencies } from '../app';
@@ -12,10 +9,7 @@ const errorHandler: ErrorRequestHandler = (_error, _req, res, _next) => {
   res.status(500).json({ error: 'test error' });
 };
 
-function routerWith(
-  path: string,
-  body: string,
-): RequestHandler {
+function routerWith(path: string, body: string): RequestHandler {
   const router = express.Router();
   router.get(path, (_req, res) => res.status(200).send(body));
   return router;
@@ -87,7 +81,9 @@ describe('createApp', () => {
       res.once('finish', () => responses.push({ path, status: res.statusCode }));
       next();
     };
-    deps.routes.requireAuth = (_req, res) => { res.sendStatus(401); };
+    deps.routes.requireAuth = (_req, res) => {
+      res.sendStatus(401);
+    };
     const app = createApp(deps);
     await request(app).get('/feed').set('Host', 'api.mention.earth').expect(200);
     await request(app).get('/.well-known/webfinger').set('Host', 'mention.earth').expect(200);
@@ -131,9 +127,7 @@ describe('createApp', () => {
 
   it('serves health without runtime bootstrap', async () => {
     const { createApp } = await import('../app');
-    await request(createApp(createDependencies()))
-      .get('/health/live')
-      .expect(200, 'live');
+    await request(createApp(createDependencies())).get('/health/live').expect(200, 'live');
   });
 
   it('keeps federation and web shell ahead of the apex proxy and API routers', async () => {
@@ -144,22 +138,10 @@ describe('createApp', () => {
       .get('/.well-known/webfinger')
       .set('Host', 'mention.earth')
       .expect(200, 'federation');
-    await request(app)
-      .get('/ap/users/alice')
-      .set('Host', 'mention.earth')
-      .expect(200, 'actor');
-    await request(app)
-      .get('/@alice')
-      .set('Host', 'mention.earth')
-      .expect(200, 'web-shell');
-    await request(app)
-      .get('/feed')
-      .set('Host', 'mention.earth')
-      .expect(200, 'apex');
-    await request(app)
-      .get('/feed')
-      .set('Host', 'api.mention.earth')
-      .expect(200, 'api');
+    await request(app).get('/ap/users/alice').set('Host', 'mention.earth').expect(200, 'actor');
+    await request(app).get('/@alice').set('Host', 'mention.earth').expect(200, 'web-shell');
+    await request(app).get('/feed').set('Host', 'mention.earth').expect(200, 'apex');
+    await request(app).get('/feed').set('Host', 'api.mention.earth').expect(200, 'api');
   });
 
   it('applies bounded CORS and handles preflight before application routes', async () => {
@@ -211,16 +193,11 @@ describe('createApp', () => {
       '/xrpc/unknown',
       '/ap-bridge/unknown',
     ]) {
-      const response = await request(app)
-        .get(path)
-        .set('Host', 'api.mention.earth');
+      const response = await request(app).get(path).set('Host', 'api.mention.earth');
       expect(response.headers['cache-control'] ?? '').not.toContain('no-store');
     }
 
-    const apex = await request(app)
-      .get('/feed')
-      .set('Host', 'mention.earth')
-      .expect(200);
+    const apex = await request(app).get('/feed').set('Host', 'mention.earth').expect(200);
     expect(apex.headers['cache-control'] ?? '').not.toContain('no-store');
   });
 
@@ -489,17 +466,24 @@ describe('createApp', () => {
 describe('managed instance discovery and branding', () => {
   it('publishes only this process deployment and uses its own API in CSP', async () => {
     const { createApp } = await import('../app');
-    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import('@mention/shared-types/deployment');
-    const { default: example } = await import('../../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import(
+      '@mention/shared-types/deployment'
+    );
+    const { default: example } = await import(
+      '../../../shared-types/__tests__/fixtures/managed-deployment.json'
+    );
     const deployment = managedMentionDeploymentSchema.parse(example);
     const dependencies = createDependencies();
     dependencies.deployment = publicDeploymentInfo(deployment);
     dependencies.federationDomain = 'social.alpha.example';
     dependencies.frontendUrl = deployment.publicBaseUrl;
     const app = createApp(dependencies);
-    const discovery = await request(app).get('/.well-known/mention-instance')
-      .set('Host', 'api.beta.example').set('X-Forwarded-Host', 'social.beta.example')
-      .set('X-Tenant-Id', '22222222-2222-4222-8222-222222222222').expect(200);
+    const discovery = await request(app)
+      .get('/.well-known/mention-instance')
+      .set('Host', 'api.beta.example')
+      .set('X-Forwarded-Host', 'social.beta.example')
+      .set('X-Tenant-Id', '22222222-2222-4222-8222-222222222222')
+      .expect(200);
     expect(discovery.body).toEqual(publicDeploymentInfo(deployment));
     expect(discovery.text).not.toContain('admin-alpha');
     expect(discovery.text).not.toContain('member-alpha');
@@ -532,10 +516,17 @@ describe('managed instance discovery and branding', () => {
    */
   it('serves an installable manifest for a deployment that ships no icon', async () => {
     const { createApp } = await import('../app');
-    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import('@mention/shared-types/deployment');
-    const { default: example } = await import('../../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import(
+      '@mention/shared-types/deployment'
+    );
+    const { default: example } = await import(
+      '../../../shared-types/__tests__/fixtures/managed-deployment.json'
+    );
     const { iconUrl: _omitted, ...brandingWithoutIcon } = example.branding;
-    const deployment = managedMentionDeploymentSchema.parse({ ...example, branding: brandingWithoutIcon });
+    const deployment = managedMentionDeploymentSchema.parse({
+      ...example,
+      branding: brandingWithoutIcon,
+    });
     expect(deployment.branding.iconUrl).toBeUndefined();
 
     const dependencies = createDependencies();

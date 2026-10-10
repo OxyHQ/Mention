@@ -24,11 +24,15 @@ jest.mock('@oxy.so/bloom/settings-list', () => ({
   SettingsListGroup: 'SettingsListGroup',
   SettingsListItem: 'SettingsListItem',
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ BloomColorScope: ({ children }: { children: React.ReactNode }) => children }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+}));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 jest.mock('expo-router', () => ({ Redirect: 'Redirect' }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
-jest.mock('@/hooks/useAccountCategoryLabel', () => ({ useAccountCategoryLabel: () => (id: string) => id }));
+jest.mock('@/hooks/useAccountCategoryLabel', () => ({
+  useAccountCategoryLabel: () => (id: string) => id,
+}));
 jest.mock('@/components/UserName', () => ({ __esModule: true, default: 'UserName' }));
 jest.mock('@/components/settings/RowIcon', () => ({ RowIcon: 'RowIcon' }));
 jest.mock('@/assets/icons/fediverse-icon', () => ({ FediverseIcon: 'FediverseIcon' }));
@@ -37,8 +41,12 @@ jest.mock('@/assets/icons/calendar-month-icon', () => ({ CalendarMonthIcon: 'Cal
 jest.mock('@/assets/icons/external-link-icon', () => ({ ExternalLinkIcon: 'ExternalLinkIcon' }));
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({ showFediverseInfo: jest.fn() }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));
-jest.mock('@/components/Profile/ProfileUnavailable', () => ({ ProfileUnavailable: 'ProfileUnavailable' }));
-jest.mock('@/components/Profile/hooks/useRoutedProfileUsername', () => ({ useRoutedProfileUsername: () => 'someone' }));
+jest.mock('@/components/Profile/ProfileUnavailable', () => ({
+  ProfileUnavailable: 'ProfileUnavailable',
+}));
+jest.mock('@/components/Profile/hooks/useRoutedProfileUsername', () => ({
+  useRoutedProfileUsername: () => 'someone',
+}));
 jest.mock('@/components/Profile/hooks/useProfileAccount', () => ({
   useProfileAccount: () => ({
     profileData: mockProfile.current,
@@ -53,7 +61,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => {
       const catalog: Record<string, unknown> = require('@/locales/en.json');
-      return typeof catalog[key] === 'string' ? catalog[key] : options?.defaultValue ?? key;
+      return typeof catalog[key] === 'string' ? catalog[key] : (options?.defaultValue ?? key);
     },
   }),
 }));
@@ -78,36 +86,65 @@ function render(profile: Record<string, unknown>): ReactTestRenderer {
 
 function federationSection(renderer: ReactTestRenderer): ReactTestInstance {
   const [section] = renderer.root.findAll(
-    (node) => node.type === ('SettingsListGroup' as unknown) && node.props.footer !== undefined
-      && node.findAll((child) => child.props?.title === enStrings['fediverse.about.network']).length > 0,
+    (node) =>
+      node.type === ('SettingsListGroup' as unknown) &&
+      node.props.footer !== undefined &&
+      node.findAll((child) => child.props?.title === enStrings['fediverse.about.network']).length >
+        0,
   );
   return section;
 }
 
 function row(section: ReactTestInstance, title: string): ReactTestInstance {
-  return section.find((node) => node.type === ('SettingsListItem' as unknown) && node.props.title === title);
+  return section.find(
+    (node) => node.type === ('SettingsListItem' as unknown) && node.props.title === title,
+  );
 }
 
 describe('AccountInfoScreen — one Fediverse section for every non-Oxy account', () => {
   it.each([
-    ['ActivityPub', { username: 'alice', instance: 'mastodon.social', actorUri: 'https://mastodon.social/users/alice' }, 'networkActivityPub', 'https://mastodon.social/users/alice'],
-    ['Bluesky', { username: 'alice.bsky.social', instance: 'bsky.social', actorUri: 'did:plc:abc123' }, 'networkBluesky', 'https://bsky.app/profile/did:plc:abc123'],
-    ['Instagram (Graph API)', { username: 'zuck', instance: 'instagram.com', actorUri: 'instagram-graph:1784140' }, 'networkInstagram', 'https://www.instagram.com/zuck/'],
-  ] as const)('%s: generic title and icon; the rows still name the network and link out', (_case, profile, networkKey, original) => {
-    const section = federationSection(render({ ...profile }));
+    [
+      'ActivityPub',
+      {
+        username: 'alice',
+        instance: 'mastodon.social',
+        actorUri: 'https://mastodon.social/users/alice',
+      },
+      'networkActivityPub',
+      'https://mastodon.social/users/alice',
+    ],
+    [
+      'Bluesky',
+      { username: 'alice.bsky.social', instance: 'bsky.social', actorUri: 'did:plc:abc123' },
+      'networkBluesky',
+      'https://bsky.app/profile/did:plc:abc123',
+    ],
+    [
+      'Instagram (Graph API)',
+      { username: 'zuck', instance: 'instagram.com', actorUri: 'instagram-graph:1784140' },
+      'networkInstagram',
+      'https://www.instagram.com/zuck/',
+    ],
+  ] as const)(
+    '%s: generic title and icon; the rows still name the network and link out',
+    (_case, profile, networkKey, original) => {
+      const section = federationSection(render({ ...profile }));
 
-    expect(section.props.title).toBe(enStrings['fediverse.about.title']);
-    const network = row(section, enStrings['fediverse.about.network']);
-    expect(network.props.icon.type).toBe('FediverseIcon');
-    expect(network.props.value).toBe(enStrings[`fediverse.about.${networkKey}`]);
+      expect(section.props.title).toBe(enStrings['fediverse.about.title']);
+      const network = row(section, enStrings['fediverse.about.network']);
+      expect(network.props.icon.type).toBe('FediverseIcon');
+      expect(network.props.value).toBe(enStrings[`fediverse.about.${networkKey}`]);
 
-    // Kept: the link to the ORIGINAL profile.
-    const view = row(section, enStrings['fediverse.about.viewOriginal']);
-    const { openExternalLink } = jest.requireMock('@/utils/openExternalLink') as { openExternalLink: jest.Mock };
-    openExternalLink.mockClear();
-    TestRenderer.act(() => view.props.onPress());
-    expect(openExternalLink).toHaveBeenCalledWith(original);
-  });
+      // Kept: the link to the ORIGINAL profile.
+      const view = row(section, enStrings['fediverse.about.viewOriginal']);
+      const { openExternalLink } = jest.requireMock('@/utils/openExternalLink') as {
+        openExternalLink: jest.Mock;
+      };
+      openExternalLink.mockClear();
+      TestRenderer.act(() => view.props.onPress());
+      expect(openExternalLink).toHaveBeenCalledWith(original);
+    },
+  );
 
   it('draws no federation section for an Oxy account', () => {
     const renderer = render({ username: 'oxyuser', isFederated: false });

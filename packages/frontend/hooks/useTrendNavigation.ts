@@ -36,51 +36,53 @@ export function useTrendNavigation() {
    * inventing every one of those fields, so the primitive takes what the caller
    * genuinely has. `navigateToTrend` is this plus the fields a real row adds.
    */
-  const navigateToTerm = useCallback((
-    term: string,
-    surface: TrendEventSurface,
-    extra: { type?: Trend['type']; rank?: number; recId?: string } = {},
-  ) => {
-    if (!term.trim()) return;
+  const navigateToTerm = useCallback(
+    (
+      term: string,
+      surface: TrendEventSurface,
+      extra: { type?: Trend['type']; rank?: number; recId?: string } = {},
+    ) => {
+      if (!term.trim()) return;
 
-    reportTrendEvent({
-      event: 'click',
-      // `unclassified` for a graph node — a term the detector measured but never
-      // filed as a row. Naming that plainly keeps the metric honest; guessing
-      // one of the other three would label it with a value nothing produced.
-      type: extra.type ?? 'unclassified',
-      surface,
-      ...(extra.rank !== undefined ? { rank: extra.rank } : {}),
-      ...(extra.recId ? { recId: extra.recId } : {}),
-    });
+      reportTrendEvent({
+        event: 'click',
+        // `unclassified` for a graph node — a term the detector measured but never
+        // filed as a row. Naming that plainly keeps the metric honest; guessing
+        // one of the other three would label it with a value nothing produced.
+        type: extra.type ?? 'unclassified',
+        surface,
+        ...(extra.rank !== undefined ? { rank: extra.rank } : {}),
+        ...(extra.recId ? { recId: extra.recId } : {}),
+      });
 
-    /*
-     * EVERY trend opens the trend feed, including one whose term people mostly
-     * spelled with a `#`. The hashtag screen matches the `#` form only, which
-     * is a strict subset of what made the term trend, so sending a
-     * hashtag-shaped trend there hid exactly the prose posts the burst was
-     * measured from. `/hashtag/<tag>` is still where a tag INSIDE a post goes.
-     *
-     * The TERM is the whole address. Carrying the label alongside it would give
-     * one resource two URLs, freeze a shared link's title at the moment it was
-     * copied — so it lies once the term is relabelled — and let a crafted URL
-     * show a reader a name the server never chose. The screen resolves the
-     * presentation from the term.
-     */
-    router.push(`/t/${encodeURIComponent(term)}`);
-  }, [router]);
+      /*
+       * EVERY trend opens the trend feed, including one whose term people mostly
+       * spelled with a `#`. The hashtag screen matches the `#` form only, which
+       * is a strict subset of what made the term trend, so sending a
+       * hashtag-shaped trend there hid exactly the prose posts the burst was
+       * measured from. `/hashtag/<tag>` is still where a tag INSIDE a post goes.
+       *
+       * The TERM is the whole address. Carrying the label alongside it would give
+       * one resource two URLs, freeze a shared link's title at the moment it was
+       * copied — so it lies once the term is relabelled — and let a crafted URL
+       * show a reader a name the server never chose. The screen resolves the
+       * presentation from the term.
+       */
+      router.push(`/t/${encodeURIComponent(term)}`);
+    },
+    [router],
+  );
 
-  const navigateToTrend = useCallback((
-    trend: Trend,
-    surface: TrendEventSurface,
-    rank?: number,
-  ) => {
-    navigateToTerm(trend.text, surface, {
-      type: trend.type,
-      ...(rank !== undefined ? { rank } : {}),
-      ...(trend.recId ? { recId: trend.recId } : {}),
-    });
-  }, [navigateToTerm]);
+  const navigateToTrend = useCallback(
+    (trend: Trend, surface: TrendEventSurface, rank?: number) => {
+      navigateToTerm(trend.text, surface, {
+        type: trend.type,
+        ...(rank !== undefined ? { rank } : {}),
+        ...(trend.recId ? { recId: trend.recId } : {}),
+      });
+    },
+    [navigateToTerm],
+  );
 
   return { navigateToTrend, navigateToTerm };
 }

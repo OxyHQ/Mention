@@ -13,7 +13,11 @@ import { usePodcastSave } from '../usePodcastSave';
  * signed-out tap asks for sign-in instead of sending a request that has no token.
  */
 
-const mockAuth = { user: { id: 'viewer-1' } as { id: string } | null, isAuthenticated: true, signIn: jest.fn() };
+const mockAuth = {
+  user: { id: 'viewer-1' } as { id: string } | null,
+  isAuthenticated: true,
+  signIn: jest.fn(),
+};
 const mockClient = {
   listPodcastSubscriptions: jest.fn(),
   subscribeToPodcast: jest.fn(),
@@ -24,13 +28,17 @@ jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/lib/syraPodcasts', () => ({ getSyraClient: () => Promise.resolve(mockClient) }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
+  useTranslation: () => ({
+    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+  }),
 }));
 
 type Result = ReturnType<typeof usePodcastSave>;
 
 function renderHook(podcastId: string | undefined) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const result: { current: Result | null } = { current: null };
   function Probe() {
     result.current = usePodcastSave(podcastId);
@@ -48,15 +56,18 @@ function renderHook(podcastId: string | undefined) {
 
 // react-query schedules its notifications on timers, so a microtask flush is
 // not enough to see a settled query.
-const flush = () => act(async () => {
-  for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
-});
+const flush = () =>
+  act(async () => {
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.user = { id: 'viewer-1' };
   mockAuth.isAuthenticated = true;
-  mockClient.listPodcastSubscriptions.mockResolvedValue([{ podcast: { id: 'saved-show', title: 'Saved' } }]);
+  mockClient.listPodcastSubscriptions.mockResolvedValue([
+    { podcast: { id: 'saved-show', title: 'Saved' } },
+  ]);
   mockClient.subscribeToPodcast.mockResolvedValue(undefined);
   mockClient.unsubscribeFromPodcast.mockResolvedValue(undefined);
 });
@@ -72,7 +83,11 @@ it('reads the saved state from the subscriptions list', async () => {
 
 it('subscribes on tap and shows it saved before the write settles', async () => {
   let settle: () => void = () => undefined;
-  mockClient.subscribeToPodcast.mockReturnValue(new Promise<void>((resolve) => { settle = resolve; }));
+  mockClient.subscribeToPodcast.mockReturnValue(
+    new Promise<void>((resolve) => {
+      settle = resolve;
+    }),
+  );
   const hook = renderHook('other-show');
   await flush();
 

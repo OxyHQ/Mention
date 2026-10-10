@@ -7,12 +7,7 @@
  * baseline classifier depends on the interface, not the implementation.
  */
 
-import {
-  HASHTAG_TOPIC_MAP,
-  KEYWORD_TOPIC_RULES,
-  isTopicSlug,
-  type TopicSlug,
-} from './taxonomy';
+import { HASHTAG_TOPIC_MAP, KEYWORD_TOPIC_RULES, isTopicSlug, type TopicSlug } from './taxonomy';
 import { escapeRegExp } from '@oxy.so/utils/text';
 
 /** Minimal, already-normalized input a topic classifier needs. */
@@ -38,9 +33,9 @@ export interface TopicClassifier {
  * "start"). Compiled once at module load from static rules.
  */
 const COMPILED_KEYWORD_RULES: ReadonlyArray<{ topic: TopicSlug; patterns: readonly RegExp[] }> =
-  KEYWORD_TOPIC_RULES.map(rule => ({
+  KEYWORD_TOPIC_RULES.map((rule) => ({
     topic: rule.topic,
-    patterns: rule.keywords.map(kw => new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i')),
+    patterns: rule.keywords.map((kw) => new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i')),
   }));
 
 /**
@@ -64,7 +59,7 @@ export class RuleBasedTopicClassifier implements TopicClassifier {
 
     if (input.text.length > 0) {
       for (const rule of COMPILED_KEYWORD_RULES) {
-        if (rule.patterns.some(pattern => pattern.test(input.text))) {
+        if (rule.patterns.some((pattern) => pattern.test(input.text))) {
           topics.push(rule.topic);
         }
       }

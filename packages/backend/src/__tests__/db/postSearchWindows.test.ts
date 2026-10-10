@@ -73,25 +73,35 @@ interface PlanNode {
  * loop).
  */
 function renditionRowsRead(node: PlanNode): number {
-  const own = node['Relation Name'] === 'post_content_variants'
-    ? ((node['Actual Rows'] ?? 0) + (node['Rows Removed by Filter'] ?? 0)
-      + (node['Rows Removed by Index Recheck'] ?? 0)) * (node['Actual Loops'] ?? 1)
-    : 0;
+  const own =
+    node['Relation Name'] === 'post_content_variants'
+      ? ((node['Actual Rows'] ?? 0) +
+          (node['Rows Removed by Filter'] ?? 0) +
+          (node['Rows Removed by Index Recheck'] ?? 0)) *
+        (node['Actual Loops'] ?? 1)
+      : 0;
   return own + (node.Plans ?? []).reduce((sum, child) => sum + renditionRowsRead(child), 0);
 }
 
-async function measure(): Promise<{ plan: string; windowed: number; renditionsInWindow: number; matches: number }> {
+async function measure(): Promise<{
+  plan: string;
+  windowed: number;
+  renditionsInWindow: number;
+  matches: number;
+}> {
   const rollback = new Error('roll back the window fixture');
   let outcome = { plan: '', windowed: -1, renditionsInWindow: -1, matches: -1 };
 
-  await getDb().transaction(async (tx: Transaction) => {
-    await tx.execute(sql`
+  await getDb()
+    .transaction(
+      async (tx: Transaction) => {
+        await tx.execute(sql`
       insert into posts (id, oxy_user_id, visibility, status, created_at)
       select 'post-search-window-' || g, 'post-search-window-author', 'public', 'published',
              date_trunc('milliseconds', now() - g * interval '1 minute')
       from generate_series(1, ${SEEDED_POSTS}) g
     `);
-    await tx.execute(sql`
+        await tx.execute(sql`
       insert into post_content_variants (id, post_id, position, source, body, post_created_at)
       select 'post-search-window-v' || g, p.id, 0, 'author',
              'common chatter about everyday things ' || case when g % 97 = 0 then ${WORD} else 'filler' end,
@@ -99,39 +109,42 @@ async function measure(): Promise<{ plan: string; windowed: number; renditionsIn
       from generate_series(1, ${SEEDED_POSTS}) g
       join posts p on p.id = 'post-search-window-' || g
     `);
-    await tx.execute(sql`analyze posts`);
-    await tx.execute(sql`analyze post_content_variants`);
-    await applyPostSearchPlanner(tx);
+        await tx.execute(sql`analyze posts`);
+        await tx.execute(sql`analyze post_content_variants`);
+        await applyPostSearchPlanner(tx);
 
-    const where = and(eq(posts.visibility, 'public'), eq(posts.status, 'published'));
-    const [lastDay] = postSearchWindows(new Date());
-    const { sql: text, params } = postSearchWindowQuery(tx, where, WORD, lastDay, 21).toSQL();
-    const rows = await tx.execute<{ 'QUERY PLAN': Array<{ Plan: PlanNode }> }>(
-      sql.raw(`explain (analyze, format json) ${inline(text, params)}`),
-    );
-    const plan = rows[0]['QUERY PLAN'][0].Plan;
+        const where = and(eq(posts.visibility, 'public'), eq(posts.status, 'published'));
+        const [lastDay] = postSearchWindows(new Date());
+        const { sql: text, params } = postSearchWindowQuery(tx, where, WORD, lastDay, 21).toSQL();
+        const rows = await tx.execute<{ 'QUERY PLAN': Array<{ Plan: PlanNode }> }>(
+          sql.raw(`explain (analyze, format json) ${inline(text, params)}`),
+        );
+        const plan = rows[0]['QUERY PLAN'][0].Plan;
 
-    const [counts] = await tx.execute<{ renditions_in_window: number; matches: number }>(sql`
+        const [counts] = await tx.execute<{ renditions_in_window: number; matches: number }>(sql`
       select
         (select count(*)::int from post_content_variants
           where post_created_at >= ${lastDay.from?.toISOString()}::timestamptz) as renditions_in_window,
         (select count(*)::int from post_content_variants
           where search_vector @@ websearch_to_tsquery('english', ${WORD})) as matches
     `);
-    outcome = {
-      plan: JSON.stringify(plan),
-      windowed: renditionRowsRead(plan),
-      renditionsInWindow: counts.renditions_in_window,
-      matches: counts.matches,
-    };
-    throw rollback;
-    // ONE snapshot for the EXPLAIN ANALYZE and the counts it is compared with.
-    // Under READ COMMITTED each statement saw its own: another suite deleting a
-    // recent post between the two made the plan read one rendition more than
-    // the count then found in the window (CI: "expected 1443 to be <= 1442").
-  }, { isolationLevel: 'repeatable read' }).catch((error: unknown) => {
-    if (error !== rollback) throw error;
-  });
+        outcome = {
+          plan: JSON.stringify(plan),
+          windowed: renditionRowsRead(plan),
+          renditionsInWindow: counts.renditions_in_window,
+          matches: counts.matches,
+        };
+        throw rollback;
+        // ONE snapshot for the EXPLAIN ANALYZE and the counts it is compared with.
+        // Under READ COMMITTED each statement saw its own: another suite deleting a
+        // recent post between the two made the plan read one rendition more than
+        // the count then found in the window (CI: "expected 1443 to be <= 1442").
+      },
+      { isolationLevel: 'repeatable read' },
+    )
+    .catch((error: unknown) => {
+      if (error !== rollback) throw error;
+    });
 
   return outcome;
 }

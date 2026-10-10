@@ -20,11 +20,22 @@ import TestRenderer, { act } from 'react-test-renderer';
  */
 
 jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
-  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { View, TouchableOpacity } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
-    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
-      onPress ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+    ContactRow: ({
+      avatarSlot,
+      identitySlot,
+      onPress,
+    }: {
+      avatarSlot: React.ReactNode;
+      identitySlot: React.ReactNode;
+      onPress?: () => void;
+    }) =>
+      onPress
+        ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot)
+        : ReactActual.createElement(View, null, avatarSlot, identitySlot),
   };
 });
 jest.mock('@oxy.so/bloom/avatar', () => {
@@ -60,9 +71,18 @@ jest.mock('@oxy.so/services/ui/client', () => {
   return {
     upsertCachedUser: jest.fn(),
     upsertCachedUsers: jest.fn(),
-    FollowButton: ({ onFollowChange, username }: { onFollowChange?: (next: boolean) => void; username?: string }) => {
+    FollowButton: ({
+      onFollowChange,
+      username,
+    }: {
+      onFollowChange?: (next: boolean) => void;
+      username?: string;
+    }) => {
       mockFollowButtonUsernames.push(username);
-      return ReactActual.createElement(TouchableOpacity, { testID: 'follow-control', onPress: () => onFollowChange?.(true) });
+      return ReactActual.createElement(TouchableOpacity, {
+        testID: 'follow-control',
+        onPress: () => onFollowChange?.(true),
+      });
     },
   };
 });
@@ -165,8 +185,15 @@ describe('ProfileCard follows the identity it names', () => {
   it('keeps the follow control outside the profile navigation target', () => {
     const onFollowChange = jest.fn();
     act(() => {
-      mounted = TestRenderer.create(<ProfileCard profile={{ id: PERSON_ID, username: 'ada' }}
-        size="small" horizontalInset={0} showFollowButton onFollowChange={onFollowChange} />);
+      mounted = TestRenderer.create(
+        <ProfileCard
+          profile={{ id: PERSON_ID, username: 'ada' }}
+          size="small"
+          horizontalInset={0}
+          showFollowButton
+          onFollowChange={onFollowChange}
+        />,
+      );
     });
     const follow = mounted!.root.findByProps({ testID: 'follow-control' });
     act(() => follow.props.onPress());
@@ -174,7 +201,9 @@ describe('ProfileCard follows the identity it names', () => {
     expect(mockPush).not.toHaveBeenCalled();
     // The navigation ContactRow and FollowButton are siblings: even platforms
     // that bubble press events cannot deliver this press to the row.
-    const row = mounted!.root.findByType(require('@oxy.so/bloom/chat-people/contact-row').ContactRow);
+    const row = mounted!.root.findByType(
+      require('@oxy.so/bloom/chat-people/contact-row').ContactRow,
+    );
     expect(row.findAllByProps({ testID: 'follow-control' })).toHaveLength(0);
     act(() => row.props.onPress());
     expect(mockPush).toHaveBeenCalled();
@@ -255,7 +284,10 @@ describe('SuggestedProfileCard resolves its identity the way the row does', () =
     const onFollowChange = jest.fn();
     act(() => {
       mounted = TestRenderer.create(
-        <SuggestedProfileCard profile={{ id: PERSON_ID, username: 'ada' }} onFollowChange={onFollowChange} />,
+        <SuggestedProfileCard
+          profile={{ id: PERSON_ID, username: 'ada' }}
+          onFollowChange={onFollowChange}
+        />,
       );
     });
     act(() => mounted!.root.findByProps({ testID: 'follow-control' }).props.onPress());

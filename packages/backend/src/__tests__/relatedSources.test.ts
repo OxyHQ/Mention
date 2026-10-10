@@ -132,7 +132,9 @@ afterEach(async () => {
   if (ids.length > 0) await db.delete(posts).where(inArray(posts.id, ids));
   const owners = snapshotOwners.splice(0);
   if (owners.length > 0) {
-    await db.delete(authorFollowerSnapshots).where(inArray(authorFollowerSnapshots.oxyUserId, owners));
+    await db
+      .delete(authorFollowerSnapshots)
+      .where(inArray(authorFollowerSnapshots.oxyUserId, owners));
   }
 });
 
@@ -259,13 +261,17 @@ describe('the moreLikeThis source', () => {
     it('allows a FOLLOWERS_ONLY seed when the viewer follows its author', async () => {
       const { seed, candidate } = await seedAndCandidate(PostVisibility.FOLLOWERS_ONLY, AUTHOR);
       const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [AUTHOR] };
-      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([candidate.id]);
+      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([
+        candidate.id,
+      ]);
     });
 
-    it('allows the viewer\'s OWN private seed', async () => {
+    it("allows the viewer's OWN private seed", async () => {
       const { seed, candidate } = await seedAndCandidate(PostVisibility.PRIVATE, VIEWER);
       const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [] };
-      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([candidate.id]);
+      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([
+        candidate.id,
+      ]);
     });
 
     it('allows a PUBLIC seed regardless of follow state', async () => {
@@ -273,7 +279,9 @@ describe('the moreLikeThis source', () => {
       const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [] };
       // The seed is itself a candidate for the tag/topic match and must still be
       // excluded by id, which is the other half of this path.
-      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([candidate.id]);
+      expect(idsOf(await moreLikeThisSource.gather(ctx, { postId: seed.id }, 30))).toEqual([
+        candidate.id,
+      ]);
     });
   });
 });
@@ -286,7 +294,11 @@ describe('the nearby source', () => {
     await create();
 
     // The default radius is 50 km and `NEAR` is ~85 km out.
-    const tight = await nearbySource.gather({}, { lat: ORIGIN.latitude, lng: ORIGIN.longitude }, 30);
+    const tight = await nearbySource.gather(
+      {},
+      { lat: ORIGIN.latitude, lng: ORIGIN.longitude },
+      30,
+    );
     expect(suiteIdsOf(tight)).toEqual([origin.id]);
 
     // Widened past it, and ordered by DISTANCE — `near` is the more recent post,
@@ -349,9 +361,17 @@ describe('the nearby source', () => {
     const original = await create();
     await createAt(ORIGIN, { metadata: { isSensitive: true } });
     await createAt(ORIGIN, { hashtags: ['nsfw'] });
-    await createAt(ORIGIN, { type: PostType.BOOST, boostOf: original.id, content: { variants: [] } });
+    await createAt(ORIGIN, {
+      type: PostType.BOOST,
+      boostOf: original.id,
+      content: { variants: [] },
+    });
 
-    const gathered = await nearbySource.gather({}, { lat: ORIGIN.latitude, lng: ORIGIN.longitude }, 30);
+    const gathered = await nearbySource.gather(
+      {},
+      { lat: ORIGIN.latitude, lng: ORIGIN.longitude },
+      30,
+    );
     expect(suiteIdsOf(gathered)).toEqual([clean.id]);
   });
 
@@ -370,7 +390,9 @@ describe('the nearby source', () => {
 
     // A latitude of 999 is not a location; it must not be silently clamped into
     // one, and it must not throw either.
-    expect(suiteIdsOf(await nearbySource.gather(ctx, { lat: 999, lng: 999 }, 30))).toEqual([inRegion.id]);
+    expect(suiteIdsOf(await nearbySource.gather(ctx, { lat: 999, lng: 999 }, 30))).toEqual([
+      inRegion.id,
+    ]);
   });
 
   it('returns nothing with neither coordinates nor a viewer region', async () => {
@@ -382,7 +404,11 @@ describe('the nearby source', () => {
 
 describe('the risingCreators source', () => {
   /** Record a follower-count sample for `oxyUserId` at `at`. */
-  async function snapshot(oxyUserId: string, followerCount: number, sampledAt: Date): Promise<void> {
+  async function snapshot(
+    oxyUserId: string,
+    followerCount: number,
+    sampledAt: Date,
+  ): Promise<void> {
     snapshotOwners.push(oxyUserId);
     await db.insert(authorFollowerSnapshots).values({ oxyUserId, followerCount, at: sampledAt });
   }
@@ -462,7 +488,11 @@ describe('the risingCreators source', () => {
  * pass just as well if the delete had silently matched nothing.
  */
 describe('the risingCreators ranking cache', () => {
-  async function snapshot(oxyUserId: string, followerCount: number, sampledAt: Date): Promise<void> {
+  async function snapshot(
+    oxyUserId: string,
+    followerCount: number,
+    sampledAt: Date,
+  ): Promise<void> {
     snapshotOwners.push(oxyUserId);
     await db.insert(authorFollowerSnapshots).values({ oxyUserId, followerCount, at: sampledAt });
   }

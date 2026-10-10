@@ -2,10 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { type FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
-import {
-  PRESET_FEEDS,
-  type SavedFeed,
-} from '@mention/shared-types/mtn/presetFeeds';
+import { PRESET_FEEDS, type SavedFeed } from '@mention/shared-types/mtn/presetFeeds';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -16,14 +13,12 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * viewers get their merged layout from the server instead.
  */
 function anonSavedFeeds(): SavedFeed[] {
-  return PRESET_FEEDS
-    .filter((preset) => !preset.requiresAuth)
-    .map((preset, index) => ({
-      key: preset.id,
-      descriptor: preset.descriptor,
-      pinned: preset.defaultPinned,
-      order: index,
-    }));
+  return PRESET_FEEDS.filter((preset) => !preset.requiresAuth).map((preset, index) => ({
+    key: preset.id,
+    descriptor: preset.descriptor,
+    pinned: preset.defaultPinned,
+    order: index,
+  }));
 }
 
 /** A feed the caller can pin — either a preset (already saved) or a custom feed. */
@@ -62,10 +57,7 @@ export interface UseFeedPreferences {
 export function useFeedPreferences(): UseFeedPreferences {
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(
-    () => viewerQueryKeys.feedPreferences(user?.id),
-    [user?.id],
-  );
+  const queryKey = useMemo(() => viewerQueryKeys.feedPreferences(user?.id), [user?.id]);
 
   const query = useQuery<SavedFeed[]>({
     queryKey,
@@ -79,7 +71,12 @@ export function useFeedPreferences(): UseFeedPreferences {
     [query.data, canUsePrivateApi],
   );
 
-  const mutation = useMutation<SavedFeed[], Error, SavedFeed[], { previous: SavedFeed[] | undefined }>({
+  const mutation = useMutation<
+    SavedFeed[],
+    Error,
+    SavedFeed[],
+    { previous: SavedFeed[] | undefined }
+  >({
     mutationFn: (next) => feedPreferencesService.update(next),
     onMutate: async (next) => {
       await queryClient.cancelQueries({ queryKey });
@@ -111,7 +108,10 @@ export function useFeedPreferences(): UseFeedPreferences {
       const existing = savedFeeds.find((f) => f.key === feed.key);
       const next = existing
         ? savedFeeds.map((f) => (f.key === feed.key ? { ...f, pinned: true } : f))
-        : [...savedFeeds, { key: feed.key, descriptor: feed.descriptor, pinned: true, order: savedFeeds.length }];
+        : [
+            ...savedFeeds,
+            { key: feed.key, descriptor: feed.descriptor, pinned: true, order: savedFeeds.length },
+          ];
       commit(next);
     },
     [savedFeeds, commit],
@@ -144,7 +144,10 @@ export function useFeedPreferences(): UseFeedPreferences {
     [savedFeeds],
   );
 
-  const isPinned = useCallback((key: string) => savedFeeds.some((f) => f.key === key && f.pinned), [savedFeeds]);
+  const isPinned = useCallback(
+    (key: string) => savedFeeds.some((f) => f.key === key && f.pinned),
+    [savedFeeds],
+  );
 
   return {
     savedFeeds,

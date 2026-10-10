@@ -58,7 +58,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 // `PostCollaborationService`, capital P — the module the controller actually
@@ -132,7 +136,10 @@ async function storedText(): Promise<string | undefined> {
   return (await stored())?.content.variants?.[0]?.text;
 }
 
-function buildRequest(body: Record<string, unknown>, user: { id: string } | undefined = { id: USER_ID }) {
+function buildRequest(
+  body: Record<string, unknown>,
+  user: { id: string } | undefined = { id: USER_ID },
+) {
   return {
     params: { id: POST_ID },
     query: {},
@@ -183,7 +190,10 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
     await seedTarget({ status: 'published' });
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'rewritten a day later' } }) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'rewritten a day later' } }) as never,
+      res as never,
+    );
 
     expect(captured.status).toBe(403);
     expect(await storedText()).toBe('original');
@@ -236,7 +246,11 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
     // A client claiming the post is scheduled must change nothing: the carve-out
     // reads the STORED status.
     await updatePost(
-      buildRequest({ content: { text: 'nice try' }, status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS).toISOString() }) as never,
+      buildRequest({
+        content: { text: 'nice try' },
+        status: 'scheduled',
+        scheduledFor: new Date(Date.now() + HOUR_MS).toISOString(),
+      }) as never,
       res as never,
     );
 
@@ -247,10 +261,16 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
 describe('updatePost — a SCHEDULED post is exempt', () => {
   it('ALLOWS an edit long past the window, because nobody has seen it', async () => {
-    await seedTarget({ status: 'scheduled', scheduledFor: new Date(Date.now() + 7 * 24 * HOUR_MS) });
+    await seedTarget({
+      status: 'scheduled',
+      scheduledFor: new Date(Date.now() + 7 * 24 * HOUR_MS),
+    });
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'still editable next week' } }) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'still editable next week' } }) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('still editable next week');
@@ -339,7 +359,10 @@ describe('updatePost — a server DRAFT is exempt too', () => {
     await seedTarget({ status: 'draft' });
     const { res, captured } = buildResponse();
 
-    await updatePost(buildRequest({ content: { text: 'approved with a fix' } }) as never, res as never);
+    await updatePost(
+      buildRequest({ content: { text: 'approved with a fix' } }) as never,
+      res as never,
+    );
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('approved with a fix');
@@ -420,7 +443,7 @@ describe('updatePost — rescheduling moves the whole thread', () => {
     expect(await scheduledTimes()).toEqual([later.toISOString(), later.toISOString()]);
   });
 
-  it('scopes the move to the caller\'s own still-scheduled posts', async () => {
+  it("scopes the move to the caller's own still-scheduled posts", async () => {
     // The tail belongs to somebody else, so the chain walk never reaches it and
     // the move cannot touch it — the scoping is in the walk, not only in the write.
     await seedChain({ foreignTail: true });

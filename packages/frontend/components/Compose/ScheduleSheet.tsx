@@ -53,7 +53,10 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const initialDate = useMemo(() => scheduledAt ?? new Date(Date.now() + 15 * 60000), [scheduledAt]);
+  const initialDate = useMemo(
+    () => scheduledAt ?? new Date(Date.now() + 15 * 60000),
+    [scheduledAt],
+  );
   const [customDate, setCustomDate] = useState<Date | null>(() => toLocalDay(initialDate));
   const [customTime, setCustomTime] = useState<string | null>(() => formatTimeInput(initialDate));
   // Days before today cannot be scheduled; the time is still checked on apply.
@@ -62,21 +65,28 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   const handleCustomApply = useCallback(() => {
     const parsed = parseDateTime(customDate, customTime);
     if (!parsed) {
-      toast(t('compose.schedule.invalidDate', { defaultValue: 'Enter a valid date and time' }), { type: 'error' });
+      toast(t('compose.schedule.invalidDate', { defaultValue: 'Enter a valid date and time' }), {
+        type: 'error',
+      });
       return;
     }
 
     if (!ensureFutureDate(parsed)) {
-      toast(t('compose.schedule.futureRequired', { defaultValue: 'Pick a future time' }), { type: 'error' });
+      toast(t('compose.schedule.futureRequired', { defaultValue: 'Pick a future time' }), {
+        type: 'error',
+      });
       return;
     }
 
     onSelect(parsed);
   }, [customDate, customTime, onSelect, t]);
 
-  const handleOptionPress = useCallback((option: ScheduleOption) => {
-    onSelect(option.date);
-  }, [onSelect]);
+  const handleOptionPress = useCallback(
+    (option: ScheduleOption) => {
+      onSelect(option.date);
+    },
+    [onSelect],
+  );
 
   const handleClear = useCallback(() => {
     onClear();
@@ -113,7 +123,13 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                 {formatLabel(scheduledAt)}
               </Text>
             </View>
-            <Button appearance="subtle" tone="danger" size="sm" onPress={handleClear} testID="scheduleSheetClear">
+            <Button
+              appearance="subtle"
+              tone="danger"
+              size="sm"
+              onPress={handleClear}
+              testID="scheduleSheetClear"
+            >
               {t('compose.schedule.clear', { defaultValue: 'Clear' })}
             </Button>
           </Card>
@@ -138,7 +154,10 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               <Text className="text-[15px] font-semibold text-foreground mb-1.5 text-left">
                 {option.label}
               </Text>
-              <Text className="text-[11px] text-muted-foreground text-left" style={{ lineHeight: 14 }}>
+              <Text
+                className="text-[11px] text-muted-foreground text-left"
+                style={{ lineHeight: 14 }}
+              >
                 {formatLabel(option.date)}
               </Text>
             </Card>
@@ -162,7 +181,10 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               testID="scheduleSheetDatePicker"
             />
           </Field>
-          <Field label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })} style={styles.timeField}>
+          <Field
+            label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
+            style={styles.timeField}
+          >
             <TimeField
               value={customTime}
               onChange={setCustomTime}
@@ -170,7 +192,6 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
             />
           </Field>
         </View>
-
       </ScrollView>
 
       <View className="flex-row gap-3 py-3">
@@ -214,11 +235,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   optionButton: {
-    width: "31%",
+    width: '31%',
     aspectRatio: 1.6,
     padding: 10,
-    justifyContent: "center",
-    alignItems: "flex-start",
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
 });
 

@@ -78,7 +78,8 @@ export function validateCollection(report, filesOnDisk, mtimes = new Map(), cuto
   // misclassifies any file created mid-run as "never ran": measured here, a file
   // written 13 seconds after `startTime` but 32 seconds before the report landed
   // was reported as a real miss when it could not possibly have been collected.
-  const reportMtime = cutoffOverride ?? (typeof report?.startTime === 'number' ? report.startTime : null);
+  const reportMtime =
+    cutoffOverride ?? (typeof report?.startTime === 'number' ? report.startTime : null);
   const reported = new Map(results.map((file) => [resolve(file.name), file]));
 
   const absent = filesOnDisk.map((path) => resolve(path)).filter((path) => !reported.has(path));
@@ -142,7 +143,7 @@ export function report(result, log = console.log) {
     log('');
     log('       TWO causes, and the fix differs:');
     log('         1. the file died before collection — look for an import-time error;');
-    log('         2. the runner\'s `include` does not cover it — look at the config.');
+    log("         2. the runner's `include` does not cover it — look at the config.");
     log('       vitest collects `src/__tests__/**/*.test.ts`; this walk is WIDER on');
     log('       purpose, so a colocated `src/foo/bar.test.ts` that never runs is');
     log('       still caught rather than silently ignored.');

@@ -1,7 +1,4 @@
-import {
-  MIN_TRENDS_WIDGET_SYNC_INTERVAL_MS,
-  shouldSyncTrendsWidget,
-} from '../trendsWidgetSync';
+import { MIN_TRENDS_WIDGET_SYNC_INTERVAL_MS, shouldSyncTrendsWidget } from '../trendsWidgetSync';
 
 /**
  * When the app tells the Android home-screen trends widget to fetch again.

@@ -44,7 +44,12 @@ function importedExpoRouterNames(source: string): string[] {
   return Array.from(
     source.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]expo-router['"]/g),
     (match) => match[1],
-  ).flatMap((body) => body.split(',').map((name) => name.trim()).filter(Boolean));
+  ).flatMap((body) =>
+    body
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
 }
 
 describe('Android predictive-back navigation wiring', () => {
@@ -61,7 +66,8 @@ describe('Android predictive-back navigation wiring', () => {
     );
     const experimentalStackImports = navigationSources.reduce(
       (count, { source }) =>
-        count + importedExpoRouterNames(source).filter((name) => name === 'ExperimentalStack').length,
+        count +
+        importedExpoRouterNames(source).filter((name) => name === 'ExperimentalStack').length,
       0,
     );
 
@@ -70,9 +76,9 @@ describe('Android predictive-back navigation wiring', () => {
   });
 
   it('keeps the hidden-header crash workaround installed', () => {
-    const rootPackage = JSON.parse(
-      readFileSync(join(repositoryRoot, 'package.json'), 'utf8'),
-    ) as { patchedDependencies?: Record<string, string> };
+    const rootPackage = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8')) as {
+      patchedDependencies?: Record<string, string>;
+    };
     const patchPath = rootPackage.patchedDependencies?.['expo-router@57.0.23'];
 
     expect(patchPath).toBe('patches/expo-router@57.0.23.patch');

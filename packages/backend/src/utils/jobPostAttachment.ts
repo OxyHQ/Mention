@@ -33,7 +33,8 @@ export const resolveJobContent = async (id: string): Promise<PostJobContent | nu
   return {
     mentionJobId: job.id,
     title: job.title,
-    employerName: employer?.user.name?.displayName ?? employer?.user.username ?? job.employerOxyUserId,
+    employerName:
+      employer?.user.name?.displayName ?? employer?.user.username ?? job.employerOxyUserId,
     employerOxyUserId: job.employerOxyUserId,
     status: job.status,
     canonicalUrl: job.canonicalUrl,

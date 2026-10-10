@@ -11,7 +11,18 @@
  */
 
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
-import { and, arrayOverlaps, eq, gte, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import { authorFollowerSnapshots, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
@@ -69,10 +80,17 @@ interface MoreLikeThisSeed {
  * NOTE: block / restrict relationships are not resolved onto the feed engine
  * context pre-hydration, so this enforces post VISIBILITY only.
  */
-function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEngineContext): boolean {
+function isSeedAuthorized(
+  visibility: unknown,
+  seedAuthorId: string,
+  ctx: FeedEngineContext,
+): boolean {
   if (visibility === PostVisibility.PUBLIC) return true;
   if (seedAuthorId && seedAuthorId === ctx.currentUserId) return true;
-  if (visibility === PostVisibility.FOLLOWERS_ONLY && (ctx.followingIds ?? []).includes(seedAuthorId)) {
+  if (
+    visibility === PostVisibility.FOLLOWERS_ONLY &&
+    (ctx.followingIds ?? []).includes(seedAuthorId)
+  ) {
     return true;
   }
   return false;
@@ -97,7 +115,12 @@ async function resolveSeed(
 
   if (postId) {
     let seedPost:
-      | { topics: string[] | null; hashtags: string[] | null; oxyUserId: string | null; visibility: string }
+      | {
+          topics: string[] | null;
+          hashtags: string[] | null;
+          oxyUserId: string | null;
+          visibility: string;
+        }
       | undefined;
     try {
       [seedPost] = await getDb()
@@ -186,7 +209,8 @@ export const moreLikeThisSource: SourceModule = {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       gte(posts.createdAt, windowStart),
       discoverySafeSql(),
       or(...alternatives) as SQL,
@@ -296,7 +320,8 @@ export const nearbySource: SourceModule = {
         .where(
           and(
             eq(posts.visibility, PostVisibility.PUBLIC),
-            eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+            eq(posts.status, 'published'),
+            notCollapsedCrosspostSql(),
             discoverySafeSql(),
             notABoostSql(),
             sql`ST_DWithin(${posts.geo}, ${point}, ${radiusKm * METRES_PER_KM})`,
@@ -315,7 +340,8 @@ export const nearbySource: SourceModule = {
     const conditions: SQL[] = [
       eq(posts.classificationRegion, region),
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+      eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       discoverySafeSql(),
     ];
     if (keyset) conditions.push(keyset);
@@ -533,7 +559,8 @@ export const risingCreatorsSource: SourceModule = {
           // hitting the identical mistake in its own fixture helper.
           inArray(posts.oxyUserId, authorIds),
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+          eq(posts.status, 'published'),
+          notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
@@ -546,7 +573,8 @@ export const risingCreatorsSource: SourceModule = {
 
     return candidates
       .map((post) => {
-        post.finalScore = typeof post.oxyUserId === 'string' ? rateById.get(post.oxyUserId) ?? 0 : 0;
+        post.finalScore =
+          typeof post.oxyUserId === 'string' ? (rateById.get(post.oxyUserId) ?? 0) : 0;
         return post;
       })
       .sort((a, b) => {

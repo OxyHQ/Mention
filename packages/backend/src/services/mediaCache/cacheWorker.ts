@@ -1,5 +1,9 @@
 import { createWriteStream } from 'node:fs';
-import { databaseNow, recordFederatedPoster, reviveFederatedFiles } from '../../db/federation/mediaDeletionRepository';
+import {
+  databaseNow,
+  recordFederatedPoster,
+  reviveFederatedFiles,
+} from '../../db/federation/mediaDeletionRepository';
 import { mkdtemp, open, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,13 +20,15 @@ import {
 } from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
 import { SsrfRejection } from '@oxy.so/core/server';
-import {
-  fetchUpstreamFollowingRedirects,
-  contentTypeFamily,
-} from '../../utils/safeUpstreamFetch';
+import { fetchUpstreamFollowingRedirects, contentTypeFamily } from '../../utils/safeUpstreamFetch';
 import { extractPosterFrame } from '../../utils/videoPoster';
 import { reencodeFirstFrame } from '../../utils/imageReencode';
-import { IMAGE_SNIFF_BYTES, isAnimatedImage, isWebSafeImageType, sniffImageMime } from './imageSniff';
+import {
+  IMAGE_SNIFF_BYTES,
+  isAnimatedImage,
+  isWebSafeImageType,
+  sniffImageMime,
+} from './imageSniff';
 import {
   MEDIA_CACHE_POSTER_PREFIX_BYTES,
   MEDIA_CACHE_WORKER_BATCH_SIZE,
@@ -118,7 +124,10 @@ async function prepareSniffedImage(
     }
     return {
       ok: false,
-      reason: reencoded.reason === 'timeout' || reencoded.reason === 'spawn-failed' ? 'reencode-failed' : 'undecodable',
+      reason:
+        reencoded.reason === 'timeout' || reencoded.reason === 'spawn-failed'
+          ? 'reencode-failed'
+          : 'undecodable',
     };
   }
   if (reencoded.buffer.length > maxStoredBytes) return { ok: false, reason: 'too-large' };
@@ -403,7 +412,9 @@ function isPermanentCacheFailure(outcome: Extract<DownloadOutcome, { ok: false }
   return isPermanentlyUnavailableDownloadFailure(outcome);
 }
 
-function isPermanentlyUnavailableDownloadFailure(outcome: Extract<DownloadOutcome, { ok: false }>): boolean {
+function isPermanentlyUnavailableDownloadFailure(
+  outcome: Extract<DownloadOutcome, { ok: false }>,
+): boolean {
   if (outcome.reason === 'upstream-error' && (outcome.status === 404 || outcome.status === 410)) {
     return true;
   }
@@ -460,20 +471,29 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
         ok: false,
         reason: outcome.reason,
         status: outcome.status,
-        permanent: isPermanentlyUnavailableDownloadFailure(outcome)
+        permanent:
+          isPermanentlyUnavailableDownloadFailure(outcome) ||
           // Over the sniffing policy's hard DOWNLOAD ceiling: those bytes will
           // not shrink on a retry (the caller may still retry on its own clock).
-          || (Boolean(downloadPolicy?.sniffImage) && outcome.reason === 'too-large'),
+          (Boolean(downloadPolicy?.sniffImage) && outcome.reason === 'too-large'),
       };
     }
 
     let stored = outcome.download;
     if (downloadPolicy?.sniffImage) {
-      const sniffed = await prepareSniffedImage(stored, dir, downloadPolicy.sniffImage.maxStoredBytes);
+      const sniffed = await prepareSniffedImage(
+        stored,
+        dir,
+        downloadPolicy.sniffImage.maxStoredBytes,
+      );
       if (!sniffed.ok) {
         // What the bytes ARE is final for these bytes; only a re-encoder that
         // could not run is worth an early retry.
-        return { ok: false, reason: sniffed.reason, permanent: sniffed.reason !== 'reencode-failed' };
+        return {
+          ok: false,
+          reason: sniffed.reason,
+          permanent: sniffed.reason !== 'reencode-failed',
+        };
       }
       stored = sniffed.download;
     }
@@ -493,7 +513,8 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
 
     // Best-effort: a revive that fails only leaves the tombstone, so the post
     // insert refuses the id and the import retries — never a dangling reference.
-    if (uploadStartedAt) await reviveFederatedFiles([media.oxyFileId], uploadStartedAt).catch(reviveFailed);
+    if (uploadStartedAt)
+      await reviveFederatedFiles([media.oxyFileId], uploadStartedAt).catch(reviveFailed);
 
     let posterFileId: string | undefined;
     const posterUploadStartedAt = await uploadClock();
@@ -506,14 +527,15 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
             ...(metadata || {}),
             role: 'poster',
           },
-        })
+        }),
       );
     }
 
     if (posterFileId) {
       // Best-effort: a revive that fails only leaves the tombstone, so the post
       // insert refuses the id and the import retries — never a dangling reference.
-      if (posterUploadStartedAt) await reviveFederatedFiles([posterFileId], posterUploadStartedAt).catch(reviveFailed);
+      if (posterUploadStartedAt)
+        await reviveFederatedFiles([posterFileId], posterUploadStartedAt).catch(reviveFailed);
       // The poster is a durable Oxy file too, and nothing else records it: without
       // this row it could never be deleted along with its video.
       await recordFederatedPoster(media.oxyFileId, posterFileId).catch((error: unknown) => {
@@ -634,7 +656,9 @@ export async function runCacheWorkerOnce(): Promise<void> {
     // Stop the sweep the moment Oxy says the write budget is spent. The
     // remaining entries would each buy one refusal and nothing else; they are
     // still `pending`, so the next run takes them with a fresh budget.
-    if (settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')) {
+    if (
+      settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')
+    ) {
       logger.info('[MediaCache] Worker stopping early; media-write budget spent', {
         remaining: due.length - (i + batch.length),
       });

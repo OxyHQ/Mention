@@ -37,7 +37,9 @@ jest.mock('@oxy.so/services/ui/client', () => {
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, vars?: Record<string, string> & { defaultValue?: string }) =>
-      (vars?.defaultValue ?? key).replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(vars?.[name] ?? '')),
+      (vars?.defaultValue ?? key).replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+        String(vars?.[name] ?? ''),
+      ),
   }),
 }));
 
@@ -55,7 +57,8 @@ jest.mock('@oxy.so/bloom/settings-modal', () => {
   };
 });
 jest.mock('@oxy.so/bloom/button', () => {
-  const { Text, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { Text, TouchableOpacity } =
+    jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Button: ({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) => (
       <TouchableOpacity accessibilityRole="button" onPress={onPress}>
@@ -93,7 +96,9 @@ let mounted: { renderer: TestRenderer.ReactTestRenderer; queryClient: QueryClien
 async function render(): Promise<TestRenderer.ReactTestRenderer> {
   // No retries and no garbage-collection timer: nothing may still be running
   // once a test has finished.
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -126,7 +131,13 @@ describe('Connected AI settings', () => {
     mockConnected.mcpClients.mockResolvedValue([
       { ...MENTION, id: 'grant-claude', clientId: 'claude', clientName: 'Claude' },
       { ...MENTION, id: 'grant-cursor', clientId: 'cursor', clientName: '' },
-      { ...MENTION, id: 'grant-other-app', resource: 'https://mcp.other.example', clientId: 'claude', clientName: 'Claude for Other' },
+      {
+        ...MENTION,
+        id: 'grant-other-app',
+        resource: 'https://mcp.other.example',
+        clientId: 'claude',
+        clientName: 'Claude for Other',
+      },
     ]);
     mockConnected.revokeMcpClient.mockResolvedValue(undefined);
   });
@@ -141,7 +152,10 @@ describe('Connected AI settings', () => {
 
   it('revokes a connector through Oxy', async () => {
     const renderer = await render();
-    const revoke = renderer.root.findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')[0];
+    const revoke = renderer.root.findAll(
+      (node) =>
+        node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function',
+    )[0];
 
     await act(async () => {
       await revoke.props.onPress();

@@ -49,7 +49,11 @@ describe('feedService link cards', () => {
     mockAuthenticatedPost.mockResolvedValue({ data: ANSWER });
 
     await expect(feedService.getPostDocuments(['a'])).resolves.toEqual(ANSWER);
-    expect(mockAuthenticatedPost).toHaveBeenCalledWith('/posts/documents', { ids: ['a'] }, { retry: false });
+    expect(mockAuthenticatedPost).toHaveBeenCalledWith(
+      '/posts/documents',
+      { ids: ['a'] },
+      { retry: false },
+    );
     expect(mockPublicPost).not.toHaveBeenCalled();
   });
 
@@ -81,7 +85,9 @@ describe('feedService link cards', () => {
     mockAuthenticatedPost.mockResolvedValue({ data: answer });
     const signal = new AbortController().signal;
 
-    await expect(feedService.resolveLinkPreviews(['https://example.com/a'], signal)).resolves.toEqual(answer);
+    await expect(
+      feedService.resolveLinkPreviews(['https://example.com/a'], signal),
+    ).resolves.toEqual(answer);
     expect(mockAuthenticatedPost).toHaveBeenCalledWith(
       '/posts/link-previews',
       { urls: ['https://example.com/a'] },

@@ -5,11 +5,7 @@ import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { createSignedFetch, type SignedFetch } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
-import {
-  AP_CONTENT_TYPE,
-  USER_AGENT,
-  extractLocalPostIdFromApUri,
-} from './constants';
+import { AP_CONTENT_TYPE, USER_AGENT, extractLocalPostIdFromApUri } from './constants';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
@@ -48,15 +44,17 @@ function contentTypeFamily(raw: string | null): string {
 
 function activityPubJsonContentType(raw: string | null): boolean {
   const family = contentTypeFamily(raw);
-  return family === 'application/json'
-    || family === 'application/activity+json'
-    || family === 'application/ld+json'
-    || (family.startsWith('application/') && family.endsWith('+json'));
+  return (
+    family === 'application/json' ||
+    family === 'application/activity+json' ||
+    family === 'application/ld+json' ||
+    (family.startsWith('application/') && family.endsWith('+json'))
+  );
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : null;
 }
 
@@ -118,7 +116,10 @@ export function parseApPublished(published: unknown): Date | undefined {
 
 export function normalizeFederatedAcct(acct: string | undefined): string | undefined {
   if (!acct) return undefined;
-  const cleaned = acct.trim().replace(/^acct:/i, '').replace(/^@/, '');
+  const cleaned = acct
+    .trim()
+    .replace(/^acct:/i, '')
+    .replace(/^@/, '');
   const atIndex = cleaned.indexOf('@');
   if (atIndex <= 0 || atIndex === cleaned.length - 1) return undefined;
 
@@ -162,7 +163,8 @@ export async function singleHopToResponse(result: SingleHopResult): Promise<Resp
   // For a redirect we only need the `location` header (already captured above),
   // so destroy the stream rather than draining a potentially unbounded body.
   const isRedirect = REDIRECT_STATUS_CODES.has(result.status);
-  const nullBodyStatus = result.status === 204 || result.status === 205 || result.status === 304 || isRedirect;
+  const nullBodyStatus =
+    result.status === 204 || result.status === 205 || result.status === 304 || isRedirect;
   if (nullBodyStatus) {
     result.response.destroy();
     return new Response(null, { status: result.status, headers });
@@ -171,8 +173,11 @@ export async function singleHopToResponse(result: SingleHopResult): Promise<Resp
   // A successful ActivityPub document must actually be JSON. Error bodies are
   // allowed to be text/html or text/plain because callers still need the HTTP
   // status for retry/tombstone decisions; their bodies remain byte/time bounded.
-  if (result.status >= 200 && result.status < 300
-      && !activityPubJsonContentType(headers.get('content-type'))) {
+  if (
+    result.status >= 200 &&
+    result.status < 300 &&
+    !activityPubJsonContentType(headers.get('content-type'))
+  ) {
     result.response.destroy();
     // NAME the offending media type. Without it the rejection reads only as
     // "not JSON", and every diagnosis of a bulk sweep costs a code change plus a
@@ -319,7 +324,11 @@ function getSignedFetch(): SignedFetch {
  * policy — see {@link fetchVerifiedAnnouncedNote}), and retries unsigned on a 5xx
  * for public resources.
  */
-export function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
+export function signedFetch(
+  url: string,
+  accept: string,
+  init: RequestInit = {},
+): Promise<Response> {
   return withActivityPubDeadline(
     (signal) => getSignedFetch()(url, accept, { ...init, signal }),
     init.signal,
@@ -337,10 +346,7 @@ function sameOrigin(left: string, right: string): boolean {
 }
 
 function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
-  const addressees = [
-    ...(Array.isArray(to) ? to : []),
-    ...(Array.isArray(cc) ? cc : []),
-  ];
+  const addressees = [...(Array.isArray(to) ? to : []), ...(Array.isArray(cc) ? cc : [])];
   return addressees.includes('https://www.w3.org/ns/activitystreams#Public');
 }
 
@@ -355,7 +361,9 @@ export interface FetchedAnnouncedNote {
  * object id must match the fetched IRI, the author must share the object's
  * origin, and only public notes are importable as public boost originals.
  */
-export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<FetchedAnnouncedNote | null> {
+export async function fetchVerifiedAnnouncedNote(
+  objectUri: string,
+): Promise<FetchedAnnouncedNote | null> {
   let currentUrl = objectUri;
 
   for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
@@ -398,7 +406,7 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
 
     let note: Record<string, unknown>;
     try {
-      note = await res.json() as Record<string, unknown>;
+      note = (await res.json()) as Record<string, unknown>;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.info('[FedSync] failed to parse boosted object', {
@@ -551,7 +559,12 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
   if (Array.isArray(tags)) {
     for (const entry of tags) {
       if (!entry || typeof entry !== 'object') continue;
-      const record = entry as { type?: unknown; rel?: unknown; mediaType?: unknown; href?: unknown };
+      const record = entry as {
+        type?: unknown;
+        rel?: unknown;
+        mediaType?: unknown;
+        href?: unknown;
+      };
       const isLink =
         record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
       if (!isLink) continue;
@@ -563,7 +576,8 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
           : '';
       const isQuoteRel = rel.includes('_misskey_quote');
       const isApLink =
-        typeof record.mediaType === 'string' && record.mediaType.toLowerCase().includes('activity+json');
+        typeof record.mediaType === 'string' &&
+        record.mediaType.toLowerCase().includes('activity+json');
       if (!isQuoteRel && !isApLink) continue;
 
       const href = typeof record.href === 'string' ? record.href.trim() : '';
@@ -621,8 +635,10 @@ export function extractThreadsQuoteUrl(object: Record<string, unknown>): string 
   const content = typeof object.content === 'string' ? object.content : '';
   if (!content.includes('quote-inline')) return undefined;
 
-  const match = /<span[^>]*class="[^"]*\bquote-inline\b[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"/i
-    .exec(content);
+  const match =
+    /<span[^>]*class="[^"]*\bquote-inline\b[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"/i.exec(
+      content,
+    );
   const href = match?.[1]?.trim();
   if (!href) return undefined;
 
@@ -685,9 +701,9 @@ export async function resolveDeclaredQuoteTarget(
   importQuoted: (uri: string) => Promise<string | null>,
 ): Promise<string | null> {
   return (
-    (await resolvePostIdFromObjectUri(declared.uri))
-    ?? (await resolvePostIdFromNoteUrl(declared.uri))
-    ?? (declared.fetchable ? await importQuoted(declared.uri) : null)
+    (await resolvePostIdFromObjectUri(declared.uri)) ??
+    (await resolvePostIdFromNoteUrl(declared.uri)) ??
+    (declared.fetchable ? await importQuoted(declared.uri) : null)
   );
 }
 
@@ -768,8 +784,9 @@ export async function stripQuoteMarkerFromVariants<T extends { text: string }>(
     .where(eq(posts.id, quoteOf))
     .limit(1);
 
-  const urls = [declaredUri, quoted?.url, quoted?.activityId]
-    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  const urls = [declaredUri, quoted?.url, quoted?.activityId].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
   if (urls.length === 0) return source;
 
   return source.map((variant) => {
@@ -859,11 +876,13 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     const [local] = await db
       .select({ id: posts.id })
       .from(posts)
-      .where(and(
-        eq(posts.id, localPostId),
-        eq(posts.status, 'published'),
-        eq(posts.visibility, PostVisibility.PUBLIC),
-      ))
+      .where(
+        and(
+          eq(posts.id, localPostId),
+          eq(posts.status, 'published'),
+          eq(posts.visibility, PostVisibility.PUBLIC),
+        ),
+      )
       .limit(1);
     if (local) return local.id;
   }

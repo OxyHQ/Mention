@@ -7,7 +7,6 @@ import {
   parseRuntimeEnvironment,
 } from '../config';
 
-
 describe('runtime configuration', () => {
   it('normalizes origins and validates structured lists', () => {
     const parsed = parseRuntimeEnvironment({
@@ -16,10 +15,7 @@ describe('runtime configuration', () => {
     });
 
     expect(parsed.MENTION_PUBLIC_API_URL).toBe('https://api.example.test');
-    expect(parsed.FEDERATION_BLOCKED_DOMAINS).toEqual([
-      'spam.example',
-      'abuse.example',
-    ]);
+    expect(parsed.FEDERATION_BLOCKED_DOMAINS).toEqual(['spam.example', 'abuse.example']);
   });
 
   it.each([
@@ -27,7 +23,10 @@ describe('runtime configuration', () => {
     [{ FEDERATION_ENABLED: 'yes' }, 'FEDERATION_ENABLED'],
     [{ REDIS_URL: 'https://redis.example' }, 'REDIS_URL'],
     [{ MENTION_PUBLIC_API_URL: 'https://api.example/path' }, 'MENTION_PUBLIC_API_URL'],
-    [{ FEDERATION_BLOCKED_DOMAINS: 'valid.example,https://invalid.example' }, 'FEDERATION_BLOCKED_DOMAINS'],
+    [
+      { FEDERATION_BLOCKED_DOMAINS: 'valid.example,https://invalid.example' },
+      'FEDERATION_BLOCKED_DOMAINS',
+    ],
     [{ FOR_YOU_DISCOVERY_GATE: 'lowEffortGate,unknownGate' }, 'FOR_YOU_DISCOVERY_GATE'],
     [{ DISCOVERY_GATE_ROLLOUT: 'maybe' }, 'DISCOVERY_GATE_ROLLOUT'],
   ])('rejects a malformed supplied value: %o', (source, expectedField) => {
@@ -60,7 +59,7 @@ describe('runtime configuration', () => {
     ).toThrow('REDIS_URI');
   });
 
-  it('accepts only Mention\'s reviewed opaque inference routing-profile ID', () => {
+  it("accepts only Mention's reviewed opaque inference routing-profile ID", () => {
     expect(
       parseRuntimeEnvironment({
         OXY_INFERENCE_ROUTING_PROFILE_ID: MENTION_INFERENCE_ROUTING_PROFILE_ID,
@@ -73,9 +72,9 @@ describe('runtime configuration', () => {
   });
 
   it('rejects partial credential groups', () => {
-    expect(() =>
-      parseRuntimeEnvironment({ OXY_SERVICE_API_KEY: 'service-key' }),
-    ).toThrow('OXY_SERVICE_API_SECRET');
+    expect(() => parseRuntimeEnvironment({ OXY_SERVICE_API_KEY: 'service-key' })).toThrow(
+      'OXY_SERVICE_API_SECRET',
+    );
     expect(() =>
       parseRuntimeEnvironment({
         FIREBASE_SERVICE_ACCOUNT_BASE64: Buffer.from('{}').toString('base64'),
@@ -103,9 +102,7 @@ describe('runtime configuration', () => {
         MENTION_MCP_JWT_SECRET: 'm'.repeat(32),
       }),
     ).toBe('dedicated-ip-salt');
-    expect(
-      getIpHashSalt({ MENTION_MCP_JWT_SECRET: 'm'.repeat(32) }),
-    ).toBe('m'.repeat(32));
+    expect(getIpHashSalt({ MENTION_MCP_JWT_SECRET: 'm'.repeat(32) })).toBe('m'.repeat(32));
   });
 
   it('keeps dynamic MTN signing disabled when a rotated key group is incomplete', () => {

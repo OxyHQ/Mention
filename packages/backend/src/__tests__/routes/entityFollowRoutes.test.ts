@@ -106,7 +106,9 @@ describe('entity-follow routes — accepted entity types', () => {
   });
 
   it.each(['feed', 'topic'])('rejects the dead entity type %s', async (entityType) => {
-    const res = await request(app).post('/entity-follows').send({ entityType, entityId: 'entity-1' });
+    const res = await request(app)
+      .post('/entity-follows')
+      .send({ entityType, entityId: 'entity-1' });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('entityType must be one of: hashtag, list');
@@ -138,7 +140,11 @@ describe('entity-follow routes — accepted entity types', () => {
     expect(await readFollows()).toEqual([{ entityType: 'hashtag', entityId: 'design' }]);
     // The row it reports back is the row it wrote, and it carries `_id` because
     // a Mongoose document did.
-    expect(res.body.follow).toMatchObject({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
+    expect(res.body.follow).toMatchObject({
+      userId: VIEWER_ID,
+      entityType: 'hashtag',
+      entityId: 'design',
+    });
     expect(res.body.follow._id).toBe(res.body.follow.id);
   });
 
@@ -232,11 +238,36 @@ describe('entity-follow routes — a list subscription obeys list visibility', (
 /** The rule itself, independent of any route. */
 describe('canViewList', () => {
   it.each([
-    ['a public list, to anyone', { isPublic: true, ownerOxyUserId: OTHER_USER_ID }, VIEWER_ID, true],
-    ['a private list, to its owner', { isPublic: false, ownerOxyUserId: VIEWER_ID }, VIEWER_ID, true],
-    ['a private list, to a stranger', { isPublic: false, ownerOxyUserId: OTHER_USER_ID }, VIEWER_ID, false],
-    ['a private list, to nobody', { isPublic: false, ownerOxyUserId: OTHER_USER_ID }, undefined, false],
-    ['a public list, to nobody', { isPublic: true, ownerOxyUserId: OTHER_USER_ID }, undefined, true],
+    [
+      'a public list, to anyone',
+      { isPublic: true, ownerOxyUserId: OTHER_USER_ID },
+      VIEWER_ID,
+      true,
+    ],
+    [
+      'a private list, to its owner',
+      { isPublic: false, ownerOxyUserId: VIEWER_ID },
+      VIEWER_ID,
+      true,
+    ],
+    [
+      'a private list, to a stranger',
+      { isPublic: false, ownerOxyUserId: OTHER_USER_ID },
+      VIEWER_ID,
+      false,
+    ],
+    [
+      'a private list, to nobody',
+      { isPublic: false, ownerOxyUserId: OTHER_USER_ID },
+      undefined,
+      false,
+    ],
+    [
+      'a public list, to nobody',
+      { isPublic: true, ownerOxyUserId: OTHER_USER_ID },
+      undefined,
+      true,
+    ],
     ['a list missing isPublic, to a stranger', { ownerOxyUserId: OTHER_USER_ID }, VIEWER_ID, false],
   ])('%s', (_label, list, viewerId, expected) => {
     expect(canViewList(list, viewerId)).toBe(expected);
@@ -293,7 +324,9 @@ describe('entity-follow routes — a followed hashtag is stored canonically', ()
     ['an emoji separator', 'design✨', 'design'],
     ['a non-ASCII tag', '#Café', 'café'],
   ])('stores %s as the canonical tag', async (_label, sent, stored) => {
-    const res = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: sent });
+    const res = await request(app)
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: sent });
 
     expect(res.status).toBe(201);
     // The row it reports back is the row it wrote — and the row really in the table.
@@ -302,8 +335,12 @@ describe('entity-follow routes — a followed hashtag is stored canonically', ()
   });
 
   it('collapses two casings of one tag onto a single row', async () => {
-    const first = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'Design' });
-    const second = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
+    const first = await request(app)
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: 'Design' });
+    const second = await request(app)
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: 'design' });
 
     expect(first.status).toBe(201);
     // Without canonicalization this is a second row that the unique constraint
@@ -313,7 +350,9 @@ describe('entity-follow routes — a followed hashtag is stored canonically', ()
   });
 
   it('rejects a tag that canonicalizes to nothing', async () => {
-    const res = await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: '#!!!' });
+    const res = await request(app)
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: '#!!!' });
 
     expect(res.status).toBe(400);
     expect(await readFollows()).toEqual([]);
@@ -381,11 +420,18 @@ describe('GET /entity-follows — newest first, on a total order', () => {
      * BELOW every old one — silently, and only after the cutover.
      */
     await seedFollow('older', new Date('2024-01-01T00:00:00.000Z'), '65b0c9178fcdefaf81988ffb');
-    await seedFollow('newer', new Date('2026-01-01T00:00:00.000Z'), '0198a2b1-4c3d-7e2f-8a1b-0123456789ab');
+    await seedFollow(
+      'newer',
+      new Date('2026-01-01T00:00:00.000Z'),
+      '0198a2b1-4c3d-7e2f-8a1b-0123456789ab',
+    );
 
     const res = await request(app).get('/entity-follows').expect(200);
 
-    expect(res.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual(['newer', 'older']);
+    expect(res.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual([
+      'newer',
+      'older',
+    ]);
   });
 
   it('orders rows sharing a timestamp by id, descending', async () => {
@@ -400,7 +446,12 @@ describe('GET /entity-follows — newest first, on a total order', () => {
     const res = await request(app).get('/entity-follows').expect(200);
 
     expect(res.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual([
-      'tag-f', 'tag-e', 'tag-d', 'tag-c', 'tag-b', 'tag-a',
+      'tag-f',
+      'tag-e',
+      'tag-d',
+      'tag-c',
+      'tag-b',
+      'tag-a',
     ]);
   });
 
@@ -430,7 +481,10 @@ describe('GET /entity-follows — newest first, on a total order', () => {
     await request(app).post('/entity-follows').send({ entityType: 'hashtag', entityId: 'design' });
     await request(app).post('/entity-follows').send({ entityType: 'list', entityId: listId });
 
-    const hashtags = await request(app).get('/entity-follows').query({ type: 'hashtag' }).expect(200);
+    const hashtags = await request(app)
+      .get('/entity-follows')
+      .query({ type: 'hashtag' })
+      .expect(200);
     expect(hashtags.body.follows.map((f: { entityId: string }) => f.entityId)).toEqual(['design']);
     expect(hashtags.body.hasMore).toBe(false);
     expect(hashtags.body.nextCursor).toBeUndefined();

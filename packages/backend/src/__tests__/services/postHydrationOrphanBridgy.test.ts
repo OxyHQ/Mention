@@ -79,44 +79,72 @@ describe('resolveOrphanFederatedAuthors — brid.gy derivation', () => {
     await closePostgres();
   });
 
-  it.each([true, false])('uses only the source link to locate the Oxy profile (stored URI: %s)', async (stored) => {
-    await seedActor(scope, {
-      uri: DERIVED_ACTOR_URI, username: 'transport',
-      acct: 'transport@bsky.brid.gy', domain: 'bsky.brid.gy',
-      oxyUserId: BRIDGED_OXY_ID,
-    });
-    getUsersByIds.mockResolvedValue([{ id: BRIDGED_OXY_ID, username: 'alice.bsky.social',
-      name: { displayName: 'Alice from Oxy' }, avatar: null, isFederated: true }]);
-    const result = await resolveOrphanFederatedAuthors([
-      { postId: POST_ID, federation: { actorUri: stored ? DERIVED_ACTOR_URI : undefined, activityId: OBJECT_URL, url: OBJECT_URL } },
-    ]);
-    expect(result.get(POST_ID)?.username).toBe('alice.bsky.social');
-    expect(result.get(POST_ID)?.name.displayName).toBe('Alice from Oxy');
-    expect(JSON.stringify(result.get(POST_ID))).not.toContain('brid.gy');
-    expect(getOrFetchActor).not.toHaveBeenCalled();
-  });
+  it.each([true, false])(
+    'uses only the source link to locate the Oxy profile (stored URI: %s)',
+    async (stored) => {
+      await seedActor(scope, {
+        uri: DERIVED_ACTOR_URI,
+        username: 'transport',
+        acct: 'transport@bsky.brid.gy',
+        domain: 'bsky.brid.gy',
+        oxyUserId: BRIDGED_OXY_ID,
+      });
+      getUsersByIds.mockResolvedValue([
+        {
+          id: BRIDGED_OXY_ID,
+          username: 'alice.bsky.social',
+          name: { displayName: 'Alice from Oxy' },
+          avatar: null,
+          isFederated: true,
+        },
+      ]);
+      const result = await resolveOrphanFederatedAuthors([
+        {
+          postId: POST_ID,
+          federation: {
+            actorUri: stored ? DERIVED_ACTOR_URI : undefined,
+            activityId: OBJECT_URL,
+            url: OBJECT_URL,
+          },
+        },
+      ]);
+      expect(result.get(POST_ID)?.username).toBe('alice.bsky.social');
+      expect(result.get(POST_ID)?.name.displayName).toBe('Alice from Oxy');
+      expect(JSON.stringify(result.get(POST_ID))).not.toContain('brid.gy');
+      expect(getOrFetchActor).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([true, false])('stays neutral with missing Oxy identity (source row exists: %s)', async (exists) => {
-    if (exists) await seedActor(scope, {
-      uri: DERIVED_ACTOR_URI, username: 'transport', acct: 'transport@bsky.brid.gy',
-      domain: 'bsky.brid.gy', oxyUserId: BRIDGED_OXY_ID,
-    });
-    const user = (await resolveOrphanFederatedAuthors([
-      { postId: POST_ID, federation: { url: OBJECT_URL } },
-    ])).get(POST_ID);
-    expect(user?.username).toBe('');
-    expect(user?.name.displayName).toBe('Unknown user');
-    expect(user?.instance).toBeUndefined();
-    expect(user?.federation).toBeUndefined();
-    expect(JSON.stringify(user)).not.toContain('brid.gy');
-    expect(getOrFetchActor).not.toHaveBeenCalled();
-    if (!exists) expect(getUsersByIds).not.toHaveBeenCalled();
-  });
+  it.each([true, false])(
+    'stays neutral with missing Oxy identity (source row exists: %s)',
+    async (exists) => {
+      if (exists)
+        await seedActor(scope, {
+          uri: DERIVED_ACTOR_URI,
+          username: 'transport',
+          acct: 'transport@bsky.brid.gy',
+          domain: 'bsky.brid.gy',
+          oxyUserId: BRIDGED_OXY_ID,
+        });
+      const user = (
+        await resolveOrphanFederatedAuthors([{ postId: POST_ID, federation: { url: OBJECT_URL } }])
+      ).get(POST_ID);
+      expect(user?.username).toBe('');
+      expect(user?.name.displayName).toBe('Unknown user');
+      expect(user?.instance).toBeUndefined();
+      expect(user?.federation).toBeUndefined();
+      expect(JSON.stringify(user)).not.toContain('brid.gy');
+      expect(getOrFetchActor).not.toHaveBeenCalled();
+      if (!exists) expect(getUsersByIds).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not discover or derive a profile from an ordinary post URL', async () => {
-    const user = (await resolveOrphanFederatedAuthors([
-      { postId: POST_ID, federation: { url: 'https://mastodon.social/@alice/123' } },
-    ])).get(POST_ID);
+    const user = (
+      await resolveOrphanFederatedAuthors([
+        { postId: POST_ID, federation: { url: 'https://mastodon.social/@alice/123' } },
+      ])
+    ).get(POST_ID);
     expect(user?.username).toBe('');
     expect(user?.instance).toBeUndefined();
     expect(getOrFetchActor).not.toHaveBeenCalled();

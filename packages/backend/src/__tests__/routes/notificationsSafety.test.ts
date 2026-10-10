@@ -88,7 +88,7 @@ vi.mock('../../runtime/oxyClient', () => ({
  * fail-open cache, so keeping it real costs nothing and cannot drift again.
  */
 vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
+  ...(await importOriginal<typeof import('../../utils/privacyHelpers')>()),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
 }));
@@ -116,7 +116,9 @@ vi.mock('../../services/viewerFollowGraph', async (importOriginal) => {
 });
 
 vi.mock('../../utils/push', () => ({
-  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  loadPushTargets: vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']])),
+  ),
   sendPushToTokens: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),

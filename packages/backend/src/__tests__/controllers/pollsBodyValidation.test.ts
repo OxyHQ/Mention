@@ -100,7 +100,10 @@ describe('POST /polls body validation', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(captured.status).toBe(201);
-    const body = captured.body as { success: boolean; data: { _id: string; question: string; options: Array<{ text: string }> } };
+    const body = captured.body as {
+      success: boolean;
+      data: { _id: string; question: string; options: Array<{ text: string }> };
+    };
     expect(body.success).toBe(true);
     expect(body.data.question).toBe('Yes or no?');
     expect(body.data.options.map((option) => option.text)).toEqual(['yes', 'no']);

@@ -10,7 +10,9 @@ import { describe, expect, it, vi } from 'vitest';
  * `push.ts` pulls in firebase-admin at import time, so it is stubbed —
  * `buildPreview` itself is pure.
  */
-vi.mock('firebase-admin', () => ({ default: { apps: [], initializeApp: vi.fn(), credential: { cert: vi.fn() } } }));
+vi.mock('firebase-admin', () => ({
+  default: { apps: [], initializeApp: vi.fn(), credential: { cert: vi.fn() } },
+}));
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 
 import { buildPreview } from '../../utils/push';

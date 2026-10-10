@@ -10,13 +10,22 @@ interface PostAttachmentArticleProps {
   className?: string;
 }
 
-const PostAttachmentArticle: React.FC<PostAttachmentArticleProps> = ({ title, body, onPress, style, className }) => {
+const PostAttachmentArticle: React.FC<PostAttachmentArticleProps> = ({
+  title,
+  body,
+  onPress,
+  style,
+  className,
+}) => {
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
   return (
     <TouchableOpacity
-      className={cn('w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between', className)}
+      className={cn(
+        'w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between',
+        className,
+      )}
       style={style}
       activeOpacity={0.85}
       onPress={onPress}

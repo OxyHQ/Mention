@@ -114,7 +114,12 @@ async function seedResolvedActor(oxyUserId: string | null): Promise<void> {
   // A row with NO oxyUserId is the "resolution still pending" state; no row at
   // all is the "never seen" one, and the two take different code paths.
   if (oxyUserId !== null) {
-    await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId, lastFetchedAt: new Date() });
+    await seedActor(scope, {
+      username: 'bob',
+      uri: actorUri,
+      oxyUserId,
+      lastFetchedAt: new Date(),
+    });
   }
   await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 }
@@ -147,7 +152,12 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   // Default fixture: a resolved, followed remote actor. Suites that need the
   // unresolved or absent variants re-seed with `seedResolvedActor`.
-  await seedActor(scope, { username: 'bob', uri: actorUri, oxyUserId: 'oxy_user_1', lastFetchedAt: new Date() });
+  await seedActor(scope, {
+    username: 'bob',
+    uri: actorUri,
+    oxyUserId: 'oxy_user_1',
+    lastFetchedAt: new Date(),
+  });
   await seedFollow(scope, { remoteActorUri: actorUri, direction: 'outbound', status: 'accepted' });
 
   mocks.getPublicKey.mockResolvedValue({
@@ -156,7 +166,10 @@ beforeEach(async () => {
   });
   mocks.signViaOxy.mockResolvedValue('signature');
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
-  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
+  mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({
+    _id: 'actor_1',
+    ...update?.$set,
+  }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
@@ -210,7 +223,10 @@ describe('processInboxActivity validation gate — invalid activities are droppe
 
   it('drops garbage (non-object) payloads without throwing', async () => {
     await expect(
-      federationService.processInboxActivity('not-an-object' as unknown as Record<string, unknown>, actorUri),
+      federationService.processInboxActivity(
+        'not-an-object' as unknown as Record<string, unknown>,
+        actorUri,
+      ),
     ).resolves.toBeUndefined();
     await expect(
       federationService.processInboxActivity(null as unknown as Record<string, unknown>, actorUri),

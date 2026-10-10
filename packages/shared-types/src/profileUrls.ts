@@ -98,8 +98,8 @@ export function fediverseProfilePathSegment(url: string): string | undefined {
  */
 export function isProfileLikeUrl(url: string, ownHosts: readonly string[]): boolean {
   return (
-    fediverseProfilePathSegment(url) !== undefined
-    || ownProfileUrlHandle(url, ownHosts) !== undefined
+    fediverseProfilePathSegment(url) !== undefined ||
+    ownProfileUrlHandle(url, ownHosts) !== undefined
   );
 }
 
@@ -132,7 +132,10 @@ export function localProfilePathHandle(url: string): string | undefined {
 
 /** A leading `www.` is not part of a host's identity. Both sides drop it. */
 function canonicalHost(host: string): string {
-  return host.trim().toLowerCase().replace(/^www\./, '');
+  return host
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '');
 }
 
 /**
@@ -159,10 +162,7 @@ const ROUTE_HOSTILE_HANDLE = /[/?#]/;
  * on. A segment that does not decode, decodes to nothing, or decodes to something
  * no profile route accepts yields `undefined` — the URL stays a URL.
  */
-export function ownProfileUrlHandle(
-  url: string,
-  hosts: readonly string[],
-): string | undefined {
+export function ownProfileUrlHandle(url: string, hosts: readonly string[]): string | undefined {
   if (hosts.length === 0) return undefined;
 
   let parsed: URL;

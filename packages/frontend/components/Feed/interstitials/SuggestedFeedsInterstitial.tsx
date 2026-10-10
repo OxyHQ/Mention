@@ -7,10 +7,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import {
-  customFeedsService,
-  type MarketplaceFeed,
-} from '@/services/customFeedsService';
+import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell } from './InterstitialShell';
@@ -129,14 +126,7 @@ export function SuggestedFeedsInterstitial({
         />
       );
     },
-    [
-      subscribed,
-      subscribe.isPending,
-      subscribe.variables,
-      report,
-      handleSubscribe,
-      handleDismiss,
-    ],
+    [subscribed, subscribe.isPending, subscribe.variables, report, handleSubscribe, handleDismiss],
   );
 
   const renderSkeleton = useCallback(() => <FeedCardSkeleton />, []);

@@ -60,7 +60,10 @@ const META_TEXT_COLOR = 'white';
  * one. `Ionicons` is a `Text`-based glyph font, so the glyph takes the shadow
  * exactly like the number does.
  */
-const META_TEXT_SHADOW: Pick<TextStyle, 'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'> = {
+const META_TEXT_SHADOW: Pick<
+  TextStyle,
+  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
+> = {
   textShadowColor: 'rgba(0, 0, 0, 0.8)',
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 3,
@@ -84,7 +87,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
   ({ posterUri, size, placeholderColor, views, durationSec, scrim }) => {
     const containerStyle = useMemo(
       () => ({ width: size, height: size, overflow: 'hidden' as const }),
-      [size]
+      [size],
     );
     const [posterFailed, setPosterFailed] = useState(false);
     // A new poster has not failed yet. Reset during render rather than in an
@@ -122,12 +125,14 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
           />
         ) : (
           <View className="w-full h-full items-center justify-center bg-muted">
-            <RiFilmLine width={placeholderIconSize} height={placeholderIconSize} fill={placeholderColor} />
+            <RiFilmLine
+              width={placeholderIconSize}
+              height={placeholderIconSize}
+              fill={placeholderColor}
+            />
           </View>
         )}
-        {scrim && (
-          <View className="absolute inset-0" style={{ backgroundColor: SCRIM_BG }} />
-        )}
+        {scrim && <View className="absolute inset-0" style={{ backgroundColor: SCRIM_BG }} />}
         {/*
           Both grids wrap this cell in a TouchableOpacity, so the row must not
           swallow the tap along the bottom strip.
@@ -163,7 +168,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
         </View>
       </View>
     );
-  }
+  },
 );
 VideoPosterCell.displayName = 'VideoPosterCell';
 

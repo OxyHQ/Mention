@@ -56,7 +56,14 @@ export interface FeedRelations {
 }
 
 export function emptyRelations(): FeedRelations {
-  return { sources: [], signals: [], filters: [], memberOxyUserIds: [], sourceListIds: [], topicIds: [] };
+  return {
+    sources: [],
+    signals: [],
+    filters: [],
+    memberOxyUserIds: [],
+    sourceListIds: [],
+    topicIds: [],
+  };
 }
 
 /** A module's `params` is `jsonb` and therefore `unknown`; only an object is one. */
@@ -138,7 +145,10 @@ export async function loadFeedRelations(
  * no definition would render empty rather than falling back to its legacy
  * filters.
  */
-export function definitionOf(row: FeedRow, relations: FeedRelations): StoredFeedDefinition | undefined {
+export function definitionOf(
+  row: FeedRow,
+  relations: FeedRelations,
+): StoredFeedDefinition | undefined {
   if (row.definitionMode === null) return undefined;
   return {
     mode: row.definitionMode,
@@ -201,7 +211,6 @@ export async function loadFeed(
   const relations = await loadFeedRelations(db, [row.id]);
   return { row, relations: relations.get(row.id) ?? emptyRelations() };
 }
-
 
 /**
  * A stored feed in the shape {@link buildCustomFeedDefinition} consumes, or

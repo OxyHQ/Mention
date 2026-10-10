@@ -197,7 +197,9 @@ const MAX_BOOST_TIER_WEIGHT = 3;
  * candidates get the highest tier) and emits one boost entry per non-empty tier.
  * Returns `[]` for an empty candidate list.
  */
-export function buildBoostsFromCandidates(candidates: ContentCandidate[]): RecommendationBoostInput[] {
+export function buildBoostsFromCandidates(
+  candidates: ContentCandidate[],
+): RecommendationBoostInput[] {
   if (candidates.length === 0) return [];
 
   // Candidates arrive sorted by descending weight. The strongest weight defines

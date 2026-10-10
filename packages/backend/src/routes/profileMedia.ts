@@ -1,5 +1,8 @@
 import { Router, Response } from 'express';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import {
+  requireOxyAuth as requireAuth,
+  type OxyAuthRequest as AuthRequest,
+} from '@oxy.so/core/server';
 import { syraClient, listPodcastEpisodes } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';
@@ -46,7 +49,8 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const rawOffset = typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
+    const rawOffset =
+      typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
     const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
     if (type === 'song') {
@@ -91,7 +95,10 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
       limit: page.limit,
     });
   } catch (err) {
-    logger.error('[ProfileMedia] Error searching Syra catalog:', { userId: req.user?.id, error: err });
+    logger.error('[ProfileMedia] Error searching Syra catalog:', {
+      userId: req.user?.id,
+      error: err,
+    });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to search profile media');
   }
 });
@@ -117,7 +124,8 @@ router.get('/podcasts/:id/episodes', async (req: AuthRequest, res: Response) => 
 
     // Zero-based page offset for infinite scroll. Absent or malformed values
     // start from the first page rather than erroring a scroll.
-    const rawOffset = typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
+    const rawOffset =
+      typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
     const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
     const page = await listPodcastEpisodes(id, { offset });

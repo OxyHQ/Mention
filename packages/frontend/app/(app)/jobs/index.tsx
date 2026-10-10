@@ -9,7 +9,11 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
-import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -25,7 +29,9 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Storage } from '@/utils/storage';
 import { viewerQueryKeys, viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { jobsService, type MentionJobDiscoveryFilters } from '@/services/jobsService';
-import JobDiscoveryResultCard, { ExternalJobReportSheet } from '@/components/Jobs/JobDiscoveryResultCard';
+import JobDiscoveryResultCard, {
+  ExternalJobReportSheet,
+} from '@/components/Jobs/JobDiscoveryResultCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 
@@ -83,7 +89,9 @@ function buildDiscoveryFilters(draft: DraftFilters): MentionJobDiscoveryFilters 
     salaryMin: Number.isFinite(min) ? min : undefined,
     salaryMax: Number.isFinite(max) ? max : undefined,
     publishedAfter:
-      draft.datePosted === 'any' ? undefined : new Date(Date.now() - DATE_POSTED_MS[draft.datePosted]).toISOString(),
+      draft.datePosted === 'any'
+        ? undefined
+        : new Date(Date.now() - DATE_POSTED_MS[draft.datePosted]).toISOString(),
     limit: 20,
   };
 }
@@ -213,10 +221,14 @@ export default function JobsDiscoveryScreen() {
     [discoveryQuery.data],
   );
 
-  const loading = discoveryQuery.isPending || (discoveryQuery.isFetching && !discoveryQuery.isFetchingNextPage);
+  const loading =
+    discoveryQuery.isPending || (discoveryQuery.isFetching && !discoveryQuery.isFetchingNextPage);
 
   // --- Saved jobs (local, per-viewer bookmark list; no backend surface exists for this yet) ---
-  const savedStorageKey = useMemo(() => viewerStorageKey(SAVED_JOBS_STORAGE_KEY, viewerId), [viewerId]);
+  const savedStorageKey = useMemo(
+    () => viewerStorageKey(SAVED_JOBS_STORAGE_KEY, viewerId),
+    [viewerId],
+  );
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   // Reading AsyncStorage is a real external system, which is exactly what an
@@ -256,7 +268,10 @@ export default function JobsDiscoveryScreen() {
   const reportJob = useCallback(
     (job: JobSearchResult) => {
       bottomSheet.setBottomSheetContent(
-        <ExternalJobReportSheet clarityJobId={job.id} onClose={() => bottomSheet.openBottomSheet(false)} />,
+        <ExternalJobReportSheet
+          clarityJobId={job.id}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />,
       );
       bottomSheet.openBottomSheet(true);
     },
@@ -310,7 +325,9 @@ export default function JobsDiscoveryScreen() {
       <Button
         size="sm"
         onPress={() => setShowMoreFilters((v) => !v)}
-        style={{ alignSelf: 'flex-start' }} tone="accent" appearance="plain"
+        style={{ alignSelf: 'flex-start' }}
+        tone="accent"
+        appearance="plain"
       >
         {showMoreFilters
           ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
@@ -319,7 +336,10 @@ export default function JobsDiscoveryScreen() {
 
       {showMoreFilters ? (
         <View className="gap-3">
-          <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} multiple>
+          <Field
+            label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
+            multiple
+          >
             <View className="flex-row flex-wrap gap-2">
               {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
                 <Chip
@@ -333,7 +353,10 @@ export default function JobsDiscoveryScreen() {
             </View>
           </Field>
 
-          <Field label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })} multiple>
+          <Field
+            label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
+            multiple
+          >
             <View className="flex-row flex-wrap gap-2">
               {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
                 <Chip
@@ -379,16 +402,24 @@ export default function JobsDiscoveryScreen() {
               onChange={setDatePosted}
             >
               <SegmentedControlItem value="any">
-                <SegmentedControlItemText>{t('jobs.discovery.anyTime', { defaultValue: 'Any time' })}</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('jobs.discovery.anyTime', { defaultValue: 'Any time' })}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
               <SegmentedControlItem value="24h">
-                <SegmentedControlItemText>{t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })}</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('jobs.discovery.past24h', { defaultValue: 'Past 24h' })}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
               <SegmentedControlItem value="7d">
-                <SegmentedControlItemText>{t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })}</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('jobs.discovery.pastWeek', { defaultValue: 'Past week' })}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
               <SegmentedControlItem value="30d">
-                <SegmentedControlItemText>{t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}</SegmentedControlItemText>
+                <SegmentedControlItemText>
+                  {t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}
+                </SegmentedControlItemText>
               </SegmentedControlItem>
             </SegmentedControl>
           </Field>
@@ -422,7 +453,9 @@ export default function JobsDiscoveryScreen() {
         return (
           <ErrorState
             title={t('jobs.discovery.errorTitle', { defaultValue: 'Could not load jobs' })}
-            message={t('jobs.discovery.errorMessage', { defaultValue: 'Check your connection and try again.' })}
+            message={t('jobs.discovery.errorMessage', {
+              defaultValue: 'Check your connection and try again.',
+            })}
             onRetry={() => void discoveryQuery.refetch()}
             hideBackButton
           />
@@ -431,7 +464,9 @@ export default function JobsDiscoveryScreen() {
       return (
         <EmptyState
           title={t('jobs.discovery.emptyTitle', { defaultValue: 'No jobs found' })}
-          subtitle={t('jobs.discovery.emptySubtitle', { defaultValue: 'Try a different search or clear a filter.' })}
+          subtitle={t('jobs.discovery.emptySubtitle', {
+            defaultValue: 'Try a different search or clear a filter.',
+          })}
           sticker="jobsSearch"
           containerStyle={{ paddingTop: 40 }}
         />

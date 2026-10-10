@@ -1,22 +1,13 @@
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import type {
-  PostContent,
-  PostEditSource,
-  PostUser,
-} from '@mention/shared-types/post';
-import {
-  mentionTextsFromContent,
-} from '@mention/shared-types/mentions';
+import type { PostContent, PostEditSource, PostUser } from '@mention/shared-types/post';
+import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
-import {
-  isFallbackUserSummary,
-  resolveUserSummaries,
-} from '../services/PostHydrationService';
+import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { postManagementRefusal } from '../services/postManagementAccess';
@@ -88,19 +79,14 @@ export const getPostEditSource = async (
       ...(variants.length > 0 ? { variants } : {}),
       ...(post.content.media ? { media: post.content.media } : {}),
     };
-    const mentions = reconcileMentionIdsForPost(
-      mentionTextsFromContent(content),
-      post.mentions,
-    );
+    const mentions = reconcileMentionIdsForPost(mentionTextsFromContent(content), post.mentions);
 
     let mentionUsers: PostUser[] = [];
     try {
       const resolved = await resolveUserSummaries(mentions);
       mentionUsers = mentions.flatMap((id) => {
         const summary = resolved.get(id);
-        return summary && !isFallbackUserSummary(summary.user)
-          ? [summary.user]
-          : [];
+        return summary && !isFallbackUserSummary(summary.user) ? [summary.user] : [];
       });
     } catch (error) {
       // The stable ids and placeholders are sufficient to preserve the edit.

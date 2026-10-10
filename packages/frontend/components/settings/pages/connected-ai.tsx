@@ -1,49 +1,42 @@
-import { EmptyState } from "@/components/common/EmptyState";
-import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
-import { confirmDialog } from "@/utils/alerts";
-import { MCP_RESOURCE_URL } from "@/config";
-import { getErrorMessage } from "@/utils/apiError";
-import { formatRelativeTimeLocalized } from "@/utils/dateUtils";
-import { Button } from "@oxy.so/bloom/button";
-import { IconCircle } from "@oxy.so/bloom/icon-circle";
+import { EmptyState } from '@/components/common/EmptyState';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { confirmDialog } from '@/utils/alerts';
+import { MCP_RESOURCE_URL } from '@/config';
+import { getErrorMessage } from '@/utils/apiError';
+import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { Button } from '@oxy.so/bloom/button';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { Loading } from "@oxy.so/bloom/loading";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-} from "@oxy.so/bloom/settings-modal";
-import { toast } from "@oxy.so/bloom/toast";
-import { createLogger } from "@oxy.so/core/logger";
-import type { ConnectedMcpClient } from "@oxy.so/core";
-import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
+import type { ConnectedMcpClient } from '@oxy.so/core';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, View } from 'react-native';
 
-const logger = createLogger("ConnectedAiSettings");
+const logger = createLogger('ConnectedAiSettings');
 
 const KNOWN_MCP_CLIENTS: Record<string, string> = {
-  claude: "Claude",
-  "claude-desktop": "Claude",
-  "claude-code": "Claude Code",
-  chatgpt: "ChatGPT",
-  cursor: "Cursor",
+  claude: 'Claude',
+  'claude-desktop': 'Claude',
+  'claude-code': 'Claude Code',
+  chatgpt: 'ChatGPT',
+  cursor: 'Cursor',
 };
 
 function connectionLabel(connection: ConnectedMcpClient): string {
   if (connection.clientName) return connection.clientName;
-  return (
-    KNOWN_MCP_CLIENTS[connection.clientId?.toLowerCase()] ?? connection.clientId
-  );
+  return KNOWN_MCP_CLIENTS[connection.clientId?.toLowerCase()] ?? connection.clientId;
 }
 
 export default function ConnectedAiScreen() {
   const { t } = useTranslation();
 
-  const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } =
-    useAuth();
+  const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const queryClient = useQueryClient();
 
   const {
@@ -57,9 +50,7 @@ export default function ConnectedAiScreen() {
     // this deployment's MCP server are the ones that can act on Mention.
     queryFn: async () => {
       const clients = await oxyServices.apps.connected.mcpClients();
-      return clients.filter(
-        (client) => client.resource.replace(/\/+$/, "") === MCP_RESOURCE_URL,
-      );
+      return clients.filter((client) => client.resource.replace(/\/+$/, '') === MCP_RESOURCE_URL);
     },
     enabled: canUsePrivateApi,
   });
@@ -72,20 +63,20 @@ export default function ConnectedAiScreen() {
       queryClient.invalidateQueries({
         queryKey: viewerQueryKeys.connectedAi(user?.id),
       });
-      toast(t("mcp.connections.revoked", { defaultValue: "Access revoked" }), {
-        type: "success",
+      toast(t('mcp.connections.revoked', { defaultValue: 'Access revoked' }), {
+        type: 'success',
       });
     },
     onError: (error) => {
-      logger.error("Failed to revoke MCP connection", error);
+      logger.error('Failed to revoke MCP connection', error);
       toast(
         getErrorMessage(
           error,
-          t("mcp.connections.revokeError", {
+          t('mcp.connections.revokeError', {
             defaultValue: "Couldn't revoke access. Please try again.",
           }),
         ),
-        { type: "error" },
+        { type: 'error' },
       );
     },
   });
@@ -93,16 +84,16 @@ export default function ConnectedAiScreen() {
   const handleRevoke = useCallback(
     async (connection: ConnectedMcpClient) => {
       const confirmed = await confirmDialog({
-        title: t("mcp.connections.revokeConfirm.title", {
-          defaultValue: "Revoke access?",
+        title: t('mcp.connections.revokeConfirm.title', {
+          defaultValue: 'Revoke access?',
         }),
-        message: t("mcp.connections.revokeConfirm.message", {
+        message: t('mcp.connections.revokeConfirm.message', {
           defaultValue:
-            "{{client}} will no longer be able to access your Mention account until you authorize it again.",
+            '{{client}} will no longer be able to access your Mention account until you authorize it again.',
           client: connectionLabel(connection),
         }),
-        okText: t("mcp.connections.revoke", { defaultValue: "Revoke" }),
-        cancelText: t("common.cancel", { defaultValue: "Cancel" }),
+        okText: t('mcp.connections.revoke', { defaultValue: 'Revoke' }),
+        cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
         destructive: true,
       });
       if (confirmed) {
@@ -126,12 +117,11 @@ export default function ConnectedAiScreen() {
     return (
       <View className="gap-4">
         <OxyAuthPrompt
-          label={t("mcp.connections.signInRequired", {
-            defaultValue: "Sign in to manage connected apps",
+          label={t('mcp.connections.signInRequired', {
+            defaultValue: 'Sign in to manage connected apps',
           })}
-          description={t("mcp.connections.signInRequiredDesc", {
-            defaultValue:
-              "Sign in to review and revoke AI apps connected to your Mention account.",
+          description={t('mcp.connections.signInRequiredDesc', {
+            defaultValue: 'Sign in to review and revoke AI apps connected to your Mention account.',
           })}
         />
       </View>
@@ -147,12 +137,12 @@ export default function ConnectedAiScreen() {
           </View>
         ) : isError ? (
           <EmptyState
-            icon={{ name: "cloud-offline-outline" }}
+            icon={{ name: 'cloud-offline-outline' }}
             error={{
-              title: t("mcp.connections.loadError", {
+              title: t('mcp.connections.loadError', {
                 defaultValue: "Couldn't load connected apps",
               }),
-              message: t("common.tryAgain", { defaultValue: "Try again" }),
+              message: t('common.tryAgain', { defaultValue: 'Try again' }),
               onRetry: async () => {
                 await refetch();
               },
@@ -162,44 +152,37 @@ export default function ConnectedAiScreen() {
           <View className="px-6 py-10 items-center gap-3">
             <IconCircle icon={RiSparklingLine} />
             <Text className="text-xl font-bold text-foreground text-center">
-              {t("mcp.connections.empty.title", {
-                defaultValue: "No connected apps",
+              {t('mcp.connections.empty.title', {
+                defaultValue: 'No connected apps',
               })}
             </Text>
             <Text className="text-[15px] text-muted-foreground text-center max-w-[340px]">
-              {t("mcp.connections.empty.description", {
+              {t('mcp.connections.empty.description', {
                 defaultValue:
-                  "AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.",
+                  'AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.',
               })}
             </Text>
           </View>
         ) : (
           <SettingsSection
-            description={t("mcp.connections.footer", {
+            description={t('mcp.connections.footer', {
               defaultValue:
-                "These apps can access your Mention account on your behalf. Revoke any you no longer use.",
+                'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
             })}
           >
             <SettingsCard>
               {connections.map((connection) => {
                 const revoking =
-                  revokeMutation.isPending &&
-                  revokeMutation.variables === connection.id;
+                  revokeMutation.isPending && revokeMutation.variables === connection.id;
                 const timeLine = connection.lastUsedAt
-                  ? t("mcp.connections.lastUsed", {
-                      defaultValue: "Last used {{time}}",
-                      time: formatRelativeTimeLocalized(
-                        connection.lastUsedAt,
-                        t,
-                      ),
+                  ? t('mcp.connections.lastUsed', {
+                      defaultValue: 'Last used {{time}}',
+                      time: formatRelativeTimeLocalized(connection.lastUsedAt, t),
                     })
                   : connection.createdAt
-                    ? t("mcp.connections.connected", {
-                        defaultValue: "Connected {{time}}",
-                        time: formatRelativeTimeLocalized(
-                          connection.createdAt,
-                          t,
-                        ),
+                    ? t('mcp.connections.connected', {
+                        defaultValue: 'Connected {{time}}',
+                        time: formatRelativeTimeLocalized(connection.createdAt, t),
                       })
                     : undefined;
                 return (
@@ -223,8 +206,8 @@ export default function ConnectedAiScreen() {
                         onPress={() => handleRevoke(connection)}
                         disabled={revokeMutation.isPending}
                       >
-                        {t("mcp.connections.revoke", {
-                          defaultValue: "Revoke",
+                        {t('mcp.connections.revoke', {
+                          defaultValue: 'Revoke',
                         })}
                       </Button>
                     )}

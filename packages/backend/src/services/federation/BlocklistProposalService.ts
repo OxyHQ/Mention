@@ -131,9 +131,7 @@ export function corroboratingOperators(
   // stands for it — a deliberate, reviewable choice rather than whichever
   // sorted first, so re-runs and policy entries stay consistent.
   const representative = new Map<string, string>();
-  const ranked = [...instances].sort(
-    (a, b) => sourceRank(a) - sourceRank(b) || a.localeCompare(b),
-  );
+  const ranked = [...instances].sort((a, b) => sourceRank(a) - sourceRank(b) || a.localeCompare(b));
   for (const instance of ranked) {
     const operator = operatorOf(instance) ?? instance;
     if (!representative.has(operator)) representative.set(operator, instance);
@@ -200,9 +198,7 @@ function pollPublishedBlocklists(): Promise<BlocklistIntelReport> {
 }
 
 /** Flatten one candidate's per-source verdicts onto the row, unmerged. */
-function toStoredObservations(
-  candidate: BlocklistCandidate,
-): ProposalObservation[] {
+function toStoredObservations(candidate: BlocklistCandidate): ProposalObservation[] {
   return candidate.observations.map((observation) => ({
     instance: observation.source,
     operator: operatorOf(observation.source) ?? observation.source,
@@ -545,9 +541,9 @@ export function renderProposalQueue(
 
   for (const proposal of shown) {
     lines.push(
-      `${proposal.raisedThisRun ? 'NEW  ' : '     '}${proposal.domain}`
-      + `  ${proposal.operatorCount} operators`
-      + `  waiting ${daysBetween(proposal.firstProposedAt, asOf)}d`,
+      `${proposal.raisedThisRun ? 'NEW  ' : '     '}${proposal.domain}` +
+        `  ${proposal.operatorCount} operators` +
+        `  waiting ${daysBetween(proposal.firstProposedAt, asOf)}d`,
     );
 
     for (const severity of SEVERITY_ORDER) {
@@ -563,9 +559,9 @@ export function renderProposalQueue(
 
     const { footprint } = proposal;
     lines.push(
-      `       we hold: ${footprint.posts} posts, ${footprint.actors} actors;`
-      + ` ${footprint.localUsersFollowing} local users follow ${footprint.remoteActorsFollowed} accounts there;`
-      + ` ${footprint.localUsersFollowed} local users would lose a follower`,
+      `       we hold: ${footprint.posts} posts, ${footprint.actors} actors;` +
+        ` ${footprint.localUsersFollowing} local users follow ${footprint.remoteActorsFollowed} accounts there;` +
+        ` ${footprint.localUsersFollowed} local users would lose a follower`,
     );
     lines.push(
       `       corroboratingSources: [${proposal.corroboratingSources.map((s) => `'${s}'`).join(', ')}]`,
@@ -574,8 +570,8 @@ export function renderProposalQueue(
 
   if (pending.length > shown.length) {
     lines.push(
-      `     … ${pending.length - shown.length} further proposals not shown here —`
-      + ' run `reviewFederationBlocklistProposals` to read the whole queue',
+      `     … ${pending.length - shown.length} further proposals not shown here —` +
+        ' run `reviewFederationBlocklistProposals` to read the whole queue',
     );
   }
 
@@ -587,20 +583,22 @@ export function renderProposalReport(result: BlocklistProposalSweepResult): stri
   const published = result.sources.filter((source) => source.outcome === 'published').length;
   const failed = result.sources.filter((source) => source.outcome === 'failed').length;
   const lines = [
-    `polled ${result.sources.length} instances: ${published} published, ${failed} failed`
-    + ` — threshold ${result.minOperators} distinct operators, suspend only`,
+    `polled ${result.sources.length} instances: ${published} published, ${failed} failed` +
+      ` — threshold ${result.minOperators} distinct operators, suspend only`,
   ];
 
   if (!result.ok) {
-    lines.push(`RUN NOT USABLE: ${result.failureReason ?? 'unknown'} — the queue was left untouched`);
+    lines.push(
+      `RUN NOT USABLE: ${result.failureReason ?? 'unknown'} — the queue was left untouched`,
+    );
     return lines;
   }
 
   lines.push(
-    `${result.counts.clearedOperatorThreshold} domains cleared the threshold;`
-    + ` ${result.counts.suppressedBlocked} already refused by our policy,`
-    + ` ${result.counts.suppressedDeclined} already declined by a person,`
-    + ` ${result.counts.lapsed} lapsed, ${result.counts.adopted} adopted`,
+    `${result.counts.clearedOperatorThreshold} domains cleared the threshold;` +
+      ` ${result.counts.suppressedBlocked} already refused by our policy,` +
+      ` ${result.counts.suppressedDeclined} already declined by a person,` +
+      ` ${result.counts.lapsed} lapsed, ${result.counts.adopted} adopted`,
   );
 
   if (result.pending.length === 0) {

@@ -11,7 +11,10 @@ jest.mock('socket.io-client', () => ({
     const handlers = new Map<string, Handler>();
     const socket = {
       connected: false,
-      on: (event: string, handler: Handler) => { handlers.set(event, handler); return socket; },
+      on: (event: string, handler: Handler) => {
+        handlers.set(event, handler);
+        return socket;
+      },
       removeAllListeners: () => handlers.clear(),
       disconnect: () => undefined,
     };
@@ -24,19 +27,34 @@ jest.mock('socket.io-client', () => ({
 jest.mock('@/lib/notificationValidation', () => {
   const validation = jest.requireActual('@/types/validation');
   let release: () => void = () => undefined;
-  const loaded = new Promise((resolve) => { release = () => resolve(validation); });
+  const loaded = new Promise((resolve) => {
+    release = () => resolve(validation);
+  });
   return { loadNotificationValidation: () => loaded, releaseForTest: () => release() };
 });
 const releaseValidators = () =>
-  (jest.requireMock('@/lib/notificationValidation') as { releaseForTest: () => void }).releaseForTest();
+  (
+    jest.requireMock('@/lib/notificationValidation') as { releaseForTest: () => void }
+  ).releaseForTest();
 
-const mockAuth = { user: { id: 'viewer-1' } as { id: string } | null, isAuthenticated: true, isReady: true, oxyServices: { session: { accessToken: 't' } } };
+const mockAuth = {
+  user: { id: 'viewer-1' } as { id: string } | null,
+  isAuthenticated: true,
+  isReady: true,
+  oxyServices: { session: { accessToken: 't' } },
+};
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/config', () => ({ API_URL_SOCKET: 'wss://example.test' }));
 
 const notification = (id: string) => ({
-  _id: id, recipientId: 'viewer-1', actorId: 'actor', type: 'follow',
-  entityId: 'actor', entityType: 'user', read: false, createdAt: '2026-09-28T00:00:00.000Z',
+  _id: id,
+  recipientId: 'viewer-1',
+  actorId: 'actor',
+  type: 'follow',
+  entityId: 'actor',
+  entityType: 'user',
+  read: false,
+  createdAt: '2026-09-28T00:00:00.000Z',
 });
 
 function Bridge() {
@@ -52,14 +70,23 @@ function seed(client: QueryClient) {
 }
 
 const ids = (client: QueryClient) =>
-  (client.getQueryData(viewerQueryKeys.notifications('viewer-1')) as { pages: { notifications: { _id: string }[] }[] })
-    .pages[0].notifications.map((n) => n._id);
+  (
+    client.getQueryData(viewerQueryKeys.notifications('viewer-1')) as {
+      pages: { notifications: { _id: string }[] }[];
+    }
+  ).pages[0].notifications.map((n) => n._id);
 
 describe('useRealtimeNotifications', () => {
   it('applies events in arrival order while the validators are still loading', async () => {
     const client = new QueryClient();
     seed(client);
-    act(() => { TestRenderer.create(<QueryClientProvider client={client}><Bridge /></QueryClientProvider>); });
+    act(() => {
+      TestRenderer.create(
+        <QueryClientProvider client={client}>
+          <Bridge />
+        </QueryClientProvider>,
+      );
+    });
     const { handlers } = mockSockets.at(-1)!;
 
     // Insert, then delete the same notification, both before the load settles:
@@ -67,7 +94,11 @@ describe('useRealtimeNotifications', () => {
     handlers.get('notification')!(notification('n1'));
     handlers.get('notificationDeleted')!('n1');
     handlers.get('notification')!(notification('n2'));
-    await act(async () => { releaseValidators(); await Promise.resolve(); await new Promise((r) => setTimeout(r, 0)); });
+    await act(async () => {
+      releaseValidators();
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    });
 
     expect(ids(client)).toEqual(['n2']);
   });
@@ -77,14 +108,29 @@ describe('useRealtimeNotifications', () => {
     seed(client);
     mockAuth.user = { id: 'viewer-1' };
     let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => { renderer = TestRenderer.create(<QueryClientProvider client={client}><Bridge /></QueryClientProvider>); });
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={client}>
+          <Bridge />
+        </QueryClientProvider>,
+      );
+    });
     const { handlers } = mockSockets.at(-1)!;
     handlers.get('notification')!(notification('late'));
 
     // Signed out before the queued insert could apply.
     mockAuth.user = null;
-    act(() => renderer.update(<QueryClientProvider client={client}><Bridge /></QueryClientProvider>));
-    await act(async () => { releaseValidators(); await new Promise((r) => setTimeout(r, 0)); });
+    act(() =>
+      renderer.update(
+        <QueryClientProvider client={client}>
+          <Bridge />
+        </QueryClientProvider>,
+      ),
+    );
+    await act(async () => {
+      releaseValidators();
+      await new Promise((r) => setTimeout(r, 0));
+    });
 
     expect(ids(client)).not.toContain('late');
   });

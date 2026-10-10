@@ -1,7 +1,9 @@
 import { notificationService } from '@/services/notificationService';
 
 const mockGet = jest.fn();
-jest.mock('@/utils/api', () => ({ authenticatedClient: { get: (...args: unknown[]) => mockGet(...args) } }));
+jest.mock('@/utils/api', () => ({
+  authenticatedClient: { get: (...args: unknown[]) => mockGet(...args) },
+}));
 // Jest cannot run `import()`: hand the real validators over synchronously.
 jest.mock('@/lib/notificationValidation', () => ({
   loadNotificationValidation: () => Promise.resolve(jest.requireActual('@/types/validation')),
@@ -12,8 +14,14 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 const valid = {
-  _id: 'n1', recipientId: 'viewer', actorId: 'actor', type: 'follow',
-  entityId: 'actor', entityType: 'user', read: false, createdAt: '2026-09-28T00:00:00.000Z',
+  _id: 'n1',
+  recipientId: 'viewer',
+  actorId: 'actor',
+  type: 'follow',
+  entityId: 'actor',
+  entityType: 'user',
+  read: false,
+  createdAt: '2026-09-28T00:00:00.000Z',
 };
 
 describe('notificationService.getNotifications', () => {

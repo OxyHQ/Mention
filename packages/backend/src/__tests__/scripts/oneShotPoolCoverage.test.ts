@@ -135,7 +135,8 @@ interface ImportRecord {
  */
 function valueImports(src: string): ImportRecord[] {
   const out: ImportRecord[] = [];
-  const destructured = /(?:const|let|var)\s*(\{[\s\S]*?\})\s*=\s*await\s+import\(\s*['"]([^'"]+)['"]\s*\)/g;
+  const destructured =
+    /(?:const|let|var)\s*(\{[\s\S]*?\})\s*=\s*await\s+import\(\s*['"]([^'"]+)['"]\s*\)/g;
   for (const match of src.matchAll(destructured)) {
     out.push({ spec: match[2] ?? '', names: readBindings(match[1] ?? '', ':') });
   }
@@ -151,7 +152,10 @@ function valueImports(src: string): ImportRecord[] {
 }
 
 /** `{ a, b as c }` / `{ a, b: c }` → the imported name and the local one. */
-function readBindings(clause: string, separator: string): Array<{ imported: string; local: string }> {
+function readBindings(
+  clause: string,
+  separator: string,
+): Array<{ imported: string; local: string }> {
   const out: Array<{ imported: string; local: string }> = [];
   for (const part of clause.replace(/[{}]/g, '').split(',')) {
     const trimmed = part.trim();
@@ -195,26 +199,57 @@ function stripCommentsAndStrings(src: string): string {
     const char = src[index] ?? '';
     const next = src[index + 1] ?? '';
     if (state === 'code') {
-      if (char === '/' && next === '/') { state = 'line'; out += '  '; index += 1; continue; }
-      if (char === '/' && next === '*') { state = 'block'; out += '  '; index += 1; continue; }
-      if (char === '"' || char === "'" || char === '`') { state = char; out += ' '; continue; }
+      if (char === '/' && next === '/') {
+        state = 'line';
+        out += '  ';
+        index += 1;
+        continue;
+      }
+      if (char === '/' && next === '*') {
+        state = 'block';
+        out += '  ';
+        index += 1;
+        continue;
+      }
+      if (char === '"' || char === "'" || char === '`') {
+        state = char;
+        out += ' ';
+        continue;
+      }
       out += char;
       continue;
     }
     if (state === 'line') {
-      if (char === '\n') { state = 'code'; out += '\n'; continue; }
+      if (char === '\n') {
+        state = 'code';
+        out += '\n';
+        continue;
+      }
       out += ' ';
       continue;
     }
     if (state === 'block') {
-      if (char === '*' && next === '/') { state = 'code'; out += '  '; index += 1; continue; }
+      if (char === '*' && next === '/') {
+        state = 'code';
+        out += '  ';
+        index += 1;
+        continue;
+      }
       out += char === '\n' ? '\n' : ' ';
       continue;
     }
     // Inside a string: an escape consumes the next character, so a `\'` cannot
     // close it and a `\\` cannot escape the quote that follows.
-    if (char === '\\') { out += '  '; index += 1; continue; }
-    if (char === state) { state = 'code'; out += ' '; continue; }
+    if (char === '\\') {
+      out += '  ';
+      index += 1;
+      continue;
+    }
+    if (char === state) {
+      state = 'code';
+      out += ' ';
+      continue;
+    }
     out += char === '\n' ? '\n' : ' ';
   }
   return out;
@@ -371,7 +406,9 @@ describe('one-shot entry points and the Postgres pool', () => {
   it('finds entry points that DO reach the pool, so the check is not inert', () => {
     // The second floor: if the import walker broke, every entry would read as
     // pool-free and the real assertion would pass vacuously.
-    expect(verdicts.filter((verdict) => verdict.reachedPoolVia.length > 0).length).toBeGreaterThan(20);
+    expect(verdicts.filter((verdict) => verdict.reachedPoolVia.length > 0).length).toBeGreaterThan(
+      20,
+    );
   });
 
   it('opens the pool in every entry point whose import graph reaches it', () => {
@@ -387,9 +424,9 @@ describe('one-shot entry points and the Postgres pool', () => {
     expect(
       offenders,
       `These one-shots reach getDb()/getPostgresClient() but never call ${OPENER}(). ` +
-        'A one-shot gets none of server.ts\'s startup, so the first query throws ' +
+        "A one-shot gets none of server.ts's startup, so the first query throws " +
         '"PostgreSQL is not connected" — as a hard exit if nothing catches it, or ' +
-        'silently if something does.'
+        'silently if something does.',
     ).toEqual([]);
   });
 
@@ -425,7 +462,7 @@ describe('one-shot entry points and the Postgres pool', () => {
       // claiming to protect something that is not happening.
       expect(
         verdict.reachedPoolVia.length,
-        `${declared.entry} no longer reaches the pool — delete its exemption`
+        `${declared.entry} no longer reaches the pool — delete its exemption`,
       ).toBeGreaterThan(0);
 
       // WIDENED: it now imports something else from the module it was exempted
@@ -434,7 +471,7 @@ describe('one-shot entry points and the Postgres pool', () => {
       expect(resolved?.imported.length ?? 0).toBeGreaterThan(0);
       expect(
         [...(resolved?.imported ?? [])].sort(),
-        `${declared.entry} imports more from ${declared.module} than the exemption allows`
+        `${declared.entry} imports more from ${declared.module} than the exemption allows`,
       ).toEqual([...declared.symbols].sort());
     }
   });

@@ -82,7 +82,10 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   // `hideDetails` is set for GIFs, so no title/domain footer.
   if (params.isGif) {
     return (
-      <View style={style} className="w-full overflow-hidden rounded-2xl border border-border bg-card">
+      <View
+        style={style}
+        className="w-full overflow-hidden rounded-2xl border border-border bg-card"
+      >
         <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
           <Image
             source={{ uri: proxyExternalUrl(params.playerUri) }}
@@ -109,7 +112,10 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
       {!params.hideDetails ? (
         <View className="gap-1 px-3 py-2">
           {title ? (
-            <Text numberOfLines={2} className="text-[15px] font-semibold leading-snug text-foreground">
+            <Text
+              numberOfLines={2}
+              className="text-[15px] font-semibold leading-snug text-foreground"
+            >
               {title}
             </Text>
           ) : null}

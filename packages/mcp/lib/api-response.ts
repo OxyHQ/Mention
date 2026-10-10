@@ -1,15 +1,15 @@
-import { PostVisibility } from "@mention/shared-types/post";
+import { PostVisibility } from '@mention/shared-types/post';
 
 /** Unwrap `{ success, data }` MTN/API envelopes. */
 export function unwrapApiResponse<T = Record<string, unknown>>(raw: unknown): T {
-  if (typeof raw !== "object" || raw === null) {
+  if (typeof raw !== 'object' || raw === null) {
     return raw as T;
   }
   const obj = raw as Record<string, unknown>;
-  if (obj.success === true && typeof obj.data === "object" && obj.data !== null) {
+  if (obj.success === true && typeof obj.data === 'object' && obj.data !== null) {
     return obj.data as T;
   }
-  if (typeof obj.post === "object" && obj.post !== null) {
+  if (typeof obj.post === 'object' && obj.post !== null) {
     return obj.post as T;
   }
   return obj as T;
@@ -17,16 +17,16 @@ export function unwrapApiResponse<T = Record<string, unknown>>(raw: unknown): T 
 
 /** Map MCP visibility aliases to backend PostVisibility values. */
 export function normalizeVisibility(
-  visibility?: "public" | "private" | "followers" | "followers_only" | "mentioned",
+  visibility?: 'public' | 'private' | 'followers' | 'followers_only' | 'mentioned',
 ): PostVisibility | undefined {
   if (!visibility) return undefined;
-  if (visibility === "followers" || visibility === "followers_only") {
+  if (visibility === 'followers' || visibility === 'followers_only') {
     return PostVisibility.FOLLOWERS_ONLY;
   }
-  if (visibility === "mentioned") {
+  if (visibility === 'mentioned') {
     return PostVisibility.PRIVATE;
   }
-  if (visibility === "private") {
+  if (visibility === 'private') {
     return PostVisibility.PRIVATE;
   }
   return PostVisibility.PUBLIC;
@@ -38,7 +38,7 @@ export function normalizeVisibility(
  * {@link unwrapApiResponse}, which keys on `success`.
  */
 export function unwrapData<T>(raw: unknown): T {
-  if (typeof raw === "object" && raw !== null && "data" in raw) {
+  if (typeof raw === 'object' && raw !== null && 'data' in raw) {
     return (raw as { data: T }).data;
   }
   return unwrapApiResponse<T>(raw);

@@ -1,6 +1,6 @@
-import { useMentionSettings } from "@/context/MentionSettingsContext";
-import { useRouter } from "expo-router";
-import { useEffect,useRef } from "react";
+import { useMentionSettings } from '@/context/MentionSettingsContext';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 
 /**
  * The web address of a settings page. Settings content belongs to the shared
@@ -15,9 +15,9 @@ export function createSettingsRoute(page: string) {
     useEffect(() => {
       if (handled.current) return;
       handled.current = true;
-      open(page === "account" ? undefined : page);
+      open(page === 'account' ? undefined : page);
       if (router.canGoBack()) router.back();
-      else router.replace("/");
+      else router.replace('/');
     }, [open, router]);
     return null;
   };

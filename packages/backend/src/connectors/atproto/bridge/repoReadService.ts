@@ -239,12 +239,14 @@ async function filterPublicPublishedPosts(
   const publicPosts = await getDb()
     .select({ id: posts.id })
     .from(posts)
-    .where(and(
-      inArray(posts.id, postIds),
-      eq(posts.oxyUserId, oxyUserId),
-      eq(posts.status, 'published'),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-    ));
+    .where(
+      and(
+        inArray(posts.id, postIds),
+        eq(posts.oxyUserId, oxyUserId),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ),
+    );
   const publicPostIds = new Set(publicPosts.map((post) => post.id));
   return records.filter((record) => publicPostIds.has(record.rkey));
 }
@@ -330,9 +332,10 @@ export async function getRecord(
 
   const rows = await readLiveRows(oxyUserId, mtnCollection, rkey);
   const liveRecords = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
-  const records = bskyCollection === BSKY_POST_COLLECTION
-    ? await filterPublicPublishedPosts(oxyUserId, liveRecords)
-    : liveRecords;
+  const records =
+    bskyCollection === BSKY_POST_COLLECTION
+      ? await filterPublicPublishedPosts(oxyUserId, liveRecords)
+      : liveRecords;
   return records.find((record) => record.rkey === rkey) ?? null;
 }
 

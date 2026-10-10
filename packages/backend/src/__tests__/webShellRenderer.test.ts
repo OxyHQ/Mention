@@ -43,10 +43,18 @@ describe('buildOgMetaHtml', () => {
   it('emits all OG/Twitter tags with escaped values', () => {
     const html = buildOgMetaHtml(og);
     expect(html).toContain('<meta data-mention-seo="true" property="og:type" content="profile">');
-    expect(html).toContain('<meta data-mention-seo="true" property="og:site_name" content="Mention">');
-    expect(html).toContain('<meta data-mention-seo="true" property="og:url" content="https://mention.earth/@nate">');
-    expect(html).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
-    expect(html).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">');
+    expect(html).toContain(
+      '<meta data-mention-seo="true" property="og:site_name" content="Mention">',
+    );
+    expect(html).toContain(
+      '<meta data-mention-seo="true" property="og:url" content="https://mention.earth/@nate">',
+    );
+    expect(html).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">',
+    );
+    expect(html).toContain(
+      '<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">',
+    );
     // description is escaped everywhere it appears
     expect(html).toContain('content="hello &lt;world&gt; &amp; &quot;friends&quot;"');
     expect(html).not.toContain('hello <world>');
@@ -54,8 +62,12 @@ describe('buildOgMetaHtml', () => {
 
   it('emits image tags only when an image is present', () => {
     const withImage = buildOgMetaHtml(og);
-    expect(withImage).toContain('<meta data-mention-seo="true" property="og:image" content="https://cloud.oxy.so/abc?variant=thumb">');
-    expect(withImage).toContain('<meta data-mention-seo="true" name="twitter:image" content="https://cloud.oxy.so/abc?variant=thumb">');
+    expect(withImage).toContain(
+      '<meta data-mention-seo="true" property="og:image" content="https://cloud.oxy.so/abc?variant=thumb">',
+    );
+    expect(withImage).toContain(
+      '<meta data-mention-seo="true" name="twitter:image" content="https://cloud.oxy.so/abc?variant=thumb">',
+    );
 
     const noImage = buildOgMetaHtml({ ...og, image: undefined });
     expect(noImage).not.toContain('og:image');
@@ -76,9 +88,13 @@ describe('renderShellWithOg', () => {
     expect(html).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
     expect(html).not.toContain('<title>Mention</title>');
     // the whole OG block is injected inside <head>, ending right before </head>
-    expect(html).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(html).toContain(
+      '<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">',
+    );
     expect(html).toContain('<meta data-mention-seo="true" name="description" content="bio">');
-    expect(html).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">');
+    expect(html).toContain(
+      '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">',
+    );
     expect(html.indexOf('og:title')).toBeLessThan(html.indexOf('</head>'));
     // exactly one title tag remains
     expect(html.match(/<title data-mention-seo="true">/g)?.length).toBe(1);
@@ -151,18 +167,21 @@ describe('mapProfileOg', () => {
     expect(og?.description).toBe('Nate (@nate) is on Mention. See their posts, replies and media.');
     // The fallback is a snippet, not something the person wrote about themselves.
     expect((og?.jsonLd?.mainEntity as Record<string, unknown>).description).toBeUndefined();
-    expect(mapProfileOg({ username: 'nate' })?.description).toBe('@nate is on Mention. See their posts, replies and media.');
+    expect(mapProfileOg({ username: 'nate' })?.description).toBe(
+      '@nate is on Mention. See their posts, replies and media.',
+    );
   });
 
-  it('keeps a federated handle\'s @ literal in every URL it names', () => {
+  it("keeps a federated handle's @ literal in every URL it names", () => {
     const og = mapProfileOg({ username: 'gargron@mastodon.social' });
     expect(og?.url).toBe('https://mention.earth/@gargron@mastodon.social');
     expect(og?.jsonLd).toMatchObject({
       url: 'https://mention.earth/@gargron@mastodon.social',
       mainEntity: { url: 'https://mention.earth/@gargron@mastodon.social' },
     });
-    expect(mapProfileOg({ username: 'news@example.org', kind: 'channel' })?.url)
-      .toBe('https://mention.earth/c/news@example.org');
+    expect(mapProfileOg({ username: 'news@example.org', kind: 'channel' })?.url).toBe(
+      'https://mention.earth/c/news@example.org',
+    );
     // Everything else a path segment cannot carry is still encoded.
     expect(mapProfileOg({ username: 'a/b?c#d' })?.url).toBe('https://mention.earth/@a%2Fb%3Fc%23d');
   });
@@ -193,11 +212,23 @@ describe('mapProfileOg', () => {
         name: 'Nate',
         sameAs: ['https://nate.example'],
         interactionStatistic: [
-          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 12 },
+          {
+            '@type': 'InteractionCounter',
+            interactionType: 'https://schema.org/FollowAction',
+            userInteractionCount: 12,
+          },
         ],
         agentInteractionStatistic: [
-          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/WriteAction', userInteractionCount: 40 },
-          { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: 3 },
+          {
+            '@type': 'InteractionCounter',
+            interactionType: 'https://schema.org/WriteAction',
+            userInteractionCount: 40,
+          },
+          {
+            '@type': 'InteractionCounter',
+            interactionType: 'https://schema.org/FollowAction',
+            userInteractionCount: 3,
+          },
         ],
       },
     });
@@ -225,7 +256,9 @@ describe('mapProfileOg', () => {
       dateCreated: '2016-03-16T00:00:00.000Z',
       mainEntity: {
         sameAs: ['https://mastodon.social/users/Gargron'],
-        interactionStatistic: [{ interactionType: 'https://schema.org/FollowAction', userInteractionCount: 382900 }],
+        interactionStatistic: [
+          { interactionType: 'https://schema.org/FollowAction', userInteractionCount: 382900 },
+        ],
         agentInteractionStatistic: [
           { interactionType: 'https://schema.org/WriteAction', userInteractionCount: 470 },
           { interactionType: 'https://schema.org/FollowAction', userInteractionCount: 743 },
@@ -250,7 +283,12 @@ describe('mapPostOg', () => {
     id: 'p1',
     // Canonical Oxy `User` shape: `name.displayName`, `username`, and an absolute
     // federated avatar URL — which the card must serve through our own proxy.
-    user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
+    user: {
+      id: 'u1',
+      username: 'nate',
+      name: { displayName: 'Nate' },
+      avatar: 'https://cdn/a.png',
+    },
     content: { text: 'hello world' },
   } as unknown as HydratedPost;
 
@@ -261,7 +299,9 @@ describe('mapPostOg', () => {
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
     // no media/documents → falls back to the author avatar, through the proxy.
-    expect(og.image).toBe('http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320');
+    expect(og.image).toBe(
+      'http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320',
+    );
     expect(og.jsonLd).toMatchObject({ '@type': 'SocialMediaPosting' });
   });
 
@@ -289,7 +329,10 @@ describe('mapPostOg', () => {
   it('prefers media url over thumb/poster/documents/avatar', () => {
     const post = {
       ...base,
-      content: { text: 't', media: [{ id: 'm', type: 'image', url: 'https://m/u.jpg', thumbUrl: 'https://m/t.jpg' }] },
+      content: {
+        text: 't',
+        media: [{ id: 'm', type: 'image', url: 'https://m/u.jpg', thumbUrl: 'https://m/t.jpg' }],
+      },
       documents: [{ url: 'https://l', image: 'https://l/i.jpg' }],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://m/u.jpg');
@@ -308,10 +351,14 @@ describe('mapPostOg', () => {
   });
 });
 
-
 describe('mapPostOg for search', () => {
   const SAFE: PostOgSafety = { requiresWarning: false };
-  const author = { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' };
+  const author = {
+    id: 'u1',
+    username: 'nate',
+    name: { displayName: 'Nate' },
+    avatar: 'https://cdn/a.png',
+  };
 
   function post(overrides: Record<string, unknown>): HydratedPost {
     return {
@@ -325,13 +372,22 @@ describe('mapPostOg for search', () => {
   }
 
   it('titles a long post with its opening, cut at a word', () => {
-    const text = 'Mention federates with the whole fediverse, and this sentence keeps going well past seventy characters';
+    const text =
+      'Mention federates with the whole fediverse, and this sentence keeps going well past seventy characters';
     const og = mapPostOg(post({ content: { text } }), 'p1', SAFE);
-    expect(og.title).toBe('Nate on Mention: "Mention federates with the whole fediverse, and this sentence keeps…"');
+    expect(og.title).toBe(
+      'Nate on Mention: "Mention federates with the whole fediverse, and this sentence keeps…"',
+    );
   });
 
   it('describes a post with no words instead of leaving it blank', () => {
-    const og = mapPostOg(post({ content: { text: '', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg' }] } }), 'p1', SAFE);
+    const og = mapPostOg(
+      post({
+        content: { text: '', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg' }] },
+      }),
+      'p1',
+      SAFE,
+    );
     expect(og.title).toBe('Nate on Mention');
     expect(og.description).toBe('A post by Nate (@nate) on Mention.');
   });
@@ -355,57 +411,126 @@ describe('mapPostOg for search', () => {
         image: 'http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320',
       },
       interactionStatistic: [
-        { '@type': 'InteractionCounter', interactionType: 'https://schema.org/LikeAction', userInteractionCount: 12 },
-        { '@type': 'InteractionCounter', interactionType: 'https://schema.org/ShareAction', userInteractionCount: 3 },
+        {
+          '@type': 'InteractionCounter',
+          interactionType: 'https://schema.org/LikeAction',
+          userInteractionCount: 12,
+        },
+        {
+          '@type': 'InteractionCounter',
+          interactionType: 'https://schema.org/ShareAction',
+          userInteractionCount: 3,
+        },
       ],
       commentCount: 4,
     });
   });
 
   it('says nothing about counts the author hid', () => {
-    const og = mapPostOg(post({ engagement: { likes: null, downvotes: null, boosts: null, replies: null } }), 'p1', SAFE);
+    const og = mapPostOg(
+      post({ engagement: { likes: null, downvotes: null, boosts: null, replies: null } }),
+      'p1',
+      SAFE,
+    );
     expect(og.jsonLd).not.toHaveProperty('interactionStatistic');
     expect(og.jsonLd).not.toHaveProperty('commentCount');
   });
 
   it('cards a video by its poster, never by the video file', () => {
-    const og = mapPostOg(post({
-      content: {
-        text: 'clip',
-        media: [{ id: 'v', type: 'video', url: 'https://cdn/v.mp4', posterUrl: 'https://cdn/v.jpg', durationSec: 42 }],
-      },
-    }), 'p1', SAFE);
+    const og = mapPostOg(
+      post({
+        content: {
+          text: 'clip',
+          media: [
+            {
+              id: 'v',
+              type: 'video',
+              url: 'https://cdn/v.mp4',
+              posterUrl: 'https://cdn/v.jpg',
+              durationSec: 42,
+            },
+          ],
+        },
+      }),
+      'p1',
+      SAFE,
+    );
     expect(og.image).toBe('https://cdn/v.jpg');
-    expect(og.jsonLd?.video).toEqual([{
-      '@type': 'VideoObject',
-      name: 'clip',
-      description: 'clip',
-      contentUrl: 'https://cdn/v.mp4',
-      thumbnailUrl: 'https://cdn/v.jpg',
-      uploadDate: '2026-10-01T10:00:00.000Z',
-      duration: 'PT42S',
-    }]);
+    expect(og.jsonLd?.video).toEqual([
+      {
+        '@type': 'VideoObject',
+        name: 'clip',
+        description: 'clip',
+        contentUrl: 'https://cdn/v.mp4',
+        thumbnailUrl: 'https://cdn/v.jpg',
+        uploadDate: '2026-10-01T10:00:00.000Z',
+        duration: 'PT42S',
+      },
+    ]);
   });
 
   it('describes a video by its alt text, and never leaves it undescribed', () => {
-    const video = (overrides: Record<string, unknown>, text: string) => mapPostOg(post({
-      content: { text, media: [{ id: 'v', type: 'video', url: 'https://cdn/v.mp4', posterUrl: 'https://cdn/v.jpg', ...overrides }] },
-    }), 'p1', SAFE).jsonLd?.video as Record<string, unknown>[];
+    const video = (overrides: Record<string, unknown>, text: string) =>
+      mapPostOg(
+        post({
+          content: {
+            text,
+            media: [
+              {
+                id: 'v',
+                type: 'video',
+                url: 'https://cdn/v.mp4',
+                posterUrl: 'https://cdn/v.jpg',
+                ...overrides,
+              },
+            ],
+          },
+        }),
+        'p1',
+        SAFE,
+      ).jsonLd?.video as Record<string, unknown>[];
 
-    expect(video({ alt: 'A dog catching a frisbee' }, 'look')[0].description).toBe('A dog catching a frisbee');
+    expect(video({ alt: 'A dog catching a frisbee' }, 'look')[0].description).toBe(
+      'A dog catching a frisbee',
+    );
     expect(video({}, '')[0].description).toBe('A video posted by Nate (@nate) on Mention.');
   });
 
-  it('links a channel author to the channel\'s canonical page, not a redirect', () => {
-    const og = mapPostOg(post({ user: { ...author, username: 'news', kind: 'channel' } }), 'p1', SAFE);
+  it("links a channel author to the channel's canonical page, not a redirect", () => {
+    const og = mapPostOg(
+      post({ user: { ...author, username: 'news', kind: 'channel' } }),
+      'p1',
+      SAFE,
+    );
     expect((og.jsonLd?.author as Record<string, unknown>).url).toBe('https://mention.earth/c/news');
   });
 
   it('sizes and describes a photo card, and keeps an avatar card small', () => {
-    const photo = mapPostOg(post({
-      content: { text: 'a', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg', width: 1200, height: 800, alt: 'A cat' }] },
-    }), 'p1', SAFE);
-    expect(photo).toMatchObject({ image: 'https://cdn/p.jpg', imageWidth: 1200, imageHeight: 800, imageAlt: 'A cat' });
+    const photo = mapPostOg(
+      post({
+        content: {
+          text: 'a',
+          media: [
+            {
+              id: 'm',
+              type: 'image',
+              url: 'https://cdn/p.jpg',
+              width: 1200,
+              height: 800,
+              alt: 'A cat',
+            },
+          ],
+        },
+      }),
+      'p1',
+      SAFE,
+    );
+    expect(photo).toMatchObject({
+      image: 'https://cdn/p.jpg',
+      imageWidth: 1200,
+      imageHeight: 800,
+      imageAlt: 'A cat',
+    });
     expect(photo.twitterCard).toBeUndefined();
     expect(photo.jsonLd?.image).toEqual(['https://cdn/p.jpg']);
 
@@ -413,12 +538,15 @@ describe('mapPostOg for search', () => {
   });
 
   it('leaves a boost to its original: not indexed, its links still followed', () => {
-    const boost = post({ content: { text: '' }, originalPost: { id: 'o', content: { text: 'their words' } } });
+    const boost = post({
+      content: { text: '' },
+      originalPost: { id: 'o', content: { text: 'their words' } },
+    });
     expect(mapPostOg(boost, 'b1', SAFE, { isBoost: true }).robots).toBe('noindex,follow');
     expect(mapPostOg(post({}), 'p1', SAFE).robots).toBe('index,follow');
   });
 
-  it('marks a channel\'s post as the organization\'s', () => {
+  it("marks a channel's post as the organization's", () => {
     const og = mapPostOg(post({ user: { ...author, kind: 'channel' } }), 'p1', SAFE);
     expect((og.jsonLd?.author as Record<string, unknown>)['@type']).toBe('Organization');
   });
@@ -426,13 +554,14 @@ describe('mapPostOg for search', () => {
 
 describe('mapReplyComment', () => {
   const replier = { id: 'u2', username: 'ana', name: { displayName: 'Ana' } };
-  const reply = (overrides: Record<string, unknown>) => ({
-    id: 'r1',
-    user: replier,
-    content: { text: 'nice  post' },
-    metadata: { createdAt: '2026-10-02T09:00:00.000Z' },
-    ...overrides,
-  }) as unknown as HydratedPost;
+  const reply = (overrides: Record<string, unknown>) =>
+    ({
+      id: 'r1',
+      user: replier,
+      content: { text: 'nice  post' },
+      metadata: { createdAt: '2026-10-02T09:00:00.000Z' },
+      ...overrides,
+    }) as unknown as HydratedPost;
 
   it('describes a reply the way a discussion page lists its comments', () => {
     expect(mapReplyComment(reply({}), 'r1')).toEqual({
@@ -440,12 +569,22 @@ describe('mapReplyComment', () => {
       url: 'https://mention.earth/p/r1',
       text: 'nice post',
       datePublished: '2026-10-02T09:00:00.000Z',
-      author: { '@type': 'Person', name: 'Ana', alternateName: '@ana', url: 'https://mention.earth/@ana' },
+      author: {
+        '@type': 'Person',
+        name: 'Ana',
+        alternateName: '@ana',
+        url: 'https://mention.earth/@ana',
+      },
     });
   });
 
   it('leaves out a reply with no author to name or nothing to say', () => {
-    expect(mapReplyComment(reply({ user: { id: 'x', username: '', name: { displayName: 'Unknown user' } } }), 'r1')).toBeNull();
+    expect(
+      mapReplyComment(
+        reply({ user: { id: 'x', username: '', name: { displayName: 'Unknown user' } } }),
+        'r1',
+      ),
+    ).toBeNull();
     expect(mapReplyComment(reply({ content: { text: ' ' } }), 'r1')).toBeNull();
   });
 });
@@ -464,22 +603,35 @@ describe('head metadata without replacement UI', () => {
     expect(html).toContain('<script src="/_expo/static/js/web/entry.js" defer></script>');
   });
 
-  it.each(['', '<meta name="mention-seo-handoff" content="1">'])('never changes the application body, including shells from the previous rollout: %s', (oldMarker) => {
-    const shell = SHELL.replace('</head>', `${oldMarker}</head>`);
-    const originalBody = shell.slice(shell.indexOf('<body'));
-    const profile = mapProfileOg({ username: 'nate', bio: 'SEO_BIO_MUST_NOT_CREATE_A_SCREEN' });
-    const post = { user: { username: 'nate' }, content: { text: 'SEO_POST_MUST_NOT_CREATE_A_SCREEN' },
-      metadata: { createdAt: '2026-09-01T00:00:00Z' } } as unknown as HydratedPost;
-    for (const og of [profile, mapPostOg(post, 'p1', { requiresWarning: false }), mapPostOg(post, 'p1', { requiresWarning: true })]) {
-      const html = renderShellWithOg(shell, og);
-      expect(html.slice(html.indexOf('<body'))).toBe(originalBody);
-      expect(html).not.toContain('data-mention-seo-fallback');
-      expect(html).not.toContain('<article');
-    }
-  });
+  it.each(['', '<meta name="mention-seo-handoff" content="1">'])(
+    'never changes the application body, including shells from the previous rollout: %s',
+    (oldMarker) => {
+      const shell = SHELL.replace('</head>', `${oldMarker}</head>`);
+      const originalBody = shell.slice(shell.indexOf('<body'));
+      const profile = mapProfileOg({ username: 'nate', bio: 'SEO_BIO_MUST_NOT_CREATE_A_SCREEN' });
+      const post = {
+        user: { username: 'nate' },
+        content: { text: 'SEO_POST_MUST_NOT_CREATE_A_SCREEN' },
+        metadata: { createdAt: '2026-09-01T00:00:00Z' },
+      } as unknown as HydratedPost;
+      for (const og of [
+        profile,
+        mapPostOg(post, 'p1', { requiresWarning: false }),
+        mapPostOg(post, 'p1', { requiresWarning: true }),
+      ]) {
+        const html = renderShellWithOg(shell, og);
+        expect(html.slice(html.indexOf('<body'))).toBe(originalBody);
+        expect(html).not.toContain('data-mention-seo-fallback');
+        expect(html).not.toContain('<article');
+      }
+    },
+  );
 
   it('replaces generic SEO and marks all server-owned tags for the client handoff', () => {
-    const shell = SHELL.replace('</head>', '<meta name="description" content="generic"><meta name="robots" content="noindex"><meta property="og:title" content="generic"><link rel="canonical" href="https://mention.earth/"><script type="application/ld+json">{"stale":true}</script></head>');
+    const shell = SHELL.replace(
+      '</head>',
+      '<meta name="description" content="generic"><meta name="robots" content="noindex"><meta property="og:title" content="generic"><link rel="canonical" href="https://mention.earth/"><script type="application/ld+json">{"stale":true}</script></head>',
+    );
     const html = renderShellWithOg(shell, mapProfileOg({ username: 'nate' }));
     expect(html).not.toContain('generic');
     expect(html).not.toContain('stale');
@@ -510,6 +662,8 @@ describe('homepage social preview', () => {
   it('keeps the supplied public asset byte-identical', () => {
     const image = readFileSync(resolve(__dirname, '../../../frontend/public/og-image.jpg'));
     expect([...image.subarray(0, 3)]).toEqual([255, 216, 255]);
-    expect(createHash('sha256').update(image).digest('hex')).toBe('dd40609c5f18f558fd6ff4f50667bbc8eb7315fe6c6119f082de3c1a2720aaed');
+    expect(createHash('sha256').update(image).digest('hex')).toBe(
+      'dd40609c5f18f558fd6ff4f50667bbc8eb7315fe6c6119f082de3c1a2720aaed',
+    );
   });
 });

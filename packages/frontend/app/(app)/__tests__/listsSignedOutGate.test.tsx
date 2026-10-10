@@ -25,17 +25,25 @@ const mockListLists = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => {
   const { Text: MockText } = jest.requireActual('react-native');
   return {
-    OxyAuthPrompt: ({ label }: { label: string }) => <MockText testID="auth-prompt">{label}</MockText>,
+    OxyAuthPrompt: ({ label }: { label: string }) => (
+      <MockText testID="auth-prompt">{label}</MockText>
+    ),
     useAuth: () => mockAuth,
   };
 });
 jest.mock('@oxy.so/bloom/button', () => {
   const { Text: MockText } = jest.requireActual('react-native');
-  return { Button: ({ children }: { children: React.ReactNode }) => <MockText testID="header-new">{children}</MockText> };
+  return {
+    Button: ({ children }: { children: React.ReactNode }) => (
+      <MockText testID="header-new">{children}</MockText>
+    ),
+  };
 });
 jest.mock('@oxy.so/bloom/page-header', () => {
   const { View: MockView } = jest.requireActual('react-native');
-  return { PageHeader: ({ actions }: { actions?: React.ReactNode }) => <MockView>{actions}</MockView> };
+  return {
+    PageHeader: ({ actions }: { actions?: React.ReactNode }) => <MockView>{actions}</MockView>,
+  };
 });
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/services/listsService', () => ({
@@ -67,7 +75,11 @@ jest.mock('@/components/common/EmptyState', () => {
 jest.mock('@/assets/icons/list-icon', () => ({ List: () => null }));
 jest.mock('@/components/common/FocusedScrollView', () => {
   const { View: MockView } = jest.requireActual('react-native');
-  return { FocusedScrollView: ({ children }: { children: React.ReactNode }) => <MockView>{children}</MockView> };
+  return {
+    FocusedScrollView: ({ children }: { children: React.ReactNode }) => (
+      <MockView>{children}</MockView>
+    ),
+  };
 });
 jest.mock('@/context/ScreenReselectContext', () => ({ useScreenReselect: () => {} }));
 
@@ -89,7 +101,8 @@ async function render(): Promise<TestRenderer.ReactTestRenderer> {
 }
 
 const has = (tree: TestRenderer.ReactTestRenderer, testID: string) =>
-  tree.root.findAll((node) => typeof node.type === 'string' && node.props.testID === testID).length > 0;
+  tree.root.findAll((node) => typeof node.type === 'string' && node.props.testID === testID)
+    .length > 0;
 
 describe('Lists screen, signed out', () => {
   beforeEach(() => {
@@ -106,7 +119,12 @@ describe('Lists screen, signed out', () => {
   });
 
   it('shows the sign-in prompt and no way into the create form', async () => {
-    mockAuth = { user: null, isAuthResolved: true, isPrivateApiPending: false, canUsePrivateApi: false };
+    mockAuth = {
+      user: null,
+      isAuthResolved: true,
+      isPrivateApiPending: false,
+      canUsePrivateApi: false,
+    };
     const tree = await render();
 
     expect(has(tree, 'auth-prompt')).toBe(true);
@@ -116,7 +134,12 @@ describe('Lists screen, signed out', () => {
   });
 
   it('offers both create entry points once the private API is usable', async () => {
-    mockAuth = { user: { id: 'viewer-1' }, isAuthResolved: true, isPrivateApiPending: false, canUsePrivateApi: true };
+    mockAuth = {
+      user: { id: 'viewer-1' },
+      isAuthResolved: true,
+      isPrivateApiPending: false,
+      canUsePrivateApi: true,
+    };
     const tree = await render();
 
     expect(has(tree, 'auth-prompt')).toBe(false);

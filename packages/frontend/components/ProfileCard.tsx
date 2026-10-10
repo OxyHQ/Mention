@@ -185,11 +185,9 @@ export function ProfileCard({
 
   return (
     <View
-      className={cn(
-        'w-full flex-row items-center gap-3',
-        showDivider && 'border-b border-border',
-      )}
-      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}>
+      className={cn('w-full flex-row items-center gap-3', showDivider && 'border-b border-border')}
+      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}
+    >
       <ContactRow
         id={resolved.id}
         name={nameLabel || handle}
@@ -198,42 +196,42 @@ export function ProfileCard({
         horizontalInset={0}
         style={{ flex: 1 }}
         onPress={press}
-        avatarSlot={<Avatar
-          source={resolved.avatar || undefined}
-          size={size === 'small' ? 36 : 44}
-          variant={MEDIA_VARIANT_AVATAR}
-          verified={resolved.verified}
-          placeholderColor={getUserPlaceholderColor(resolved)}
-        />}
-        identitySlot={<View className="flex-1 gap-0.5">
-          {/* Identity line via the shared UserName: the name + verified /
+        avatarSlot={
+          <Avatar
+            source={resolved.avatar || undefined}
+            size={size === 'small' ? 36 : 44}
+            variant={MEDIA_VARIANT_AVATAR}
+            verified={resolved.verified}
+            placeholderColor={getUserPlaceholderColor(resolved)}
+          />
+        }
+        identitySlot={
+          <View className="flex-1 gap-0.5">
+            {/* Identity line via the shared UserName: the name + verified /
               federated / agent / automated markers and the muted @handle line,
               consistent with every other user surface. */}
-          <UserName
-            name={nameLabel}
-            handle={handle || undefined}
-            verified={resolved.verified}
-            isFederated={resolved.isFederated}
-            kind={resolved.kind}
-            isAgent={resolved.isAgent}
-            isAutomated={resolved.isAutomated}
-            style={IDENTITY_STYLE}
-          />
-          {meta ? (
-            <Text
-              className="text-sm leading-[18px] text-muted-foreground"
-              numberOfLines={1}>
-              {meta}
-            </Text>
-          ) : null}
-          {resolved.description ? (
-            <Text
-              className="text-sm leading-5 text-muted-foreground"
-              numberOfLines={2}>
-              {resolved.description}
-            </Text>
-          ) : null}
-        </View>}
+            <UserName
+              name={nameLabel}
+              handle={handle || undefined}
+              verified={resolved.verified}
+              isFederated={resolved.isFederated}
+              kind={resolved.kind}
+              isAgent={resolved.isAgent}
+              isAutomated={resolved.isAutomated}
+              style={IDENTITY_STYLE}
+            />
+            {meta ? (
+              <Text className="text-sm leading-[18px] text-muted-foreground" numberOfLines={1}>
+                {meta}
+              </Text>
+            ) : null}
+            {resolved.description ? (
+              <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
+                {resolved.description}
+              </Text>
+            ) : null}
+          </View>
+        }
       />
       {showFollowButton && (
         <FollowButton
@@ -277,7 +275,8 @@ export function ProfileCardSkeleton({
         'w-full flex-row items-center gap-3 py-2',
         showDivider && 'border-b border-border',
       )}
-      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}>
+      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}
+    >
       <Skeleton.Circle size={size === 'small' ? 36 : 44} />
       <Skeleton.Col style={{ flex: 1, gap: 6 }}>
         <Skeleton.Text style={{ width: 140, fontSize: 16, lineHeight: 20 }} />

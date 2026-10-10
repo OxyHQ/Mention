@@ -1,14 +1,8 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import {
-  buildPipTransportActions,
-  usePipTransportActions,
-} from '../usePipTransportActions';
-import type {
-  PipTransportAction,
-  PipTransportActionEvent,
-} from '@/modules/pip-transport';
+import { buildPipTransportActions, usePipTransportActions } from '../usePipTransportActions';
+import type { PipTransportAction, PipTransportActionEvent } from '@/modules/pip-transport';
 
 /**
  * The JS half of the Android Picture-in-Picture transport: which buttons the
@@ -150,10 +144,12 @@ describe('PiP transport actions — lifecycle', () => {
   it('publishes the actions when the session opens', () => {
     render();
 
-    expect(mockNative.published).toEqual([[
-      { id: 'previous', title: 'Previous video' },
-      { id: 'next', title: 'Next video' },
-    ]]);
+    expect(mockNative.published).toEqual([
+      [
+        { id: 'previous', title: 'Previous video' },
+        { id: 'next', title: 'Next video' },
+      ],
+    ]);
   });
 
   it('publishes nothing while no session is open', () => {

@@ -28,8 +28,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 jest.mock('@/services/feedService', () => ({ feedService: { getPostById: jest.fn() } }));
 jest.mock('@/stores/postsStore', () => ({
-  usePostsStore: (selector: (state: unknown) => unknown) =>
-    selector({ cachePosts: jest.fn() }),
+  usePostsStore: (selector: (state: unknown) => unknown) => selector({ cachePosts: jest.fn() }),
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -80,7 +79,10 @@ jest.mock('@/components/common/LinkifiedText', () => {
   return { LinkifiedText: ({ text }: { text?: string }) => <RNText>{text}</RNText> };
 });
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-jest.mock('@/components/Compose/CollabAcceptSheet', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Compose/CollabAcceptSheet', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock('@/assets/icons/done-all-icon', () => ({ DoneAllIcon: () => null }));
 jest.mock('@/assets/icons/trash-icon', () => ({ TrashIcon: () => null }));
 jest.mock('../notificationDescriptors', () => ({

@@ -48,7 +48,19 @@ export const useAttachmentOrder = ({
 
   // The keys of the cards this box currently shows — `composeContent` decides.
   const activeKeys = useMemo(
-    () => attachmentKeysOf({ showPollCreator, article, event, room, podcast, job, location, sources, mediaIds, linkUrls }),
+    () =>
+      attachmentKeysOf({
+        showPollCreator,
+        article,
+        event,
+        room,
+        podcast,
+        job,
+        location,
+        sources,
+        mediaIds,
+        linkUrls,
+      }),
     [showPollCreator, article, event, room, podcast, job, location, sources, mediaIds, linkUrls],
   );
 
@@ -61,7 +73,10 @@ export const useAttachmentOrder = ({
 
     // Start from the last known stable order (which includes user reordering),
     // drop keys that are no longer active and append newly active ones.
-    const result = reconcileAttachmentOrder(userOrder.length > 0 ? userOrder : prevStableOrder, activeKeys);
+    const result = reconcileAttachmentOrder(
+      userOrder.length > 0 ? userOrder : prevStableOrder,
+      activeKeys,
+    );
 
     // Update refs for next reconciliation
     stableOrderRef.current = result;
@@ -72,7 +87,7 @@ export const useAttachmentOrder = ({
   // Set the attachment order directly (for draft loading)
   const setOrder = useCallback((order: string[] | ((prev: string[]) => string[])) => {
     if (typeof order === 'function') {
-      setUserOrder(prev => {
+      setUserOrder((prev) => {
         const next = order(prev);
         stableOrderRef.current = next;
         return next;
@@ -90,45 +105,48 @@ export const useAttachmentOrder = ({
   }, []);
 
   // Move an attachment left or right in the order
-  const moveAttachment = useCallback((attachmentKey: string, direction: 'left' | 'right') => {
-    // Work from current computed order
-    const current = stableOrderRef.current;
-    const index = current.indexOf(attachmentKey);
-    if (index === -1) return;
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= current.length) return;
+  const moveAttachment = useCallback(
+    (attachmentKey: string, direction: 'left' | 'right') => {
+      // Work from current computed order
+      const current = stableOrderRef.current;
+      const index = current.indexOf(attachmentKey);
+      if (index === -1) return;
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return;
 
-    const updated = moveItem(current, index, targetIndex);
+      const updated = moveItem(current, index, targetIndex);
 
-    stableOrderRef.current = updated;
-    setUserOrder(updated);
+      stableOrderRef.current = updated;
+      setUserOrder(updated);
 
-    // Also reorder mediaIds to match the new attachment order
-    if (setMediaIds) {
-      const newMediaOrderIds = updated
-        .filter(isMediaAttachmentKey)
-        .map(getMediaIdFromAttachmentKey);
+      // Also reorder mediaIds to match the new attachment order
+      if (setMediaIds) {
+        const newMediaOrderIds = updated
+          .filter(isMediaAttachmentKey)
+          .map(getMediaIdFromAttachmentKey);
 
-      if (newMediaOrderIds.length > 0) {
-        setMediaIds(prevMedia => {
-          const idToMedia = new Map(prevMedia.map(m => [m.id, m]));
-          const reordered: ComposerMediaItem[] = [];
-          newMediaOrderIds.forEach(id => {
-            const mediaItem = idToMedia.get(id);
-            if (mediaItem) {
-              reordered.push(mediaItem);
-            }
+        if (newMediaOrderIds.length > 0) {
+          setMediaIds((prevMedia) => {
+            const idToMedia = new Map(prevMedia.map((m) => [m.id, m]));
+            const reordered: ComposerMediaItem[] = [];
+            newMediaOrderIds.forEach((id) => {
+              const mediaItem = idToMedia.get(id);
+              if (mediaItem) {
+                reordered.push(mediaItem);
+              }
+            });
+            prevMedia.forEach((mediaItem) => {
+              if (!newMediaOrderIds.includes(mediaItem.id)) {
+                reordered.push(mediaItem);
+              }
+            });
+            return reordered;
           });
-          prevMedia.forEach(mediaItem => {
-            if (!newMediaOrderIds.includes(mediaItem.id)) {
-              reordered.push(mediaItem);
-            }
-          });
-          return reordered;
-        });
+        }
       }
-    }
-  }, [setMediaIds]);
+    },
+    [setMediaIds],
+  );
 
   return {
     attachmentOrder,

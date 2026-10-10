@@ -54,17 +54,9 @@ export function CountWheel({
   }, [isLiked, likeCount]);
 
   const currentCountAnimation =
-    shouldAnimate && shouldRoll
-      ? isLiked
-        ? countEnterFromBelow
-        : countEnterFromAbove
-      : undefined;
+    shouldAnimate && shouldRoll ? (isLiked ? countEnterFromBelow : countEnterFromAbove) : undefined;
   const previousCountAnimation =
-    shouldAnimate && shouldRoll
-      ? isLiked
-        ? countExitUp
-        : countExitDown
-      : undefined;
+    shouldAnimate && shouldRoll ? (isLiked ? countExitUp : countExitDown) : undefined;
 
   const likeColor = theme.colors.error;
   const defaultColor = theme.colors.textSecondary;
@@ -77,7 +69,8 @@ export function CountWheel({
         userSelect: 'none',
         color: isLiked ? likeColor : defaultColor,
         fontWeight: isLiked ? '600' : '400',
-      }}>
+      }}
+    >
       {formattedCount}
     </Text>
   );
@@ -112,14 +105,16 @@ export function CountWheel({
               entering={previousCountAnimation}
               key={key + 2}
               style={{ position: 'absolute', width: 50, opacity: 0 }}
-              aria-disabled={true}>
+              aria-disabled={true}
+            >
               <Text
                 style={{
                   fontSize,
                   userSelect: 'none',
                   color: isLiked ? likeColor : defaultColor,
                   fontWeight: isLiked ? '600' : '400',
-                }}>
+                }}
+              >
                 {formattedPrevCount}
               </Text>
             </Animated.View>

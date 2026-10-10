@@ -24,16 +24,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import {
-  boolean,
-  check,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `ReportedType` — the API contract, deliberately WIDER than what is delivered. */
@@ -183,25 +174,25 @@ export const reports = pgTable(
   (t) => [
     check(
       'reports_reported_type_check',
-      sql`${t.reportedType} in (${sql.raw(inList(REPORTED_TYPES))})`
+      sql`${t.reportedType} in (${sql.raw(inList(REPORTED_TYPES))})`,
     ),
     check('reports_status_check', sql`${t.status} in (${sql.raw(inList(REPORT_STATUSES))})`),
     check(
       'reports_local_status_check',
-      sql`${t.localStatus} in (${sql.raw(inList(REPORT_LOCAL_STATUSES))})`
+      sql`${t.localStatus} in (${sql.raw(inList(REPORT_LOCAL_STATUSES))})`,
     ),
     check(
       'reports_enforced_action_check',
-      sql`${t.enforcedAction} is null or ${t.enforcedAction} in (${sql.raw(inList(MODERATION_ENFORCEMENT_ACTIONS))})`
+      sql`${t.enforcedAction} is null or ${t.enforcedAction} in (${sql.raw(inList(MODERATION_ENFORCEMENT_ACTIONS))})`,
     ),
     check(
       'reports_categories_check',
       sql`array_length(${t.categories}, 1) >= 1
-        and ${t.categories} <@ array[${sql.raw(inList(REPORT_CATEGORIES))}]::text[]`
+        and ${t.categories} <@ array[${sql.raw(inList(REPORT_CATEGORIES))}]::text[]`,
     ),
     check(
       'reports_decision_revision_check',
-      sql`${t.decisionRevision} is null or ${t.decisionRevision} >= 1`
+      sql`${t.decisionRevision} is null or ${t.decisionRevision} >= 1`,
     ),
     unique('reports_reporter_reported_key').on(t.reporter, t.reportedId, t.reportedType),
     index('reports_reported_id_idx').on(t.reportedId),
@@ -211,7 +202,7 @@ export const reports = pgTable(
       .where(sql`${t.crowdSourceCaseId} is not null`),
     // The reconciliation sweep scans by delivery state, oldest first (§14.4).
     index('reports_local_status_chrono_idx').on(t.localStatus, t.createdAt),
-  ]
+  ],
 );
 
 /**
@@ -274,11 +265,11 @@ export const moderationOutbox = pgTable(
   (t) => [
     check(
       'moderation_outbox_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(MODERATION_OUTBOX_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(MODERATION_OUTBOX_KINDS))})`,
     ),
     check(
       'moderation_outbox_status_check',
-      sql`${t.status} in (${sql.raw(inList(MODERATION_OUTBOX_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MODERATION_OUTBOX_STATUSES))})`,
     ),
     check('moderation_outbox_attempts_check', sql`${t.attempts} >= 0`),
     // Due work and expired claims are separate bounded scans.
@@ -286,7 +277,7 @@ export const moderationOutbox = pgTable(
     index('moderation_outbox_lease_idx').on(t.status, t.leaseUntil, t.createdAt),
     // Required by the expiry sweep: its predicate is a range scan on this column.
     index('moderation_outbox_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -319,15 +310,13 @@ export const moderationEvents = pgTable(
   (t) => [
     check(
       'moderation_events_state_check',
-      sql`${t.state} in (${sql.raw(inList(MODERATION_EVENT_STATES))})`
+      sql`${t.state} in (${sql.raw(inList(MODERATION_EVENT_STATES))})`,
     ),
-    index('moderation_events_case_id_idx')
-      .on(t.caseId)
-      .where(sql`${t.caseId} is not null`),
+    index('moderation_events_case_id_idx').on(t.caseId).where(sql`${t.caseId} is not null`),
     // Operational: what arrived recently, and what never got past `claimed`.
     index('moderation_events_state_received_idx').on(t.state, t.receivedAt),
     index('moderation_events_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );
 
 /**
@@ -379,11 +368,11 @@ export const moderationEnforcements = pgTable(
   (t) => [
     check(
       'moderation_enforcements_action_check',
-      sql`${t.action} in (${sql.raw(inList(MODERATION_ENFORCEMENT_ACTIONS))})`
+      sql`${t.action} in (${sql.raw(inList(MODERATION_ENFORCEMENT_ACTIONS))})`,
     ),
     check(
       'moderation_enforcements_mode_check',
-      sql`${t.mode} in (${sql.raw(inList(MODERATION_ENFORCEMENT_MODES))})`
+      sql`${t.mode} in (${sql.raw(inList(MODERATION_ENFORCEMENT_MODES))})`,
     ),
     check('moderation_enforcements_revision_check', sql`${t.decisionRevision} >= 1`),
     // Appendix D's key. Unique, and load-bearing: without it a redelivered
@@ -393,16 +382,12 @@ export const moderationEnforcements = pgTable(
     unique('moderation_enforcements_idempotency_key').on(
       t.decisionId,
       t.decisionRevision,
-      t.action
+      t.action,
     ),
     index('moderation_enforcements_case_id_idx').on(t.caseId),
     // Operational: what has been done to this object, newest first.
-    index('moderation_enforcements_subject_idx').on(
-      t.subjectType,
-      t.subjectId,
-      t.createdAt.desc()
-    ),
-  ]
+    index('moderation_enforcements_subject_idx').on(t.subjectType, t.subjectId, t.createdAt.desc()),
+  ],
 );
 
 /** `labelers` — a labelling authority a viewer can subscribe to. */
@@ -422,7 +407,7 @@ export const labelers = pgTable(
   (t) => [
     check('labelers_subscriber_count_check', sql`${t.subscriberCount} >= 0`),
     index('labelers_creator_id_idx').on(t.creatorId),
-  ]
+  ],
 );
 
 /**
@@ -449,16 +434,16 @@ export const labelerLabelDefinitions = pgTable(
   (t) => [
     check(
       'labeler_label_definitions_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(LABEL_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(LABEL_SEVERITIES))})`,
     ),
     check(
       'labeler_label_definitions_default_action_check',
-      sql`${t.defaultAction} in (${sql.raw(inList(LABEL_ACTIONS))})`
+      sql`${t.defaultAction} in (${sql.raw(inList(LABEL_ACTIONS))})`,
     ),
     check('labeler_label_definitions_position_check', sql`${t.position} >= 0`),
     unique('labeler_label_definitions_labeler_id_slug_key').on(t.labelerId, t.slug),
     unique('labeler_label_definitions_labeler_id_position_key').on(t.labelerId, t.position),
-  ]
+  ],
 );
 
 /**
@@ -490,16 +475,16 @@ export const contentLabels = pgTable(
   (t) => [
     check(
       'content_labels_target_type_check',
-      sql`${t.targetType} in (${sql.raw(inList(CONTENT_LABEL_TARGET_TYPES))})`
+      sql`${t.targetType} in (${sql.raw(inList(CONTENT_LABEL_TARGET_TYPES))})`,
     ),
     unique('content_labels_labeler_target_slug_key').on(
       t.labelerId,
       t.targetType,
       t.targetId,
-      t.labelSlug
+      t.labelSlug,
     ),
     // "What labels does this object carry" — the read-surface gate.
     index('content_labels_target_idx').on(t.targetType, t.targetId),
     index('content_labels_labeler_slug_idx').on(t.labelerId, t.labelSlug),
-  ]
+  ],
 );

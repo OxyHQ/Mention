@@ -72,16 +72,14 @@ describe('curatorAuthority', () => {
 
 describe('computeStarterPackScores — anti-gaming rules', () => {
   it('RULE 1: excludes SELF-OWNED packs (an author cannot curate themselves)', async () => {
-    const deps = mockDeps([
-      { authorId: 'author-1', curatorId: 'author-1', useCount: 500 },
-    ]);
+    const deps = mockDeps([{ authorId: 'author-1', curatorId: 'author-1', useCount: 500 }]);
 
     const scores = await computeStarterPackScores(['author-1'], deps);
 
     expect(scores.has('author-1')).toBe(false);
   });
 
-  it('RULE 1: a self-owned pack does not inflate a genuine curator\'s contribution', async () => {
+  it("RULE 1: a self-owned pack does not inflate a genuine curator's contribution", async () => {
     const selfOnly = await computeStarterPackScores(
       ['author-1'],
       mockDeps([
@@ -193,7 +191,9 @@ describe('computeStarterPackScores — anti-gaming rules', () => {
     expect(whale.get('author-1') ?? 0).toBeGreaterThan(nobody.get('author-1') ?? 0);
     // …but only by the BOUNDED authority spread — never unbounded amplification.
     const ratio = (whale.get('author-1') ?? 0) / (nobody.get('author-1') ?? 1);
-    expect(ratio).toBeLessThanOrEqual(CURATION.curatorAuthority.max / CURATION.curatorAuthority.min);
+    expect(ratio).toBeLessThanOrEqual(
+      CURATION.curatorAuthority.max / CURATION.curatorAuthority.min,
+    );
   });
 
   it('a low-follower CURATION RING scores far below a single genuine curator', async () => {
@@ -332,9 +332,9 @@ describe('starterPackCurationDeps.loadCurationEdges — against real rows', () =
       .returning({ id: starterPacks.id });
     createdPackIds.push(pack.id);
     if (members.length > 0) {
-      await db.insert(starterPackMembers).values(
-        members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })),
-      );
+      await db
+        .insert(starterPackMembers)
+        .values(members.map((oxyUserId, position) => ({ packId: pack.id, oxyUserId, position })));
     }
     return pack.id;
   }

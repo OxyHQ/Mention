@@ -19,10 +19,7 @@
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import {
-  FEDERATED_MEDIA_CACHE_STATES,
-  federatedMediaCache,
-} from '../schema/federation';
+import { FEDERATED_MEDIA_CACHE_STATES, federatedMediaCache } from '../schema/federation';
 
 /** Lifecycle state of one remote media URL. See `db/schema/federation.ts`. */
 export type FederatedMediaCacheState = (typeof FEDERATED_MEDIA_CACHE_STATES)[number];
@@ -268,10 +265,7 @@ export async function findEvictableMediaCacheEntries(
     })
     .from(federatedMediaCache)
     .where(
-      and(
-        eq(federatedMediaCache.state, 'cached'),
-        lt(federatedMediaCache.lastAccessedAt, cutoff),
-      ),
+      and(eq(federatedMediaCache.state, 'cached'), lt(federatedMediaCache.lastAccessedAt, cutoff)),
     )
     .orderBy(asc(federatedMediaCache.lastAccessedAt))
     .limit(limit);
@@ -304,10 +298,7 @@ export async function markMediaCacheEvicted(
       sizeBytes: null,
     })
     .where(
-      and(
-        eq(federatedMediaCache.remoteUrl, remoteUrl),
-        eq(federatedMediaCache.state, 'cached'),
-      ),
+      and(eq(federatedMediaCache.remoteUrl, remoteUrl), eq(federatedMediaCache.state, 'cached')),
     );
 }
 

@@ -86,10 +86,7 @@ export function useFeedSettings(): UseFeedSettings {
   const { t } = useTranslation();
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(
-    () => viewerQueryKeys.feedSettings(user?.id),
-    [user?.id],
-  );
+  const queryKey = useMemo(() => viewerQueryKeys.feedSettings(user?.id), [user?.id]);
 
   const query = useQuery<FeedSettings>({
     queryKey,
@@ -120,10 +117,9 @@ export function useFeedSettings(): UseFeedSettings {
     { previous: FeedSettings | undefined }
   >({
     mutationFn: async (next) => {
-      const response = await authenticatedClient.put<UserSettingsResponse>(
-        '/profile/settings',
-        { feedSettings: next },
-      );
+      const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
+        feedSettings: next,
+      });
       return withDefaults(response.data?.feedSettings ?? next);
     },
     onMutate: async (next) => {

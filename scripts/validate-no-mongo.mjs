@@ -70,10 +70,10 @@
  * Usage:  bun scripts/validate-no-mongo.mjs
  */
 
-import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * The tree to scan. Overridable so the self-test can point the REAL validator at
@@ -81,7 +81,7 @@ import { fileURLToPath } from "node:url";
  */
 const repositoryRoot = process.env.NO_MONGO_VALIDATOR_ROOT
   ? resolve(process.env.NO_MONGO_VALIDATOR_ROOT)
-  : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
  * Fixture trees are a handful of files, so the real vacuity floors would fail
@@ -89,17 +89,17 @@ const repositoryRoot = process.env.NO_MONGO_VALIDATOR_ROOT
  * removes them, so a fixture run still catches a traversal that finds nothing,
  * and the floor that matters stays hard in every normal run.
  */
-const fixtureFloors = process.env.NO_MONGO_VALIDATOR_FIXTURE_FLOORS === "1";
+const fixtureFloors = process.env.NO_MONGO_VALIDATOR_FIXTURE_FLOORS === '1';
 
 /** Packages that mean "Mongo is back", in a manifest. */
 const BANNED_PACKAGES = [
-  "mongoose",
-  "mongodb",
-  "mongodb-memory-server",
-  "bson",
-  "connect-mongo",
-  "@typegoose/typegoose",
-  "mongodb-client-encryption",
+  'mongoose',
+  'mongodb',
+  'mongodb-memory-server',
+  'bson',
+  'connect-mongo',
+  '@typegoose/typegoose',
+  'mongodb-client-encryption',
 ];
 
 /**
@@ -109,7 +109,7 @@ const BANNED_PACKAGES = [
  * a line of Mongo code being reachable. The lockfile records the whole tree, so
  * it is the one surface where that distinction is worth drawing.
  */
-const BANNED_LOCK_PACKAGES = ["mongoose", "mongodb", "mongodb-memory-server", "connect-mongo"];
+const BANNED_LOCK_PACKAGES = ['mongoose', 'mongodb', 'mongodb-memory-server', 'connect-mongo'];
 
 /**
  * Mongo named in PROSE, for the manifest's `description` and `keywords`.
@@ -133,12 +133,12 @@ const MONGO_PROSE = /\bmongo(?:db|ose)?\b/i;
  */
 const KNOWN_EXCEPTIONS = [
   {
-    file: "packages/backend/src/__tests__/utils/loggerSanitization.test.ts",
-    pattern: "mongodb://",
+    file: 'packages/backend/src/__tests__/utils/loggerSanitization.test.ts',
+    pattern: 'mongodb://',
     reason:
-      "Fixture input for the log sanitiser, which redacts Mongo URIs so a legacy one arriving from "
-      + "upstream never reaches a log sink. The literal is the string being redacted, not a database "
-      + "Mention connects to — deleting it would delete the proof that the redaction works.",
+      'Fixture input for the log sanitiser, which redacts Mongo URIs so a legacy one arriving from ' +
+      'upstream never reaches a log sink. The literal is the string being redacted, not a database ' +
+      'Mention connects to — deleting it would delete the proof that the redaction works.',
   },
 ];
 
@@ -165,9 +165,12 @@ const SHELL_SCRIPT_FILE = /^\.github\/scripts\/[^/]+\.sh$/;
  * this fail quietly: the renamed file falls back into the scan and reports
  * itself loudly, which is the signal to update this list.
  */
-const GUARD_OWN_FILES = new Set(["scripts/validate-no-mongo.mjs", "scripts/test-validate-no-mongo.mjs"]);
+const GUARD_OWN_FILES = new Set([
+  'scripts/validate-no-mongo.mjs',
+  'scripts/test-validate-no-mongo.mjs',
+]);
 
-const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Real import syntax for a banned module, including subpaths. Longest name
@@ -179,9 +182,12 @@ const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * one keystroke from being a live one.
  */
 const BANNED_IMPORT = new RegExp(
-  "(?:\\bfrom\\s*|\\brequire\\s*\\(\\s*|\\bimport\\s*\\(\\s*|\\bimport\\s+)"
-  + `(['"])(?:${[...BANNED_PACKAGES].sort((a, b) => b.length - a.length).map(escapeForRegExp).join("|")})`
-  + "(?:/[^'\"]*)?\\1",
+  '(?:\\bfrom\\s*|\\brequire\\s*\\(\\s*|\\bimport\\s*\\(\\s*|\\bimport\\s+)' +
+    `(['"])(?:${[...BANNED_PACKAGES]
+      .sort((a, b) => b.length - a.length)
+      .map(escapeForRegExp)
+      .join('|')})` +
+    '(?:/[^\'"]*)?\\1',
 );
 
 /**
@@ -211,21 +217,21 @@ const LOCK_RESOLUTION = /^\s*"[^"]+":\s*\[\s*"([^"]+)"/;
 
 /** `@scope/name@1.2.3` → `@scope/name`; `name@1.2.3` → `name`. */
 function packageNameOf(resolution) {
-  const separator = resolution.indexOf("@", resolution.startsWith("@") ? 1 : 0);
+  const separator = resolution.indexOf('@', resolution.startsWith('@') ? 1 : 0);
   return separator === -1 ? resolution : resolution.slice(0, separator);
 }
 
 /** Every file git tracks, repo-relative — so ignored and generated files cannot count. */
 function trackedFiles() {
-  const listed = spawnSync("git", ["ls-files", "-z"], {
+  const listed = spawnSync('git', ['ls-files', '-z'], {
     cwd: repositoryRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
   if (listed.status !== 0) {
     throw new Error(`git ls-files failed in ${repositoryRoot}: ${listed.stderr ?? listed.error}`);
   }
-  return listed.stdout.split("\0").filter(Boolean);
+  return listed.stdout.split('\0').filter(Boolean);
 }
 
 /** The 1-based line holding `needle`, or 1 when the text has moved on. */
@@ -246,11 +252,11 @@ function lineHolding(lines, needle) {
  */
 async function readTrackedFile(path) {
   try {
-    return await readFile(resolve(repositoryRoot, path), "utf8");
+    return await readFile(resolve(repositoryRoot, path), 'utf8');
   } catch (error) {
     failures.push(
-      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — `
-      + "the working tree disagrees with the index, so this scan was incomplete",
+      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — ` +
+        'the working tree disagrees with the index, so this scan was incomplete',
     );
     return null;
   }
@@ -266,17 +272,17 @@ const manifests = tracked.filter((path) => MANIFEST_FILE.test(path));
 const sources = tracked.filter((path) => SOURCE_FILE.test(path) && !GUARD_OWN_FILES.has(path));
 const configs = tracked.filter(
   (path) =>
-    ENV_TEMPLATE_FILE.test(path)
-    || COMPOSE_FILE.test(path)
-    || WORKFLOW_FILE.test(path)
-    || SHELL_SCRIPT_FILE.test(path),
+    ENV_TEMPLATE_FILE.test(path) ||
+    COMPOSE_FILE.test(path) ||
+    WORKFLOW_FILE.test(path) ||
+    SHELL_SCRIPT_FILE.test(path),
 );
 
 // ------------------------------------------------------------- 1. manifests ---
 
 /** Every key in `overrides`, however deeply an npm-style nested override nests it. */
 function overrideKeys(value, collected = []) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return collected;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return collected;
   for (const [key, nested] of Object.entries(value)) {
     collected.push(key);
     overrideKeys(nested, collected);
@@ -287,23 +293,31 @@ function overrideKeys(value, collected = []) {
 for (const path of manifests) {
   const text = await readTrackedFile(path);
   if (text === null) continue;
-  const lines = text.split("\n");
+  const lines = text.split('\n');
   let manifest;
   try {
     manifest = JSON.parse(text);
   } catch (error) {
-    failures.push(`${path}: not parseable as JSON, so its dependencies could not be checked — ${error.message}`);
+    failures.push(
+      `${path}: not parseable as JSON, so its dependencies could not be checked — ${error.message}`,
+    );
     continue;
   }
 
   const declared = [];
-  for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+  for (const field of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
     const block = manifest[field];
-    if (!block || typeof block !== "object") continue;
+    if (!block || typeof block !== 'object') continue;
     for (const name of Object.keys(block)) declared.push([field, name]);
   }
-  for (const name of overrideKeys(manifest.overrides)) declared.push(["overrides", name]);
-  for (const name of Object.keys(manifest.workspaces?.catalog ?? {})) declared.push(["workspaces.catalog", name]);
+  for (const name of overrideKeys(manifest.overrides)) declared.push(['overrides', name]);
+  for (const name of Object.keys(manifest.workspaces?.catalog ?? {}))
+    declared.push(['workspaces.catalog', name]);
 
   for (const [field, name] of declared) {
     if (!BANNED_PACKAGES.includes(name)) continue;
@@ -327,17 +341,19 @@ for (const path of manifests) {
   // Matched on the word rather than the package names: prose says "Mongoose",
   // "MongoDB" and "Mongo", none of which is a package identifier, and the point
   // is the CLAIM, not the spelling.
-  for (const field of ["description", "keywords"]) {
+  for (const field of ['description', 'keywords']) {
     const value = manifest[field];
     if (value === undefined) continue;
-    const text = Array.isArray(value) ? value.join(" ") : value;
-    if (typeof text !== "string") continue;
+    const text = Array.isArray(value) ? value.join(' ') : value;
+    if (typeof text !== 'string') continue;
     const found = MONGO_PROSE.exec(text);
     if (!found) continue;
     record(
       path,
       lineHolding(lines, `"${field}"`),
-      (lines.find((line) => line.includes(`"${field}"`)) ?? `${field}: ${text}`).trim().slice(0, 160),
+      (lines.find((line) => line.includes(`"${field}"`)) ?? `${field}: ${text}`)
+        .trim()
+        .slice(0, 160),
       `${field} claims ${found[0]}`,
     );
   }
@@ -346,15 +362,15 @@ for (const path of manifests) {
 // ------------------------------------------------------------- 2. lockfile ---
 
 let lockResolutions = 0;
-if (tracked.includes("bun.lock")) {
-  const lines = (await readFile(resolve(repositoryRoot, "bun.lock"), "utf8")).split("\n");
+if (tracked.includes('bun.lock')) {
+  const lines = (await readFile(resolve(repositoryRoot, 'bun.lock'), 'utf8')).split('\n');
   for (const [index, line] of lines.entries()) {
     const matched = LOCK_RESOLUTION.exec(line);
     if (!matched) continue;
     lockResolutions += 1;
     const name = packageNameOf(matched[1]);
     if (!BANNED_LOCK_PACKAGES.includes(name)) continue;
-    record("bun.lock", index + 1, line.trim().slice(0, 160), `resolves ${name}`);
+    record('bun.lock', index + 1, line.trim().slice(0, 160), `resolves ${name}`);
   }
 } else if (!fixtureFloors) {
   failures.push(
@@ -368,11 +384,11 @@ for (const path of [...sources, ...configs]) {
   const isSource = SOURCE_FILE.test(path);
   const text = await readTrackedFile(path);
   if (text === null) continue;
-  const lines = text.split("\n");
+  const lines = text.split('\n');
 
   for (const [index, line] of lines.entries()) {
     if (isSource && BANNED_IMPORT.test(line)) {
-      record(path, index + 1, line.trim(), "imports a Mongo driver");
+      record(path, index + 1, line.trim(), 'imports a Mongo driver');
     }
     const envMatch = MONGO_ENV_VARIABLE.exec(line);
     if (envMatch) {
@@ -384,7 +400,7 @@ for (const path of [...sources, ...configs]) {
       record(path, index + 1, line.trim(), `names ${envMatch[0].toUpperCase()}`);
     }
     if (MONGO_CONNECTION_STRING.test(line)) {
-      record(path, index + 1, line.trim(), "carries a mongodb:// connection string");
+      record(path, index + 1, line.trim(), 'carries a mongodb:// connection string');
     }
   }
 }
@@ -404,8 +420,8 @@ const unexcused = findings.filter((finding) => {
 for (const entry of KNOWN_EXCEPTIONS) {
   if (honoured.has(entry)) continue;
   failures.push(
-    `KNOWN_EXCEPTIONS still excuses "${entry.pattern}" in ${entry.file}, which no longer matches anything. `
-    + "The reference is gone or the file moved — delete the entry so the list keeps describing the tree.",
+    `KNOWN_EXCEPTIONS still excuses "${entry.pattern}" in ${entry.file}, which no longer matches anything. ` +
+      'The reference is gone or the file moved — delete the entry so the list keeps describing the tree.',
   );
 }
 
@@ -413,41 +429,44 @@ for (const entry of KNOWN_EXCEPTIONS) {
 
 if (manifests.length < MINIMUM_MANIFESTS) {
   failures.push(
-    `${manifests.length} manifests scanned is below the ${MINIMUM_MANIFESTS} floor — `
-    + "the file listing is probably broken, and a broken listing reports a clean tree",
+    `${manifests.length} manifests scanned is below the ${MINIMUM_MANIFESTS} floor — ` +
+      'the file listing is probably broken, and a broken listing reports a clean tree',
   );
 }
 if (sources.length < MINIMUM_SOURCE_FILES) {
   failures.push(
-    `${sources.length} source files scanned is below the ${MINIMUM_SOURCE_FILES} floor — `
-    + "the file listing is probably broken, and a broken listing reports a clean tree",
+    `${sources.length} source files scanned is below the ${MINIMUM_SOURCE_FILES} floor — ` +
+      'the file listing is probably broken, and a broken listing reports a clean tree',
   );
 }
-if (lockResolutions < MINIMUM_LOCK_RESOLUTIONS && (tracked.includes("bun.lock") || !fixtureFloors)) {
+if (
+  lockResolutions < MINIMUM_LOCK_RESOLUTIONS &&
+  (tracked.includes('bun.lock') || !fixtureFloors)
+) {
   failures.push(
-    `${lockResolutions} lockfile resolutions parsed is below the ${MINIMUM_LOCK_RESOLUTIONS} floor — `
-    + "bun.lock's format has probably moved and the resolution matcher no longer reads it",
+    `${lockResolutions} lockfile resolutions parsed is below the ${MINIMUM_LOCK_RESOLUTIONS} floor — ` +
+      "bun.lock's format has probably moved and the resolution matcher no longer reads it",
   );
 }
 
 // ------------------------------------------------------------------ verdict ---
 
 if (unexcused.length > 0 || failures.length > 0) {
-  console.error("MongoDB reintroduction guard failed:\n");
+  console.error('MongoDB reintroduction guard failed:\n');
   for (const finding of unexcused) {
     console.error(`  ${finding.file}:${finding.line}: ${finding.rule}`);
     console.error(`    ${finding.match}\n`);
   }
   for (const failure of failures) console.error(`  ${failure}\n`);
   console.error(
-    "  Mention is PostgreSQL-only (issue #706); reintroducing Mongo needs an explicit architectural\n"
-    + "  decision — remove the reference or add a reasoned KNOWN_EXCEPTIONS entry.\n",
+    '  Mention is PostgreSQL-only (issue #706); reintroducing Mongo needs an explicit architectural\n' +
+      '  decision — remove the reference or add a reasoned KNOWN_EXCEPTIONS entry.\n',
   );
   process.exit(1);
 }
 
 console.log(
-  `MongoDB reintroduction guard passed — ${manifests.length} manifests, ${sources.length} source files, `
-  + `${configs.length} config files and ${lockResolutions} lockfile resolutions scanned; `
-  + `${honoured.size} of ${KNOWN_EXCEPTIONS.length} known exceptions honoured.`,
+  `MongoDB reintroduction guard passed — ${manifests.length} manifests, ${sources.length} source files, ` +
+    `${configs.length} config files and ${lockResolutions} lockfile resolutions scanned; ` +
+    `${honoured.size} of ${KNOWN_EXCEPTIONS.length} known exceptions honoured.`,
 );

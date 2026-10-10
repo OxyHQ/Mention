@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
@@ -15,162 +10,143 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { REPORT_CATEGORIES } from '@/services/reportService';
 
 interface ReportModalProps {
-    visible: boolean;
-    onClose: () => void;
-    onSubmit: (categories: string[], details?: string) => void;
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (categories: string[], details?: string) => void;
 }
 
-export const ReportModal: React.FC<ReportModalProps> = ({
-    visible,
-    onClose,
-    onSubmit,
-}) => {
-    const theme = useTheme();
-    const { t } = useTranslation();
-    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-    const [details, setDetails] = useState('');
+export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSubmit }) => {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [details, setDetails] = useState('');
 
-    if (!visible) return null;
+  if (!visible) return null;
 
-    const toggleCategory = (categoryId: string) => {
-        setSelectedCategories((prev) =>
-            prev.includes(categoryId)
-                ? prev.filter((id) => id !== categoryId)
-                : [...prev, categoryId]
-        );
-    };
-
-    const handleSubmit = () => {
-        if (selectedCategories.length === 0) {
-            return;
-        }
-        onSubmit(selectedCategories, details || undefined);
-        setSelectedCategories([]);
-        setDetails('');
-        onClose();
-    };
-
-    const handleCancel = () => {
-        setSelectedCategories([]);
-        setDetails('');
-        onClose();
-    };
-
-    return (
-        <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
-            {/* Header */}
-            <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
-                <TouchableOpacity
-                    onPress={handleCancel}
-                    className="p-2 z-10"
-                    activeOpacity={0.7}
-                >
-                    <CloseIcon size={20} className="text-foreground" />
-                </TouchableOpacity>
-                <Text
-                    className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"
-                    style={{ pointerEvents: 'none' }}
-                >
-                    Report Post
-                </Text>
-                <View style={{ width: 36, marginLeft: 'auto' }} />
-            </View>
-            <Divider />
-
-            {/* Content */}
-            <ScrollView className="px-4 pt-4 pb-2">
-                <Text className="text-muted-foreground text-[15px] mb-4" style={{ lineHeight: 20 }}>
-                    Select at least one reason for reporting:
-                </Text>
-
-                {/* Categories */}
-                <View className="gap-2 mb-6">
-                    {REPORT_CATEGORIES.map((category) => {
-                        const isSelected = selectedCategories.includes(category.id);
-                        return (
-                            // The selected tint is `bg-primary/10`, never
-                            // `theme.colors.primary + '20'`: the token is an
-                            // `rgb(...)` string, so a hex-alpha suffix makes a
-                            // malformed colour react-native-web reads as fully
-                            // opaque primary — a solid card behind the label.
-                            <View
-                                key={category.id}
-                                className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
-                                style={{
-                                    borderColor: isSelected
-                                        ? theme.colors.primary
-                                        : theme.colors.border,
-                                    borderWidth: 1.5,
-                                }}
-                            >
-                                <Checkbox
-                                    label={category.label}
-                                    checked={isSelected}
-                                    onCheckedChange={() => toggleCategory(category.id)}
-                                />
-                            </View>
-                        );
-                    })}
-                </View>
-
-                {/* Details Input */}
-                <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
-                    <Textarea
-                        placeholder={t('report.contextPlaceholder')}
-                        value={details}
-                        onChangeText={setDetails}
-                        rows={5}
-                        autoResize
-                        maxRows={7}
-                        maxLength={500}
-                        showCount
-                    />
-                </Field>
-            </ScrollView>
-
-            {/* Action Buttons */}
-            <Divider />
-            <View className="flex-row gap-3 px-4 py-4 pb-5">
-                <TouchableOpacity
-                    className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
-                    style={{ paddingVertical: 14, minHeight: 50 }}
-                    onPress={handleCancel}
-                    activeOpacity={0.7}
-                >
-                    <Text className="text-foreground text-base font-semibold">
-                        Cancel
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    className="flex-1 items-center justify-center rounded-xl"
-                    style={{
-                        paddingVertical: 14,
-                        minHeight: 50,
-                        backgroundColor:
-                            selectedCategories.length > 0
-                                ? theme.colors.error
-                                : theme.colors.border,
-                    }}
-                    onPress={handleSubmit}
-                    disabled={selectedCategories.length === 0}
-                    activeOpacity={0.7}
-                >
-                    <Text
-                        className="text-base font-semibold"
-                        style={{
-                            color:
-                                selectedCategories.length > 0
-                                    ? '#FFFFFF'
-                                    : theme.colors.textSecondary,
-                        }}
-                    >
-                        Submit Report
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
     );
+  };
+
+  const handleSubmit = () => {
+    if (selectedCategories.length === 0) {
+      return;
+    }
+    onSubmit(selectedCategories, details || undefined);
+    setSelectedCategories([]);
+    setDetails('');
+    onClose();
+  };
+
+  const handleCancel = () => {
+    setSelectedCategories([]);
+    setDetails('');
+    onClose();
+  };
+
+  return (
+    <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
+      {/* Header */}
+      <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
+        <TouchableOpacity onPress={handleCancel} className="p-2 z-10" activeOpacity={0.7}>
+          <CloseIcon size={20} className="text-foreground" />
+        </TouchableOpacity>
+        <Text
+          className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"
+          style={{ pointerEvents: 'none' }}
+        >
+          Report Post
+        </Text>
+        <View style={{ width: 36, marginLeft: 'auto' }} />
+      </View>
+      <Divider />
+
+      {/* Content */}
+      <ScrollView className="px-4 pt-4 pb-2">
+        <Text className="text-muted-foreground text-[15px] mb-4" style={{ lineHeight: 20 }}>
+          Select at least one reason for reporting:
+        </Text>
+
+        {/* Categories */}
+        <View className="gap-2 mb-6">
+          {REPORT_CATEGORIES.map((category) => {
+            const isSelected = selectedCategories.includes(category.id);
+            return (
+              // The selected tint is `bg-primary/10`, never
+              // `theme.colors.primary + '20'`: the token is an
+              // `rgb(...)` string, so a hex-alpha suffix makes a
+              // malformed colour react-native-web reads as fully
+              // opaque primary — a solid card behind the label.
+              <View
+                key={category.id}
+                className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
+                style={{
+                  borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                  borderWidth: 1.5,
+                }}
+              >
+                <Checkbox
+                  label={category.label}
+                  checked={isSelected}
+                  onCheckedChange={() => toggleCategory(category.id)}
+                />
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Details Input */}
+        <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
+          <Textarea
+            placeholder={t('report.contextPlaceholder')}
+            value={details}
+            onChangeText={setDetails}
+            rows={5}
+            autoResize
+            maxRows={7}
+            maxLength={500}
+            showCount
+          />
+        </Field>
+      </ScrollView>
+
+      {/* Action Buttons */}
+      <Divider />
+      <View className="flex-row gap-3 px-4 py-4 pb-5">
+        <TouchableOpacity
+          className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
+          style={{ paddingVertical: 14, minHeight: 50 }}
+          onPress={handleCancel}
+          activeOpacity={0.7}
+        >
+          <Text className="text-foreground text-base font-semibold">Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className="flex-1 items-center justify-center rounded-xl"
+          style={{
+            paddingVertical: 14,
+            minHeight: 50,
+            backgroundColor:
+              selectedCategories.length > 0 ? theme.colors.error : theme.colors.border,
+          }}
+          onPress={handleSubmit}
+          disabled={selectedCategories.length === 0}
+          activeOpacity={0.7}
+        >
+          <Text
+            className="text-base font-semibold"
+            style={{
+              color: selectedCategories.length > 0 ? '#FFFFFF' : theme.colors.textSecondary,
+            }}
+          >
+            Submit Report
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 };
 
 export default ReportModal;

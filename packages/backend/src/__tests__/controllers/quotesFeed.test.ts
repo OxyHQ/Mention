@@ -73,8 +73,14 @@ function makeRes() {
   return {
     statusCode: 200,
     body: undefined as unknown,
-    status(c: number) { this.statusCode = c; return this; },
-    json(b: unknown) { this.body = b; return this; },
+    status(c: number) {
+      this.statusCode = c;
+      return this;
+    },
+    json(b: unknown) {
+      this.body = b;
+      return this;
+    },
   };
 }
 

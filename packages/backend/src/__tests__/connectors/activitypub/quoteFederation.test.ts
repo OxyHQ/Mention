@@ -31,8 +31,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
-vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
-vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: vi.fn(),
+  signRequest: vi.fn(),
+}));
+vi.mock('../../../queue/producers', () => ({
+  enqueueDelivery: vi.fn(),
+  enqueueInboxActivity: vi.fn(),
+}));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
@@ -50,11 +56,7 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 
 import type { PostContent } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../../db/postgres';
-import {
-  clearFederationScope,
-  federationScope,
-  seedPost,
-} from '../../helpers/federationFixtures';
+import { clearFederationScope, federationScope, seedPost } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-01-02T03:04:05.000Z';

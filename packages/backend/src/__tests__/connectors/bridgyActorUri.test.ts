@@ -29,7 +29,9 @@ describe('didFromAtUri', () => {
   });
 
   it('extracts a did:web authority', () => {
-    expect(didFromAtUri('at://did:web:example.com/app.bsky.feed.post/abc')).toBe('did:web:example.com');
+    expect(didFromAtUri('at://did:web:example.com/app.bsky.feed.post/abc')).toBe(
+      'did:web:example.com',
+    );
   });
 
   it('rejects a handle authority (no stable DID)', () => {
@@ -51,7 +53,9 @@ describe('deriveBridgyActorUri', () => {
   });
 
   it('rejects a non-brid.gy host even when it carries an at:// DID', () => {
-    expect(deriveBridgyActorUri(`https://example.com/convert/ap/at://${DID}/app.bsky.feed.post/x`)).toBeUndefined();
+    expect(
+      deriveBridgyActorUri(`https://example.com/convert/ap/at://${DID}/app.bsky.feed.post/x`),
+    ).toBeUndefined();
   });
 
   it('rejects a bare at:// URI (no brid.gy host to build from)', () => {
@@ -74,7 +78,9 @@ describe('didFromBridgyActorUri', () => {
   });
 
   it('extracts a did:web authority', () => {
-    expect(didFromBridgyActorUri('https://bsky.brid.gy/ap/did:web:example.com')).toBe('did:web:example.com');
+    expect(didFromBridgyActorUri('https://bsky.brid.gy/ap/did:web:example.com')).toBe(
+      'did:web:example.com',
+    );
   });
 
   it('rejects a non-brid.gy host', () => {
@@ -95,10 +101,7 @@ describe('bridgedMentionAnchorHrefs', () => {
   it('derives both bsky.app profile forms from a brid.gy Mention tag (did + handle)', () => {
     expect(
       bridgedMentionAnchorHrefs({ href: BRIDGY_ACTOR, name: '@alice.bsky.social@bsky.brid.gy' }),
-    ).toEqual([
-      `https://bsky.app/profile/${DID}`,
-      'https://bsky.app/profile/alice.bsky.social',
-    ]);
+    ).toEqual([`https://bsky.app/profile/${DID}`, 'https://bsky.app/profile/alice.bsky.social']);
   });
 
   it('derives only the did form when the tag carries no name', () => {
@@ -109,7 +112,10 @@ describe('bridgedMentionAnchorHrefs', () => {
 
   it('returns [] for a non-brid.gy mention tag', () => {
     expect(
-      bridgedMentionAnchorHrefs({ href: 'https://mastodon.social/users/bob', name: '@bob@mastodon.social' }),
+      bridgedMentionAnchorHrefs({
+        href: 'https://mastodon.social/users/bob',
+        name: '@bob@mastodon.social',
+      }),
     ).toEqual([]);
   });
 });

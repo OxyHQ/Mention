@@ -24,7 +24,7 @@ export function sendErrorResponse(
   res: Response,
   status: number,
   error: string,
-  message: string
+  message: string,
 ): Response {
   return res.status(status).json({ error, message });
 }
@@ -36,7 +36,7 @@ export function sendSuccessResponse<T>(
   res: Response,
   status: number,
   data: T,
-  message?: string
+  message?: string,
 ): Response {
   const response: ApiSuccessResponse<T> = { data };
   if (message) response.message = message;
@@ -53,4 +53,3 @@ export function validateRequired(param: unknown, paramName: string): string | nu
   }
   return null;
 }
-

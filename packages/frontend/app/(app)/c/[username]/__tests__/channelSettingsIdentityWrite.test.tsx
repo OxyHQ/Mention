@@ -112,7 +112,9 @@ jest.mock('@oxy.so/bloom/toast', () => {
   const toast = Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn() });
   return { toast };
 });
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { textSecondary: '#888' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: '#888' } }),
+}));
 jest.mock('@oxy.so/bloom/settings-list', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -269,11 +271,9 @@ describe('saving a channel profile', () => {
       CHANNEL_ID,
       expect.objectContaining({ bio: 'bio-after' }),
     );
-    expect(mockNoteIdentityChanged).toHaveBeenCalledWith(
-      updated.account,
-      'viewer-1',
-      { cleared: [] },
-    );
+    expect(mockNoteIdentityChanged).toHaveBeenCalledWith(updated.account, 'viewer-1', {
+      cleared: [],
+    });
   });
 
   it('hands over the whole account, so a field it never names still travels', async () => {
@@ -319,7 +319,10 @@ describe('saving a channel profile', () => {
 
     await saveWithBio(renderer, '   ');
 
-    expect(mockUpdateAccount).toHaveBeenCalledWith(CHANNEL_ID, expect.objectContaining({ bio: null }));
+    expect(mockUpdateAccount).toHaveBeenCalledWith(
+      CHANNEL_ID,
+      expect.objectContaining({ bio: null }),
+    );
     expect(mockNoteIdentityChanged).toHaveBeenCalledWith(updated.account, 'viewer-1', {
       cleared: ['bio'],
     });

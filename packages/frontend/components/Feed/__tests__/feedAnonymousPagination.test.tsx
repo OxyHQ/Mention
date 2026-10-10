@@ -17,119 +17,120 @@ const mockSignIn = jest.fn(() => Promise.resolve());
 const mockAuth = { authenticated: false };
 
 const scrollHandlers: {
-    onScroll?: (event: { contentOffset: { y: number } }) => void;
-    onEndDrag?: (event: { contentOffset: { y: number } }) => void;
-    onMomentumEnd?: (event: { contentOffset: { y: number } }) => void;
+  onScroll?: (event: { contentOffset: { y: number } }) => void;
+  onEndDrag?: (event: { contentOffset: { y: number } }) => void;
+  onMomentumEnd?: (event: { contentOffset: { y: number } }) => void;
 } = {};
 
 jest.mock('react-native-reanimated', () => {
-    const React_ = require('react') as typeof import('react');
-    const { View: RNView } = require('react-native') as typeof import('react-native');
-    return {
-        __esModule: true,
-        default: {
-            createAnimatedComponent: (component: unknown) => component,
-            View: RNView,
-        },
-        // The handlers are captured rather than run: a worklet's whole point is
-        // that it executes somewhere this test cannot follow, so the contract
-        // under test is what it DOES when the UI thread calls it.
-        useAnimatedScrollHandler: (handlers: typeof scrollHandlers) => {
-            Object.assign(scrollHandlers, handlers);
-            return handlers;
-        },
-        useSharedValue: (initial: number) => React_.useRef({ value: initial }).current,
-        // `runOnJS` hops a worklet's call back to the JS thread; under jest there
-        // is only one thread, so it is the identity.
-        runOnJS: (fn: (...args: never[]) => unknown) => fn,
-    };
+  const React_ = require('react') as typeof import('react');
+  const { View: RNView } = require('react-native') as typeof import('react-native');
+  return {
+    __esModule: true,
+    default: {
+      createAnimatedComponent: (component: unknown) => component,
+      View: RNView,
+    },
+    // The handlers are captured rather than run: a worklet's whole point is
+    // that it executes somewhere this test cannot follow, so the contract
+    // under test is what it DOES when the UI thread calls it.
+    useAnimatedScrollHandler: (handlers: typeof scrollHandlers) => {
+      Object.assign(scrollHandlers, handlers);
+      return handlers;
+    },
+    useSharedValue: (initial: number) => React_.useRef({ value: initial }).current,
+    // `runOnJS` hops a worklet's call back to the JS thread; under jest there
+    // is only one thread, so it is the identity.
+    runOnJS: (fn: (...args: never[]) => unknown) => fn,
+  };
 });
 
 const mockScrollPosition = { value: 0 };
 const mockSetFeedScrollOffset = jest.fn();
 
 jest.mock('@/context/LayoutScrollContext', () => ({
-    useLayoutScroll: () => ({
-        scrollPosition: mockScrollPosition,
-        scrollEventThrottle: 16,
-        registerScrollable: () => () => undefined,
-    }),
+  useLayoutScroll: () => ({
+    scrollPosition: mockScrollPosition,
+    scrollEventThrottle: 16,
+    registerScrollable: () => () => undefined,
+  }),
 }));
 
 jest.mock('@/stores/feedScrollStore', () => ({
-    getFeedScrollOffset: () => 0,
-    setFeedScrollOffset: (...args: unknown[]) => mockSetFeedScrollOffset(...args),
-    getLocalPostRevision: () => 0,
-    subscribeToLocalPostRevision: () => () => undefined,
+  getFeedScrollOffset: () => 0,
+  setFeedScrollOffset: (...args: unknown[]) => mockSetFeedScrollOffset(...args),
+  getLocalPostRevision: () => 0,
+  subscribeToLocalPostRevision: () => () => undefined,
 }));
 
 jest.mock('@shopify/flash-list', () => {
-    const React_ = require('react') as typeof import('react');
-    const { View: RNView } = require('react-native') as typeof import('react-native');
-    const FlashList = React_.forwardRef<unknown, { children?: React.ReactNode; onEndReached?: () => void }>(
-        (props, ref) => {
-            React_.useImperativeHandle(ref, () => ({ scrollToOffset: () => undefined }));
-            mockList.onEndReached = props.onEndReached;
-            return React_.createElement(RNView, null, props.children);
-        },
-    );
-    FlashList.displayName = 'MockFlashList';
-    return { __esModule: true, FlashList };
+  const React_ = require('react') as typeof import('react');
+  const { View: RNView } = require('react-native') as typeof import('react-native');
+  const FlashList = React_.forwardRef<
+    unknown,
+    { children?: React.ReactNode; onEndReached?: () => void }
+  >((props, ref) => {
+    React_.useImperativeHandle(ref, () => ({ scrollToOffset: () => undefined }));
+    mockList.onEndReached = props.onEndReached;
+    return React_.createElement(RNView, null, props.children);
+  });
+  FlashList.displayName = 'MockFlashList';
+  return { __esModule: true, FlashList };
 });
 
 jest.mock('@/hooks/useFeedState', () => ({
-    useFeedState: () => ({
-        items: [],
-        slices: undefined,
-        interstitials: undefined,
-        hasMore: true,
-        isLoading: false,
-        error: null,
-        feedScrollKey: 'for_you',
-        refresh: jest.fn(),
-        loadMore: mockLoadMore,
-        clearError: jest.fn(),
-        fetchInitial: jest.fn(),
-    }),
+  useFeedState: () => ({
+    items: [],
+    slices: undefined,
+    interstitials: undefined,
+    hasMore: true,
+    isLoading: false,
+    error: null,
+    feedScrollKey: 'for_you',
+    refresh: jest.fn(),
+    loadMore: mockLoadMore,
+    clearError: jest.fn(),
+    fetchInitial: jest.fn(),
+  }),
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
-    useAuth: () => ({
-        user: mockAuth.authenticated ? { id: 'reader' } : null,
-        isAuthenticated: mockAuth.authenticated,
-        canUsePrivateApi: mockAuth.authenticated,
-        signIn: mockSignIn,
-    }),
+  useAuth: () => ({
+    user: mockAuth.authenticated ? { id: 'reader' } : null,
+    isAuthenticated: mockAuth.authenticated,
+    canUsePrivateApi: mockAuth.authenticated,
+    signIn: mockSignIn,
+  }),
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
-    useTheme: () => ({ colors: { primary: '#1d9bf0', border: '#e1e8ed', background: '#fff' } }),
+  useTheme: () => ({ colors: { primary: '#1d9bf0', border: '#e1e8ed', background: '#fff' } }),
 }));
 jest.mock('@oxy.so/bloom/error-boundary', () => ({
-    ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
 jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 
 jest.mock('expo-router', () => ({
-    useRouter: () => ({ push: jest.fn() }),
-    useIsFocused: () => true,
+  useRouter: () => ({ push: jest.fn() }),
+  useIsFocused: () => true,
 }));
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 jest.mock('@/hooks/usePrivacyControls', () => ({
-    usePrivacyControls: () => ({ blockedSet: new Set<string>() }),
+  usePrivacyControls: () => ({ blockedSet: new Set<string>() }),
 }));
 
 jest.mock('@/utils/feedTelemetry', () => ({
-    resolveFeedDescriptor: () => 'for_you',
-    useFeedImpressionTracker: () => ({ current: { syncVisible: jest.fn() } }),
+  resolveFeedDescriptor: () => 'for_you',
+  useFeedImpressionTracker: () => ({ current: { syncVisible: jest.fn() } }),
 }));
 
 jest.mock('@/context/VideoPlaybackContext', () => ({
-    VideoViewabilityProvider: ({ children }: { children?: React.ReactNode }) => children ?? null,
-    VideoViewabilityScope: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  VideoViewabilityProvider: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  VideoViewabilityScope: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 
 /**
@@ -138,11 +139,11 @@ jest.mock('@/context/VideoPlaybackContext', () => ({
  * ships ESM this transform does not take.
  */
 jest.mock('../feedRows', () => ({
-    buildFeedRows: () => [],
-    renderFeedRow: () => null,
-    feedRowKey: (row: { key?: string }) => row.key ?? 'row',
-    feedRowType: () => 'post',
-    feedRowStyles: { container: {}, list: {}, listEmbedded: {}, listContent: {} },
+  buildFeedRows: () => [],
+  renderFeedRow: () => null,
+  feedRowKey: (row: { key?: string }) => row.key ?? 'row',
+  feedRowType: () => 'post',
+  feedRowStyles: { container: {}, list: {}, listEmbedded: {}, listContent: {} },
 }));
 
 jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));
@@ -153,40 +154,40 @@ jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 import Feed from '../Feed.native';
 
 describe('reaching the end of a page', () => {
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
 
-    function mount() {
-        act(() => {
-            renderer = TestRenderer.create(<Feed type="for_you" />);
-        });
-    }
-
-    afterEach(() => {
-        act(() => {
-            renderer?.unmount();
-        });
-        renderer = undefined;
-        mockLoadMore.mockClear();
-        mockSignIn.mockClear();
+  function mount() {
+    act(() => {
+      renderer = TestRenderer.create(<Feed type="for_you" />);
     });
+  }
 
-    it('loads the next page for an anonymous reader and never opens sign-in', () => {
-        mockAuth.authenticated = false;
-        mount();
-        act(() => {
-            mockList.onEndReached?.();
-        });
-        expect(mockLoadMore).toHaveBeenCalledTimes(1);
-        expect(mockSignIn).not.toHaveBeenCalled();
+  afterEach(() => {
+    act(() => {
+      renderer?.unmount();
     });
+    renderer = undefined;
+    mockLoadMore.mockClear();
+    mockSignIn.mockClear();
+  });
 
-    it('loads the next page for a signed-in reader', () => {
-        mockAuth.authenticated = true;
-        mount();
-        act(() => {
-            mockList.onEndReached?.();
-        });
-        expect(mockLoadMore).toHaveBeenCalledTimes(1);
-        expect(mockSignIn).not.toHaveBeenCalled();
+  it('loads the next page for an anonymous reader and never opens sign-in', () => {
+    mockAuth.authenticated = false;
+    mount();
+    act(() => {
+      mockList.onEndReached?.();
     });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
+
+  it('loads the next page for a signed-in reader', () => {
+    mockAuth.authenticated = true;
+    mount();
+    act(() => {
+      mockList.onEndReached?.();
+    });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
 });

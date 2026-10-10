@@ -57,7 +57,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // The caller's own bearer-scoped Oxy client, which is what the gate reads
   // membership with. One shared spy so the call COUNT across the whole request is
   // observable — that is the assertion behind "resolve each account once".
-  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: listAccountMembers } } })),
+  createUserScopedOxyServices: vi.fn(() => ({
+    accounts: { members: { list: listAccountMembers } },
+  })),
 }));
 
 vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
@@ -125,8 +127,14 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
   return res;
 }
@@ -146,8 +154,8 @@ function req(body: Record<string, unknown>): OxyAuthRequest {
 
 /** The `publishAsOxyUserId` each `create` call was given, in order. */
 function requestedAccounts(): Array<string | null> {
-  return create.mock.calls.map(([params]: [Record<string, unknown>]) =>
-    (params.publishAsOxyUserId as string | null) ?? null,
+  return create.mock.calls.map(
+    ([params]: [Record<string, unknown>]) => (params.publishAsOxyUserId as string | null) ?? null,
   );
 }
 
@@ -190,10 +198,13 @@ beforeEach(() => {
   listAccountMembers.mockReset();
   listAccountMembers.mockImplementation(async (accountId: string) => {
     if (accountId === CHANNEL) return [member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })];
-    if (accountId === ORGANIZATION) return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
-    if (accountId === SECOND_ORG) return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
+    if (accountId === ORGANIZATION)
+      return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
+    if (accountId === SECOND_ORG)
+      return [member({ role: 'editor', permissions: EDITOR_PERMISSIONS })];
     // An organization the caller is a member of but may not ACT AS.
-    if (accountId === FORBIDDEN_ORG) return [member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })];
+    if (accountId === FORBIDDEN_ORG)
+      return [member({ role: 'viewer', permissions: VIEWER_PERMISSIONS })];
     return [];
   });
 
@@ -249,7 +260,9 @@ describe('beast mode — each entry may come from a different account', () => {
     );
 
     expect(res.statusCode).toBe(201);
-    const readers = create.mock.calls.map(([params]: [Record<string, unknown>]) => params.memberReader);
+    const readers = create.mock.calls.map(
+      ([params]: [Record<string, unknown>]) => params.memberReader,
+    );
     expect(readers[0]).toBeDefined();
     expect(readers[1]).toBe(readers[0]);
   });
@@ -259,7 +272,7 @@ describe('beast mode — each entry may come from a different account', () => {
    * ONE account cost ONE membership read. Without `cacheAccountMemberReads` the
    * pre-flight alone would make twelve.
    */
-  it('reads each distinct account\'s members ONCE per request, not once per post', async () => {
+  it("reads each distinct account's members ONCE per request, not once per post", async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -361,13 +374,19 @@ describe('beast mode — a refused entry takes the WHOLE batch with it', () => {
   });
 });
 
-describe('the side effects follow the ENTRY\'s author, not the caller', () => {
+describe("the side effects follow the ENTRY's author, not the caller", () => {
   it('attributes a mention notification to the account the entry was published as', async () => {
     const res = makeRes();
     await createThread(
       req({
         mode: 'beast',
-        posts: [{ content: { text: 'hi @someone' }, mentions: ['mentioned-1'], publishAsOxyUserId: CHANNEL }],
+        posts: [
+          {
+            content: { text: 'hi @someone' },
+            mentions: ['mentioned-1'],
+            publishAsOxyUserId: CHANNEL,
+          },
+        ],
       }),
       res as never,
     );
@@ -380,7 +399,7 @@ describe('the side effects follow the ENTRY\'s author, not the caller', () => {
     expect(createMentionNotifications.mock.calls[0][2]).toBe(CHANNEL);
   });
 
-  it('emits the following-feed update under the first entry\'s author', async () => {
+  it("emits the following-feed update under the first entry's author", async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -507,7 +526,7 @@ describe('thread mode — one account for the whole thread', () => {
     expect(listAccountMembers.mock.calls.map(([id]: [string]) => id)).toEqual([ORGANIZATION]);
   });
 
-  it('refuses the whole thread when the account is not the caller\'s to use', async () => {
+  it("refuses the whole thread when the account is not the caller's to use", async () => {
     const res = makeRes();
     await createThread(
       req({
@@ -540,7 +559,7 @@ describe('thread mode — one account for the whole thread', () => {
     expect(requestedAccounts()).toEqual([ORGANIZATION, SECOND_ORG]);
   });
 
-  it('CONTROL: a thread naming no account marks no continuation and stays the caller\'s', async () => {
+  it("CONTROL: a thread naming no account marks no continuation and stays the caller's", async () => {
     const res = makeRes();
     await createThread(
       req({ mode: 'thread', posts: [{ content: { text: 'a' } }, { content: { text: 'b' } }] }),
@@ -573,7 +592,7 @@ describe('thread mode — one account for the whole thread', () => {
  * and answer 201 twice; one pointed at the organization would find it in
  * neither. Only the correct scoping produces this pair.
  */
-describe('the lane pre-flight follows the ENTRY\'s author', () => {
+describe("the lane pre-flight follows the ENTRY's author", () => {
   it('404s a lane the CALLER owns on an entry published as an organization, before writing anything', async () => {
     const res = makeRes();
     await createThread(
@@ -764,7 +783,7 @@ describe('thread mode — several accounts, and the channel boundary', () => {
     expect(String((res.body as { message: string }).message)).toContain(CHANNEL);
   });
 
-  it('mixing a channel with the CALLER\'s own posts is refused too', async () => {
+  it("mixing a channel with the CALLER's own posts is refused too", async () => {
     const res = makeRes();
     await createThread(
       req({

@@ -35,7 +35,11 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = viewerQueryKeys.poll(user?.id, pollId);
-  const { data: poll, isLoading: loading, isError } = useQuery({
+  const {
+    data: poll,
+    isLoading: loading,
+    isError,
+  } = useQuery({
     queryKey,
     queryFn: async () => {
       try {
@@ -82,31 +86,35 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
       queryClient.setQueryData(queryKey, data);
     } catch (err) {
       logger.error('Failed to record vote', err);
-      const message = err instanceof PollContractError
-        ? 'The vote could not be understood by the app'
-        : 'Failed to record your vote';
+      const message =
+        err instanceof PollContractError
+          ? 'The vote could not be understood by the app'
+          : 'Failed to record your vote';
       toast.error(message);
     } finally {
       setVoting(false);
     }
   };
 
-  if (loading) return (
-    <Card  radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-      <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
-    </Card>
-  );
+  if (loading)
+    return (
+      <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
+        <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+      </Card>
+    );
 
   if (error || !poll) return null;
 
   const locked = ended || (hasVoted && !poll.isMultipleChoice);
 
   return (
-    <Card  radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-      <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
+    <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
+      <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>
+        {poll.question}
+      </Text>
       <View className="gap-1">
         {poll.options.map((opt: PollDetailOption) => {
-          const pct = totalVotes > 0 ? (opt.voteCount / totalVotes) : 0;
+          const pct = totalVotes > 0 ? opt.voteCount / totalVotes : 0;
           return (
             <Pressable
               key={opt._id}
@@ -124,7 +132,11 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
                 label={opt.text}
                 value={pct * 100}
                 max={100}
-                icon={<Text className="text-foreground text-sm font-semibold">{Math.round(pct * 100)}%</Text>}
+                icon={
+                  <Text className="text-foreground text-sm font-semibold">
+                    {Math.round(pct * 100)}%
+                  </Text>
+                }
               />
             </Pressable>
           );

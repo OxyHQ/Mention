@@ -12,8 +12,10 @@ const dedicatedEnvironment = {
   MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
   DATABASE_URL: 'postgresql://db.alpha.example/mention_alpha',
   REDIS_URL: 'rediss://cache.alpha.example:6379/0',
-  OXY_SERVICE_API_KEY: 'test-tenant-key', OXY_SERVICE_API_SECRET: 'test-tenant-secret',
-  MENTION_OXY_CLIENT_ID: 'test-tenant-client', MENTION_SHELL_ACCESS_KEY: 'test-shell-secret-with-at-least-32-characters',
+  OXY_SERVICE_API_KEY: 'test-tenant-key',
+  OXY_SERVICE_API_SECRET: 'test-tenant-secret',
+  MENTION_OXY_CLIENT_ID: 'test-tenant-client',
+  MENTION_SHELL_ACCESS_KEY: 'test-shell-secret-with-at-least-32-characters',
 };
 function application(effectiveAccountId: string | undefined, publicReads: boolean) {
   const app = express();
@@ -36,15 +38,26 @@ describe('managed deployment runtime', () => {
     expect(parsed.FEDERATION_DOMAIN).toBe('social.alpha.example');
     expect(parsed.ACTOR_DOMAIN).toBe('social.alpha.example');
     expect(parsed.MENTION_MCP_PUBLIC_URL).toBe(example.mcpBaseUrl);
-    expect(() => parseRuntimeEnvironment({
-      MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example), MENTION_WEB_ORIGIN: 'https://mention.earth',
-    })).toThrow('MENTION_WEB_ORIGIN conflicts');
+    expect(() =>
+      parseRuntimeEnvironment({
+        MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
+        MENTION_WEB_ORIGIN: 'https://mention.earth',
+      }),
+    ).toThrow('MENTION_WEB_ORIGIN conflicts');
   });
 
   it('fails closed rather than using development storage or shared service defaults', () => {
-    for (const key of ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET',
-      'MENTION_OXY_CLIENT_ID', 'MENTION_SHELL_ACCESS_KEY']) {
-      expect(() => parseRuntimeEnvironment({ ...dedicatedEnvironment, [key]: undefined })).toThrow();
+    for (const key of [
+      'DATABASE_URL',
+      'REDIS_URL',
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
+      'MENTION_OXY_CLIENT_ID',
+      'MENTION_SHELL_ACCESS_KEY',
+    ]) {
+      expect(() =>
+        parseRuntimeEnvironment({ ...dedicatedEnvironment, [key]: undefined }),
+      ).toThrow();
     }
   });
 
@@ -57,7 +70,8 @@ describe('managed deployment runtime', () => {
 
   it('rejects forged administrator IDs and foreign participants before downstream execution', async () => {
     for (const method of ['post', 'put', 'patch', 'delete'] as const) {
-      await request(application('member-beta', true))[method]('/resource')
+      await request(application('member-beta', true))
+        [method]('/resource')
         .set('X-Tenant-Id', deployment.tenantId)
         .send({ userId: 'admin-alpha', oxyUserId: 'admin-alpha', tenantId: deployment.tenantId })
         .expect(403, { error: 'deployment_membership_required', signupPolicy: 'invite' });
@@ -68,7 +82,9 @@ describe('managed deployment runtime', () => {
   it('uses the effective switched account rather than a connection owner or administrator', async () => {
     await request(application('member-alpha', false)).post('/resource').expect(200);
     await request(application('admin-alpha', false)).get('/resource').expect(200);
-    await request(application('uninvited-active-account', false)).post('/resource')
-      .send({ primaryUserId: 'admin-alpha', activeUserId: 'member-alpha' }).expect(403);
+    await request(application('uninvited-active-account', false))
+      .post('/resource')
+      .send({ primaryUserId: 'admin-alpha', activeUserId: 'member-alpha' })
+      .expect(403);
   });
 });

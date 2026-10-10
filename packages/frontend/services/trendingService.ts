@@ -5,9 +5,9 @@ import type {
   TrendGraphResponse,
   TrendStatus,
   TrendScope,
-} from "@mention/shared-types";
+} from '@mention/shared-types';
 import { logger } from '@oxy.so/core/logger';
-import { authenticatedClient, publicClient } from "@/utils/api";
+import { authenticatedClient, publicClient } from '@/utils/api';
 
 export interface TrendingTopic {
   type: string;
@@ -56,19 +56,25 @@ export interface TrendingDay {
 }
 
 class TrendingService {
-
-  async getTrendingHistory(page: number = 1, limit: number = 10): Promise<{
+  async getTrendingHistory(
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{
     days: TrendingDay[];
     page: number;
     totalPages: number;
   }> {
     try {
-      const res = await authenticatedClient.get<{ days: TrendingDay[]; page: number; totalPages: number }>("/trending/history", {
+      const res = await authenticatedClient.get<{
+        days: TrendingDay[];
+        page: number;
+        totalPages: number;
+      }>('/trending/history', {
         params: { page, limit },
       });
       return res.data;
     } catch (error) {
-      logger.warn("Failed fetching trending history", { error });
+      logger.warn('Failed fetching trending history', { error });
       return { days: [], page, totalPages: 0 };
     }
   }
@@ -87,10 +93,10 @@ class TrendingService {
    */
   async getTrendDetail(term: string): Promise<TrendDetail> {
     try {
-      const res = await publicClient.get<TrendDetail>("/trending/summary", { params: { term } });
+      const res = await publicClient.get<TrendDetail>('/trending/summary', { params: { term } });
       return res.data ?? {};
     } catch (error) {
-      logger.debug("Failed to fetch trend detail", { term, error });
+      logger.debug('Failed to fetch trend detail', { term, error });
       return {};
     }
   }
@@ -107,8 +113,10 @@ class TrendingService {
    * relations found" over an outage — a reader would conclude the network has
    * no stories rather than that the request failed.
    */
-  async getTrendGraph(params: { language?: string; region?: string } = {}): Promise<TrendGraphResponse> {
-    const res = await publicClient.get<TrendGraphResponse>("/trending/graph", { params });
+  async getTrendGraph(
+    params: { language?: string; region?: string } = {},
+  ): Promise<TrendGraphResponse> {
+    const res = await publicClient.get<TrendGraphResponse>('/trending/graph', { params });
     return res.data;
   }
 
@@ -126,9 +134,13 @@ class TrendingService {
    */
   async sendTrendEvent(input: TrendEventInput): Promise<void> {
     try {
-      await publicClient.post("/trending/events", input);
+      await publicClient.post('/trending/events', input);
     } catch (error) {
-      logger.debug("Failed to send trend event", { event: input.event, surface: input.surface, error });
+      logger.debug('Failed to send trend event', {
+        event: input.event,
+        surface: input.surface,
+        error,
+      });
     }
   }
 }

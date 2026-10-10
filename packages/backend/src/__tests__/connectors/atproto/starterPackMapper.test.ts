@@ -70,17 +70,18 @@ function listUri(rkey: string): string {
 }
 
 /** Route the mocked XRPC by nsid so one mock serves both endpoints. */
-function routeXrpc(
-  handlers: { starterPacks?: unknown; list?: Record<string, unknown> },
-): void {
-  mocks.xrpcGet.mockImplementation((_host: string, nsid: string, params: Record<string, unknown>) => {
-    if (nsid === 'app.bsky.graph.getActorStarterPacks') return Promise.resolve(handlers.starterPacks ?? { starterPacks: [] });
-    if (nsid === 'app.bsky.graph.getList') {
-      const list = typeof params.list === 'string' ? params.list : '';
-      return Promise.resolve(handlers.list?.[list] ?? { items: [] });
-    }
-    return Promise.resolve({});
-  });
+function routeXrpc(handlers: { starterPacks?: unknown; list?: Record<string, unknown> }): void {
+  mocks.xrpcGet.mockImplementation(
+    (_host: string, nsid: string, params: Record<string, unknown>) => {
+      if (nsid === 'app.bsky.graph.getActorStarterPacks')
+        return Promise.resolve(handlers.starterPacks ?? { starterPacks: [] });
+      if (nsid === 'app.bsky.graph.getList') {
+        const list = typeof params.list === 'string' ? params.list : '';
+        return Promise.resolve(handlers.list?.[list] ?? { items: [] });
+      }
+      return Promise.resolve({});
+    },
+  );
 }
 
 beforeAll(async () => {
@@ -99,7 +100,12 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchProfile.mockImplementation((did: string) =>
-    Promise.resolve({ network: 'atproto', externalId: did, handle: `${did}.h`, oxyUserId: `oxy-${did.slice(-2)}` }),
+    Promise.resolve({
+      network: 'atproto',
+      externalId: did,
+      handle: `${did}.h`,
+      oxyUserId: `oxy-${did.slice(-2)}`,
+    }),
   );
 });
 
@@ -110,7 +116,10 @@ describe('extractStarterPackRefs', () => {
         { uri: packUri('p1'), record: { name: 'Great moots', list: listUri('l1') } },
         { uri: packUri('p2'), record: { name: '   ', list: listUri('l2') } }, // blank name
         { uri: packUri('p3'), record: { name: 'No list' } }, // missing list
-        { uri: `at://${DID}/app.bsky.feed.post/x`, record: { name: 'Wrong collection', list: listUri('l4') } },
+        {
+          uri: `at://${DID}/app.bsky.feed.post/x`,
+          record: { name: 'Wrong collection', list: listUri('l4') },
+        },
         { record: { name: 'No uri', list: listUri('l5') } }, // missing uri
       ],
     });
@@ -142,7 +151,11 @@ describe('extractMemberDids', () => {
 describe('syncActorStarterPacks', () => {
   it('mirrors a pack to a StarterPack with resolved members, keyed on source.uri', async () => {
     routeXrpc({
-      starterPacks: { starterPacks: [{ uri: packUri('p1'), record: { name: 'Great moots', list: listUri('l1') } }] },
+      starterPacks: {
+        starterPacks: [
+          { uri: packUri('p1'), record: { name: 'Great moots', list: listUri('l1') } },
+        ],
+      },
       list: {
         [listUri('l1')]: {
           items: [{ subject: { did: 'did:plc:m1' } }, { subject: { did: 'did:plc:m2' } }],
@@ -151,7 +164,9 @@ describe('syncActorStarterPacks', () => {
     });
     mocks.fetchProfile.mockImplementation((did: string) => {
       const map: Record<string, string> = { 'did:plc:m1': 'oxy-m1', 'did:plc:m2': 'oxy-m2' };
-      return Promise.resolve(map[did] ? { network: 'atproto', externalId: did, handle: 'h', oxyUserId: map[did] } : null);
+      return Promise.resolve(
+        map[did] ? { network: 'atproto', externalId: did, handle: 'h', oxyUserId: map[did] } : null,
+      );
     });
 
     const count = await syncActorStarterPacks(DID, OWNER);
@@ -167,7 +182,9 @@ describe('syncActorStarterPacks', () => {
 
   it('drops members that do not resolve to an Oxy user (no orphan members)', async () => {
     routeXrpc({
-      starterPacks: { starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }] },
+      starterPacks: {
+        starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
+      },
       list: {
         [listUri('l1')]: {
           items: [{ subject: { did: 'did:plc:ok' } }, { subject: { did: 'did:plc:ghost' } }],
@@ -199,7 +216,12 @@ describe('syncActorStarterPacks', () => {
         [listUri('l2')]: { items: [{ subject: { did: 'did:plc:shared' } }] },
       },
     });
-    mocks.fetchProfile.mockResolvedValue({ network: 'atproto', externalId: 'did:plc:shared', handle: 'h', oxyUserId: 'oxy-shared' });
+    mocks.fetchProfile.mockResolvedValue({
+      network: 'atproto',
+      externalId: 'did:plc:shared',
+      handle: 'h',
+      oxyUserId: 'oxy-shared',
+    });
 
     await syncActorStarterPacks(DID, OWNER);
 
@@ -220,24 +242,33 @@ describe('syncActorStarterPacks', () => {
     // `oxy-gone` survives a sync that no longer lists it.
     const members = { first: ['did:plc:m1', 'did:plc:gone'], second: ['did:plc:m1'] };
     let phase: 'first' | 'second' = 'first';
-    mocks.xrpcGet.mockImplementation((_host: string, nsid: string, params: Record<string, unknown>) => {
-      if (nsid === 'app.bsky.graph.getActorStarterPacks') {
-        return Promise.resolve({
-          starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
-        });
-      }
-      if (nsid === 'app.bsky.graph.getList' && params.list === listUri('l1')) {
-        return Promise.resolve({ items: members[phase].map((did) => ({ subject: { did } })) });
-      }
-      return Promise.resolve({});
-    });
+    mocks.xrpcGet.mockImplementation(
+      (_host: string, nsid: string, params: Record<string, unknown>) => {
+        if (nsid === 'app.bsky.graph.getActorStarterPacks') {
+          return Promise.resolve({
+            starterPacks: [{ uri: packUri('p1'), record: { name: 'Pack', list: listUri('l1') } }],
+          });
+        }
+        if (nsid === 'app.bsky.graph.getList' && params.list === listUri('l1')) {
+          return Promise.resolve({ items: members[phase].map((did) => ({ subject: { did } })) });
+        }
+        return Promise.resolve({});
+      },
+    );
     mocks.fetchProfile.mockImplementation((did: string) =>
-      Promise.resolve({ network: 'atproto', externalId: did, handle: 'h', oxyUserId: `oxy-${did.split(':').pop()}` }),
+      Promise.resolve({
+        network: 'atproto',
+        externalId: did,
+        handle: 'h',
+        oxyUserId: `oxy-${did.split(':').pop()}`,
+      }),
     );
 
     await syncActorStarterPacks(DID, OWNER);
-    expect((await membersOf((await packsOf())[0].id)).map((m) => m.oxyUserId))
-      .toEqual(['oxy-m1', 'oxy-gone']);
+    expect((await membersOf((await packsOf())[0].id)).map((m) => m.oxyUserId)).toEqual([
+      'oxy-m1',
+      'oxy-gone',
+    ]);
 
     phase = 'second';
     await syncActorStarterPacks(DID, OWNER);

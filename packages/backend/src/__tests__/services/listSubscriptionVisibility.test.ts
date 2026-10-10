@@ -68,9 +68,9 @@ async function makeList(options: {
 
   const members = options.members ?? [];
   if (members.length > 0) {
-    await db.insert(accountListMembers).values(
-      members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })),
-    );
+    await db
+      .insert(accountListMembers)
+      .values(members.map((oxyUserId, position) => ({ listId: list.id, oxyUserId, position })));
   }
   return list.id;
 }
@@ -82,24 +82,23 @@ async function makeList(options: {
  * — a property of the seeding, not of the cap being asserted, and it failed as
  * "expected 5000, got 18" rather than as the timeout it was.
  */
-async function makeLists(
-  count: number,
-  memberFor: (index: number) => string,
-): Promise<string[]> {
+async function makeLists(count: number, memberFor: (index: number) => string): Promise<string[]> {
   const lists = await db
     .insert(accountLists)
-    .values(Array.from({ length: count }, () => ({
-      ownerOxyUserId: OWNER_ID,
-      title: `List ${randomUUID()}`,
-      isPublic: true,
-    })))
+    .values(
+      Array.from({ length: count }, () => ({
+        ownerOxyUserId: OWNER_ID,
+        title: `List ${randomUUID()}`,
+        isPublic: true,
+      })),
+    )
     .returning({ id: accountLists.id });
 
   const listIds = lists.map((list) => list.id);
   createdListIds.push(...listIds);
-  await db.insert(accountListMembers).values(
-    listIds.map((listId, index) => ({ listId, oxyUserId: memberFor(index), position: 0 })),
-  );
+  await db
+    .insert(accountListMembers)
+    .values(listIds.map((listId, index) => ({ listId, oxyUserId: memberFor(index), position: 0 })));
   return listIds;
 }
 
@@ -252,9 +251,11 @@ describe('the feed caps warn rather than truncating silently', () => {
       overCap,
       (index) => `capped-member-${String(index).padStart(4, '0')}`,
     );
-    await db.insert(entityFollows).values(
-      listIds.map((entityId) => ({ userId: VIEWER_ID, entityType: LIST_ENTITY_TYPE, entityId })),
-    );
+    await db
+      .insert(entityFollows)
+      .values(
+        listIds.map((entityId) => ({ userId: VIEWER_ID, entityType: LIST_ENTITY_TYPE, entityId })),
+      );
 
     const memberIds = await service.getSubscribedListMemberIds(VIEWER_ID);
 

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isSensitivePost,
-  isSfw,
-  isDiscoverable,
-  filterDiscoverable,
-} from '../mtn/feed/feedSafety';
+import { isSensitivePost, isSfw, isDiscoverable, filterDiscoverable } from '../mtn/feed/feedSafety';
 
 /**
  * Unit coverage for the SINGLE shared feed-safety module. Every feed/ranking

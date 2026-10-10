@@ -111,8 +111,9 @@ const DRAFTS = [
 
 describe('useServerDrafts', () => {
   beforeAll(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   beforeEach(() => {
@@ -147,7 +148,12 @@ describe('useServerDrafts', () => {
     );
 
     expect(mockGet).toHaveBeenCalledWith('/posts/drafts');
-    expect(viewerQueryKeys.serverDrafts('viewer-1')).toEqual(['viewer', 'viewer-1', 'posts', 'drafts']);
+    expect(viewerQueryKeys.serverDrafts('viewer-1')).toEqual([
+      'viewer',
+      'viewer-1',
+      'posts',
+      'drafts',
+    ]);
     // The hydrated DTO arrives untouched, so the preview renders the real post.
     expect(latest!.serverDrafts[0]).toBe(DRAFTS[0]);
   });
@@ -201,7 +207,10 @@ describe('useServerDrafts', () => {
     act(() => {
       void latest!.publishServerDraft('draft-release-notes');
     });
-    await waitUntil(() => cachedIds(client)?.length === 1, 'the row to leave while the publish is in flight');
+    await waitUntil(
+      () => cachedIds(client)?.length === 1,
+      'the row to leave while the publish is in flight',
+    );
 
     expect(cachedIds(client)).toEqual(['draft-older']);
   });
@@ -212,7 +221,9 @@ describe('useServerDrafts', () => {
     await waitUntil(() => cachedIds(client)?.length === 2, 'the drafts to load');
 
     await act(async () => {
-      await expect(latest!.publishServerDraft('draft-release-notes')).rejects.toThrow('409 from the API');
+      await expect(latest!.publishServerDraft('draft-release-notes')).rejects.toThrow(
+        '409 from the API',
+      );
     });
 
     expect(cachedIds(client)).toEqual(['draft-release-notes', 'draft-older']);

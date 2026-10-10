@@ -23,7 +23,10 @@ export function getRuntimeOxyClient(): OxyServer {
       OxyServer: typeof OxyServer;
     };
     // Same identity as the production instance in runtimeApp.ts (#1173).
-    runtimeOxyClient = new OxyServerConstructor({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
+    runtimeOxyClient = new OxyServerConstructor({
+      baseURL: config.oxyApiUrl,
+      serviceIdentity: 'when-anonymous',
+    });
   }
   return runtimeOxyClient;
 }

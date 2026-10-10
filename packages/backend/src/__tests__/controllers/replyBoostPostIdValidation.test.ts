@@ -144,7 +144,10 @@ describe('createReply / createBoost reject a post id that is not one', () => {
     const { res, captured } = buildResponse();
 
     await feedController.createReply(
-      { body: { postId: parent.id, content: 'hello' }, user: { id: scope.user('author') } } as never,
+      {
+        body: { postId: parent.id, content: 'hello' },
+        user: { id: scope.user('author') },
+      } as never,
       res as never,
     );
 

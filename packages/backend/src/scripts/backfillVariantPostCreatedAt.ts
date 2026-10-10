@@ -92,12 +92,16 @@ async function indexState(): Promise<'valid' | 'invalid' | 'absent'> {
 async function ensureIndex(): Promise<boolean> {
   if ((await indexState()) === 'invalid') {
     logger.warn(`[${SCRIPT_NAME}] dropping an invalid index left by an interrupted build`);
-    await getDb().execute(sql.raw(`drop index concurrently if exists ${VARIANT_POST_CREATED_AT_INDEX}`));
+    await getDb().execute(
+      sql.raw(`drop index concurrently if exists ${VARIANT_POST_CREATED_AT_INDEX}`),
+    );
   }
-  await getDb().execute(sql.raw(
-    `create index concurrently if not exists ${VARIANT_POST_CREATED_AT_INDEX} ` +
-    'on post_content_variants using btree (post_created_at)',
-  ));
+  await getDb().execute(
+    sql.raw(
+      `create index concurrently if not exists ${VARIANT_POST_CREATED_AT_INDEX} ` +
+        'on post_content_variants using btree (post_created_at)',
+    ),
+  );
   return (await indexState()) === 'valid';
 }
 

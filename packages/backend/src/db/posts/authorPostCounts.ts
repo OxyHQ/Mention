@@ -31,12 +31,14 @@ export async function countAuthorPublicPosts(oxyUserId: string): Promise<AuthorP
       repliesCount: sql<number>`count(*) filter (where ${posts.isReply})::int`,
     })
     .from(posts)
-    .where(and(
-      eq(posts.oxyUserId, oxyUserId),
-      eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
-      notCollapsedCrosspostSql(),
-    ));
+    .where(
+      and(
+        eq(posts.oxyUserId, oxyUserId),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
+      ),
+    );
   return {
     postsCount: counts?.postsCount ?? 0,
     boostsCount: counts?.boostsCount ?? 0,

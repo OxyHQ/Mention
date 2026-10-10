@@ -37,25 +37,23 @@
  * bandwidth competing with the common chunk for fonts no first screen shows.
  */
 
-import { access, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { access, readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Font files (Bloom asset basenames, before Metro's hash) the first paint uses. */
-export const FIRST_PAINT_FONTS = ["InterVariable"];
+export const FIRST_PAINT_FONTS = ['InterVariable'];
 
 /** Marker so a second run neither duplicates nor silently keeps a stale tag. */
-const MARKER = "data-first-paint-font";
+const MARKER = 'data-first-paint-font';
 
 function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Same-origin script paths `index.html` loads at startup, in document order. */
 export function startupScripts(html) {
-  return [...html.matchAll(/<script\b[^>]*\bsrc="(\/[^"]+\.js)"/g)].map(
-    (match) => match[1],
-  );
+  return [...html.matchAll(/<script\b[^>]*\bsrc="(\/[^"]+\.js)"/g)].map((match) => match[1]);
 }
 
 /**
@@ -65,7 +63,7 @@ export function startupScripts(html) {
 export function fontUrlsInSources(sources, fontName) {
   const literal = new RegExp(
     `["'](/assets/[^"'\\s]*/${escapeRegExp(fontName)}\\.[0-9a-f]{32}\\.woff2)["']`,
-    "g",
+    'g',
   );
   const urls = new Set();
   for (const source of sources) {
@@ -80,7 +78,7 @@ export function preloadTag(href) {
 
 /** Existing first-paint font preload hrefs in `html`. */
 export function preloadHrefs(html) {
-  const tags = html.match(new RegExp(`<link\\b[^>]*\\b${MARKER}\\b[^>]*>`, "g")) ?? [];
+  const tags = html.match(new RegExp(`<link\\b[^>]*\\b${MARKER}\\b[^>]*>`, 'g')) ?? [];
   return tags.map((tag) => tag.match(/\bhref="([^"]+)"/)?.[1]).filter(Boolean);
 }
 
@@ -91,16 +89,17 @@ export function preloadHrefs(html) {
  */
 export function injectPreloads(html, hrefs) {
   const withoutOld = html.replace(
-    new RegExp(`[ \\t]*<link\\b[^>]*\\b${MARKER}\\b[^>]*>\\n?`, "g"),
-    "",
+    new RegExp(`[ \\t]*<link\\b[^>]*\\b${MARKER}\\b[^>]*>\\n?`, 'g'),
+    '',
   );
-  const tags = hrefs.map((href) => `    ${preloadTag(href)}\n`).join("");
+  const tags = hrefs.map((href) => `    ${preloadTag(href)}\n`).join('');
   const charset = /<meta\s+charset=[^>]*>\n?/i;
   if (!charset.test(withoutOld)) {
-    throw new Error("index.html has no <meta charset> to anchor the font preload after");
+    throw new Error('index.html has no <meta charset> to anchor the font preload after');
   }
-  return withoutOld.replace(charset, (meta) =>
-    `${meta.endsWith("\n") ? meta : `${meta}\n`}${tags}`,
+  return withoutOld.replace(
+    charset,
+    (meta) => `${meta.endsWith('\n') ? meta : `${meta}\n`}${tags}`,
   );
 }
 
@@ -119,17 +118,17 @@ async function exists(path) {
  */
 export async function resolveFontHrefs(outputDirectory, fonts = FIRST_PAINT_FONTS) {
   const failures = [];
-  const indexPath = resolve(outputDirectory, "index.html");
+  const indexPath = resolve(outputDirectory, 'index.html');
   if (!(await exists(indexPath))) {
-    return { hrefs: [], failures: ["index.html is missing"] };
+    return { hrefs: [], failures: ['index.html is missing'] };
   }
-  const html = await readFile(indexPath, "utf8");
+  const html = await readFile(indexPath, 'utf8');
   const scripts = startupScripts(html);
   if (scripts.length === 0) {
-    return { hrefs: [], failures: ["index.html loads no same-origin <script src>"] };
+    return { hrefs: [], failures: ['index.html loads no same-origin <script src>'] };
   }
   const sources = await Promise.all(
-    scripts.map((src) => readFile(resolve(outputDirectory, `.${decodeURI(src)}`), "utf8")),
+    scripts.map((src) => readFile(resolve(outputDirectory, `.${decodeURI(src)}`), 'utf8')),
   );
   const hrefs = [];
   for (const font of fonts) {
@@ -137,7 +136,7 @@ export async function resolveFontHrefs(outputDirectory, fonts = FIRST_PAINT_FONT
     if (urls.length !== 1) {
       failures.push(
         `expected the startup JavaScript to reference exactly one ${font}.<hash>.woff2, ` +
-          `found ${urls.length}${urls.length ? `: ${urls.join(", ")}` : ""}`,
+          `found ${urls.length}${urls.length ? `: ${urls.join(', ')}` : ''}`,
       );
       continue;
     }
@@ -155,12 +154,14 @@ export async function resolveFontHrefs(outputDirectory, fonts = FIRST_PAINT_FONT
 export async function checkFontPreloads(outputDirectory, fonts = FIRST_PAINT_FONTS) {
   const { hrefs, failures } = await resolveFontHrefs(outputDirectory, fonts);
   if (failures.length > 0) return failures;
-  const html = await readFile(resolve(outputDirectory, "index.html"), "utf8");
+  const html = await readFile(resolve(outputDirectory, 'index.html'), 'utf8');
   const present = preloadHrefs(html);
   const missing = hrefs.filter((href) => !present.includes(href));
   const extra = present.filter((href) => !hrefs.includes(href));
   for (const href of missing) {
-    failures.push(`index.html does not preload ${href} (run scripts/web-font-preload.mjs after expo export)`);
+    failures.push(
+      `index.html does not preload ${href} (run scripts/web-font-preload.mjs after expo export)`,
+    );
   }
   for (const href of extra) {
     failures.push(`index.html preloads ${href}, which the startup JavaScript does not use`);
@@ -170,8 +171,8 @@ export async function checkFontPreloads(outputDirectory, fonts = FIRST_PAINT_FON
 
 async function main() {
   const args = process.argv.slice(2);
-  const check = args.includes("--check");
-  const outputDirectory = resolve(args.find((arg) => !arg.startsWith("--")) ?? "dist");
+  const check = args.includes('--check');
+  const outputDirectory = resolve(args.find((arg) => !arg.startsWith('--')) ?? 'dist');
 
   if (check) {
     const failures = await checkFontPreloads(outputDirectory);
@@ -190,8 +191,8 @@ async function main() {
     for (const failure of failures) console.error(`- ${failure}`);
     process.exit(1);
   }
-  const indexPath = resolve(outputDirectory, "index.html");
-  const html = await readFile(indexPath, "utf8");
+  const indexPath = resolve(outputDirectory, 'index.html');
+  const html = await readFile(indexPath, 'utf8');
   await writeFile(indexPath, injectPreloads(html, hrefs));
   for (const href of hrefs) console.log(`Preloading ${href}`);
 }

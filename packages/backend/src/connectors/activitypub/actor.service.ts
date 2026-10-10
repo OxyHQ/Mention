@@ -24,12 +24,7 @@ import {
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
-import {
-  signedFetch,
-  firstStringUrl,
-  normalizeFederatedAcct,
-  domainFromAcct,
-} from './helpers';
+import { signedFetch, firstStringUrl, normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
@@ -52,7 +47,10 @@ const WEBFINGER_TIMEOUT_MS = 10000;
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 
 /** The two unique constraints a remote rename can collide with. */
-const HANDLE_CONSTRAINTS = ['federated_actors_acct_key', 'federated_actors_domain_username_key'] as const;
+const HANDLE_CONSTRAINTS = [
+  'federated_actors_acct_key',
+  'federated_actors_domain_username_key',
+] as const;
 
 /** Stale holders being re-checked right now, so a handle SWAP cannot recurse forever. */
 const handlesBeingFreed = new Set<string>();
@@ -73,7 +71,10 @@ const handlesBeingFreed = new Set<string>();
  * - it still claims the handle: refused, exactly as before. Silently taking a
  *   handle a live actor holds would let one server hijack another's identity.
  */
-async function freeStaleHandle(uri: string, handle: { acct: string; domain: string; username: string }): Promise<boolean> {
+async function freeStaleHandle(
+  uri: string,
+  handle: { acct: string; domain: string; username: string },
+): Promise<boolean> {
   const holder = await findOtherActorHoldingHandle(handle, uri);
   if (!holder || handlesBeingFreed.has(holder.uri)) return false;
   handlesBeingFreed.add(holder.uri);
@@ -120,19 +121,32 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     // Oxy's per-source alias is a projection for content provenance. Transport
     // acct/domain/keys remain the remote actor's delivery coordinates.
     const { fields, uri: _uri, ...columns } = update;
-    const resolved = await resolveOxyIdentity({ actorUri: uri, transportAcct: update.acct, protocol: 'activitypub' });
-    if (resolved.externalIdentity.actorUri !== uri) throw new Error('Oxy resolved a different source actor');
-    const row = await upsertActorFreeingStaleHandle(uri, {
-      ...columns,
-      // The engine parses `published` with a bare `new Date(...)`; an unparseable
-      // one must not fail the refresh it rides on. See `trustedRemoteCreatedAt`.
-      remoteCreatedAt: trustedRemoteCreatedAt(columns.remoteCreatedAt),
-      networkAcct: resolved.externalIdentity.canonicalAcct,
-      summary: resolved.user.bio ?? '',
-      avatarUrl: resolveAvatarUrl(resolved.user.avatar),
-    }, fields);
+    const resolved = await resolveOxyIdentity({
+      actorUri: uri,
+      transportAcct: update.acct,
+      protocol: 'activitypub',
+    });
+    if (resolved.externalIdentity.actorUri !== uri)
+      throw new Error('Oxy resolved a different source actor');
+    const row = await upsertActorFreeingStaleHandle(
+      uri,
+      {
+        ...columns,
+        // The engine parses `published` with a bare `new Date(...)`; an unparseable
+        // one must not fail the refresh it rides on. See `trustedRemoteCreatedAt`.
+        remoteCreatedAt: trustedRemoteCreatedAt(columns.remoteCreatedAt),
+        networkAcct: resolved.externalIdentity.canonicalAcct,
+        summary: resolved.user.bio ?? '',
+        avatarUrl: resolveAvatarUrl(resolved.user.avatar),
+      },
+      fields,
+    );
     if (!row) return null;
-    const projection = await reconcileActorIdentityProjection({ actorUri: uri, oxyUserId: resolved.user.id, networkAcct: resolved.externalIdentity.canonicalAcct });
+    const projection = await reconcileActorIdentityProjection({
+      actorUri: uri,
+      oxyUserId: resolved.user.id,
+      networkAcct: resolved.externalIdentity.canonicalAcct,
+    });
     if (projection.refusal) throw new Error('Source identity projection failed');
     return withEngineId({ ...row, oxyUserId: resolved.user.id });
   },
@@ -211,6 +225,8 @@ export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederated
   },
 };
 
-export const actorService = createActorResolver<EngineFederatedActorRecord>(activityPubActorResolverConfig);
+export const actorService = createActorResolver<EngineFederatedActorRecord>(
+  activityPubActorResolverConfig,
+);
 
 export default actorService;

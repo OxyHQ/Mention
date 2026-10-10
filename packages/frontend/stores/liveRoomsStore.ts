@@ -52,79 +52,77 @@ const LEGACY_STORAGE_KEY = 'live-rooms-hidden';
 const pollSubscriptions = new Set<number>();
 let nextPollSubscriptionId = 1;
 
-export const useLiveRoomsStore = create<LiveRoomsStore>()(
-    (set, get) => ({
+export const useLiveRoomsStore = create<LiveRoomsStore>()((set, get) => ({
+  rooms: [],
+  hasFetched: false,
+  error: null,
+  hiddenRoomIds: [],
+
+  fetchLiveRooms: async (opts?: { silent?: boolean }) => {
+    const operationEpoch = viewerEpoch;
+    const silent = !!opts?.silent;
+    if (!silent) set({ error: null });
+    try {
+      const next = await getLiveRooms(LIVE_ROOMS_STATUS);
+      if (operationEpoch !== viewerEpoch) return;
+      const { rooms: prev } = get();
+      if (roomsEqual(prev, next)) {
+        set({ hasFetched: true });
+      } else {
+        set({ rooms: next, hasFetched: true });
+      }
+    } catch (error: unknown) {
+      if (operationEpoch !== viewerEpoch) return;
+      const message = error instanceof Error ? error.message : 'Failed to load live rooms';
+      logger.warn('Failed to fetch live rooms', { error });
+      if (!silent) set({ error: message, hasFetched: true });
+    }
+  },
+
+  startPolling: () => {
+    const subscriptionId = nextPollSubscriptionId;
+    nextPollSubscriptionId += 1;
+    pollSubscriptions.add(subscriptionId);
+    if (pollHandle) return subscriptionId;
+    void get().fetchLiveRooms();
+    pollHandle = setInterval(() => {
+      void get().fetchLiveRooms({ silent: true });
+    }, POLL_INTERVAL_MS);
+    // Non-Node runtimes (RN/web) return a numeric handle with no unref — the
+    // optional chain no-ops there; on Node it keeps the loop from staying alive.
+    pollHandle.unref?.();
+    return subscriptionId;
+  },
+
+  stopPolling: (subscriptionId) => {
+    pollSubscriptions.delete(subscriptionId);
+    if (pollSubscriptions.size > 0 || !pollHandle) return;
+    clearInterval(pollHandle);
+    pollHandle = null;
+  },
+
+  hideRoom: (id: string) => {
+    if (!id) return;
+    const { hiddenRoomIds } = get();
+    if (hiddenRoomIds.includes(id)) return;
+    set({ hiddenRoomIds: [...hiddenRoomIds, id] });
+  },
+
+  resetViewerState: () => {
+    viewerEpoch += 1;
+    pollSubscriptions.clear();
+    if (pollHandle) {
+      clearInterval(pollHandle);
+      pollHandle = null;
+    }
+    set({
       rooms: [],
       hasFetched: false,
       error: null,
       hiddenRoomIds: [],
-
-      fetchLiveRooms: async (opts?: { silent?: boolean }) => {
-        const operationEpoch = viewerEpoch;
-        const silent = !!opts?.silent;
-        if (!silent) set({ error: null });
-        try {
-          const next = await getLiveRooms(LIVE_ROOMS_STATUS);
-          if (operationEpoch !== viewerEpoch) return;
-          const { rooms: prev } = get();
-          if (roomsEqual(prev, next)) {
-            set({ hasFetched: true });
-          } else {
-            set({ rooms: next, hasFetched: true });
-          }
-        } catch (error: unknown) {
-          if (operationEpoch !== viewerEpoch) return;
-          const message = error instanceof Error ? error.message : 'Failed to load live rooms';
-          logger.warn('Failed to fetch live rooms', { error });
-          if (!silent) set({ error: message, hasFetched: true });
-        }
-      },
-
-      startPolling: () => {
-        const subscriptionId = nextPollSubscriptionId;
-        nextPollSubscriptionId += 1;
-        pollSubscriptions.add(subscriptionId);
-        if (pollHandle) return subscriptionId;
-        void get().fetchLiveRooms();
-        pollHandle = setInterval(() => {
-          void get().fetchLiveRooms({ silent: true });
-        }, POLL_INTERVAL_MS);
-        // Non-Node runtimes (RN/web) return a numeric handle with no unref — the
-        // optional chain no-ops there; on Node it keeps the loop from staying alive.
-        pollHandle.unref?.();
-        return subscriptionId;
-      },
-
-      stopPolling: (subscriptionId) => {
-        pollSubscriptions.delete(subscriptionId);
-        if (pollSubscriptions.size > 0 || !pollHandle) return;
-        clearInterval(pollHandle);
-        pollHandle = null;
-      },
-
-      hideRoom: (id: string) => {
-        if (!id) return;
-        const { hiddenRoomIds } = get();
-        if (hiddenRoomIds.includes(id)) return;
-        set({ hiddenRoomIds: [...hiddenRoomIds, id] });
-      },
-
-      resetViewerState: () => {
-        viewerEpoch += 1;
-        pollSubscriptions.clear();
-        if (pollHandle) {
-          clearInterval(pollHandle);
-          pollHandle = null;
-        }
-        set({
-          rooms: [],
-          hasFetched: false,
-          error: null,
-          hiddenRoomIds: [],
-        });
-        // v1 persisted hide choices without an owner. Never hydrate them into a
-        // different account; remove the legacy payload at the identity boundary.
-        void AsyncStorage.removeItem(LEGACY_STORAGE_KEY).catch(() => {});
-      },
-    }),
-);
+    });
+    // v1 persisted hide choices without an owner. Never hydrate them into a
+    // different account; remove the legacy payload at the identity boundary.
+    void AsyncStorage.removeItem(LEGACY_STORAGE_KEY).catch(() => {});
+  },
+}));

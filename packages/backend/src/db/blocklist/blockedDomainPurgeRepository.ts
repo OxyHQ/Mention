@@ -97,12 +97,7 @@ export function toLedgerCounts(totals: PurgeTallies): BlockedDomainPurgeCounts {
 }
 
 /** `BlockedDomainPurgeState`. */
-export type BlockedDomainPurgeState =
-  | 'pending'
-  | 'in_progress'
-  | 'purged'
-  | 'held'
-  | 'failed';
+export type BlockedDomainPurgeState = 'pending' | 'in_progress' | 'purged' | 'held' | 'failed';
 
 /** What the reconciler needs to know about a domain it already has a row for. */
 export interface ObservedPurgeRow {
@@ -141,10 +136,7 @@ export async function reArmStaleClaims(cutoff: Date): Promise<number> {
     .update(blockedDomainPurges)
     .set({ state: 'pending', claimedAt: null, runId: null })
     .where(
-      and(
-        eq(blockedDomainPurges.state, 'in_progress'),
-        lt(blockedDomainPurges.claimedAt, cutoff)
-      )
+      and(eq(blockedDomainPurges.state, 'in_progress'), lt(blockedDomainPurges.claimedAt, cutoff)),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.length;
@@ -180,7 +172,7 @@ export interface PolicyObservation {
  */
 export async function observePolicyDomains(
   observations: readonly PolicyObservation[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   if (observations.length === 0) return;
   await getDb()
@@ -192,7 +184,7 @@ export async function observePolicyDomains(
         state: observation.state,
         firstObservedAt: now,
         lastObservedAt: now,
-      }))
+      })),
     )
     .onConflictDoUpdate({
       target: blockedDomainPurges.domain,
@@ -221,9 +213,7 @@ export async function observePolicyDomains(
  */
 export async function flagDepartedDomains(wanted: readonly string[]): Promise<string[]> {
   const stillWanted =
-    wanted.length === 0
-      ? undefined
-      : notInArray(blockedDomainPurges.domain, [...wanted]);
+    wanted.length === 0 ? undefined : notInArray(blockedDomainPurges.domain, [...wanted]);
 
   const rows = await getDb()
     .update(blockedDomainPurges)
@@ -231,7 +221,7 @@ export async function flagDepartedDomains(wanted: readonly string[]): Promise<st
     .where(
       stillWanted
         ? and(eq(blockedDomainPurges.inPolicy, true), stillWanted)
-        : eq(blockedDomainPurges.inPolicy, true)
+        : eq(blockedDomainPurges.inPolicy, true),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.map((row) => row.domain);
@@ -249,7 +239,7 @@ export async function flagDepartedDomains(wanted: readonly string[]): Promise<st
 export async function claimPendingDomains(
   eligible: readonly string[],
   runId: string,
-  now: Date
+  now: Date,
 ): Promise<string[]> {
   if (eligible.length === 0) return [];
   const rows = await getDb()
@@ -258,8 +248,8 @@ export async function claimPendingDomains(
     .where(
       and(
         inArray(blockedDomainPurges.domain, [...eligible]),
-        eq(blockedDomainPurges.state, 'pending')
-      )
+        eq(blockedDomainPurges.state, 'pending'),
+      ),
     )
     .returning({ domain: blockedDomainPurges.domain });
   return rows.map((row) => row.domain);
@@ -270,9 +260,7 @@ export async function failClaimedDomains(runId: string, failureReason: string): 
   await getDb()
     .update(blockedDomainPurges)
     .set({ state: 'failed', failureReason })
-    .where(
-      and(eq(blockedDomainPurges.runId, runId), eq(blockedDomainPurges.state, 'in_progress'))
-    );
+    .where(and(eq(blockedDomainPurges.runId, runId), eq(blockedDomainPurges.state, 'in_progress')));
 }
 
 /** One domain's outcome, as the ledger records it. */
@@ -293,7 +281,7 @@ export interface PurgeOutcome {
  */
 export async function recordPurgeOutcomes(
   outcomes: readonly PurgeOutcome[],
-  context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date }
+  context: { state: 'purged' | 'held'; runId: string; heldReason?: string; now: Date },
 ): Promise<void> {
   if (outcomes.length === 0) return;
   await getDb()
@@ -311,7 +299,7 @@ export async function recordPurgeOutcomes(
               heldReason: context.heldReason ?? null,
               ...(outcome.measured ? measuredColumns(outcome.measured) : {}),
             }),
-      }))
+      })),
     )
     .onConflictDoUpdate({
       target: blockedDomainPurges.domain,
@@ -360,7 +348,7 @@ export interface PurgeRunRecord {
  */
 export async function recordPurgeRun(
   records: readonly PurgeRunRecord[],
-  context: { runId: string; runAt: Date; trigger: 'policy_added' | 'manual' }
+  context: { runId: string; runAt: Date; trigger: 'policy_added' | 'manual' },
 ): Promise<void> {
   if (records.length === 0) return;
   await getDb()
@@ -381,10 +369,8 @@ export async function recordPurgeRun(
         removedLocalFollowsRemoved: record.removed.localFollowsRemoved,
         reason: record.reason ?? null,
         category: record.category ?? null,
-        corroboratingSources: record.corroboratingSources
-          ? [...record.corroboratingSources]
-          : null,
-      }))
+        corroboratingSources: record.corroboratingSources ? [...record.corroboratingSources] : null,
+      })),
     )
     .onConflictDoUpdate({
       target: [blockedDomainPurgeRuns.domain, blockedDomainPurgeRuns.runId],

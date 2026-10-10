@@ -71,7 +71,10 @@ describe('claimAndPublishScheduledPost — exactly once', () => {
   it('publishes a scheduled post the owner claims, and the row is published after', async () => {
     const postId = await seedScheduled();
 
-    const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: OWNER });
+    const result = await postCreationService.claimAndPublishScheduledPost({
+      postId,
+      ownerId: OWNER,
+    });
 
     expect(result).not.toBeNull();
     expect(publishSpy).toHaveBeenCalledTimes(1);
@@ -99,7 +102,10 @@ describe('claimAndPublishScheduledPost — exactly once', () => {
   it('refuses a second publish of a post that already went out', async () => {
     const postId = await seedScheduled({ status: 'published' });
 
-    const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: OWNER });
+    const result = await postCreationService.claimAndPublishScheduledPost({
+      postId,
+      ownerId: OWNER,
+    });
 
     expect(result).toBeNull();
     expect(publishSpy).not.toHaveBeenCalled();
@@ -134,7 +140,10 @@ describe('claimAndPublishScheduledPost — ownership', () => {
     const postId = await seedScheduled();
 
     await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: STRANGER });
-    const owner = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: OWNER });
+    const owner = await postCreationService.claimAndPublishScheduledPost({
+      postId,
+      ownerId: OWNER,
+    });
 
     // A refused claim must not consume the post — otherwise anyone could grief
     // an author out of their own scheduled post.

@@ -73,11 +73,7 @@ export function VideosRailProvider({ children }: { children: React.ReactNode }) 
     [state, setRailState, requestComposerFocus],
   );
 
-  return (
-    <VideosRailContext.Provider value={value}>
-      {children}
-    </VideosRailContext.Provider>
-  );
+  return <VideosRailContext.Provider value={value}>{children}</VideosRailContext.Provider>;
 }
 
 export function useVideosRail() {

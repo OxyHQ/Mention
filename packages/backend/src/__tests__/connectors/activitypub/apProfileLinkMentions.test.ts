@@ -92,7 +92,10 @@ const SHARKEY_NOTE = {
  * Stub the stored-actor table. Keys are matched exactly as the code queries them:
  * by actor `uri` (the `/users/<id>` shape) and by `acct` (the `/@<user>` shape).
  */
-function stubStoredActors(rows: { uri?: Record<string, string>; acct?: Record<string, string> }): void {
+function stubStoredActors(rows: {
+  uri?: Record<string, string>;
+  acct?: Record<string, string>;
+}): void {
   mocks.findActorByUri.mockImplementation(async (uri: string) => {
     const oxyUserId = rows.uri?.[uri];
     return oxyUserId ? { oxyUserId } : null;

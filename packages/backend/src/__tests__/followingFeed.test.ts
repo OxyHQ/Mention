@@ -82,7 +82,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('the following timeline\'s visibility authorization', () => {
+describe("the following timeline's visibility authorization", () => {
   /**
    * THE case. Every post here is `status: published` and every author is either
    * followed or subscribed-to, so the ONLY thing separating what is served from
@@ -201,7 +201,7 @@ describe('the following timeline\'s visibility authorization', () => {
     expect(await followingSource.gather(ctx, { timeline: true }, 31)).toEqual([]);
   });
 
-  it('serves a post the viewer\'s follow only COLLABORATED on', async () => {
+  it("serves a post the viewer's follow only COLLABORATED on", async () => {
     /**
      * The authorship match is a correlated `EXISTS` with `$elemMatch`
      * semantics — the id and the `accepted` status must hold on the SAME

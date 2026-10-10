@@ -25,7 +25,9 @@ const TEST_USER = 'readmorebio-user-1';
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
+    (req as express.Request & { user?: { id: string }; accessToken?: string }).user = {
+      id: TEST_USER,
+    };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';
     next();
   },
@@ -75,12 +77,21 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
     await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, TEST_USER));
   });
 
-  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])('rejects canonical preset %s through the legacy hex write', async (primaryColor) => {
-    await request(app).put('/profile/settings').send({ appearance: { primaryColor } }).expect(400);
-  });
+  it.each(['mono', 'monochrome', 'oxy', 'faircoin'])(
+    'rejects canonical preset %s through the legacy hex write',
+    async (primaryColor) => {
+      await request(app)
+        .put('/profile/settings')
+        .send({ appearance: { primaryColor } })
+        .expect(400);
+    },
+  );
 
   it('preserves basic custom hex for a free account', async () => {
-    await request(app).put('/profile/settings').send({ appearance: { primaryColor: '#102030' } }).expect(200);
+    await request(app)
+      .put('/profile/settings')
+      .send({ appearance: { primaryColor: '#102030' } })
+      .expect(200);
     expect((await getSettings()).appearance).toMatchObject({ primaryColor: '#102030' });
   });
 
@@ -91,7 +102,9 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
       .expect(200);
 
     const settings = await getSettings();
-    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe('expandInline');
+    expect((settings.appearance as Record<string, unknown>).postReadMoreAction).toBe(
+      'expandInline',
+    );
   });
 
   it('rejects an invalid postReadMoreAction value (field keeps its default)', async () => {
@@ -136,7 +149,13 @@ describe('PUT /profile/settings — postReadMoreAction + collapseLongBio', () =>
   it('still persists themeMode alongside the two new fields in the same request', async () => {
     await request(app)
       .put('/profile/settings')
-      .send({ appearance: { themeMode: 'dark', postReadMoreAction: 'expandInline', collapseLongBio: false } })
+      .send({
+        appearance: {
+          themeMode: 'dark',
+          postReadMoreAction: 'expandInline',
+          collapseLongBio: false,
+        },
+      })
       .expect(200);
 
     // `toMatchObject`, not `toEqual`: every appearance column is NOT NULL with

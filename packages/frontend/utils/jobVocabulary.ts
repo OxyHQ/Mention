@@ -26,7 +26,14 @@ function displayNames(locale: string | undefined, type: DisplayNamesType) {
   const key = `${type}:${locale ?? ''}`;
   if (cache.has(key)) return cache.get(key) ?? null;
   let names: { of(code: string): string | undefined } | null = null;
-  const DisplayNames = (Intl as { DisplayNames?: new (locales: string[] | undefined, options: { type: DisplayNamesType; fallback: 'none' }) => { of(code: string): string | undefined } }).DisplayNames;
+  const DisplayNames = (
+    Intl as {
+      DisplayNames?: new (
+        locales: string[] | undefined,
+        options: { type: DisplayNamesType; fallback: 'none' },
+      ) => { of(code: string): string | undefined };
+    }
+  ).DisplayNames;
   if (DisplayNames) {
     try {
       names = new DisplayNames(locale ? [locale] : undefined, { type, fallback: 'none' });
@@ -38,7 +45,11 @@ function displayNames(locale: string | undefined, type: DisplayNamesType) {
   return names;
 }
 
-function lookup(locale: string | undefined, type: DisplayNamesType, code: string): string | undefined {
+function lookup(
+  locale: string | undefined,
+  type: DisplayNamesType,
+  code: string,
+): string | undefined {
   try {
     const name = displayNames(locale, type)?.of(code);
     return name && name !== code ? name : undefined;
@@ -67,7 +78,10 @@ export function formatJobLocation(location: MentionJobLocation, locale?: string)
  * resolved them, falling back to the source's own text for a crawled listing
  * Clarity could not place (that text is what the source published, not ours).
  */
-export function formatClarityJobLocation(location: JobLocation | undefined, locale?: string): string | undefined {
+export function formatClarityJobLocation(
+  location: JobLocation | undefined,
+  locale?: string,
+): string | undefined {
   if (!location) return undefined;
   if (location.countryCode && isCountryCode(location.countryCode)) {
     return mentionJobLocationParts(
@@ -88,7 +102,8 @@ export function useJobVocabulary() {
       countryName: (code: CountryCode) => countryName(code, locale),
       currencyName: (code: CurrencyCode) => currencyName(code, locale),
       formatJobLocation: (location: MentionJobLocation) => formatJobLocation(location, locale),
-      formatClarityJobLocation: (location: JobLocation | undefined) => formatClarityJobLocation(location, locale),
+      formatClarityJobLocation: (location: JobLocation | undefined) =>
+        formatClarityJobLocation(location, locale),
     }),
     [locale],
   );

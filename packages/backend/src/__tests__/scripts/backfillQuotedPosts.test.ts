@@ -108,7 +108,9 @@ describe('widening the net cannot widen what gets LINKED', () => {
     // The anchored version had to `btrim` first or a leading newline hid the
     // marker. `(^|\s)` matches that whitespace itself, so both sides read the
     // RAW stored value and cannot drift apart.
-    expect(isCandidate('  RE: https://mastodon.social/users/lemonde/statuses/117030664429761672')).toBe(true);
+    expect(
+      isCandidate('  RE: https://mastodon.social/users/lemonde/statuses/117030664429761672'),
+    ).toBe(true);
   });
 
   it('does NOT repair a Threads quote, and that is the honest outcome', () => {
@@ -120,11 +122,16 @@ describe('widening the net cannot widen what gets LINKED', () => {
     // the body HTML, and reading that is exactly what this file exists to
     // forbid. So a Threads candidate is fetched, yields nothing, and is left
     // alone — 26 posts, whose 26 targets we hold none of.
-    expect(isCandidate('A M A T E R A S U 👁️ 🔥\n\nRE: https://www.threads.com/@x/post/Dcv3w16ivxA')).toBe(true);
-    expect(extractApQuoteUri({
-      type: 'Note',
-      content: '<p>A M A T E R A S U</p> <p><span class="quote-inline">RE: <a href="https://www.threads.com/@x/post/Dcv3w16ivxA">t</a></span></p>',
-      tag: [],
-    })).toBeUndefined();
+    expect(
+      isCandidate('A M A T E R A S U 👁️ 🔥\n\nRE: https://www.threads.com/@x/post/Dcv3w16ivxA'),
+    ).toBe(true);
+    expect(
+      extractApQuoteUri({
+        type: 'Note',
+        content:
+          '<p>A M A T E R A S U</p> <p><span class="quote-inline">RE: <a href="https://www.threads.com/@x/post/Dcv3w16ivxA">t</a></span></p>',
+        tag: [],
+      }),
+    ).toBeUndefined();
   });
 });

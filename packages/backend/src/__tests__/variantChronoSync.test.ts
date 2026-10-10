@@ -59,7 +59,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (created.length > 0) {
-    await getDb().delete(posts).where(inArray(posts.id, created.splice(0)));
+    await getDb()
+      .delete(posts)
+      .where(inArray(posts.id, created.splice(0)));
   }
 });
 
@@ -78,7 +80,11 @@ describe('post_content_variants.post_created_at', () => {
   it('is copied from the post when an edit replaces the renditions', async () => {
     const id = await create(new Date('2026-03-04T05:06:07.000Z'));
 
-    await replacePostContent(id, { variants: [{ source: 'author', text: 'edited body', tag: 'en' }] }, []);
+    await replacePostContent(
+      id,
+      { variants: [{ source: 'author', text: 'edited body', tag: 'en' }] },
+      [],
+    );
 
     expect((await renditions()).length).toBe(1);
     expect(await disagreeing()).toBe(0);

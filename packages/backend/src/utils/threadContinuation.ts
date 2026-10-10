@@ -133,7 +133,10 @@ export async function assertContinuesOwnThread(params: {
   if (String(parent?.oxyUserId ?? '') !== authorId) refuse();
   // 2. The parent is in the thread this post declares — either its root, or a
   //    link already anchored on it.
-  if (String(parentPostId) !== String(threadId) && String(parent?.threadId ?? '') !== String(threadId)) {
+  if (
+    String(parentPostId) !== String(threadId) &&
+    String(parent?.threadId ?? '') !== String(threadId)
+  ) {
     refuse();
   }
   // 3. The thread was STARTED by this account. Without it, an account could
@@ -221,7 +224,10 @@ export async function assertAnswersOperatedAccount(params: {
   const parentAuthorId = String(parent?.oxyUserId ?? '');
 
   // 1. The parent is in the declared thread — its root, or a link anchored on it.
-  if (String(parentPostId) !== String(threadId) && String(parent?.threadId ?? '') !== String(threadId)) {
+  if (
+    String(parentPostId) !== String(threadId) &&
+    String(parent?.threadId ?? '') !== String(threadId)
+  ) {
     refuse();
   }
 

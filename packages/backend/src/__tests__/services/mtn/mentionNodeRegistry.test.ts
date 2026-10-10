@@ -83,18 +83,26 @@ const { memoryStore, resolveDid, safeFetchMock } = vi.hoisted(() => {
       return matches.length ? matches[matches.length - 1].env : null;
     },
     async latestIssuedAtForKey(subject, env) {
-      if (env.version === 2 && (typeof env.collection !== 'string' || typeof env.rkey !== 'string')) {
+      if (
+        env.version === 2 &&
+        (typeof env.collection !== 'string' || typeof env.rkey !== 'string')
+      ) {
         return null;
       }
       const matches = rows.filter(
-        (r) => r.env.subject === subject && r.env.collection === env.collection && r.env.rkey === env.rkey,
+        (r) =>
+          r.env.subject === subject &&
+          r.env.collection === env.collection &&
+          r.env.rkey === env.rkey,
       );
       const latest = matches[matches.length - 1];
       return typeof latest?.env.issuedAt === 'number' ? latest.env.issuedAt : null;
     },
   };
 
-  const resolveDidMock = vi.fn(async () => ({ verificationMethod: [] as Array<{ publicKeyHex: string }> }));
+  const resolveDidMock = vi.fn(async () => ({
+    verificationMethod: [] as Array<{ publicKeyHex: string }>,
+  }));
 
   const safeFetch = vi.fn(async (_url: string) => ({
     status: 200,
@@ -160,12 +168,14 @@ async function seedNode(
   oxyUserId: string,
   overrides: Partial<typeof mentionUserNodes.$inferInsert> = {},
 ): Promise<void> {
-  await getDb().insert(mentionUserNodes).values({
-    oxyUserId,
-    endpoint: NODE_ENDPOINT,
-    nodePublicKey: NODE_PUBLIC_KEY,
-    ...overrides,
-  });
+  await getDb()
+    .insert(mentionUserNodes)
+    .values({
+      oxyUserId,
+      endpoint: NODE_ENDPOINT,
+      nodePublicKey: NODE_PUBLIC_KEY,
+      ...overrides,
+    });
 }
 
 beforeAll(async () => {
@@ -177,7 +187,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await getDb().delete(mentionUserNodes).where(like(mentionUserNodes.oxyUserId, `${SUBJECT_OXY_ID}%`));
+  await getDb()
+    .delete(mentionUserNodes)
+    .where(like(mentionUserNodes.oxyUserId, `${SUBJECT_OXY_ID}%`));
   process.env.MENTION_DID = MENTION_DID;
   process.env.MENTION_PRIVATE_KEY = CUSTODIAL_PRIVATE;
   process.env.MENTION_PUBLIC_KEY = CUSTODIAL_PUBLIC;
@@ -190,7 +202,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await getDb().delete(mentionUserNodes).where(like(mentionUserNodes.oxyUserId, `${SUBJECT_OXY_ID}%`));
+  await getDb()
+    .delete(mentionUserNodes)
+    .where(like(mentionUserNodes.oxyUserId, `${SUBJECT_OXY_ID}%`));
   delete process.env.MENTION_DID;
   delete process.env.MENTION_PRIVATE_KEY;
   delete process.env.MENTION_PUBLIC_KEY;
@@ -274,7 +288,9 @@ describe('MentionNodeRegistryService.provisionManagedVault', () => {
 
     // The record genuinely verifies + is authorized for the custodial issuer.
     expect(await verifyEnvelopeSignature(stored)).toBe(true);
-    const { mentionVerificationResolver } = await import('../../../services/mtn/mentionVerificationResolver');
+    const { mentionVerificationResolver } = await import(
+      '../../../services/mtn/mentionVerificationResolver'
+    );
     const resolved = await mentionVerificationResolver.resolve(stored.subject);
     expect(isAuthorizedKey(resolved, stored).ok).toBe(true);
 
@@ -337,22 +353,22 @@ describe('MentionNodeRegistryService.probeLiveness', () => {
 
 describe('MentionNodeRegistryService.sweepNodeLiveness — bounded concurrency', () => {
   /**
- * The endpoints THIS suite's probes went to.
- *
- * `sweepNodeLiveness` reads the whole table, and vitest runs test FILES in
- * parallel against one database — so sibling suites' node rows are legitimately
- * in the batch and a bare `toHaveBeenCalledTimes` counts them too. That is a
- * cross-file flake, not a finding, so every count here is scoped to endpoints
- * this file owns. (The batch limit is 100 and this suite seeds 24, so its own
- * rows always fit regardless of what the siblings add.)
- */
-function probedOwnEndpoints(): string[] {
-  return safeFetchMock.mock.calls
-    .map((call) => String(call[0]))
-    .filter((url) => url.startsWith(`${NODE_ENDPOINT}/${SUBJECT_OXY_ID}`));
-}
+   * The endpoints THIS suite's probes went to.
+   *
+   * `sweepNodeLiveness` reads the whole table, and vitest runs test FILES in
+   * parallel against one database — so sibling suites' node rows are legitimately
+   * in the batch and a bare `toHaveBeenCalledTimes` counts them too. That is a
+   * cross-file flake, not a finding, so every count here is scoped to endpoints
+   * this file owns. (The batch limit is 100 and this suite seeds 24, so its own
+   * rows always fit regardless of what the siblings add.)
+   */
+  function probedOwnEndpoints(): string[] {
+    return safeFetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.startsWith(`${NODE_ENDPOINT}/${SUBJECT_OXY_ID}`));
+  }
 
-/** Build N real cached node rows for the sweep to pick up. */
+  /** Build N real cached node rows for the sweep to pick up. */
   async function seedNodes(count: number): Promise<string[]> {
     const ids = Array.from({ length: count }, (_, i) => `${SUBJECT_OXY_ID}${i}`);
     await Promise.all(
@@ -381,16 +397,21 @@ function probedOwnEndpoints(): string[] {
     let inFlight = 0;
     let peakInFlight = 0;
     let saturated: (() => void) | undefined;
-    const reachedCap = new Promise<void>((resolve) => { saturated = resolve; });
+    const reachedCap = new Promise<void>((resolve) => {
+      saturated = resolve;
+    });
     const barrier = Promise.race([
       reachedCap,
       new Promise<never>((_, reject) => {
         setTimeout(
-          () => reject(new Error(
-            `only ${peakInFlight} probe(s) were ever in flight at once, so the `
-            + `liveness sweep is not running a pool of ${cap} — it has become `
-            + 'sequential, and one slow node now stalls every node behind it',
-          )),
+          () =>
+            reject(
+              new Error(
+                `only ${peakInFlight} probe(s) were ever in flight at once, so the ` +
+                  `liveness sweep is not running a pool of ${cap} — it has become ` +
+                  'sequential, and one slow node now stalls every node behind it',
+              ),
+            ),
           CONCURRENCY_BARRIER_TIMEOUT_MS,
         ).unref?.();
       }),

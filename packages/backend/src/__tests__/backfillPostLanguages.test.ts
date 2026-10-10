@@ -184,9 +184,11 @@ describe('backfillPostLanguages', () => {
     // both are invisible at a batch size that fits everything in one page.
     const ids: string[] = [];
     for (let i = 0; i < 3; i += 1) {
-      ids.push(await seedUnclassified({
-        content: { variants: [{ source: 'author', text: `${ENGLISH} Number ${i}.`, tag: 'en' }] },
-      }));
+      ids.push(
+        await seedUnclassified({
+          content: { variants: [{ source: 'author', text: `${ENGLISH} Number ${i}.`, tag: 'en' }] },
+        }),
+      );
     }
 
     await backfillPostLanguages({ batchSize: 1 });

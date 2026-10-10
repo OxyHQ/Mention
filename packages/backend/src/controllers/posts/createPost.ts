@@ -21,7 +21,10 @@ import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import {
+  createPostMediaOwnerClient,
+  ensurePostMediaPublic,
+} from '../../services/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
@@ -31,7 +34,10 @@ import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/chann
 import { PublishAsAccessError } from '../../services/publishAsAccount';
 import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
-import { postCollaborationService, CollabValidationError } from '../../services/PostCollaborationService';
+import {
+  postCollaborationService,
+  CollabValidationError,
+} from '../../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 import {
   DEFAULT_POLL_DURATION_DAYS,
@@ -58,7 +64,27 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId, publishAsOxyUserId } = req.body;
+    const {
+      content,
+      hashtags,
+      mentions,
+      quoted_post_id,
+      boost_of,
+      in_reply_to_status_id,
+      parentPostId,
+      threadId,
+      contentLocation,
+      postLocation,
+      replyPermission,
+      reviewReplies,
+      quotesDisabled,
+      status: incomingStatus,
+      scheduledFor,
+      collaboratorIds,
+      collaboratorHandles,
+      laneId,
+      publishAsOxyUserId,
+    } = req.body;
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -89,7 +115,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // the primary. A composer that never opened the language UI sends none, and the
     // plain `content.text` below becomes the primary rendition (tagged with what the
     // classifier detects, never with the client's UI locale).
-    const variantResult = validateAuthorVariants(content?.variants, normalizedMedia.map((item) => item.id));
+    const variantResult = validateAuthorVariants(
+      content?.variants,
+      normalizedMedia.map((item) => item.id),
+    );
     if (!variantResult.ok) {
       return res.status(400).json({ message: variantResult.error });
     }
@@ -99,7 +128,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Validate text length
     if (text && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
-      return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+      return res
+        .status(400)
+        .json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
     }
 
     // Validate hashtags. The bounds are the ones this route already answered a
@@ -126,13 +157,20 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       let longitude, latitude, address;
 
       // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
-      if (contentLocationData.type === 'Point' && Array.isArray(contentLocationData.coordinates) && contentLocationData.coordinates.length === 2) {
+      if (
+        contentLocationData.type === 'Point' &&
+        Array.isArray(contentLocationData.coordinates) &&
+        contentLocationData.coordinates.length === 2
+      ) {
         longitude = contentLocationData.coordinates[0];
         latitude = contentLocationData.coordinates[1];
         address = contentLocationData.address;
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
-      else if (typeof contentLocationData.latitude === 'number' && typeof contentLocationData.longitude === 'number') {
+      else if (
+        typeof contentLocationData.latitude === 'number' &&
+        typeof contentLocationData.longitude === 'number'
+      ) {
         metrics.incrementCounter('legacy_post_payload_total', 1, {
           variant: 'content-location-object',
         });
@@ -142,17 +180,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
 
       // Validate coordinates
-      if (typeof longitude === 'number' && typeof latitude === 'number' &&
-          latitude >= -90 && latitude <= 90 &&
-          longitude >= -180 && longitude <= 180) {
+      if (
+        typeof longitude === 'number' &&
+        typeof latitude === 'number' &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180
+      ) {
         processedContentLocation = {
           type: 'Point' as const,
           coordinates: [longitude, latitude] as [number, number],
-          address: address || undefined
+          address: address || undefined,
         };
       } else {
         return res.status(400).json({
-          error: 'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
+          error:
+            'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
         });
       }
     }
@@ -163,13 +207,20 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       let longitude, latitude, address;
 
       // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
-      if (postLocation.type === 'Point' && Array.isArray(postLocation.coordinates) && postLocation.coordinates.length === 2) {
+      if (
+        postLocation.type === 'Point' &&
+        Array.isArray(postLocation.coordinates) &&
+        postLocation.coordinates.length === 2
+      ) {
         longitude = postLocation.coordinates[0];
         latitude = postLocation.coordinates[1];
         address = postLocation.address;
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
-      else if (typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number') {
+      else if (
+        typeof postLocation.latitude === 'number' &&
+        typeof postLocation.longitude === 'number'
+      ) {
         metrics.incrementCounter('legacy_post_payload_total', 1, {
           variant: 'post-location-object',
         });
@@ -180,17 +231,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
 
       // Validate coordinates
-      if (typeof longitude === 'number' && typeof latitude === 'number' &&
-          latitude >= -90 && latitude <= 90 &&
-          longitude >= -180 && longitude <= 180) {
+      if (
+        typeof longitude === 'number' &&
+        typeof latitude === 'number' &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180
+      ) {
         processedPostLocation = {
           type: 'Point' as const,
           coordinates: [longitude, latitude] as [number, number],
-          address: address || undefined
+          address: address || undefined,
         };
       } else {
         return res.status(400).json({
-          error: 'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
+          error:
+            'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
         });
       }
     }
@@ -237,7 +294,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         }
         const maxEndTimeMs = Date.now() + MAX_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000;
         if (endTimeMs > maxEndTimeMs) {
-          return res.status(400).json({ message: `Poll duration cannot exceed ${MAX_POLL_DURATION_DAYS} days` });
+          return res
+            .status(400)
+            .json({ message: `Poll duration cannot exceed ${MAX_POLL_DURATION_DAYS} days` });
         }
       }
 
@@ -254,7 +313,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           question: pollInput.question,
           options: pollInput.options,
           createdBy: userId,
-          endsAt: new Date(pollInput.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
+          endsAt: new Date(
+            pollInput.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000,
+          ),
           isMultipleChoice: pollInput.isMultipleChoice || false,
           isAnonymous: pollInput.isAnonymous || false,
         });
@@ -278,7 +339,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.sources = sources;
     }
 
-    const preparedArticle = prepareArticle(sanitizeArticle(content?.article || req.body.article), userId);
+    const preparedArticle = prepareArticle(
+      sanitizeArticle(content?.article || req.body.article),
+      userId,
+    );
     if (preparedArticle) {
       postContent.article = preparedArticle.content;
     }
@@ -306,7 +370,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       try {
         postContent.podcast = await resolvePodcastContent(sanitizedPodcast.syraPodcastId);
       } catch (podcastError) {
-        logger.warn('Failed to resolve Syra podcast for post', { userId, syraPodcastId: sanitizedPodcast.syraPodcastId, error: podcastError });
+        logger.warn('Failed to resolve Syra podcast for post', {
+          userId,
+          syraPodcastId: sanitizedPodcast.syraPodcastId,
+          error: podcastError,
+        });
         return res.status(400).json({ message: 'Unable to resolve the selected podcast' });
       }
     }
@@ -323,12 +391,20 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         }
         postContent.job = jobContent;
       } catch (jobError) {
-        logger.warn('Failed to resolve Mention job for post', { userId, mentionJobId: sanitizedJob.mentionJobId, error: jobError });
+        logger.warn('Failed to resolve Mention job for post', {
+          userId,
+          mentionJobId: sanitizedJob.mentionJobId,
+          error: jobError,
+        });
         return res.status(400).json({ message: 'Unable to resolve the selected job' });
       }
     }
 
-    const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
+    const attachmentsInput =
+      content?.attachments ||
+      content?.attachmentOrder ||
+      req.body.attachments ||
+      req.body.attachmentOrder;
     const computedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentsInput || postContent.attachments,
       media: Array.isArray(postContent.media) ? postContent.media : [],
@@ -339,7 +415,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length),
       includePodcast: Boolean(postContent.podcast),
-      includeJob: Boolean(postContent.job)
+      includeJob: Boolean(postContent.job),
     });
 
     if (computedAttachments) {
@@ -404,7 +480,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // bodies that publish today — and it is why the shared schema reports an
     // unrecognised value instead of assuming one.
     const parsedVisibility = postVisibilitySchema.safeParse(req.body.visibility);
-    const resolvedVisibility = parsedVisibility.success ? parsedVisibility.data : PostVisibility.PUBLIC;
+    const resolvedVisibility = parsedVisibility.success
+      ? parsedVisibility.data
+      : PostVisibility.PUBLIC;
 
     // `replyPermission` reaches a `text[]` column guarded by
     // `posts_reply_permission_check`, and used to reach it as `x || ['anyone']` —
@@ -483,8 +561,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     if (postStatus === 'published') {
       const parentIdForAffinity = parentPostId || in_reply_to_status_id;
       const affinityTargets: Array<{ targetPostId: string; type: 'quote' | 'reply' }> = [];
-      if (quoted_post_id) affinityTargets.push({ targetPostId: String(quoted_post_id), type: 'quote' });
-      if (parentIdForAffinity) affinityTargets.push({ targetPostId: String(parentIdForAffinity), type: 'reply' });
+      if (quoted_post_id)
+        affinityTargets.push({ targetPostId: String(quoted_post_id), type: 'quote' });
+      if (parentIdForAffinity)
+        affinityTargets.push({ targetPostId: String(parentIdForAffinity), type: 'reply' });
 
       for (const { targetPostId, type } of affinityTargets) {
         // Tracked so the shutdown drain waits for it. Fire-and-forget is still

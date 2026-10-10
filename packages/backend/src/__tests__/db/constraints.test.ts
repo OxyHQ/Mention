@@ -47,9 +47,7 @@ afterAll(async () => {
 describe('uuid v7 ids', () => {
   it('produces a well-formed version-7 uuid', () => {
     const id = uuidv7();
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it('sorts lexicographically by creation time', async () => {
@@ -91,7 +89,7 @@ describe('posts.status', () => {
     await expect(
       db.execute(sql`
         insert into posts (id, status) values (${uuidv7()}, 'shadowbanned')
-      `)
+      `),
     ).rejects.toThrow();
   });
 });
@@ -104,7 +102,7 @@ describe('posts.reply_permission', () => {
       db.execute(sql`
         insert into posts (id, reply_permission)
         values (${uuidv7()}, array['anyone', 'nobody', 'maybe']::text[])
-      `)
+      `),
     ).rejects.toThrow();
   });
 
@@ -208,7 +206,7 @@ describe('likes', () => {
       db.execute(sql`
         insert into likes (id, user_id, post_id, value)
         values (${uuidv7()}, 'voter', ${postId}, 2)
-      `)
+      `),
     ).rejects.toThrow();
   });
 
@@ -287,7 +285,7 @@ describe('threadgate_allow_rules', () => {
     await expect(
       db
         .insert(threadgateAllowRules)
-        .values({ threadgateId: gate.id, position: 0, type: 'listOnly' })
+        .values({ threadgateId: gate.id, position: 0, type: 'listOnly' }),
     ).rejects.toThrow();
 
     await expect(
@@ -296,7 +294,7 @@ describe('threadgate_allow_rules', () => {
         position: 0,
         type: 'followingOnly',
         listId: 'some-list',
-      })
+      }),
     ).rejects.toThrow();
 
     await db
@@ -319,7 +317,7 @@ describe('user_settings.profile_media', () => {
         profileMediaSyraTrackId: 'track-1',
         profileMediaPreviewUrl: 'https://example.invalid/preview.mp3',
         profileMediaSyraPodcastId: 'show-1',
-      })
+      }),
     ).rejects.toThrow();
   });
 

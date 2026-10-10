@@ -103,10 +103,18 @@ function makeCandidate(spec: FixtureSpec): EvalCandidate {
       : { variants: [{ source: 'author', text: spec.text }] },
     stats: postStats(spec.stats),
     hashtags: [],
-    ...(spec.federated ? { federation: { actorUri: `https://${spec.domain}/users/u${spec.n}` } } : {}),
+    ...(spec.federated
+      ? { federation: { actorUri: `https://${spec.domain}/users/u${spec.n}` } }
+      : {}),
   });
   const actor: LabeledActor | undefined = spec.federated
-    ? { uri: `https://${spec.domain}/users/u${spec.n}`, acct: spec.acct ?? `u${spec.n}@${spec.domain}`, domain: spec.domain ?? 'example.social', type: spec.actorType ?? 'Person', oxyUserId: `author-${spec.n}` }
+    ? {
+        uri: `https://${spec.domain}/users/u${spec.n}`,
+        acct: spec.acct ?? `u${spec.n}@${spec.domain}`,
+        domain: spec.domain ?? 'example.social',
+        type: spec.actorType ?? 'Person',
+        oxyUserId: `author-${spec.n}`,
+      }
     : undefined;
   return {
     post,
@@ -305,12 +313,19 @@ describe('assembleCandidates', () => {
     leanPost(n, { oxyUserId: `a${n}`, ...(federation ? { federation } : {}) });
 
   it('dedupes by id with the labeled copy winning over random/forYou', () => {
-    const labeled = [{ label: 'junk' as const, reason: 'r', acct: 'x@y', post: post(1), actor: undefined }];
+    const labeled = [
+      { label: 'junk' as const, reason: 'r', acct: 'x@y', post: post(1), actor: undefined },
+    ];
     const merged = assembleCandidates(
       labeled,
       [post(1), post(2, { actorUri: 'https://y/users/2' })],
       [post(3)],
-      new Map([['https://y/users/2', { uri: 'https://y/users/2', acct: 'two@y', domain: 'y', type: 'Person' }]]),
+      new Map([
+        [
+          'https://y/users/2',
+          { uri: 'https://y/users/2', acct: 'two@y', domain: 'y', type: 'Person' },
+        ],
+      ]),
     );
     const byId = new Map(merged.map((c) => [c.post.id, c]));
     expect(byId.get(postId(1))?.source).toBe('labeled');
@@ -323,7 +338,13 @@ describe('assembleCandidates', () => {
 
 describe('online engagement (from FeedInteraction)', () => {
   it('computes engagement-per-impression and report-per-impression', () => {
-    const report = computeOnlineEngagement({ impression: 100, like: 8, reply: 2, boost: 1, report: 3 });
+    const report = computeOnlineEngagement({
+      impression: 100,
+      like: 8,
+      reply: 2,
+      boost: 1,
+      report: 3,
+    });
     expect(report.impressions).toBe(100);
     expect(report.engagements).toBe(11); // 8 + 2 + 1
     expect(report.reports).toBe(3);
@@ -359,9 +380,16 @@ describe('online engagement (from FeedInteraction)', () => {
 });
 
 describe('resolveLabeledPosts', () => {
-  const actor: LabeledActor = { uri: 'https://misskey.io/users/n', acct: 'neobrown9_m@misskey.io', domain: 'misskey.io', type: 'Person' };
+  const actor: LabeledActor = {
+    uri: 'https://misskey.io/users/n',
+    acct: 'neobrown9_m@misskey.io',
+    domain: 'misskey.io',
+    type: 'Person',
+  };
 
-  function deps(overrides: Partial<LabelResolverDeps<CandidatePost>> = {}): LabelResolverDeps<CandidatePost> {
+  function deps(
+    overrides: Partial<LabelResolverDeps<CandidatePost>> = {},
+  ): LabelResolverDeps<CandidatePost> {
     return {
       findActorByAcct: async (acct) => (acct === actor.acct ? actor : null),
       findActorByUri: async (uri) => (uri === actor.uri ? actor : null),
@@ -372,7 +400,9 @@ describe('resolveLabeledPosts', () => {
       findPostById: async () => null,
       findPostByActivityId: async () => null,
       actorUriOf: (post) => {
-        const federation = (post as Record<string, unknown>).federation as { actorUri?: string } | undefined;
+        const federation = (post as Record<string, unknown>).federation as
+          | { actorUri?: string }
+          | undefined;
         return federation?.actorUri;
       },
       ...overrides,
@@ -415,11 +445,10 @@ describe('per-module gate attribution', () => {
   it('counts EVERY rejecting module, not only the first', () => {
     const rejectAll = (id: string): EvalGateModule => ({ id, params: {}, keep: () => false });
 
-    const result = evaluateGate(
-      {} as never,
-      {} as never,
-      [rejectAll('first'), rejectAll('second')],
-    );
+    const result = evaluateGate({} as never, {} as never, [
+      rejectAll('first'),
+      rejectAll('second'),
+    ]);
 
     // The engine short-circuits and only needs a label; an evaluation cannot, or
     // the second module's numbers would depend on list order rather than on what
@@ -431,6 +460,9 @@ describe('per-module gate attribution', () => {
 
   it('reports an empty rejection list for a candidate that passes', () => {
     const keepAll: EvalGateModule = { id: 'keeps', params: {}, keep: () => true };
-    expect(evaluateGate({} as never, {} as never, [keepAll])).toEqual({ passed: true, rejectedBy: [] });
+    expect(evaluateGate({} as never, {} as never, [keepAll])).toEqual({
+      passed: true,
+      rejectedBy: [],
+    });
   });
 });

@@ -50,7 +50,11 @@ vi.mock('../../runtime/socketServer', () => ({
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
-  degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown user' } }),
+  degradedActorSummary: (id: string) => ({
+    id,
+    username: '',
+    name: { displayName: 'Unknown user' },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -200,7 +204,9 @@ describe('updatePost — a profile link pasted while editing becomes a mention',
     const { res } = buildResponse();
 
     await updatePost(
-      buildRequest(post.id, { content: { text: 'see https://mastodon.social/@a-stranger' } }) as never,
+      buildRequest(post.id, {
+        content: { text: 'see https://mastodon.social/@a-stranger' },
+      }) as never,
       res as never,
     );
 

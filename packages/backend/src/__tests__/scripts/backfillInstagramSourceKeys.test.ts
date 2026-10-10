@@ -42,7 +42,10 @@ async function bridgePost(shortcode: string, withKey = false): Promise<string> {
 }
 
 async function keyOf(postId: string): Promise<string | undefined> {
-  const [row] = await getDb().select({ key: postSourceKeys.sourceKey }).from(postSourceKeys).where(eq(postSourceKeys.postId, postId));
+  const [row] = await getDb()
+    .select({ key: postSourceKeys.sourceKey })
+    .from(postSourceKeys)
+    .where(eq(postSourceKeys.postId, postId));
   return row?.key;
 }
 
@@ -73,20 +76,41 @@ describe('backfillInstagramSourceKeys', () => {
     // Filled by another post (the Graph import got there first): a conflict.
     const conflicting = await bridgePost('DqTakenD004');
     const graphCopy = await bridgePost('DqGraphE005', true);
-    await getDb().update(postSourceKeys).set({ sourceKey: 'instagram:DqTakenD004' }).where(eq(postSourceKeys.postId, graphCopy));
+    await getDb()
+      .update(postSourceKeys)
+      .set({ sourceKey: 'instagram:DqTakenD004' })
+      .where(eq(postSourceKeys.postId, graphCopy));
     // Claimed by a LIVE Graph import: reported, left for a re-run.
     const claimedByImport = await bridgePost('DqClaimF006');
-    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqClaimF006', claimToken: 'live', claimedUntil: new Date(Date.now() + 60_000) });
+    await getDb()
+      .insert(postSourceKeys)
+      .values({
+        sourceKey: 'instagram:DqClaimF006',
+        claimToken: 'live',
+        claimedUntil: new Date(Date.now() + 60_000),
+      });
     // Claimed by a DEAD import: taken over.
     const deadClaim = await bridgePost('DqDeadG0007');
-    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqDeadG0007', claimToken: 'dead', claimedUntil: new Date(Date.now() - 60_000) });
+    await getDb()
+      .insert(postSourceKeys)
+      .values({
+        sourceKey: 'instagram:DqDeadG0007',
+        claimToken: 'dead',
+        claimedUntil: new Date(Date.now() - 60_000),
+      });
 
     const dry = await backfillInstagramSourceKeys({ dryRun: true, pauseMs: 0 });
     expect(dry).toMatchObject({ candidates: 5, written: 0, validated: [] });
     expect(await keyOf(legacyA)).toBeUndefined();
 
     const run = await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 });
-    expect(run).toMatchObject({ candidates: 5, written: 3, conflicts: 1, claimed: 1, unvalidated: [] });
+    expect(run).toMatchObject({
+      candidates: 5,
+      written: 3,
+      conflicts: 1,
+      claimed: 1,
+      unvalidated: [],
+    });
     expect(await keyOf(legacyA)).toBe('instagram:DqLegacyA01');
     expect(await keyOf(legacyB)).toBe('instagram:DqLegacyB02');
     expect(await keyOf(keyed)).toBe('instagram:DqKeyedC003');
@@ -103,7 +127,11 @@ describe('backfillInstagramSourceKeys', () => {
     expect([...rows].every((row) => row.convalidated)).toBe(true);
 
     // Idempotent: a second run has nothing left to do.
-    expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({ candidates: 2, written: 0, validated: [] });
+    expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({
+      candidates: 2,
+      written: 0,
+      validated: [],
+    });
   });
 });
 
@@ -114,7 +142,9 @@ describe('backfillInstagramSourceKeys exit code (read by the one-shot workflow)'
 
   it('is EXIT_INCOMPLETE (re-run later, not a failure) for a live claim or an unvalidated CHECK', () => {
     expect(sourceKeyBackfillExitCode({ claimed: 1, unvalidated: [] })).toBe(EXIT_INCOMPLETE);
-    expect(sourceKeyBackfillExitCode({ claimed: 0, unvalidated: ['federated_actors_protocol_check'] })).toBe(EXIT_INCOMPLETE);
+    expect(
+      sourceKeyBackfillExitCode({ claimed: 0, unvalidated: ['federated_actors_protocol_check'] }),
+    ).toBe(EXIT_INCOMPLETE);
     expect(EXIT_INCOMPLETE).toBe(75);
   });
 });

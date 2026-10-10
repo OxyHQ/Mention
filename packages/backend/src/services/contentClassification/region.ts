@@ -38,7 +38,10 @@ function regionFromLocale(locale: string | undefined): string | undefined {
  */
 function regionFromInstance(instanceDomain: string | undefined): string | undefined {
   if (!instanceDomain) return undefined;
-  const host = instanceDomain.trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+  const host = instanceDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^\.+|\.+$/g, '');
   if (host.length === 0) return undefined;
 
   if (Object.prototype.hasOwnProperty.call(INSTANCE_REGION_MAP, host)) {

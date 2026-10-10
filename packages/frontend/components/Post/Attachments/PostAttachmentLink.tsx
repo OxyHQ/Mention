@@ -21,9 +21,8 @@ interface PostAttachmentLinkProps {
   style?: ViewStyle;
 }
 
-const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
-  ? ({ cursor: 'grab' } as unknown as ViewStyle)
-  : null;
+const webGrabCursorStyle: ViewStyle | null =
+  Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
 
 const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   url,

@@ -400,7 +400,9 @@ function handleCacheKey(username: string): string {
  * Fail-soft per handle: a lookup that throws resolves that handle to nothing
  * (and is not cached), and the rest are unaffected.
  */
-async function resolveHandleIdentities(entities: readonly TextEntity[]): Promise<Map<string, string>> {
+async function resolveHandleIdentities(
+  entities: readonly TextEntity[],
+): Promise<Map<string, string>> {
   /** lower-cased username → the spelling to ask Oxy for, and the handles naming it. */
   const local = new Map<string, { spelling: string; keys: string[] }>();
   /** normalized acct → the handles naming it. */
@@ -472,23 +474,25 @@ async function resolveLocalUsernames(
 
   const hits: [string, { id: string }][] = [];
   const nobody: [string, { id: null }][] = [];
-  await Promise.all(misses.map(async (name) => {
-    try {
-      const user = await resolveOxyUser(local.get(name)?.spelling ?? name);
-      const id = user ? String(user._id ?? user.id ?? '') : '';
-      if (id) {
-        out.set(name, id);
-        hits.push([handleCacheKey(name), { id }]);
-      } else {
-        nobody.push([handleCacheKey(name), { id: null }]);
+  await Promise.all(
+    misses.map(async (name) => {
+      try {
+        const user = await resolveOxyUser(local.get(name)?.spelling ?? name);
+        const id = user ? String(user._id ?? user.id ?? '') : '';
+        if (id) {
+          out.set(name, id);
+          hits.push([handleCacheKey(name), { id }]);
+        } else {
+          nobody.push([handleCacheKey(name), { id: null }]);
+        }
+      } catch (err) {
+        // Not cached: an outage is not an answer about the name.
+        logger.warn('[Mentions] failed to resolve a typed handle in a composed post', {
+          error: err,
+        });
       }
-    } catch (err) {
-      // Not cached: an outage is not an answer about the name.
-      logger.warn('[Mentions] failed to resolve a typed handle in a composed post', {
-        error: err,
-      });
-    }
-  }));
+    }),
+  );
   await Promise.all([
     handleCache.setMany(hits),
     handleCache.setMany(nobody, { ttlSeconds: HANDLE_MISS_TTL_SECONDS }),

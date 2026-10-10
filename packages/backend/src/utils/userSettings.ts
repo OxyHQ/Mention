@@ -2,9 +2,7 @@ import type { UserSettingsRecord } from '../db/userProfile/userSettingsRecord';
 import { resolveBannerUrl } from './mediaResolver';
 
 function nonEmptyString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : undefined;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 /**
@@ -23,14 +21,19 @@ function resolveProfileHeaderImage(value: unknown): string | undefined {
 /**
  * Extracts public profile design data from UserSettings document
  */
-export function extractPublicProfileData(doc: Partial<UserSettingsRecord> | null | undefined, userId: string) {
+export function extractPublicProfileData(
+  doc: Partial<UserSettingsRecord> | null | undefined,
+  userId: string,
+) {
   const customization = doc?.profileCustomization || {};
 
   return {
     oxyUserId: userId,
-    appearance: doc?.appearance?.primaryColor ? {
-      primaryColor: doc.appearance.primaryColor,
-    } : undefined,
+    appearance: doc?.appearance?.primaryColor
+      ? {
+          primaryColor: doc.appearance.primaryColor,
+        }
+      : undefined,
     profileHeaderImage: resolveProfileHeaderImage(doc?.profileHeaderImage),
     // Pinned Syra "profile media" (a song OR a podcast show) — already
     // denormalized + verified at save time, so it is public-safe and

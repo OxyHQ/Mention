@@ -126,12 +126,14 @@ describe('diversifyByAuthor (generic reranker)', () => {
   });
 
   it('enforces the per-author cap by deferring overflow to the tail (never dropping)', () => {
-    const ranked: Item[] = Array.from({ length: 8 }, (_, i) => ({ id: `a${i}`, author: 'A' }))
-      .concat([
-        { id: 'b1', author: 'B' },
-        { id: 'b2', author: 'B' },
-        { id: 'c1', author: 'C' },
-      ]);
+    const ranked: Item[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `a${i}`,
+      author: 'A',
+    })).concat([
+      { id: 'b1', author: 'B' },
+      { id: 'b2', author: 'B' },
+      { id: 'c1', author: 'C' },
+    ]);
 
     const out = diversifyByAuthor(ranked, authorOf, { minGap: 1, maxPerAuthor: 3 });
 
@@ -213,7 +215,7 @@ function makeSlice(sliceKey: string, authorId: string, postIds: string[]): FeedP
   };
 }
 
-describe('diversifyByAuthor — maxConsecutive, the reader\'s own knob', () => {
+describe("diversifyByAuthor — maxConsecutive, the reader's own knob", () => {
   /**
    * `feedSettings.diversity.maxConsecutiveSameAuthor` is offered in the app,
    * validated and clamped to 1..10 on write, and stored in its own column — and
@@ -320,7 +322,12 @@ function makeRawSlice(authorId: string, postId: string, finalScore: number): Fee
     items: [
       {
         // Mirrors a lean Mongo doc decorated by FeedRankingService.
-        post: { _id: { toString: () => postId }, id: postId, oxyUserId: authorId, finalScore } as unknown as HydratedPost,
+        post: {
+          _id: { toString: () => postId },
+          id: postId,
+          oxyUserId: authorId,
+          finalScore,
+        } as unknown as HydratedPost,
         isThreadParent: false,
         isThreadChild: false,
         isThreadLastChild: false,
@@ -407,13 +414,22 @@ describe('diversify BEFORE truncate (the real feed application: pool → diversi
       isIncompleteThread: true,
       items: [
         {
-          post: { _id: { toString: () => 'parent' }, id: 'parent', oxyUserId: 'P' } as unknown as HydratedPost,
+          post: {
+            _id: { toString: () => 'parent' },
+            id: 'parent',
+            oxyUserId: 'P',
+          } as unknown as HydratedPost,
           isThreadParent: true,
           isThreadChild: false,
           isThreadLastChild: false,
         },
         {
-          post: { _id: { toString: () => 'ranked' }, id: 'ranked', oxyUserId: 'R', finalScore: 42 } as unknown as HydratedPost,
+          post: {
+            _id: { toString: () => 'ranked' },
+            id: 'ranked',
+            oxyUserId: 'R',
+            finalScore: 42,
+          } as unknown as HydratedPost,
           isThreadParent: false,
           isThreadChild: true,
           isThreadLastChild: true,

@@ -82,10 +82,17 @@ describe('withMentionWidgets', () => {
   });
 
   it('writes only the endpoint that was overridden', () => {
-    const result = withMentionWidgets({ name: 'Mention' }, { webBaseUrl: 'http://192.168.1.5:3001' });
+    const result = withMentionWidgets(
+      { name: 'Mention' },
+      { webBaseUrl: 'http://192.168.1.5:3001' },
+    );
 
     expect(result.modResults?.resources.string).toEqual([
-      { name: 'mention_widget_web_base_url', value: 'http://192.168.1.5:3001', translatable: false },
+      {
+        name: 'mention_widget_web_base_url',
+        value: 'http://192.168.1.5:3001',
+        translatable: false,
+      },
     ]);
   });
 });

@@ -19,19 +19,30 @@ export interface PersistedMediaDimensions {
  * Read the stored aspect ratio from a media DTO. Returns undefined when the
  * backend has not yet backfilled metadata for this item.
  */
-export function readMediaAspectRatio(item: PersistedMediaDimensions | undefined): number | undefined {
+export function readMediaAspectRatio(
+  item: PersistedMediaDimensions | undefined,
+): number | undefined {
   if (!item) return undefined;
   if (typeof item.aspectRatio === 'number' && item.aspectRatio > 0) return item.aspectRatio;
-  if (typeof item.width === 'number' && typeof item.height === 'number' && item.width > 0 && item.height > 0) {
+  if (
+    typeof item.width === 'number' &&
+    typeof item.height === 'number' &&
+    item.width > 0 &&
+    item.height > 0
+  ) {
     return item.width / item.height;
   }
   return undefined;
 }
 
 /** Read stored duration in seconds from the media DTO. */
-export function readMediaDurationSec(item: PersistedMediaDimensions | undefined): number | undefined {
+export function readMediaDurationSec(
+  item: PersistedMediaDimensions | undefined,
+): number | undefined {
   const duration = item?.durationSec;
-  return typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : undefined;
+  return typeof duration === 'number' && Number.isFinite(duration) && duration > 0
+    ? duration
+    : undefined;
 }
 
 /** Intrinsic pixel size of a media item, as a pair. */
@@ -98,10 +109,7 @@ export function isVideoExtension(url: string): boolean {
  * Decide whether a media reference is a video from the canonical per-item type
  * and, for older media whose metadata is incomplete, the file extension.
  */
-export function isVideoMediaRef(
-  raw: string,
-  options: { mediaType?: string } = {},
-): boolean {
+export function isVideoMediaRef(raw: string, options: { mediaType?: string } = {}): boolean {
   const isMediaTypeVideo = options.mediaType === 'video';
   return isMediaTypeVideo || isVideoExtension(raw);
 }

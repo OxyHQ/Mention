@@ -106,7 +106,10 @@ async function seedSummary(name: string, displayName: string, calculatedAt: Date
 async function readStatementCount(): Promise<number> {
   let total = 0;
   for (const line of (await metrics.getPrometheusFormat()).split('\n')) {
-    const match = /^db_query_duration_ms_count\{[^}]*table="(?:trending|trend_batches)"[^}]*\}\s+(\d+)/.exec(line);
+    const match =
+      /^db_query_duration_ms_count\{[^}]*table="(?:trending|trend_batches)"[^}]*\}\s+(\d+)/.exec(
+        line,
+      );
     if (match) total += Number(match[1]);
   }
   return total;
@@ -123,7 +126,10 @@ describe('getTrendSummary caching', () => {
     const second = await trendingService.getTrendSummary(term);
     const afterSecond = await readStatementCount();
 
-    expect(first).toEqual({ displayName: 'Alpha Trend', description: 'a deterministic description' });
+    expect(first).toEqual({
+      displayName: 'Alpha Trend',
+      description: 'a deterministic description',
+    });
     expect(second).toEqual(first);
     expect(afterFirst).toBe(2); // trend_batches + trending, one each
     expect(afterSecond).toBe(2); // unchanged — the second call was a cache hit
@@ -151,7 +157,10 @@ describe('getTrendSummary caching', () => {
     const now = new Date();
     // A batch must exist (the function returns early with {} otherwise, before
     // ever reaching the per-term cache) — just no `trending` row for THIS term.
-    const [batch] = await getDb().insert(trendBatches).values({ calculatedAt: now }).returning({ id: trendBatches.id });
+    const [batch] = await getDb()
+      .insert(trendBatches)
+      .values({ calculatedAt: now })
+      .returning({ id: trendBatches.id });
     seededBatchIds.push(batch.id);
     const term = `summary-cache-unmatched-${Date.now()}`;
 

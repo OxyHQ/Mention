@@ -137,9 +137,7 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
   // (`oxy.auth()`), so resolving a user on it returns nothing.
   const username = await resolveSenderUsername(senderOxyUserId);
   if (!username) {
-    logger.warn(
-      '[FedDeliver] sender not found; dropping delivery',
-    );
+    logger.warn('[FedDeliver] sender not found; dropping delivery');
     throw new UnrecoverableError('Sender user not found');
   }
 
@@ -158,7 +156,9 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
 }
 
 /** Run one queued Instagram Graph sync (lease, cooldown and budget apply inside). */
-export async function processInstagramGraphSyncJob(job: Job<InstagramGraphSyncJobData>): Promise<void> {
+export async function processInstagramGraphSyncJob(
+  job: Job<InstagramGraphSyncJobData>,
+): Promise<void> {
   await instagramGraphConnector.runQueuedSync(job.data.actorId, job.data.trigger);
 }
 
@@ -175,7 +175,9 @@ export async function processSharingCleanupJob(job: Job<SharingCleanupJobData>):
 }
 
 /** Process one media-metadata enrich retry job. */
-export async function processMediaMetadataEnrichWorkerJob(job: Job<MediaMetadataEnrichJobData>): Promise<void> {
+export async function processMediaMetadataEnrichWorkerJob(
+  job: Job<MediaMetadataEnrichJobData>,
+): Promise<void> {
   await processMediaMetadataEnrichJob(job.data.postId);
 }
 
@@ -311,14 +313,14 @@ export function startWorkers(): void {
   // nothing, and a worker would hold a Redis connection polling for nothing.
   instagramGraphSyncWorker = instagramGraphConnector.enabled
     ? new Worker<InstagramGraphSyncJobData>(
-      INSTAGRAM_GRAPH_SYNC_QUEUE,
-      processInstagramGraphSyncJob,
-      {
-        connection,
-        concurrency: INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
-        lockDuration: INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
-      },
-    )
+        INSTAGRAM_GRAPH_SYNC_QUEUE,
+        processInstagramGraphSyncJob,
+        {
+          connection,
+          concurrency: INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
+          lockDuration: INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
+        },
+      )
     : null;
 
   for (const worker of [
@@ -342,7 +344,9 @@ export function startWorkers(): void {
     });
   }
 
-  logger.info('Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, instagram-graph-sync)');
+  logger.info(
+    'Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, instagram-graph-sync)',
+  );
 }
 
 /**

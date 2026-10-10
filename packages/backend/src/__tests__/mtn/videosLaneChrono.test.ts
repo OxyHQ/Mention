@@ -159,7 +159,16 @@ describe('the Videos lane scan', () => {
       await seed({
         label: 'landscape',
         createdAt: at(45),
-        media: [{ id: 'x-1', type: 'video', durationSec: LONG_ENOUGH, width: 1280, height: 720, orientation: 'landscape' }],
+        media: [
+          {
+            id: 'x-1',
+            type: 'video',
+            durationSec: LONG_ENOUGH,
+            width: 1280,
+            height: 720,
+            orientation: 'landscape',
+          },
+        ],
       }),
       await seed({
         label: 'too short',
@@ -234,10 +243,7 @@ describe('the Videos lane scan', () => {
       .selectDistinctOn([postMedia.postCreatedAt, postMedia.postId], { id: posts.id })
       .from(postMedia)
       .innerJoin(posts, eq(posts.id, postMedia.postId))
-      .where(and(
-        FeedQueryBuilder.videoMediaConditions(),
-        FeedQueryBuilder.videoPostConditions([]),
-      ))
+      .where(and(FeedQueryBuilder.videoMediaConditions(), FeedQueryBuilder.videoPostConditions([])))
       .orderBy(
         sql`${postMedia.postCreatedAt} desc nulls last`,
         sql`${postMedia.postId} desc nulls last`,

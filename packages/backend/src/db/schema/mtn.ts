@@ -125,7 +125,7 @@ export const mentionSignedRecords = pgTable(
   (t) => [
     check(
       'mention_signed_records_chain_status_check',
-      sql`${t.chainStatus} is null or ${t.chainStatus} in (${sql.raw(inList(MTN_CHAIN_STATUSES))})`
+      sql`${t.chainStatus} is null or ${t.chainStatus} in (${sql.raw(inList(MTN_CHAIN_STATUSES))})`,
     ),
     check('mention_signed_records_seq_check', sql`${t.seq} is null or ${t.seq} >= 0`),
     // Globally-unique content address (Mongo `recordId_1`, partial on string).
@@ -147,7 +147,7 @@ export const mentionSignedRecords = pgTable(
       .on(t.oxyUserId, t.nsid, t.rkey, t.createdAt.desc())
       .where(sql`${t.nsid} is not null`),
     index('mention_signed_records_subject_did_idx').on(t.subjectDid),
-  ]
+  ],
 );
 
 /**
@@ -174,7 +174,7 @@ export const mentionRepoHeads = pgTable(
   (t) => [
     check('mention_repo_heads_seq_check', sql`${t.seq} >= 0`),
     check('mention_repo_heads_record_count_check', sql`${t.recordCount} >= 0`),
-  ]
+  ],
 );
 
 /**
@@ -213,26 +213,29 @@ export const mentionUserNodes = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('mention_user_nodes_mode_check', sql`${t.mode} in (${sql.raw(inList(MENTION_NODE_MODES))})`),
+    check(
+      'mention_user_nodes_mode_check',
+      sql`${t.mode} in (${sql.raw(inList(MENTION_NODE_MODES))})`,
+    ),
     check(
       'mention_user_nodes_controller_check',
-      sql`${t.controller} in (${sql.raw(inList(MENTION_NODE_CONTROLLERS))})`
+      sql`${t.controller} in (${sql.raw(inList(MENTION_NODE_CONTROLLERS))})`,
     ),
     check(
       'mention_user_nodes_status_check',
-      sql`${t.status} in (${sql.raw(inList(MENTION_NODE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MENTION_NODE_STATUSES))})`,
     ),
     check('mention_user_nodes_cursor_check', sql`${t.cursor} is null or ${t.cursor} >= 0`),
     // A managed node is operated by Oxy, by definition — the two flags cannot
     // disagree. Mongo held them as two independent fields.
     check(
       'mention_user_nodes_managed_controller_check',
-      sql`${t.managed} = (${t.controller} = 'oxy')`
+      sql`${t.managed} = (${t.controller} = 'oxy')`,
     ),
     index('mention_user_nodes_status_idx').on(t.status),
     // The ingest sweep picks the least-recently-synced `pull` nodes first.
     index('mention_user_nodes_ingest_sweep_idx').on(t.status, t.mode, t.lastSyncedAt),
-  ]
+  ],
 );
 
 /**
@@ -276,5 +279,5 @@ export const mentionNodeIngestWitnesses = pgTable(
     check('mention_node_ingest_witnesses_ingested_at_check', sql`${t.ingestedAt} >= 0`),
     // Per-user audit reads, newest first.
     index('mention_node_ingest_witnesses_owner_chrono_idx').on(t.oxyUserId, t.createdAt.desc()),
-  ]
+  ],
 );

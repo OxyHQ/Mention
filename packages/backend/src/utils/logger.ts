@@ -94,74 +94,64 @@ function isSensitiveKey(key: string): boolean {
   if (PRESERVED_KEYS.has(normalized)) return false;
   if (SENSITIVE_EXACT_KEYS.has(normalized)) return true;
   return (
-    normalized.endsWith('id')
-    || normalized.endsWith('ids')
-    || normalized.endsWith('uri')
-    || normalized.endsWith('uris')
-    || normalized.endsWith('url')
-    || normalized.endsWith('urls')
-    || normalized.endsWith('ipaddress')
-    || normalized.endsWith('handle')
-    || normalized.endsWith('username')
-    || normalized.endsWith('email')
-    || normalized.endsWith('password')
-    || normalized.endsWith('secret')
-    || normalized.endsWith('token')
-    || normalized.endsWith('credential')
-    || normalized.endsWith('credentials')
-    || normalized.endsWith('privatekey')
-    || normalized.endsWith('apikey')
-    || normalized.endsWith('accesskey')
-    || normalized.endsWith('sessionid')
-    || normalized.endsWith('signature')
+    normalized.endsWith('id') ||
+    normalized.endsWith('ids') ||
+    normalized.endsWith('uri') ||
+    normalized.endsWith('uris') ||
+    normalized.endsWith('url') ||
+    normalized.endsWith('urls') ||
+    normalized.endsWith('ipaddress') ||
+    normalized.endsWith('handle') ||
+    normalized.endsWith('username') ||
+    normalized.endsWith('email') ||
+    normalized.endsWith('password') ||
+    normalized.endsWith('secret') ||
+    normalized.endsWith('token') ||
+    normalized.endsWith('credential') ||
+    normalized.endsWith('credentials') ||
+    normalized.endsWith('privatekey') ||
+    normalized.endsWith('apikey') ||
+    normalized.endsWith('accesskey') ||
+    normalized.endsWith('sessionid') ||
+    normalized.endsWith('signature')
   );
 }
 
-function sanitizeLogString(
-  value: string,
-  preserveBareIdentifier = false,
-): string {
+function sanitizeLogString(value: string, preserveBareIdentifier = false): string {
   const sanitized = value
-    .replace(
-      /\b(?:https?|wss?|at|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi,
-      (match) => {
-        let candidateEnd = match.length;
-        while (candidateEnd > 0 && '),.;!?'.includes(match[candidateEnd - 1] ?? '')) {
-          candidateEnd -= 1;
-        }
-        const candidate = match.slice(0, candidateEnd);
-        const trailing = match.slice(candidateEnd);
-        try {
-          const parsed = new URL(candidate);
-          if (
-            parsed.protocol.startsWith('mongodb')
-            || parsed.protocol.startsWith('redis')
-            || parsed.username
-            || parsed.password
-          ) {
-            return `${REDACTED}${trailing}`;
-          }
-          const host =
-            /^(?:\d{1,3}\.){3}\d{1,3}$/.test(parsed.hostname)
-            || parsed.hostname.includes(':')
-              ? REDACTED
-              : parsed.host;
-          return `${parsed.protocol}//${host}/[REDACTED]${trailing}`;
-        } catch {
+    .replace(/\b(?:https?|wss?|at|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi, (match) => {
+      let candidateEnd = match.length;
+      while (candidateEnd > 0 && '),.;!?'.includes(match[candidateEnd - 1] ?? '')) {
+        candidateEnd -= 1;
+      }
+      const candidate = match.slice(0, candidateEnd);
+      const trailing = match.slice(candidateEnd);
+      try {
+        const parsed = new URL(candidate);
+        if (
+          parsed.protocol.startsWith('mongodb') ||
+          parsed.protocol.startsWith('redis') ||
+          parsed.username ||
+          parsed.password
+        ) {
           return `${REDACTED}${trailing}`;
         }
-      },
-    )
+        const host =
+          /^(?:\d{1,3}\.){3}\d{1,3}$/.test(parsed.hostname) || parsed.hostname.includes(':')
+            ? REDACTED
+            : parsed.host;
+        return `${parsed.protocol}//${host}/[REDACTED]${trailing}`;
+      } catch {
+        return `${REDACTED}${trailing}`;
+      }
+    })
     .replace(/\b(?:did|acct):[^\s,;)\]]+/gi, REDACTED)
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`)
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED)
     .replace(/@[A-Z0-9_][A-Z0-9_.-]*@[A-Z0-9.-]+/gi, REDACTED)
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, REDACTED)
     .replace(/(^|[\s(])@[A-Z0-9_][A-Z0-9_.-]*/gi, `$1${REDACTED}`)
-    .replace(
-      /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
-      REDACTED,
-    )
+    .replace(/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g, REDACTED)
     .replace(/(?<![A-Z0-9:])\[?[A-F0-9:]{2,}\]?(?![A-Z0-9:])/gi, (candidate) => {
       const unwrapped = candidate.replace(/^\[/, '').replace(/\]$/, '');
       return isIP(unwrapped) === 6 ? REDACTED : candidate;
@@ -173,20 +163,20 @@ function sanitizeLogString(
   const identifiersRedacted = preserveBareIdentifier
     ? sanitized
     : sanitized
-      .replace(/\b[a-f0-9]{24}\b/gi, REDACTED)
-      // Any uuid VERSION, not 1-5. This class read `[1-5]` — the versions that
-      // existed when RFC 4122 was the whole story — and every id this service
-      // mints is a uuid **v7** (`@oxy.so/db`'s `generatedId()`), as is every
-      // oxy-api id since its 2026-07-31 Postgres cutover. So the one clause here
-      // whose entire job is to keep account and post ids out of the logs matched
-      // nothing it was written for: it redacted third-party v4 uuids and passed
-      // ours through verbatim. The version nibble is not a validity check
-      // anywhere in this codebase, so it does not belong in a redactor either.
-      .replace(
-        /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
-        REDACTED,
-      )
-      .replace(/\boxy[-_:][A-Za-z0-9][A-Za-z0-9._:-]{2,}\b/gi, REDACTED);
+        .replace(/\b[a-f0-9]{24}\b/gi, REDACTED)
+        // Any uuid VERSION, not 1-5. This class read `[1-5]` — the versions that
+        // existed when RFC 4122 was the whole story — and every id this service
+        // mints is a uuid **v7** (`@oxy.so/db`'s `generatedId()`), as is every
+        // oxy-api id since its 2026-07-31 Postgres cutover. So the one clause here
+        // whose entire job is to keep account and post ids out of the logs matched
+        // nothing it was written for: it redacted third-party v4 uuids and passed
+        // ours through verbatim. The version nibble is not a validity check
+        // anywhere in this codebase, so it does not belong in a redactor either.
+        .replace(
+          /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+          REDACTED,
+        )
+        .replace(/\boxy[-_:][A-Za-z0-9][A-Za-z0-9._:-]{2,}\b/gi, REDACTED);
   if (identifiersRedacted.length <= MAX_LOG_STRING_LENGTH) {
     return identifiersRedacted;
   }
@@ -214,10 +204,7 @@ function sanitizeError(
     safe.stack = sanitizeLogString(stack);
   }
   const code = dataValue('code');
-  if (
-    typeof code === 'string'
-    || typeof code === 'number'
-  ) {
+  if (typeof code === 'string' || typeof code === 'number') {
     safe.code = typeof code === 'string' ? sanitizeLogString(code) : code;
   }
   const cause = dataValue('cause');
@@ -227,17 +214,13 @@ function sanitizeError(
   return safe;
 }
 
-function sanitizeLogValueInternal(
-  value: unknown,
-  depth: number,
-  seen: WeakSet<object>,
-): unknown {
+function sanitizeLogValueInternal(value: unknown, depth: number, seen: WeakSet<object>): unknown {
   if (typeof value === 'string') return sanitizeLogString(value);
   if (
-    value === null
-    || typeof value === 'number'
-    || typeof value === 'boolean'
-    || typeof value === 'undefined'
+    value === null ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'undefined'
   ) {
     return value;
   }
@@ -273,8 +256,9 @@ function sanitizeObject(
   countMap: boolean,
 ): Record<string, unknown> {
   const output: Record<string, unknown> = {};
-  const entries = Object.entries(Object.getOwnPropertyDescriptors(value))
-    .filter(([, descriptor]) => descriptor.enumerable);
+  const entries = Object.entries(Object.getOwnPropertyDescriptors(value)).filter(
+    ([, descriptor]) => descriptor.enumerable,
+  );
   const maxKeys = countMap ? MAX_COUNT_MAP_KEYS : MAX_LOG_KEYS;
   for (const [key, nested] of entries.slice(0, maxKeys)) {
     const normalized = normalizeKey(key);
@@ -308,14 +292,14 @@ function isCountMapCandidate(
   seen: WeakSet<object>,
 ): value is object {
   return (
-    COUNT_MAP_KEYS.has(normalizedKey)
-    && depth + 1 < MAX_LOG_DEPTH
-    && typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && !(value instanceof Error)
-    && !(value instanceof Date)
-    && !seen.has(value)
+    COUNT_MAP_KEYS.has(normalizedKey) &&
+    depth + 1 < MAX_LOG_DEPTH &&
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Error) &&
+    !(value instanceof Date) &&
+    !seen.has(value)
   );
 }
 
@@ -373,11 +357,7 @@ function mergeLogArgs(args: unknown[]): Record<string, unknown> {
   const first = args[0];
   if (args.length === 1 && first !== null && typeof first === 'object') {
     const sanitized = sanitizeLogValue(first);
-    if (
-      sanitized !== null
-      && typeof sanitized === 'object'
-      && !Array.isArray(sanitized)
-    ) {
+    if (sanitized !== null && typeof sanitized === 'object' && !Array.isArray(sanitized)) {
       return sanitized as Record<string, unknown>;
     }
     return { data: sanitized };
@@ -395,10 +375,7 @@ export const logger: Logger = {
   },
   error: (message: string, error?: unknown) => {
     if (error instanceof Error) {
-      pinoLogger.error(
-        { err: sanitizeLogValue(error) },
-        sanitizeLogString(message),
-      );
+      pinoLogger.error({ err: sanitizeLogValue(error) }, sanitizeLogString(message));
     } else if (error) {
       pinoLogger.error(mergeLogArgs([error]), sanitizeLogString(message));
     } else {

@@ -48,5 +48,5 @@ export function useExternalActorResolve(rawQuery: string): ExternalActorResoluti
     retry: 1,
   });
 
-  return isRemoteQuery ? data ?? null : null;
+  return isRemoteQuery ? (data ?? null) : null;
 }

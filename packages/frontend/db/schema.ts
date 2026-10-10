@@ -1,14 +1,11 @@
 /**
  * Schema types and conversion functions.
- * 
+ *
  * Maps between SQLite row types and the HydratedPost / FeedItem types
  * used throughout the app.
  */
 
-import type {
-  HydratedBoostContext,
-  HydratedPost,
-} from '@mention/shared-types';
+import type { HydratedBoostContext, HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import type { LinkMetadata } from '@/stores/linksStore';
 
@@ -170,9 +167,7 @@ function isCanonicalStoredPost(value: unknown): value is FeedItem {
     return false;
   }
 
-  return value.authors.every(
-    (author) => isRecord(author) && !hasLegacyIdentityFields(author),
-  );
+  return value.authors.every((author) => isRecord(author) && !hasLegacyIdentityFields(author));
 }
 
 /**

@@ -83,9 +83,7 @@ export interface WidgetFeedPost {
  * because the account is not optional on the following widget — it is the thing
  * that decides whether the page may be stored at all.
  */
-export type FeedWidgetHandoff =
-  | { widget: 'trending' }
-  | { widget: 'following'; accountId: string };
+export type FeedWidgetHandoff = { widget: 'trending' } | { widget: 'following'; accountId: string };
 
 export interface FeedWidgetHandoffDecision {
   /** The descriptor that was requested. */

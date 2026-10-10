@@ -9,10 +9,7 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import type { AuthorFeedFilter } from '@mention/shared-types';
-import {
-  getDiscoveryGateSelection,
-  getPhase2bSignalSelection,
-} from '../../../config';
+import { getDiscoveryGateSelection, getPhase2bSignalSelection } from '../../../config';
 import type { FeedDefinition, ModuleRef } from '../engine/types';
 
 function enabled(module: string, params?: Record<string, unknown>): ModuleRef {
@@ -21,8 +18,15 @@ function enabled(module: string, params?: Record<string, unknown>): ModuleRef {
 
 /** The full ranking-signal catalog (declarative; `rankPosts` composes them all). */
 const ALL_RANKING_SIGNALS: ModuleRef[] = [
-  'engagement', 'recency', 'authorRelationship', 'authorAuthority',
-  'personalization', 'quality', 'trendingVelocity', 'timeOfDay', 'diversity',
+  'engagement',
+  'recency',
+  'authorRelationship',
+  'authorAuthority',
+  'personalization',
+  'quality',
+  'trendingVelocity',
+  'timeOfDay',
+  'diversity',
 ].map((id) => enabled(id));
 
 /**
@@ -127,7 +131,11 @@ function buildPresetRankingSignals(): ModuleRef[] {
  * the marker, so it never reads For You tuning.
  */
 const DISCOVERY_GATE_MODULE_IDS = [
-  'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
+  'minLength',
+  'lowEffortGate',
+  'nativeEngagement',
+  'minQuality',
+  'noContentWarning',
 ] as const;
 
 /**
@@ -161,7 +169,10 @@ const RECOMMENDATION_GATE_MODULE_IDS = ['noContentWarning'] as const;
  */
 function discoveryGateModule(id: string): ModuleRef {
   if (id === 'minLength') {
-    return enabled('minLength', { minLength: MtnConfig.feed.discoveryGate.minTextLength, viewerGateTuning: true });
+    return enabled('minLength', {
+      minLength: MtnConfig.feed.discoveryGate.minTextLength,
+      viewerGateTuning: true,
+    });
   }
   return enabled(id, { viewerGateTuning: true });
 }
@@ -503,11 +514,8 @@ export const savedDefinition: FeedDefinition = {
  */
 export function authorDefinition(authorId: string, filter: AuthorFeedFilter): FeedDefinition {
   const isLikes = filter === 'likes';
-  const filters: ModuleRef[] = filter === 'media'
-    ? [enabled('mediaOnly')]
-    : filter === 'videos'
-      ? [enabled('videoOnly')]
-      : [];
+  const filters: ModuleRef[] =
+    filter === 'media' ? [enabled('mediaOnly')] : filter === 'videos' ? [enabled('videoOnly')] : [];
   return {
     id: `author|${authorId}${filter === 'posts' ? '' : `|${filter}`}`,
     title: 'Author',

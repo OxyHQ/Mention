@@ -27,9 +27,7 @@ function runtimeSourceFiles(directory: string): string[] {
 }
 
 function withoutComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
 describe('frontend cache and environment boundaries', () => {

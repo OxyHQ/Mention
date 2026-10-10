@@ -31,9 +31,7 @@ const DISTANCE_TOLERANCE_METRES = 20_000;
 let db: Database;
 const createdPostIds: string[] = [];
 
-async function insertPostAt(
-  coordinates: { latitude: number; longitude: number }
-): Promise<string> {
+async function insertPostAt(coordinates: { latitude: number; longitude: number }): Promise<string> {
   const [row] = await db
     .insert(posts)
     .values({
@@ -103,12 +101,8 @@ describe('posts.geo', () => {
     `);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].metres).toBeGreaterThan(
-      BARCELONA_TO_MADRID_METRES - DISTANCE_TOLERANCE_METRES
-    );
-    expect(rows[0].metres).toBeLessThan(
-      BARCELONA_TO_MADRID_METRES + DISTANCE_TOLERANCE_METRES
-    );
+    expect(rows[0].metres).toBeGreaterThan(BARCELONA_TO_MADRID_METRES - DISTANCE_TOLERANCE_METRES);
+    expect(rows[0].metres).toBeLessThan(BARCELONA_TO_MADRID_METRES + DISTANCE_TOLERANCE_METRES);
   });
 
   it('is NULL when the post carries no coordinates', async () => {
@@ -119,7 +113,7 @@ describe('posts.geo', () => {
     createdPostIds.push(row.id);
 
     const rows = await db.execute<{ geo: string | null }>(
-      sql`select geo::text as geo from posts where id = ${row.id}`
+      sql`select geo::text as geo from posts where id = ${row.id}`,
     );
     expect(rows[0].geo).toBeNull();
   });
@@ -199,7 +193,7 @@ describe('coordinate constraints', () => {
       db.insert(posts).values({
         oxyUserId: 'oxy-test-author',
         locationLatitude: BARCELONA.latitude,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -209,7 +203,7 @@ describe('coordinate constraints', () => {
         oxyUserId: 'oxy-test-author',
         locationLatitude: 91,
         locationLongitude: 0,
-      })
+      }),
     ).rejects.toThrow();
   });
 });
