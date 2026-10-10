@@ -37,7 +37,6 @@ jest.mock('@oxy.so/core/logger', () => ({
  */
 function loadSync(): typeof import('../trendsWidgetSync') {
   jest.resetModules();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
   return require('../trendsWidgetSync');
 }
 

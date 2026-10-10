@@ -31,9 +31,7 @@ jest.mock('@/lib/queryClient', () => ({
 }));
 
 // Install API mocks before loading the singleton store module.
-// eslint-disable-next-line import/first
 import { useAppearanceStore, type UserAppearance } from '../appearanceStore';
-// eslint-disable-next-line import/first
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 function deferred<T>() {

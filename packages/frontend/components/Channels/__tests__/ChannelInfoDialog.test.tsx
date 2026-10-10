@@ -96,9 +96,7 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { ChannelInfoDialogProvider, showChannelInfo } from '../ChannelInfoDialog';
-// eslint-disable-next-line import/first
 import enStrings from '@/locales/en.json';
 
 const COPY = enStrings.channels.explainer;

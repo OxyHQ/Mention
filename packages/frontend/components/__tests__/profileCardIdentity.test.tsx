@@ -89,13 +89,9 @@ jest.mock('@/utils/userPlaceholderColor', () => ({
   getUserPlaceholderColor: () => '#888888',
 }));
 
-// eslint-disable-next-line import/first
 import { ProfileCard } from '@/components/ProfileCard';
-// eslint-disable-next-line import/first
 import { SuggestedProfileCard } from '@/components/SuggestedProfileCard';
-// eslint-disable-next-line import/first
 import { noteIdentityChanged } from '@/lib/actorCache';
-// eslint-disable-next-line import/first
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 
 const PERSON_ID = 'person-1';

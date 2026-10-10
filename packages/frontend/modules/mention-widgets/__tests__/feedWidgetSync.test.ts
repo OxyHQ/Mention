@@ -96,7 +96,6 @@ beforeEach(() => {
  */
 function loadSync(): typeof import('../feedWidgetSync') {
   jest.resetModules();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
   return require('../feedWidgetSync');
 }
 

@@ -14,9 +14,10 @@ describe('costly authenticated route rate-limit registration', () => {
 
   it('mounts the dedicated search budget before any search handler', () => {
     const searchSource = source('routes/search.ts');
+    // Either quote style, so formatting cannot decide the verdict.
+    const firstSearchHandler = searchSource.search(/router\.get\(\s*['"]\/['"]/);
+    expect(firstSearchHandler).toBeGreaterThan(-1);
     expect(searchSource.indexOf('router.use(searchRateLimiter)')).toBeGreaterThan(-1);
-    expect(searchSource.indexOf('router.use(searchRateLimiter)')).toBeLessThan(
-      searchSource.indexOf('router.get("/"'),
-    );
+    expect(searchSource.indexOf('router.use(searchRateLimiter)')).toBeLessThan(firstSearchHandler);
   });
 });

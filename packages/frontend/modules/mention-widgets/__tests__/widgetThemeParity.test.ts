@@ -18,14 +18,12 @@ const BLOOM_ROOT = dirname(require.resolve('@oxy.so/bloom/package.json'));
 // These are Bloom implementation modules rather than app runtime imports. The
 // widget cannot execute JavaScript, so the test deliberately runs the installed
 // package's exact generator and checks the committed Kotlin snapshot against it.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { APP_COLOR_PRESETS, COLOR_PRESET_REGISTRY } = require(
   join(BLOOM_ROOT, 'lib/commonjs/theme/color-presets.js'),
 ) as {
   APP_COLOR_PRESETS: Record<string, { hex: string; variant: string; tertiaryHex?: string }>;
   COLOR_PRESET_REGISTRY: readonly unknown[];
 };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const engine = require(join(BLOOM_ROOT, 'lib/commonjs/theme/color-engine/index.js')) as {
   argbFromHex: (hex: string) => number;
   generateRoleColors: (input: {
@@ -35,7 +33,6 @@ const engine = require(join(BLOOM_ROOT, 'lib/commonjs/theme/color-engine/index.j
   }) => Record<string, string>;
   hexFromArgb: (argb: number) => string;
 };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Hct } = require(join(BLOOM_ROOT, 'lib/commonjs/theme/color-engine/hct.js')) as {
   Hct: {
     from: (hue: number, chroma: number, tone: number) => HctColor;

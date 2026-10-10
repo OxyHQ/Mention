@@ -65,11 +65,8 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-// eslint-disable-next-line import/first
 import { ChannelHeader } from '@/components/Profile/ChannelHeader';
-// eslint-disable-next-line import/first
 import UserName from '@/components/UserName';
-// eslint-disable-next-line import/first
 import enStrings from '@/locales/en.json';
 
 const CHANNEL_LABEL = enStrings.channels.badge.a11yLabel;

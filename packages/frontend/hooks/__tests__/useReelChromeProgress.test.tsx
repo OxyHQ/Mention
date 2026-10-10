@@ -53,7 +53,6 @@ jest.mock('@/context/VideoPlaybackContext', () => ({
 }));
 jest.mock('@/hooks/usePipAspectRatio', () => ({ usePipAspectRatio: () => undefined }));
 
-// eslint-disable-next-line import/first
 import { REEL_TIME_UPDATE_INTERVAL_S, useReelChrome } from '../useReelChrome';
 
 function fakePlayer(duration: number) {

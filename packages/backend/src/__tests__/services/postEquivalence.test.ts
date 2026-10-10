@@ -740,7 +740,6 @@ describe('pagination', () => {
           { remoteUrl: `${asset}?oh=00_A&oe=1`, width: 1080, height: 1350, sizeBytes: 100000 + i },
         ],
       });
-      // eslint-disable-next-line no-await-in-loop
       expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
         outcome: 'clustered',
       });

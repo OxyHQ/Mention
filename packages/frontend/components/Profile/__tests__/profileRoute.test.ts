@@ -21,7 +21,7 @@ jest.mock('@oxy.so/core', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first -- the mock above must be installed first.
+// The mock above must be installed first.
 import {
   canonicalProfileHref,
   profileBasePath,

@@ -28,7 +28,6 @@ import type {
 // expo's runtime on the way in.
 Object.defineProperty(Platform, 'OS', { value: 'web', configurable: true });
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { VideoPlaybackProvider, useVideoPlayback } = require('../VideoPlaybackContext') as
     typeof import('../VideoPlaybackContext');
 

@@ -43,7 +43,6 @@ jest.mock('@/utils/apiError', () => ({
 }));
 
 // Jest must install the transport/auth mocks before this singleton is loaded.
-// eslint-disable-next-line import/first
 import {
   feedService,
   setFeedViewerRequestScope,

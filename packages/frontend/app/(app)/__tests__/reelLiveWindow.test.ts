@@ -89,7 +89,7 @@ describe('the reel’s live-player window', () => {
     const callSites = screen.match(/isNear=\{[^}]*\}/g) ?? [];
     expect(callSites).toHaveLength(2);
     for (const site of callSites) {
-      expect(site).toContain('isSlideNear(index, currentVisibleIndex,');
+      expect(site).toMatch(/isSlideNear\(\s*index,\s*currentVisibleIndex,/);
     }
   });
 

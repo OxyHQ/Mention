@@ -156,7 +156,6 @@ jest.mock('@/services/channelDeletionService', () => ({
   channelDeletionService: { preview: jest.fn(), deleteContent: jest.fn() },
 }));
 
-// eslint-disable-next-line import/first
 import ChannelAccountSettingsScreen from '../settings';
 
 const CHANNEL_ID = 'channel-1';

@@ -23,7 +23,7 @@ jest.mock('@/context/MentionSettingsContext', () => ({ useMentionSettings: () =>
 jest.mock('@/context/DrawerContext', () => ({ useDrawer: () => ({ close: mockClose }) }));
 jest.mock('@/hooks/useNavigateOrReselect', () => ({ useNavigateOrReselect: () => mockNavigateOrReselect }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import { useMentionSidebar } from '../useMentionSidebar';
 
 let sidebar!: SidebarProps;

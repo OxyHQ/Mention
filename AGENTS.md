@@ -16,6 +16,7 @@ the Bloom/Expo/expo-router gotchas.
 bun run dev            # all workspaces
 bun run build           # shared-types + backend + mcp
 bun run test / lint / check
+bun run lint:fix / format   # Biome; config in biome.jsonc
 ```
 
 See the repository [README](./README.md) for setup and local development.

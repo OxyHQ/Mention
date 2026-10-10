@@ -10,7 +10,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({ registerScrollable: mockRegister }),
 }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import { useFocusedScrollable } from '../useFocusedScrollable';
 
 const scroller = { scrollToOffset: jest.fn() };

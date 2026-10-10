@@ -58,9 +58,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-// eslint-disable-next-line import/first
 import { AccountInfoScreen } from '../AccountInfoScreen';
-// eslint-disable-next-line import/first
 import enStrings from '@/locales/en.json';
 
 function render(profile: Record<string, unknown>): ReactTestRenderer {

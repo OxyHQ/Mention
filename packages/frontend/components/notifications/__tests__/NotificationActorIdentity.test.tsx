@@ -111,13 +111,9 @@ jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }));
 
-// eslint-disable-next-line import/first
 import { NotificationItem } from '../NotificationItem';
-// eslint-disable-next-line import/first
 import { useUserById } from '@/hooks/useCachedUser';
-// eslint-disable-next-line import/first
 import { noteIdentityChanged } from '@/lib/actorCache';
-// eslint-disable-next-line import/first
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 
 const PRIMARY_ID = 'actor-primary';

@@ -68,7 +68,7 @@ updates:
       - dependency-name: "expo-*"
       - dependency-name: "@expo/*"
       - dependency-name: "jest-expo"
-      - dependency-name: "eslint-config-expo"
+      - dependency-name: "eslint-plugin-expo"
       # React / React Native core — version-locked via root `overrides`.
       - dependency-name: "react"
       - dependency-name: "react-dom"

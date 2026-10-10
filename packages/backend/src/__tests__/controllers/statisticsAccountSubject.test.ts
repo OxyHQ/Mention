@@ -152,7 +152,6 @@ function askEngagement(accountId?: string) {
 async function seedAccount(accountId: keyof typeof FIXTURES): Promise<void> {
   const fixture = FIXTURES[accountId];
   for (let index = 0; index < fixture.postCount; index += 1) {
-    // eslint-disable-next-line no-await-in-loop
     const record = await seedPost(scope, {
       oxyUserId: accountId,
       authorship: [{ oxyUserId: accountId, role: 'owner', status: 'accepted' }],
@@ -160,7 +159,6 @@ async function seedAccount(accountId: keyof typeof FIXTURES): Promise<void> {
     });
     // `PostRecordInput` carries no stats — they are counters the engagement paths
     // move — so the fixture sets them the way those paths would have.
-    // eslint-disable-next-line no-await-in-loop
     await getDb()
       .update(posts)
       .set({ statsViewsCount: fixture.views, statsLikesCount: fixture.likes })

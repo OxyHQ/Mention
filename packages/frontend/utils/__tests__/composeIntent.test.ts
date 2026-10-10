@@ -8,7 +8,6 @@
 // the module under test.
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
-// eslint-disable-next-line import/first
 import {
   buildComposeText,
   buildQuoteFallbackUrl,

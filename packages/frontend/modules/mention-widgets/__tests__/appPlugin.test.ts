@@ -35,7 +35,6 @@ jest.mock('expo/config-plugins', () => ({
 // A config plugin is a CommonJS module by contract: `app.config.js` `require`s
 // it by path at prebuild time, so it cannot be an ES module the test could
 // `import`.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- see above
 const withMentionWidgets = require('../app.plugin') as ((
   config: PluginConfig,
   options?: { apiBaseUrl?: unknown; webBaseUrl?: unknown },

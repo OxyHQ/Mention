@@ -38,7 +38,6 @@ export type {
  * array and the type is taken from the ESM declarations.
  */
 declare const require: (id: string) => unknown;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const vocabularies = require('@clarity.surf/sdk/vocabularies') as typeof ClarityVocabularies;
 
 export type CurrencyCode = ClarityVocabularies.CurrencyCode;

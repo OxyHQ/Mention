@@ -149,7 +149,7 @@ jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));
 jest.mock('../FeedFooter', () => ({ FeedFooter: () => null }));
 jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 
-// eslint-disable-next-line import/first -- every mock above must be installed first.
+// Every mock above must be installed first.
 import Feed from '../Feed.native';
 
 describe('reaching the end of a page', () => {

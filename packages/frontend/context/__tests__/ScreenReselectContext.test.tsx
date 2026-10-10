@@ -13,7 +13,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
 }));
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import {
   AT_TOP_THRESHOLD,
   ScreenReselectProvider,

@@ -27,7 +27,7 @@ jest.mock('@/context/ScreenReselectContext', () => ({
   useTabSelect: <T,>(active: T, select: (tab: T) => void) => (tab: T) => (tab === active ? mockReselect() : select(tab)),
 }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import ExploreLayout from '../explore/_layout';
 
 function renderAt(pathname: string) {

@@ -18,7 +18,6 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Install service mocks before loading the singleton store.
-// eslint-disable-next-line import/first
 import { useEntityFollowStore } from '../entityFollowStore';
 
 function deferred<T>() {

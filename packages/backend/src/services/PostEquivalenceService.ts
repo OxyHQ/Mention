@@ -656,7 +656,6 @@ export async function detectCrosspostEquivalence(
       const preferredId = preferredVariant(members, candidates);
       for (const member of members) member.preferred = member.postId === preferredId;
 
-      // eslint-disable-next-line no-await-in-loop
       const clusterId = await createCluster(match.confidence, members);
       logger.info('[Equivalence] cross-post variants collapsed into one feed item', {
         cluster: clusterId,
@@ -704,7 +703,6 @@ export async function collapseImportedCopies(
         result.refused += 1;
         continue;
       }
-      // eslint-disable-next-line no-await-in-loop
       const [imported, federated] = await Promise.all([loadCandidate(pair.importedPostId), loadCandidate(pair.federatedPostId)]);
       const match = imported && federated ? classifyPair(imported, federated, [], []) : undefined;
       if (!imported || !federated || !match) {
@@ -723,7 +721,6 @@ export async function collapseImportedCopies(
       for (const member of members) member.preferred = member.postId === preferredId;
       let clusterId: string;
       try {
-        // eslint-disable-next-line no-await-in-loop
         clusterId = await createCluster(match.confidence, members);
       } catch (err) {
         // A concurrent run clustered one of the two first (unique member key).
@@ -770,7 +767,6 @@ export async function reevaluateCluster(clusterId: string, options: EquivalenceE
 
     const loaded = new Map<string, EquivalenceCandidate>();
     for (const member of cluster.members) {
-      // eslint-disable-next-line no-await-in-loop
       const candidate = await loadCandidate(member.postId);
       if (candidate) loaded.set(member.postId, candidate);
     }
@@ -804,7 +800,6 @@ export async function reevaluateCluster(clusterId: string, options: EquivalenceE
         ? [member.evidence.slice('declared-original:'.length)]
         : [];
       if (classifyPair(other, anchor, declared, identities)) continue;
-      // eslint-disable-next-line no-await-in-loop
       await removeClusterMember(clusterId, member.postId);
       removed += 1;
       logger.info('[Equivalence] variant split out of its cluster; it no longer matches', {
@@ -836,7 +831,6 @@ export async function reevaluateClusterForPost(postId: string, options: Equivale
 /** Re-check several clusters — the post-deletion repair. */
 export async function reevaluateClusters(clusterIds: readonly string[]): Promise<void> {
   for (const clusterId of clusterIds) {
-    // eslint-disable-next-line no-await-in-loop
     await reevaluateCluster(clusterId);
   }
 }

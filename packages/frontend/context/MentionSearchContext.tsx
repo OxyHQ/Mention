@@ -19,12 +19,12 @@ export function useCreateMentionSearchCache(): MentionSearchCache {
   const viewerId = user?.id;
   // Keyed on the viewer too: what a search returns depends on who asks
   // (blocks), and an account switch must not answer from the last one's cache.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: viewerId is a deliberate cache key the factory does not read.
   return useMemo(
     () => createMentionSearchCache(async (query) => {
       const { data } = await oxyServices.users.search(query, { limit: 10 });
       return toMentionUsers(data);
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [oxyServices, viewerId],
   );
 }

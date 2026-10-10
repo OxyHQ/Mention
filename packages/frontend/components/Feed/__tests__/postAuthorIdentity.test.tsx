@@ -125,13 +125,9 @@ jest.mock('@/components/Post/PostHeader', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import PostItem from '../PostItem';
-// eslint-disable-next-line import/first
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
-// eslint-disable-next-line import/first
 import { noteIdentityChanged } from '@/lib/actorCache';
-// eslint-disable-next-line import/first
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 
 const CHANNEL_ID = 'channel-1';

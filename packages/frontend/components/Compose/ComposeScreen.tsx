@@ -229,11 +229,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // to `/compose`, which is a different instance. Reading params here would let
   // a stale query string from some earlier navigation apply itself to a draft
   // the reader had been keeping.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: params are read once on mount, see below.
   const initialIntent = useMemo<ComposeIntent>(
     () => (presentation === 'tab' ? parseComposeIntent({}) : parseComposeIntent(rawParams)),
     // We intentionally read params once on mount; subsequent navigations to
     // this same screen (e.g. quick share→share) will re-mount the screen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   const editPostId = initialIntent.editPostId;
@@ -1039,6 +1039,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   // First-mount intent application. Edit / reply modes are handled by their
   // own effects below to avoid re-fetching twice.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: first mount only, re-evaluated when drafts.length flips; see the deps comment.
   useEffect(() => {
     if (intentAppliedRef.current) return;
     if (initialIntent.editPostId || initialIntent.replyToPostId) {
@@ -1059,7 +1060,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     applyIntent();
     // We only want this on first mount. `drafts.length` may flip from 0 → N
     // when load completes; on that flip we re-evaluate the conflict gate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts.length]);
 
   // If the quoted post fails to load, append the fallback URL to the text

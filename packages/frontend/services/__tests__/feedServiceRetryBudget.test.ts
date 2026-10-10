@@ -37,9 +37,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Jest must install the transport mocks before this singleton is loaded.
-// eslint-disable-next-line import/first
 import { feedService, setFeedViewerRequestScope } from '../feedService';
-// eslint-disable-next-line import/first
 import { FEED_MAX_ATTEMPTS } from '@/utils/feedRetry';
 
 /** The shape `@oxy.so/core`'s `handleHttpError` throws for a server failure. */

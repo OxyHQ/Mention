@@ -24,7 +24,7 @@ export function useDeepCompareEffect(
         prevDeps.current = dependencies;
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies are deep-compared into ref.current by design.
     useEffect(callback, [ref.current]);
 }
 
@@ -47,6 +47,6 @@ export function useDeepCompareMemo<T>(
         prevDeps.current = dependencies;
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies are deep-compared into ref.current by design.
     return useMemo(factory, [ref.current]);
 }

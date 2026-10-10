@@ -26,7 +26,7 @@ describe('hidesBottomBar', () => {
 
   it('is what the app shell consults before drawing the bar', () => {
     const layout = readFileSync(join(__dirname, '..', '..', '..', 'app', '(app)', '_layout.tsx'), 'utf8');
-    expect(layout).toMatch(/bottomBarContent\(\{ pathname, keyboardVisible, isAuthenticated, isAuthResolved \}\)/);
+    expect(layout).toMatch(/bottomBarContent\(\{\s*pathname,\s*keyboardVisible,\s*isAuthenticated,\s*isAuthResolved,?\s*\}\)/);
     expect(layout).toMatch(/bottomBar=\{bottomBar\}/);
   });
 });

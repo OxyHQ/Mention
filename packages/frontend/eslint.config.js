@@ -1,6 +1,13 @@
-// https://docs.expo.dev/guides/using-eslint/
+// Minimal ESLint, run by `expo lint .` (the whole frontend). Biome (root
+// biome.jsonc) formats and lints everything else, including the frontend's
+// import guards (`noRestrictedImports`) and rules-of-hooks
+// (`useHookAtTopLevel`). This file keeps ONLY the rules Biome has no
+// equivalent for; do not add rules here that Biome can enforce.
 const { defineConfig } = require('eslint/config');
-const expoConfig = require('eslint-config-expo/flat');
+const tsParser = require('@typescript-eslint/parser');
+const expo = require('eslint-plugin-expo');
+const react = require('eslint-plugin-react');
+const reactHooks = require('eslint-plugin-react-hooks');
 
 // React Compiler safely skips only the components that emit these diagnostics.
 // Keep every finding visible while the existing app adopts the stricter Expo 57
@@ -15,65 +22,50 @@ const incrementalCompilerDiagnostics = [
   'react-hooks/use-memo',
 ];
 
+// Ported to Biome, so not repeated here: rules-of-hooks -> useHookAtTopLevel
+// (error), exhaustive-deps -> useExhaustiveDependencies.
+const { 'react-hooks/rules-of-hooks': _rulesOfHooks, 'react-hooks/exhaustive-deps': _exhaustiveDeps, ...compilerRules } =
+  reactHooks.configs.recommended.rules;
+
 module.exports = defineConfig([
-  expoConfig,
   {
     ignores: ['dist/*'],
-    rules: {
-      ...Object.fromEntries(
-        incrementalCompilerDiagnostics.map((rule) => [rule, 'warn']),
-      ),
-      /**
-       * The icon barrel is an error, not a style preference.
-       *
-       * Metro does not tree-shake, so `import { RiHand } from '@oxy.so/bloom/icons'`
-       * ships all 461 Remix glyphs. 166 files here were doing it, which was 334
-       * glyphs nobody draws, 286 KiB of initial JavaScript and 277 KiB of the
-       * largest chunk — which sat 10 KiB under its budget at the time.
-       *
-       * `paths` matches the module name EXACTLY, so every `@oxy.so/bloom/icons/Ri*`
-       * subpath stays legal; only the barrel itself is named. A type-only member
-       * has no per-glyph subpath and no runtime cost either way, so the two files
-       * that need `BloomIconComponent` take it from the package root.
-       */
-      'no-restricted-imports': ['error', {
-        paths: [{
-          name: '@oxy.so/bloom/icons',
-          message:
-            'Import each glyph by subpath — @oxy.so/bloom/icons/RiXxx. Metro does not tree-shake, so the barrel ships all 461. For the BloomIconComponent type, import it from @oxy.so/bloom.',
-        }, {
-          // A vector-icons glyph is a Text node a screen reader reads aloud as
-          // its private-use code point. The wrapper hides it once for every
-          // call site; the barrel also ships every icon font.
-          name: '@expo/vector-icons',
-          message: 'Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.',
-        }, {
-          name: '@expo/vector-icons/Ionicons',
-          message: 'Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.',
-        }, {
-          // iPhone Safari plays a web `<video>` inline only when it carries
-          // `playsinline`, and expo-video writes that only when the prop is
-          // passed — so every video here showed its poster and never started on
-          // iPhones. Bloom's VideoView defaults it on; the player itself
-          // (`useVideoPlayer`, `createVideoPlayer`) still comes from expo-video.
-          name: 'expo-video',
-          importNames: ['VideoView'],
-          message:
-            "Render VideoView from '@oxy.so/bloom/video-view' (VideoViewHandle for its ref type): it plays inline on iPhone Safari, where expo-video's own view shows only the poster.",
-        }],
-      }],
+  },
+  {
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    settings: { react: { version: 'detect' } },
   },
   {
-    // The one place allowed to reach the font directly.
-    files: ['components/common/Ionicons.tsx'],
-    rules: { 'no-restricted-imports': 'off' },
+    files: ['**/*.ts', '**/*.tsx', '**/*.d.ts'],
+    languageOptions: { parser: tsParser },
   },
   {
-    // Tests are not shipped, so the barrel costs them nothing — and a few assert
-    // on which glyph drew by importing it directly. The rule is about bundle
-    // size, so it ends where the bundle does.
-    files: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx', 'test-support/**'],
-    rules: { 'no-restricted-imports': 'off' },
+    plugins: { expo, react, 'react-hooks': reactHooks },
+    rules: {
+      // EXPO_PUBLIC_* reads Metro cannot inline. Biome has no equivalent.
+      'expo/use-dom-exports': 'error',
+      'expo/no-env-var-destructuring': 'error',
+      'expo/no-dynamic-env-var': 'error',
+
+      // React Compiler diagnostics. Biome has no equivalent.
+      ...compilerRules,
+      ...Object.fromEntries(incrementalCompilerDiagnostics.map((rule) => [rule, 'warn'])),
+
+      // eslint-plugin-react recommended errors that Biome has no stable
+      // equivalent for. The rest of that preset maps to Biome rules
+      // (useJsxKeyInIterable, noDuplicateJsxProps, noChildrenProp, ...).
+      'react/display-name': 'error',
+      'react/no-deprecated': 'error',
+      'react/no-direct-mutation-state': 'error',
+      'react/no-find-dom-node': 'error',
+      'react/no-is-mounted': 'error',
+      'react/no-string-refs': 'error',
+      'react/no-unescaped-entities': 'error',
+      'react/require-render-return': 'error',
+    },
   },
 ]);

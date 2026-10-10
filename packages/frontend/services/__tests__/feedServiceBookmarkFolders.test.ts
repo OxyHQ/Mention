@@ -29,7 +29,6 @@ jest.mock('@oxy.so/core/logger', () => ({
   logger: { debug: jest.fn(), error: jest.fn(), warn: jest.fn() },
 }));
 
-// eslint-disable-next-line import/first
 import { feedService } from '../feedService';
 
 describe('feedService bookmark folders', () => {

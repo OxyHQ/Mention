@@ -55,7 +55,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 
-// eslint-disable-next-line import/first -- the mocks above must be installed first.
+// The mocks above must be installed first.
 import { NotificationsList } from '../NotificationsList.native';
 
 describe('the notifications list’s scroll', () => {

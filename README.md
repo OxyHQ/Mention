@@ -108,7 +108,9 @@ bun run check            # workspace validators, then build, then type checks
 bun run build            # shared-types, backend, MCP
 bun run build:frontend   # static Expo web export
 bun run test             # every workspace
-bun run lint             # every workspace
+bun run lint             # Biome (format + lint), type checks, frontend Expo ESLint
+bun run lint:fix         # apply Biome's safe fixes and formatting
+bun run format           # format with Biome
 ```
 
 Two things save time here. Rebuild `shared-types` before you trust a red type check, because every other package compiles against its built output and reports newly landed symbols as missing. And run backend tests from their own package root, `cd packages/backend && bun run test`, so stale compiled copies cannot be picked up.

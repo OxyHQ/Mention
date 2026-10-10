@@ -55,7 +55,6 @@ jest.mock('@/context/VideoPlaybackContext', () => ({
 }));
 jest.mock('@/hooks/usePipAspectRatio', () => ({ usePipAspectRatio: () => undefined }));
 
-// eslint-disable-next-line import/first
 import { useReelChrome } from '../useReelChrome';
 
 /** A player that records every `currentTime` write, in order. */

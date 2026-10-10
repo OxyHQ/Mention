@@ -334,8 +334,9 @@ describe('backfillFederatedPostAuthors — what stays a red run', () => {
   it('sends a THROWN error to `failed`, never to the now-tolerated `transient`', () => {
     const source = normalizedSource();
 
-    expect(source).toContain("? 'blockedDelete' as const : 'failed' as const");
-    expect(source).not.toContain("? 'blockedDelete' as const : 'transient' as const");
+    // Optional parentheses around each arm, so formatting cannot decide the verdict.
+    expect(source).toMatch(/\? \(?'blockedDelete' as const\)? : \(?'failed' as const\)?/);
+    expect(source).not.toMatch(/\? \(?'blockedDelete' as const\)? : \(?'transient' as const\)?/);
   });
 
   it('hands the completion guard our OWN two buckets, and nothing a re-run fixes', () => {

@@ -167,7 +167,6 @@ jest.mock('@/services/channelAccountService', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import ChannelAccountSettingsScreen from '../settings';
 
 const CHANNEL_ID = 'channel-1';

@@ -10,7 +10,10 @@ working in this repository day to day. Coverage policy specifically:
 bun run dev / dev:frontend / dev:backend / dev:mcp / dev:mcp:http
 bun run build            # shared-types + backend + mcp
 bun run test / lint / check / clean
+bun run lint:fix / format   # Biome
 ```
+
+- **Biome formats and lints every package** (`biome.jsonc` at the root, run in CI as `bunx biome ci .`). `packages/frontend/eslint.config.js` is a deliberately minimal ESLint run by `expo lint .` over the whole frontend: only the Expo env-var rules, the React Compiler diagnostics and a few `eslint-plugin-react` checks Biome has no equivalent for. The frontend's import guards (the `@oxy.so/bloom/icons` barrel, `@expo/vector-icons`, expo-video's `VideoView`) are Biome `noRestrictedImports` overrides. Suppress with `// biome-ignore lint/<group>/<rule>: <reason>`.
 
 - **Run backend tests from the package root** (`cd packages/backend && bun run test`) — from the repo root they pick up stale `.dist` copies and report false failures.
 - **Rebuild `shared-types` before believing a red typecheck or build.** It is consumed through its BUILT `dist`, so after a rebase every other package compiles against the previous build and reports newly-landed symbols as missing (`TS2305`) in files you never touched.
