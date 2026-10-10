@@ -146,9 +146,9 @@ function configurePlayer(
  * `inverse` form (the one Bloom's own video poster frames use), at `large` (56,
  * the size the hand-drawn disc was).
  *
- * Its own component so the translation hook only mounts with the full controls
- * overlay: feed rows render the player in preview mode, where this never
- * mounts, so a video row gains no hook slot from it.
+ * Its own component so the translation hook only mounts when the button does:
+ * with the full controls overlay, or over a feed preview whose autoplay the
+ * browser refused. A playing feed row never mounts it, so it gains no hook slot.
  */
 const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
   playing,
@@ -600,6 +600,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <>
             {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
             <Pressable style={styles.tapArea} onPress={onPress} />
+
+            {/* The browser refused to start this video — Safari does without a
+                tap, always in Low Power Mode — so offer the tap that starts it
+                here, rather than a still frame that looks like the video. */}
+            {mayPlay && !isPlaying && (
+              <VideoPlayPauseButton playing={false} onPress={handlePlayPause} />
+            )}
 
             {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
             <Pressable
