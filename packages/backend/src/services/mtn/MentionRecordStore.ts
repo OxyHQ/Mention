@@ -115,7 +115,8 @@ export interface StoredIdempotentRecord {
   envelope: SignedRecordEnvelope;
 }
 
-function clampLogLimit(limit: number): number {
+/** A caller's page size, defaulted and bounded to `[1, MAX_LOG_LIMIT]`. */
+export function clampLogLimit(limit: number): number {
   return Math.max(1, Math.min(Math.trunc(limit) || DEFAULT_LOG_LIMIT, MAX_LOG_LIMIT));
 }
 
