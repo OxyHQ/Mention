@@ -44,7 +44,7 @@
  * There is no such alert today; see the module docblock in `db/expiry.ts`.
  */
 
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { and, asc, eq, gt, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../db/postgres';
 import type { SelectedRow } from '@oxy.so/db';

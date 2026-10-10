@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostContent } from '@mention/shared-types';

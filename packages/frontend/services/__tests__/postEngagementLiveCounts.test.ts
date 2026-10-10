@@ -15,8 +15,8 @@
  * and a copy cannot fail when the original does.
  */
 
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Server as SocketIOServer, type Socket as ServerSocket } from 'socket.io';
 import {
   POST_ENGAGEMENT_EVENTS,

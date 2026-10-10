@@ -8,11 +8,11 @@ import { isReviewedImagePublisher } from './reviewed-image-publisher.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const name = 'publish-reviewed-images.yml';
 const read = (file) => readFileSync(resolve(root, file));
-const workflow = parseDocument(read('.github/workflows/' + name).toString()).toJS();
+const workflow = parseDocument(read(`.github/workflows/${name}`).toString()).toJS();
 assert.equal(isReviewedImagePublisher(name, workflow, read), true);
 assert.equal(isReviewedImagePublisher('deploy-aws.yml', workflow, read), false);
 for (const file of [
-  '.github/workflows/' + name,
+  `.github/workflows/${name}`,
   '.github/scripts/publish-reviewed-image.py',
   '.github/scripts/reviewed-images.json',
 ]) {

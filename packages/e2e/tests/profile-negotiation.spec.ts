@@ -39,5 +39,5 @@ test('a local profile URL negotiates ActivityPub to the canonical actor', async 
   });
 
   expect(response.status()).toBe(302);
-  expect(response.headers()['location']).toBe(`${API_ORIGIN}/ap/users/${PROFILE_HANDLE}`);
+  expect(response.headers().location).toBe(`${API_ORIGIN}/ap/users/${PROFILE_HANDLE}`);
 });

@@ -316,6 +316,7 @@ describe('profile grid cells repaint from a server view count', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {posts.map((_, index) => (
             <LiveVideoPosterCell

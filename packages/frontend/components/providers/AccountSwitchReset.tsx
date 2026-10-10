@@ -176,5 +176,5 @@ export function AccountSwitchReset({
     }
   }, [viewerId, readyViewerId, clearRuntimeState]);
 
-  return viewerId && readyViewerId === viewerId ? <>{children}</> : <>{fallback}</>;
+  return viewerId && readyViewerId === viewerId ? children : fallback;
 }

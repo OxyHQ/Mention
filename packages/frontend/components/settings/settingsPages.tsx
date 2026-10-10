@@ -173,25 +173,25 @@ export function useMentionSettingsPages(): MentionSettingsPages {
         {
           key: 'account',
           page: 'account',
-          label: pages['account'].title,
+          label: pages.account.title,
           icon: RiUserLine,
         },
         {
           key: 'privacy',
           page: 'privacy',
-          label: pages['privacy'].title,
+          label: pages.privacy.title,
           icon: RiEyeOffLine,
         },
         {
           key: 'notifications',
           page: 'notifications',
-          label: pages['notifications'].title,
+          label: pages.notifications.title,
           icon: RiNotification3Line,
         },
         {
           key: 'fediverse',
           page: 'fediverse',
-          label: pages['fediverse'].title,
+          label: pages.fediverse.title,
           icon: RiEarthLine,
         },
         {
@@ -209,19 +209,19 @@ export function useMentionSettingsPages(): MentionSettingsPages {
         {
           key: 'appearance',
           page: 'appearance',
-          label: pages['appearance'].title,
+          label: pages.appearance.title,
           icon: RiPaletteLine,
         },
         {
           key: 'accessibility',
           page: 'accessibility',
-          label: pages['accessibility'].title,
+          label: pages.accessibility.title,
           icon: RiAccessibilityLine,
         },
         {
           key: 'feed',
           page: 'feed',
-          label: pages['feed'].title,
+          label: pages.feed.title,
           icon: RiListUnordered,
         },
         {
@@ -239,7 +239,7 @@ export function useMentionSettingsPages(): MentionSettingsPages {
         {
           key: 'interests',
           page: 'interests',
-          label: pages['interests'].title,
+          label: pages.interests.title,
           icon: RiHeartLine,
         },
         {
@@ -257,13 +257,13 @@ export function useMentionSettingsPages(): MentionSettingsPages {
         {
           key: 'language',
           page: 'language',
-          label: pages['language'].title,
+          label: pages.language.title,
           icon: RiGlobalLine,
         },
         {
           key: 'about',
           page: 'about',
-          label: pages['about'].title,
+          label: pages.about.title,
           icon: RiInformationLine,
         },
       ],

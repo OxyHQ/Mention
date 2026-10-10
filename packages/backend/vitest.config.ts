@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { loadEnv } from 'vite';
-import path from 'path';
+import path from 'node:path';
 
 const backendRoot = path.resolve(__dirname, '.');
 

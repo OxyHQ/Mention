@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 const mocks = vi.hoisted(() => ({
   inboxAdd: vi.fn(),

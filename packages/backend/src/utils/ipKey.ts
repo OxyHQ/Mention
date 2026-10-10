@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { getIpHashSalt } from '../config';

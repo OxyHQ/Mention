@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 const ACTOR_URI = 'https://mastodon.social/users/alice';
 const KEY_ID = `${ACTOR_URI}#main-key`;

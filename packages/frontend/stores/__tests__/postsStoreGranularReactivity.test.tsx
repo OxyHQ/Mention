@@ -430,6 +430,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     let postRenderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       postRenderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {boundedPosts.map((post) => (
             <PostProbe key={post.id} postId={post.id} onRender={() => undefined} />
@@ -451,6 +452,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     let feedRenderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       feedRenderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {userIds.map((userId) => (
             <UserFeedProbe key={userId} userId={userId} onRender={() => undefined} />

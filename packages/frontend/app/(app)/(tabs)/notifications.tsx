@@ -613,83 +613,79 @@ const NotificationsScreen: React.FC = () => {
         <View className="flex-1">
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
-          <>
-            <PageHeader
-              title={t('Notifications')}
-              presentation="floating"
-              actions={
-                <>
-                  {unreadCount > 0 ? (
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
-                      onPress={handleMarkAllAsRead}
-                      disabled={markAllAsReadMutation.isPending}
-                      accessibilityLabel={t('notification.mark_all_read')}
-                    />
-                  ) : null}
+          <PageHeader
+            title={t('Notifications')}
+            presentation="floating"
+            actions={
+              <>
+                {unreadCount > 0 ? (
                   <Button
                     appearance="subtle"
                     tone="neutral"
                     iconOnly
-                    icon={<BellActive size={20} color={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications/subscriptions')}
-                    accessibilityLabel={t('subscription.list.title', {
-                      defaultValue: 'Activity notifications',
-                    })}
+                    icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
+                    onPress={handleMarkAllAsRead}
+                    disabled={markAllAsReadMutation.isPending}
+                    accessibilityLabel={t('notification.mark_all_read')}
                   />
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    iconOnly
-                    icon={<Gear size={20} color={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications')}
-                    accessibilityLabel={t('notification.settings', {
-                      defaultValue: 'Notification settings',
-                    })}
-                  />
-                </>
-              }
-            />
-          </>
+                ) : null}
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  icon={<BellActive size={20} color={theme.colors.text} />}
+                  onPress={() => requestSettings('/settings/notifications/subscriptions')}
+                  accessibilityLabel={t('subscription.list.title', {
+                    defaultValue: 'Activity notifications',
+                  })}
+                />
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  icon={<Gear size={20} color={theme.colors.text} />}
+                  onPress={() => requestSettings('/settings/notifications')}
+                  accessibilityLabel={t('notification.settings', {
+                    defaultValue: 'Notification settings',
+                  })}
+                />
+              </>
+            }
+          />
 
           {canUsePrivateApi && (
-            <>
-              <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-                {[
-                  { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-                  {
-                    id: 'mentions',
-                    label: t('notifications.tabs.mentions'),
-                    count: tabUnreadCounts.mentions,
-                  },
-                  {
-                    id: 'follows',
-                    label: t('notifications.tabs.follows'),
-                    count: tabUnreadCounts.follows,
-                  },
-                  {
-                    id: 'likes',
-                    label: t('notifications.tabs.likes'),
-                    count: tabUnreadCounts.likes,
-                  },
-                  {
-                    id: 'posts',
-                    label: t('notifications.tabs.posts'),
-                    count: tabUnreadCounts.posts,
-                  },
-                  {
-                    id: 'pokes',
-                    label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-                    count: tabUnreadCounts.pokes,
-                  },
-                ].map((tab: { id: string; label: string; count?: number }) => (
-                  <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-                ))}
-              </Tabs>
-            </>
+            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+              {[
+                { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+                {
+                  id: 'mentions',
+                  label: t('notifications.tabs.mentions'),
+                  count: tabUnreadCounts.mentions,
+                },
+                {
+                  id: 'follows',
+                  label: t('notifications.tabs.follows'),
+                  count: tabUnreadCounts.follows,
+                },
+                {
+                  id: 'likes',
+                  label: t('notifications.tabs.likes'),
+                  count: tabUnreadCounts.likes,
+                },
+                {
+                  id: 'posts',
+                  label: t('notifications.tabs.posts'),
+                  count: tabUnreadCounts.posts,
+                },
+                {
+                  id: 'pokes',
+                  label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+                  count: tabUnreadCounts.pokes,
+                },
+              ].map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
           )}
 
           {renderContent()}

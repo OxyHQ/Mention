@@ -293,8 +293,8 @@ describe('the explainer opens, steps and closes', () => {
  * dash or a spaced hyphen does not slip through.
  */
 describe('the copy carries no dashes, in any language', () => {
-  const fs = require('fs') as typeof import('fs');
-  const path = require('path') as typeof import('path');
+  const fs = require('node:fs') as typeof import('fs');
+  const path = require('node:path') as typeof import('path');
   const DASHES = /[—–‒―−]|(?:^|\s)-(?:\s|$)/;
   // Derived from the locales directory, not listed. A hand-written list is how
   // this rule came to cover three languages while twelve others were added

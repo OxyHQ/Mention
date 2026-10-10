@@ -1,4 +1,4 @@
-import http from 'http';
+import http from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import type { Server as SocketIOServer } from 'socket.io';

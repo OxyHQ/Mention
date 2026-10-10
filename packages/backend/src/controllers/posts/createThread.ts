@@ -227,7 +227,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // refusal nobody can act on.
     const distinctThreadAccounts = new Set(entryAuthorIds);
     if (mode === 'thread' && distinctThreadAccounts.size > 1) {
-      const channelIndex = entryAuthorKinds.findIndex((kind) => kind === 'channel');
+      const channelIndex = entryAuthorKinds.indexOf('channel');
       if (channelIndex >= 0) {
         return res.status(400).json({
           message:

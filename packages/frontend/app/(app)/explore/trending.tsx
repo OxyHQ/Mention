@@ -46,7 +46,7 @@ const HISTORY_PAGE_SIZE = 5;
 const HISTORY_STALE_TIME_MS = 5 * 60_000;
 
 function formatDayLabel(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
+  const date = new Date(`${dateStr}T00:00:00`);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
