@@ -166,7 +166,7 @@
   "devDependencies": {
     "typescript": "catalog:",
     "@types/node": "catalog:",
-    "regexpu-core": "^6.4.0"
+    "regexpu-core": "^6.5.3"
   },
   "files": [
     "dist/**/*"
