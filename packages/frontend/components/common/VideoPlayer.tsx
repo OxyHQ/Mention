@@ -285,11 +285,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Segment loading pauses with playback — but only for a player this row owns.
   // A borrowed one may be playing somewhere else right now (a feed video carried
   // into the reel keeps this row, and its hls.js instance, mounted underneath).
-  const hls = useHlsPlayback(src, videoViewRef, externalPlayer ? true : mayPlay, fallbackSrc);
+  const { active: hlsActive, ref: hlsRef } = useHlsPlayback(
+    src,
+    videoViewRef,
+    externalPlayer ? true : mayPlay,
+    fallbackSrc,
+  );
 
   // `videoSourceFor` returns one object per url, so this is stable across
   // renders — `useVideoPlayer` rebuilds its player when the source changes.
-  const ownSource = externalPlayer || hls.active ? null : videoSourceFor(src);
+  const ownSource = externalPlayer || hlsActive ? null : videoSourceFor(src);
 
   // Built unconditionally so the hook order never depends on a prop, but with a
   // `null` source when a player was handed in — a null-sourced player opens no
@@ -524,7 +529,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const renderFlightVideo = useCallback(
     ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
       <VideoView
-        ref={videoViewRef}
+        ref={hlsRef}
         // `null` is forwarded verbatim — it is the instruction to unbind
         // this element, and expo-video answers it by emptying the source
         // without an event, which is what stops an outgoing surface
@@ -541,7 +546,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         allowsPictureInPicture={false}
       />
     ),
-    [player, isPreviewMode, gif],
+    [player, isPreviewMode, gif, hlsRef],
   );
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
@@ -551,7 +556,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <View ref={containerRef} style={[styles.container, style]}>
       {flightHostId === undefined ? (
         <VideoView
-          ref={videoViewRef}
+          ref={hlsRef}
           player={player}
           style={styles.video}
           contentFit={contentFit}
@@ -562,9 +567,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       ) : (
         // The host registers itself as the flight's anchor, so it measures the
         // box the MEDIA paints in rather than the card around it. The element
-        // inside is still THIS component's: `useHlsPlayback` drives it through
-        // `videoViewRef`, and a host that built its own would leave that ref
-        // unattached — HLS and fullscreen broken on the flight path only.
+        // inside is still THIS component's: `useHlsPlayback` attaches to it
+        // through `hlsRef` when the slot mounts it, and a host that built its
+        // own would leave that ref unattached — HLS and fullscreen broken on the
+        // flight path only.
         <MediaFlightHost
           id={flightHostId}
           content={{ kind: 'video', player }}
