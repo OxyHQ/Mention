@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import type React from 'react';
+import { useMemo } from 'react';
 import { SuggestionList, type ChatComposerSuggestion } from '@oxy.so/bloom/chat-composer';
 import type { MentionUser } from '@/utils/mentionSearch';
 

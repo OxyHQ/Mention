@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { CommunityNoteHandlersContextProvider } from '@/context/CommunityNoteHandlersContext';
 import { useCommunityNoteHandlers } from '@/hooks/useCommunityNotes';
 

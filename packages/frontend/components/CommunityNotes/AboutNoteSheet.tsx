@@ -1,4 +1,3 @@
-import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';

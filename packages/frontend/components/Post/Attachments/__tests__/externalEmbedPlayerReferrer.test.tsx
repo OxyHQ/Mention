@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { WEB_BASE_URL } from '@/config';

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
@@ -46,7 +46,7 @@ const HISTORY_PAGE_SIZE = 5;
 const HISTORY_STALE_TIME_MS = 5 * 60_000;
 
 function formatDayLabel(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
+  const date = new Date(`${dateStr}T00:00:00`);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);

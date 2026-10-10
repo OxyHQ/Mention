@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import type { useRouter } from 'expo-router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';

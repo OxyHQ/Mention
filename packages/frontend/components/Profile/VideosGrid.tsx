@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
+import type React from 'react';
+import { useCallback, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useRouter } from 'expo-router';

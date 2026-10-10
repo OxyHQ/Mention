@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import type React from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 

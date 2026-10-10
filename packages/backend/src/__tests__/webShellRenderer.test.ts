@@ -12,8 +12,8 @@ import {
   mapProfileOg,
   mapPostOg,
   mapReplyComment,
-  OgData,
-  PostOgSafety,
+  type OgData,
+  type PostOgSafety,
 } from '../services/webShellRenderer';
 
 const SHELL =

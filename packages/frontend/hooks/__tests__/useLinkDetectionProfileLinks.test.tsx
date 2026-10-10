@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { useLinkDetection } from '../useLinkDetection';

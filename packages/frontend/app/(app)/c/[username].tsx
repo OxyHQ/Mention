@@ -1,4 +1,3 @@
-import React from 'react';
 import ChannelScreen from '@/components/ChannelScreen';
 
 /**

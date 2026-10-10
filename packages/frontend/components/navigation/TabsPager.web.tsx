@@ -1,4 +1,3 @@
-import React from 'react';
 import { Slot } from 'expo-router';
 
 import type { TabsPagerProps } from './TabsPager.types';

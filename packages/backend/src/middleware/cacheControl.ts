@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
 export function cacheControl(directive: string) {
   return (_req: Request, res: Response, next: NextFunction) => {

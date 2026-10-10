@@ -152,7 +152,7 @@ export class InterestScoreService {
     if (agg.postCount <= 0) return 0;
     const density = Math.log1p(Math.max(0, agg.raw)) / Math.log1p(agg.postCount + 1);
     const ageDays = Math.max(0, (now - agg.lastPostMs) / (24 * 60 * 60 * 1000));
-    const recencyDecay = Math.pow(0.5, ageDays / RECENCY_HALF_LIFE_DAYS);
+    const recencyDecay = 0.5 ** (ageDays / RECENCY_HALF_LIFE_DAYS);
     return clamp01(density * recencyDecay);
   }
 

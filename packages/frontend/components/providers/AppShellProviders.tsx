@@ -1,4 +1,4 @@
-import React, { memo, type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { ScreenColorProvider } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
 import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';

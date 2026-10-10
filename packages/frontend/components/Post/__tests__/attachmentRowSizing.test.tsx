@@ -1,5 +1,4 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostAttachmentsRow from '../PostAttachmentsRow';

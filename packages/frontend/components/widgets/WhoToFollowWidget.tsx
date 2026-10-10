@@ -12,7 +12,7 @@ import {
 import { BaseWidget } from './BaseWidget';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useRecommendations } from '@/hooks/useRecommendations';
-import { type ProfileData } from '@/lib/recommendations';
+import type { ProfileData } from '@/lib/recommendations';
 
 const MAX_DISPLAY_USERS = 5;
 /** Height of the small plain "Show more" button (Bloom `Button size="small"`). */

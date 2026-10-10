@@ -8,7 +8,7 @@ import {
   Pressable,
   TouchableOpacity,
   Text,
-  GestureResponderEvent,
+  type GestureResponderEvent,
 } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
 import type {
@@ -724,7 +724,7 @@ const PostItem: React.FC<PostItemProps> = ({
   );
   const postTextSummary = content.text
     ? content.text.length > 80
-      ? content.text.substring(0, 80) + '...'
+      ? `${content.text.substring(0, 80)}...`
       : content.text
     : '';
   const postAccessibilityLabel = postTextSummary

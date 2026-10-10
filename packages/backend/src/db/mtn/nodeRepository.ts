@@ -29,9 +29,9 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
-  MENTION_NODE_CONTROLLERS,
-  MENTION_NODE_MODES,
-  MENTION_NODE_STATUSES,
+  type MENTION_NODE_CONTROLLERS,
+  type MENTION_NODE_MODES,
+  type MENTION_NODE_STATUSES,
   mentionNodeIngestWitnesses,
   mentionUserNodes,
 } from '../schema/mtn';

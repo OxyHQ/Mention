@@ -1,5 +1,5 @@
-import { Router, Response } from 'express';
-import { IncomingMessage } from 'node:http';
+import { Router, type Response } from 'express';
+import type { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
 import { OxyServices } from '@oxy.so/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -12,7 +12,7 @@ import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { config } from '../config';
 import { SsrfRejection } from '@oxy.so/core/server';
 import {
-  UpstreamResult,
+  type UpstreamResult,
   contentTypeFamily,
   contentTypeFamilyFromString,
   fetchUpstreamFollowingRedirects,

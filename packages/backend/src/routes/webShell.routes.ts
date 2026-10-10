@@ -31,7 +31,7 @@
  */
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
 import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
@@ -39,9 +39,9 @@ import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import {
-  OgData,
-  OxyProfileData,
-  PostOgSafety,
+  type OgData,
+  type OxyProfileData,
+  type PostOgSafety,
   type ProfileSeoFacts,
   canonicalProfilePath,
   injectHeadHtml,

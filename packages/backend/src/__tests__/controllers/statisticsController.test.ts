@@ -33,7 +33,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 
 const { inferenceChat, followingIds } = vi.hoisted(() => ({
   inferenceChat: vi.fn(async () => 'a summary'),

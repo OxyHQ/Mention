@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import Feed from '@/components/Feed/Feed';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';

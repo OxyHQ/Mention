@@ -467,7 +467,7 @@ test('homepage raw head advertises a real JPEG and transfers ownership on profil
   await expect(author).toBeVisible();
   // The adjacent display name owns profile navigation; the handle itself opens the post.
   await author.locator('xpath=preceding-sibling::*[1]').click();
-  await expect(page).toHaveURL(new RegExp('/@'));
+  await expect(page).toHaveURL(/\/@/);
   await expect(page.getByRole('tab', { name: 'Posts', exact: true })).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/@/);

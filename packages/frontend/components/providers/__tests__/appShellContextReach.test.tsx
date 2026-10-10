@@ -1,4 +1,5 @@
-import React, { useContext, useEffect } from 'react';
+import type React from 'react';
+import { useContext, useEffect } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient } from '@tanstack/react-query';
 import type { OxyServices } from '@oxy.so/core';

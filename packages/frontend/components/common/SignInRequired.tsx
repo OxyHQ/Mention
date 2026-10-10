@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';

@@ -1,9 +1,3 @@
-/**
- * Relative timestamps keep up with the clock — "25s" does not still say "25s" a
- * minute later (OxyHQ/Mention#1140) — and they do it from ONE shared ticker,
- * re-rendering a label only when its string changes.
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { TICK_MS, timeAgoSubscriberCount, useTimeAgo } from '../useTimeAgo';
 

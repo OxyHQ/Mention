@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
+import type React from 'react';
+import { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, RefreshControl, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';

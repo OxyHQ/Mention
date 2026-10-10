@@ -1,5 +1,5 @@
 import {
-  auditResultSchema,
+  type auditResultSchema,
   capabilityTicketClaimsSchema,
   policyDecisionSchema,
   type CapabilityTicketClaims,

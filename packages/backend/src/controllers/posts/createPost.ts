@@ -5,11 +5,11 @@
  * `composeInput` and the storage/federation path in `PostCreationService`.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostVisibility, PostContent } from '@mention/shared-types';
+import { PostVisibility, type PostContent } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { affinityEventService } from '../../services/AffinityEventService';
 import { postCreationService } from '../../services/PostCreationService';

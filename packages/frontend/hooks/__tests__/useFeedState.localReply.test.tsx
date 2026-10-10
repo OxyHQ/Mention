@@ -1,14 +1,3 @@
-/**
- * A reply the viewer just posted shows up in the thread it answers, without a
- * pull-to-refresh (OxyHQ/Mention#1140).
- *
- * The thread's replies list is a SCOPED feed, which a new post never reaches on
- * purpose; on native the thread screen also stays mounted under the pushed
- * composer, so nothing remounts it. `postsStore.createReply` publishes the
- * server's hydrated reply into the feed queries, and the replies feed whose
- * scope is that reply's parent puts it on top — and no other feed does.
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';

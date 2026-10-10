@@ -145,7 +145,7 @@ function withOptimisticSettings(
 ): UserAppearance {
   const next: UserAppearance = { ...current };
 
-  if (Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage')) {
+  if (Object.hasOwn(partial, 'profileHeaderImage')) {
     const ref = partial.profileHeaderImage?.trim();
     next.profileHeaderImage = ref ? ref : undefined;
   }
@@ -236,14 +236,14 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
 
       const payload: UserAppearanceUpdate = {
         ...(partial.appearance && { appearance: partial.appearance }),
-        ...(Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage') && {
+        ...(Object.hasOwn(partial, 'profileHeaderImage') && {
           profileHeaderImage: partial.profileHeaderImage,
         }),
         // `profileMedia` accepts `null` (remove), so gate on key presence rather
         // than truthiness. The server resolves canonical metadata + URLs and
         // returns the denormalized media on the design DTO (refetched via the
         // appearance-query invalidation below — we don't read it off this PUT).
-        ...(Object.prototype.hasOwnProperty.call(partial, 'profileMedia') && {
+        ...(Object.hasOwn(partial, 'profileMedia') && {
           profileMedia: partial.profileMedia,
         }),
         ...(partial.interests && {

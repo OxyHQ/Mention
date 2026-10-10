@@ -29,7 +29,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ assets: { metadataByIds } }),
 }));
 
-import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postContentVariants, postMedia } from '../../db/schema/postContent';
 import { insertPostRecord } from '../../db/posts/postRepository';

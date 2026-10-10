@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Platform, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { logger } from '@oxy.so/core/logger';

@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
 import type { ModerationReportReceipt } from '@mention/shared-types';
 import { REPORTED_TYPES, REPORT_CATEGORIES, REPORT_STATUSES } from '../db/schema/moderation';

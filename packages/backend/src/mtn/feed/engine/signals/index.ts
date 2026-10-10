@@ -10,7 +10,7 @@
  * the definitions self-describing and give the custom-feed builder a catalog.
  */
 
-import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { SignalModule } from '../types';
 
 /**

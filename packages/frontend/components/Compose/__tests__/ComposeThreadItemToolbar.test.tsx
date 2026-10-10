@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeThreadItem, { type ComposeThreadItemStyles } from '../ComposeThreadItem';

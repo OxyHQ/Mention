@@ -3,7 +3,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Redirect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, ScrollView } from 'react-native';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';

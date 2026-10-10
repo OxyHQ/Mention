@@ -1,4 +1,5 @@
-import React, { memo, useMemo } from 'react';
+import type React from 'react';
+import { memo, useMemo } from 'react';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type User } from '@oxy.so/core';
 import type { HydratedAuthor } from '@mention/shared-types';

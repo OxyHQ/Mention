@@ -1,5 +1,6 @@
-import React, { ReactNode } from 'react';
-import { View, TouchableOpacity, ViewStyle, StyleProp } from 'react-native';
+import type React from 'react';
+import type { ReactNode } from 'react';
+import { View, TouchableOpacity, type ViewStyle, type StyleProp } from 'react-native';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';

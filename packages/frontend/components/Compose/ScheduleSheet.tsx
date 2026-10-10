@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
 import { Button } from '@oxy.so/bloom/button';

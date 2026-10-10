@@ -33,12 +33,7 @@
  * post it just created (through the normal delete path) and answers `existing`.
  */
 
-import {
-  PostVisibility,
-  type ImportPlatform,
-  type MediaItem,
-  type PostContent,
-} from '@mention/shared-types';
+import type { PostVisibility, ImportPlatform, MediaItem, PostContent } from '@mention/shared-types';
 import {
   findActorUrisOwnedBy,
   findBatchPostIds,

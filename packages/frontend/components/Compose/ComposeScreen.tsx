@@ -34,7 +34,7 @@ import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-ty
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { Switch } from '@oxy.so/bloom/switch';
-import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
@@ -113,7 +113,7 @@ import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import {
-  ComposerMediaItem,
+  type ComposerMediaItem,
   toComposerMediaType,
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,

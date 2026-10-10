@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';

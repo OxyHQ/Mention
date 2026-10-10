@@ -1,4 +1,4 @@
-import React, { memo, useCallback, type ReactNode, type Ref } from 'react';
+import { memo, useCallback, type ReactNode, type Ref } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';

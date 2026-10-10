@@ -1,5 +1,3 @@
-import React from 'react';
-
 import ComposeScreen from '@/components/Compose/LazyComposeScreen';
 
 /**

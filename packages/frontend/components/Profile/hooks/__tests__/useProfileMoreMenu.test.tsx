@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import type { ProfileData } from '@/hooks/useProfileData';

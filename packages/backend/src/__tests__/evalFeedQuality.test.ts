@@ -26,7 +26,7 @@ import {
   nativeEngagementFilter,
   minQualityFilter,
 } from '../mtn/feed/engine/filters';
-import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
+import type { CandidatePost } from '../mtn/feed/engine/types';
 import type { RankablePost } from '../services/ranking/signalContext';
 import type { FilterModule } from '../mtn/feed/engine/types';
 import { feedCandidate, postStats } from './fixtures/feedCandidate';

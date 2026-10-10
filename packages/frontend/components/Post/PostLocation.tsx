@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, Text, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';

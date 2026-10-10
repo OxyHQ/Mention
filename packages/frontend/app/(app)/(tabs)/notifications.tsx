@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -8,11 +9,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
-import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
-import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
-import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
-import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { createLogger } from '@oxy.so/core/logger';
@@ -22,8 +19,8 @@ import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxy.so/bloom/theme';
 import {
   groupNotifications,
-  GroupedNotification,
-  NotificationListItem,
+  type GroupedNotification,
+  type NotificationListItem,
 } from '@/utils/groupNotifications';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import {
@@ -616,83 +613,79 @@ const NotificationsScreen: React.FC = () => {
         <View className="flex-1">
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
-          <>
-            <PageHeader
-              title={t('Notifications')}
-              presentation="floating"
-              actions={
-                <>
-                  {unreadCount > 0 ? (
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
-                      onPress={handleMarkAllAsRead}
-                      disabled={markAllAsReadMutation.isPending}
-                      accessibilityLabel={t('notification.mark_all_read')}
-                    />
-                  ) : null}
+          <PageHeader
+            title={t('Notifications')}
+            presentation="floating"
+            actions={
+              <>
+                {unreadCount > 0 ? (
                   <Button
                     appearance="subtle"
                     tone="neutral"
                     iconOnly
-                    icon={<BellActive size={20} color={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications/subscriptions')}
-                    accessibilityLabel={t('subscription.list.title', {
-                      defaultValue: 'Activity notifications',
-                    })}
+                    icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
+                    onPress={handleMarkAllAsRead}
+                    disabled={markAllAsReadMutation.isPending}
+                    accessibilityLabel={t('notification.mark_all_read')}
                   />
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    iconOnly
-                    icon={<Gear size={20} color={theme.colors.text} />}
-                    onPress={() => requestSettings('/settings/notifications')}
-                    accessibilityLabel={t('notification.settings', {
-                      defaultValue: 'Notification settings',
-                    })}
-                  />
-                </>
-              }
-            />
-          </>
+                ) : null}
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  icon={<BellActive size={20} color={theme.colors.text} />}
+                  onPress={() => requestSettings('/settings/notifications/subscriptions')}
+                  accessibilityLabel={t('subscription.list.title', {
+                    defaultValue: 'Activity notifications',
+                  })}
+                />
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  icon={<Gear size={20} color={theme.colors.text} />}
+                  onPress={() => requestSettings('/settings/notifications')}
+                  accessibilityLabel={t('notification.settings', {
+                    defaultValue: 'Notification settings',
+                  })}
+                />
+              </>
+            }
+          />
 
           {canUsePrivateApi && (
-            <>
-              <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-                {[
-                  { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-                  {
-                    id: 'mentions',
-                    label: t('notifications.tabs.mentions'),
-                    count: tabUnreadCounts.mentions,
-                  },
-                  {
-                    id: 'follows',
-                    label: t('notifications.tabs.follows'),
-                    count: tabUnreadCounts.follows,
-                  },
-                  {
-                    id: 'likes',
-                    label: t('notifications.tabs.likes'),
-                    count: tabUnreadCounts.likes,
-                  },
-                  {
-                    id: 'posts',
-                    label: t('notifications.tabs.posts'),
-                    count: tabUnreadCounts.posts,
-                  },
-                  {
-                    id: 'pokes',
-                    label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-                    count: tabUnreadCounts.pokes,
-                  },
-                ].map((tab: { id: string; label: string; count?: number }) => (
-                  <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-                ))}
-              </Tabs>
-            </>
+            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
+              {[
+                { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+                {
+                  id: 'mentions',
+                  label: t('notifications.tabs.mentions'),
+                  count: tabUnreadCounts.mentions,
+                },
+                {
+                  id: 'follows',
+                  label: t('notifications.tabs.follows'),
+                  count: tabUnreadCounts.follows,
+                },
+                {
+                  id: 'likes',
+                  label: t('notifications.tabs.likes'),
+                  count: tabUnreadCounts.likes,
+                },
+                {
+                  id: 'posts',
+                  label: t('notifications.tabs.posts'),
+                  count: tabUnreadCounts.posts,
+                },
+                {
+                  id: 'pokes',
+                  label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+                  count: tabUnreadCounts.pokes,
+                },
+              ].map((tab: { id: string; label: string; count?: number }) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
+              ))}
+            </Tabs>
           )}
 
           {renderContent()}

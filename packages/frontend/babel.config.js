@@ -1,5 +1,5 @@
 // packages/frontend/babel.config.js
-module.exports = function (api) {
+module.exports = (api) => {
   api.cache(true);
   return {
     presets: [

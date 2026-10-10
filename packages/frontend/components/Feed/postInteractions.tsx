@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
 import type { CommunityNoteSummary, HydratedPost, PostSourceLink } from '@mention/shared-types';
 import { sharePost } from '@/hooks/usePostShare';

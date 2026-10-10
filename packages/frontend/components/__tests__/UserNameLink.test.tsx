@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
 import UserName from '../UserName';

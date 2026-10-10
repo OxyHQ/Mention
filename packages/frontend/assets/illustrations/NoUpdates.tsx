@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import type React from 'react';
+import { useMemo } from 'react';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import { useTheme } from '@oxy.so/bloom/theme';
 
@@ -23,8 +24,8 @@ export const NoUpdatesIllustration: React.FC<NoUpdatesIllustrationProps> = ({
   const strokeNeutral = strokeColor ?? theme.colors.text;
   const fill = fillColor ?? theme.colors.background;
   const resolvedAccent = accentColor ?? theme.colors.primary;
-  const accentA = useMemo(() => resolvedAccent + '15', [resolvedAccent]);
-  const accentB = useMemo(() => resolvedAccent + '99', [resolvedAccent]);
+  const accentA = useMemo(() => `${resolvedAccent}15`, [resolvedAccent]);
+  const accentB = useMemo(() => `${resolvedAccent}99`, [resolvedAccent]);
 
   return (
     <Svg width={width} height={height} viewBox="0 0 200 201" fill="none">

@@ -121,12 +121,12 @@ vi.mock('../../services/serviceRegistry', () => ({
   registerPostFederator: vi.fn(),
 }));
 
-import { and, eq, inArray, like, or, type SQL } from 'drizzle-orm';
+import { eq, inArray, like, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
-import { bumpPostCounters, insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
+import { insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
 // Importing the service is what registers it with the (mocked) registry above.
 import '../../services/PostCreationService';

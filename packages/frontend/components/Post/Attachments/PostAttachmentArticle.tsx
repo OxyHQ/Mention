@@ -1,5 +1,5 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleProp, ViewStyle } from 'react-native';
+import type React from 'react';
+import { TouchableOpacity, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { cn } from '@/lib/utils';
 
 interface PostAttachmentArticleProps {

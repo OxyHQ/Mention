@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types/post';
 import type { FeedItem } from '@/db';
@@ -316,6 +316,7 @@ describe('profile grid cells repaint from a server view count', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {posts.map((_, index) => (
             <LiveVideoPosterCell

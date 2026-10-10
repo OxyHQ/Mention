@@ -227,7 +227,6 @@ function stripComments(source) {
       }
       if (c === '/') state = 'code';
       else if (c === '\n') state = 'code';
-      continue;
     }
   }
   return out.join('');

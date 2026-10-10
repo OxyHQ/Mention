@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import { AccountBadge, FediverseSharingBadge, type AccountBadgeProps } from '../AccountBadge';

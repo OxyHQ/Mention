@@ -20,10 +20,10 @@ import {
 import {
   PostType,
   PostVisibility,
-  PostContent,
-  MediaItem,
-  PostMetadata,
-  ReplyPermission,
+  type PostContent,
+  type MediaItem,
+  type PostMetadata,
+  type ReplyPermission,
 } from '@mention/shared-types';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';

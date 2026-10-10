@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';

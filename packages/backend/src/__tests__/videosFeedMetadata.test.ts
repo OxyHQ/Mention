@@ -30,7 +30,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { portraitBoost } from '../services/ranking/signals/optIn';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 import type { MediaItem } from '@mention/shared-types';
 

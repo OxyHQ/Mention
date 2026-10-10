@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { COLOR_PRESET_FAMILIES, COLOR_PRESET_GROUPS, type AppColorName } from '@oxy.so/bloom/theme';
 import { cn } from '@/lib/utils';

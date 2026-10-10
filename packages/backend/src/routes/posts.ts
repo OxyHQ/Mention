@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import { createPost } from '../controllers/posts/createPost';
 import { createThread } from '../controllers/posts/createThread';
 import {

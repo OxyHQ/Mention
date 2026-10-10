@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View } from 'react-native';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 

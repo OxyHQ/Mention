@@ -1,4 +1,4 @@
-import React, { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import type { CommunityNoteWriteHandlers } from '@/components/CommunityNotes/useCommunityNoteSheets';
 
 /**

@@ -1,9 +1,3 @@
-/**
- * After the viewer publishes, the feed their post lands in brings it into view —
- * once, the next time that feed is in front (OxyHQ/Mention#1140: the new post sat
- * above the fold, cut off under the header).
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
 import { publishNewLocalPost } from '@/stores/feedQueryCache';

@@ -1,12 +1,12 @@
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import {
-  CreateReplyRequest,
-  CreateBoostRequest,
+  type CreateReplyRequest,
+  type CreateBoostRequest,
   PostType,
   PostVisibility,
-  PostContent,
-  HydratedPost,
+  type PostContent,
+  type HydratedPost,
 } from '@mention/shared-types';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { posts as postsTable } from '../db/schema/posts';
@@ -33,9 +33,9 @@ import {
   requiresAccessCheck,
   resolveViewerPrivacyAndGraph,
   ProfileVisibility,
-  OxyClient,
-  ViewerPrivacyContext,
-  ViewerGraphContext,
+  type OxyClient,
+  type ViewerPrivacyContext,
+  type ViewerGraphContext,
 } from '../utils/privacyHelpers';
 import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';

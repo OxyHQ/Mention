@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { FeedType } from '@mention/shared-types/feed';
 import { PostVisibility } from '@mention/shared-types/post';
@@ -431,6 +430,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     let postRenderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       postRenderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {boundedPosts.map((post) => (
             <PostProbe key={post.id} postId={post.id} onRender={() => undefined} />
@@ -452,6 +452,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     let feedRenderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       feedRenderer = TestRenderer.create(
+        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
         <>
           {userIds.map((userId) => (
             <UserFeedProbe key={userId} userId={userId} onRender={() => undefined} />

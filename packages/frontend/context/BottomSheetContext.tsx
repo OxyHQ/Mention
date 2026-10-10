@@ -1,4 +1,5 @@
-import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { createContext, useState, type ReactNode, useRef, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import type { SharedValue } from 'react-native-reanimated';

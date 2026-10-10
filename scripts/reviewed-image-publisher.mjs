@@ -33,7 +33,7 @@ export function isReviewedImagePublisher(name, workflow, read) {
         job.env?.EXPECTED_SOURCE_SHA === '${{ inputs.expected_source_sha }}' &&
         runs.length === 3 &&
         ['guard', 'vacancy', 'verify'].every((phase, i) =>
-          runs[i].startsWith(guard + phase + ' --recipe '),
+          runs[i].startsWith(`${guard + phase} --recipe `),
         )
       );
     });

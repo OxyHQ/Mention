@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useIsFocused } from 'expo-router';
 import { logger } from '@oxy.so/core/logger';

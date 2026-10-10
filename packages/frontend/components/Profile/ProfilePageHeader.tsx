@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';

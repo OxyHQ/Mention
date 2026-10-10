@@ -27,7 +27,7 @@ type PortableThemeMode = AccountTheme['mode'];
 let presetSelectionEpoch = 0;
 
 function isAppColorName(value: string): value is AppColorName {
-  return Object.prototype.hasOwnProperty.call(APP_COLOR_PRESETS, value);
+  return Object.hasOwn(APP_COLOR_PRESETS, value);
 }
 
 /**

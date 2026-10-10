@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Router, type Request } from 'express';
 import { config } from '../config';
 import { metrics } from '../utils/metrics';

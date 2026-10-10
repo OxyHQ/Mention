@@ -4,7 +4,7 @@
  * `PostCollaborationService`; these are its HTTP edges.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';

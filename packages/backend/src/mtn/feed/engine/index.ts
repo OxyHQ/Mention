@@ -7,7 +7,7 @@
  * serve every feed.
  */
 
-import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from './FeedModuleRegistry';
 import { registerSourceModules } from './sources';
 import { registerSignalModules } from './signals';
 import { registerFilterModules } from './filters';

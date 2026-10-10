@@ -29,7 +29,7 @@ import {
   prefetchFollowingWidgetFeed,
   syncFeedWidget,
 } from '../modules/mention-widgets/feedWidgetSync';
-import { FeedFilters, feedThreadParentId } from '../utils/feedUtils';
+import { type FeedFilters, feedThreadParentId } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';

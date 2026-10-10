@@ -1,7 +1,6 @@
-import React from 'react';
 import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 
 /**
  * Lanes — Material Symbols `schema`, kept at its own `0 -960 960 960` viewBox

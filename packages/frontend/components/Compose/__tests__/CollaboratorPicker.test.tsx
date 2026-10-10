@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Text, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import CollaboratorPicker, { type CollaboratorUser } from '../CollaboratorPicker';

@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FollowButton } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';

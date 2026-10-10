@@ -291,7 +291,7 @@ describe('run — real rows in, deltas out', () => {
     await seedPost(moved, { likes: 10, createdAt: new Date() });
 
     const service = makeService();
-    const scoredNow = new Date().getTime();
+    const scoredNow = Date.now();
     const aggregates = await service.aggregateAuthors(scoredNow);
     const unchangedScore = service.computeScore(
       aggregates.find((row) => row.oxyUserId === unchanged) ?? {

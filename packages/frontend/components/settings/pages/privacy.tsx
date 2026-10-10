@@ -1,4 +1,4 @@
-import { type BloomIcon } from '@/components/settings/RowIcon';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSettingsRouter } from '@/context/MentionSettingsContext';
 import {
   createPrivacySettingsCacheLease,

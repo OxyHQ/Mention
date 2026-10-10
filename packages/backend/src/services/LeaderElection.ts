@@ -1,5 +1,5 @@
-import { hostname } from 'os';
-import { randomUUID } from 'crypto';
+import { hostname } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 

@@ -4,7 +4,7 @@
  * channel lane a post is filed under (`updatePostLane`).
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { lanes as lanesTable } from '../../db/schema/channels';
@@ -15,7 +15,7 @@ import {
   type PostRecordPatch,
 } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { ReplyPermission } from '@mention/shared-types';
+import type { ReplyPermission } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
 import type { Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';

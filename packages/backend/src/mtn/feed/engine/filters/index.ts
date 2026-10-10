@@ -19,7 +19,7 @@ import {
   visibleText,
 } from '../../../../services/contentClassification/spamQuality';
 import { resolveVariant } from '../../../../services/postVariants';
-import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';
 

@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import type React from 'react';
+import { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';

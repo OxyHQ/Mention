@@ -42,7 +42,11 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxy.so/protocol';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
-import { MTN_CHAIN_STATUSES, mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
+import {
+  type MTN_CHAIN_STATUSES,
+  mentionRepoHeads,
+  mentionSignedRecords,
+} from '../../db/schema/mtn';
 import { parseUserDid } from './mentionDid';
 
 /** Default page size for the log read helpers. */
