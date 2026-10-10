@@ -7,7 +7,6 @@ import {
 } from '../db/queryMetrics';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
-import { emitRequestMetrics } from '../utils/cloudwatchEmf';
 import {
   isOxyInstrumentationEnabled,
   runWithOxyAccounting,
@@ -97,17 +96,6 @@ function reportRequest(
         failedOxyCallCount: oxyTally.errorCount,
       }
       : {}),
-  });
-
-  // A retained time series for the numbers just logged — see
-  // `utils/cloudwatchEmf.ts` for why this is a separate stdout write rather
-  // than folded into the call above.
-  emitRequestMetrics({
-    route,
-    method: labels.method,
-    durationMs,
-    queryCount: tally?.count,
-    oxyCallCount: oxyTally?.count,
   });
 }
 
