@@ -55,7 +55,7 @@ jest.mock('@/stores/externalEmbedsStore', () => ({
 const ORIGINAL = 'https://cloud.oxy.so/m1';
 const LADDER = 'https://cloud.oxy.so/m1?variant=hls_master';
 
-function videoCell(media: Record<string, unknown>) {
+function videoCell(media: { id: string; type: 'video'; url: string; hlsUrl?: string }) {
   captured.length = 0;
   act(() => {
     TestRenderer.create(<PostAttachmentsRow postId="post-1" media={[media]} />);
