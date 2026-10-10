@@ -115,6 +115,13 @@ export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<
   if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0)
     out.remoteUrl = raw.remoteUrl.trim();
   if (raw.cachedFromFederation === true) out.cachedFromFederation = true;
+  // Oxy's stamp on the finished H.264 ladder: the resolver emits `hlsUrl` only
+  // when it is here. Left off this list, every hydrated post lost it between
+  // the row and the DTO, and every player was handed the uploaded original —
+  // which an iPhone cannot decode when it is VP9.
+  if (typeof raw.hlsReadyAt === 'string' && !Number.isNaN(Date.parse(raw.hlsReadyAt))) {
+    out.hlsReadyAt = raw.hlsReadyAt;
+  }
 
   return out;
 }

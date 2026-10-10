@@ -34,6 +34,19 @@ describe('MediaMetadataService helpers', () => {
     expect(isOxyFileId('   ')).toBe(false);
   });
 
+  /**
+   * Production, 2026-10-10: the backfill stamped 26,228 videos and the post API
+   * still served none of them an `hlsUrl`. Hydration reads a stored media item
+   * through this list, and the ladder stamp was not on it.
+   */
+  it('readPersistedMediaFields carries the HLS ladder stamp through hydration', () => {
+    expect(readPersistedMediaFields({ hlsReadyAt: '2026-10-10T01:42:43.597Z' })).toEqual({
+      hlsReadyAt: '2026-10-10T01:42:43.597Z',
+    });
+    expect(readPersistedMediaFields({ hlsReadyAt: 'not a date' })).toEqual({});
+    expect(readPersistedMediaFields({ hlsReadyAt: 1 })).toEqual({});
+  });
+
   it('readPersistedMediaFields copies stored intrinsic fields', () => {
     const fields = readPersistedMediaFields({
       width: 1080,
