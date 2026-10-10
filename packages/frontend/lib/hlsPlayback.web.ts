@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { VideoView } from 'expo-video';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type HlsJs from 'hls.js';
 import { createLogger } from '@oxy.so/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
@@ -143,7 +143,7 @@ export interface HlsPlayback {
  */
 export function useHlsPlayback(
   src: string,
-  viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
+  viewRef: React.RefObject<VideoViewHandle | null>,
   /**
    * Whether segments should keep downloading. A player the authority has
    * paused (scrolled away, screen blurred) stops fetching instead of filling

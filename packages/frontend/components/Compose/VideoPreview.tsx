@@ -1,6 +1,7 @@
 import React from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { useVideoPlayer } from "expo-video";
+import { VideoView } from "@oxy.so/bloom/video-view";
 
 interface VideoPreviewProps {
     src: string;

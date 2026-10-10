@@ -1,4 +1,4 @@
-import type { VideoView } from 'expo-video';
+import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 
 /**
  * HLS playback on native: nothing to do.
@@ -27,7 +27,7 @@ export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
 
 export function useHlsPlayback(
   _src: string,
-  _viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
+  _viewRef: React.RefObject<VideoViewHandle | null>,
   _loading?: boolean,
 ): HlsPlayback {
   return NATIVE_PLAYBACK;
