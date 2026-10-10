@@ -4,9 +4,8 @@
  *
  * ## What the shape has to protect
  *
- * `UserBehavior` was the last Mongo-AUTHORITATIVE model with zero Postgres
- * writers, and it feeds For You ranking on every request. Both halves of a
- * partial port fail SILENTLY and in the same direction: a read that finds no row
+ * `UserBehavior` feeds For You ranking on every request. A write that misses
+ * these tables fails SILENTLY: a read that finds no row
  * is indistinguishable from a viewer who has never engaged with anything, so
  * affinity, preferred topics and preferred region all come back neutral, ForYou
  * degrades to generic ranking, and nothing anywhere produces an error. That is
@@ -14,28 +13,25 @@
  *
  * ## A child table is not an array
  *
- * `preferredAuthors` / `preferredTopics` / `preferredRegions` were arrays of
- * subdocuments and are child TABLES here. Mongo's `.save()` rewrote each array
- * wholesale, which was correct there and is destructive here: delete-then-insert
+ * `preferredAuthors` / `preferredTopics` / `preferredRegions` are arrays on the
+ * record and child TABLES here. Rewriting each wholesale is destructive:
+ * delete-then-insert
  * assigns every surviving preference a NEW row id on every interaction. So the
  * write is a DIFF — upsert on the natural key (which preserves the row), then
  * delete only the keys the mutation actually dropped.
  *
- * ## The concurrency guarantee moved from retry to a lock
+ * ## The concurrency guarantee is a lock
  *
  * The accumulators are stateful and order-dependent (`+=`, a top-N sort+slice, a
- * multiplicative decay), so the write is a read-modify-write. Mongoose gave it
- * optimistic concurrency: two concurrent interactions for one viewer collided on
- * `__v`, and `UserPreferenceService` caught the `VersionError`, re-read and
- * re-applied, up to five times. Feed-impression telemetry fires many concurrent
- * interactions per viewer, so this was a live path, not a theoretical one.
+ * multiplicative decay), so the write is a read-modify-write. Feed-impression
+ * telemetry fires many concurrent interactions per viewer, so concurrent writers
+ * are a live path, not a theoretical one.
  *
- * {@link updateUserBehavior} replaces that with `SELECT … FOR UPDATE` inside one
+ * {@link updateUserBehavior} uses `SELECT … FOR UPDATE` inside one
  * transaction: the second writer BLOCKS on the row until the first commits, then
  * reads the committed state and applies its mutation on top of it. Same end
  * state, no wasted work, and a lost update is not merely unlikely but
- * unreachable — so the retry loop, the `VersionError` classifier and the
- * duplicate-key classifier are gone rather than translated.
+ * unreachable — so there is no retry loop and no version-conflict classifier.
  */
 
 import { and, eq, notInArray, sql } from 'drizzle-orm';
@@ -90,7 +86,7 @@ function assembleRecord(
 /**
  * The three child sets for one behaviour row.
  *
- * Ordered strongest-first so the record reads the way Mongo's arrays did — the
+ * Ordered strongest-first — the
  * service sorts before every top-N slice anyway, but a caller that reads the
  * record without sorting (`ContentAffinityService.collectPreferredTopics` caps
  * to the strongest N) must not have that cap depend on insertion order. The
@@ -352,15 +348,13 @@ export interface UpdateUserBehaviorOptions {
  * Read one viewer's behaviour, hand it to `apply`, and persist what `apply`
  * changed — all under a row lock held for the whole transaction.
  *
- * `apply` mutates the record in place, exactly as the Mongoose document was
- * mutated. It must stay synchronous and free of I/O: it runs while the row lock
+ * `apply` mutates the record in place. It must stay synchronous and free of I/O: it runs while the row lock
  * is held, and awaiting anything there would hold that lock across a round trip
  * every other interaction for the same viewer would queue behind.
  *
  * @returns `true` when a row was mutated, `false` when the viewer had none and
  *   `createIfMissing` was not set — which lets a caller distinguish "refined an
- *   existing profile" from "there was nothing to refine", a distinction the
- *   Mongo code made with an early `return` on a null document.
+ *   existing profile" from "there was nothing to refine".
  */
 export async function updateUserBehavior(
   oxyUserId: string,

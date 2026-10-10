@@ -7,13 +7,11 @@
  * drain still hands over. It is a table with a planned end — do not build
  * anything new on it.
  *
- * ## The one predicate that does not survive a literal translation
+ * ## The drain predicate is `IS NOT TRUE`, never `<> true`
  *
- * The drain selects rows `{ migratedToBullmq: { $ne: true } }`. Mongo's `$ne`
- * MATCHES a document where the field is absent, which is the whole population it
- * was written for — every row predating the column. `<> true` in SQL yields NULL
- * for a NULL column and NULL is not true, so the literal translation would drain
- * nothing. The column here is `NOT NULL DEFAULT false`, so even `= false` would
+ * The drain selects rows not yet handed to BullMQ. `<> true` in SQL yields NULL
+ * for a NULL column and NULL is not true, so it would drain
+ * nothing on a nullable column. The column here is `NOT NULL DEFAULT false`, so even `= false` would
  * work today; `IS NOT TRUE` is used anyway because it is the predicate that stays
  * correct if the column is ever made nullable, and because the reason it is not
  * `<> true` should be visible where the query is.
@@ -99,8 +97,7 @@ export async function insertDelivery(
 /**
  * Persist several fallback deliveries in one write.
  *
- * The Mongo counterpart passed `{ ordered: false }` so one bad row could not stop
- * the rest. There is no per-row failure mode left to tolerate: the columns are
+ * There is no per-row failure mode to tolerate: the columns are
  * all `NOT NULL` values the caller has already built, and the table has no unique
  * constraint, so the only way a row fails is a way that fails the whole statement
  * either way.
@@ -167,10 +164,9 @@ export async function markDeliveriesMigrated(
 /**
  * Record the outcome of one delivery attempt.
  *
- * `error` is only written when the caller passes one. The Mongo success path
- * spelled `$set: { …, error: undefined }`, which Mongoose STRIPS — so a delivered
- * row kept whatever error its last failed attempt left behind. That is preserved
- * rather than "fixed": clearing it is a behaviour change, and the field is only
+ * `error` is only written when the caller passes one, so a delivered
+ * row keeps whatever error its last failed attempt left behind. That is
+ * deliberate: clearing it is a behaviour change, and the field is only
  * ever read by an operator looking at a `failed` row.
  */
 export interface DeliveryAttemptOutcome {

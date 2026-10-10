@@ -16,13 +16,13 @@
  *
  * The suites this supersedes (`PostEngagementCommandService.test.ts`,
  * `EngagementOutboxService.test.ts`, `engagementOutboxWrites.test.ts`) asserted
- * against mocked Mongoose models — they read the UPDATE DOCUMENT a call was
- * built with, and could not tell a correct write from one Mongo would refuse.
+ * against mocked legacy-ODM models — they read the UPDATE DOCUMENT a call was
+ * built with, and could not tell a correct write from one the legacy store would refuse.
  * That is exactly how the `ConflictingUpdateOperators` outage shipped green.
  * Every assertion here reads a row back.
  *
  * Two of those files' hardest-won properties are carried over rather than
- * dropped, because they are about the durable contract and not about Mongo:
+ * dropped, because they are about the durable contract and not about the legacy store:
  * a repeated save writes NOTHING, and a replayed enqueue writes nothing AND
  * therefore cannot block on a dispatcher's live lease.
  */
@@ -578,7 +578,7 @@ describe('materializing a verified MTN relationship', () => {
 
   it('is a no-op for a replayed rkey AND for the same pair under a new rkey', async () => {
     /**
-     * The second half is a behaviour change worth naming. Mongo's upsert filtered
+     * The second half is a behaviour change worth naming. The legacy store's upsert filtered
      * on `_id` alone, so a second rkey for a pair that already had a row hit the
      * compound unique index, exhausted the retry loop and THREW — from a function
      * whose contract is idempotency. `ON CONFLICT DO NOTHING` with no target
@@ -850,7 +850,7 @@ describe('enqueueing an event', () => {
      * dispatcher claims, renews and completes leases on these same rows, and a
      * duplicate request can arrive at any point.
      *
-     * A measured Postgres behaviour worth writing down, because the Mongo
+     * A measured Postgres behaviour worth writing down, because the legacy-store
      * version of this test asserted the opposite and passed: `INSERT … ON
      * CONFLICT DO NOTHING` does NOT sail past a conflicting row that another
      * transaction is mid-UPDATE on — the unique-index probe finds a tuple with

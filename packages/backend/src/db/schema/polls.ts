@@ -1,9 +1,8 @@
 /**
  * `polls`, `poll_options`, `poll_votes` — ported from `models/Poll.ts`.
  *
- * Mongo held the options as an embedded array whose subdocuments each carried
- * their own `_id` (`{ _id: true }`) plus a `votes: [String]` array of voter ids.
- * That is two arrays of ids nested two levels deep, and the id of an option is
+ * A poll's options each carry their own id plus a set of voter ids — two
+ * levels of id sets — and the id of an option is
  * published to clients as the thing they POST back when voting — so both become
  * real tables.
  *
@@ -15,10 +14,6 @@
  * (`polls.controller.ts:372`). A `temp_` placeholder is a write-order artefact,
  * not data: here the column is a real nullable foreign key, NULL until the post
  * is created. The backfill maps every `temp_` value to NULL.
- *
- * That also removes the one Mongoose validator in this codebase that FAILS a
- * write on an unrecognised id shape — worth knowing, because it is the only
- * place an id-format change breaks loudly rather than silently.
  */
 
 import { sql } from 'drizzle-orm';
@@ -50,9 +45,7 @@ export const polls = pgTable(
   (t) => [
     index('polls_created_by_idx').on(t.createdBy),
     index('polls_ends_at_idx').on(t.endsAt),
-    // Mongo's partial index `{postId: 1}` filtered on `$type: 'objectId'` — the
-    // partial existed only to exclude the `temp_` strings, which no longer
-    // exist, so the analogue is "where the poll is actually attached".
+    // Partial on "where the poll is actually attached".
     index('polls_post_id_idx').on(t.postId).where(sql`${t.postId} is not null`),
   ],
 );
@@ -81,9 +74,7 @@ export const pollOptions = pgTable(
 /**
  * `poll_votes` — one row per (option, voter).
  *
- * Mongo held `votes: [String]` INSIDE each option, so "has this user voted"
- * meant scanning every option's array and the total was a virtual that summed
- * them. Here it is a junction table, so a single-choice poll's "one vote per
+ * A junction table, so a single-choice poll's "one vote per
  * poll" rule is expressible (the partial unique index below) and the tally is a
  * `GROUP BY`.
  */

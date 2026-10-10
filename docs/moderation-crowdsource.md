@@ -21,12 +21,8 @@ transaction give two silent failure modes (a report nothing will ever send;
 an event whose report was rolled back) and neither surfaces as an error
 when it happens.
 
-`enqueueModerationOutboxEvent` refuses the ROOT connection, not just a
-missing session. The old Mongo invariant was `session.inTransaction()`: a
-type made a session mandatory, a runtime check made it mandatory that a
-transaction was actually OPEN, because a bare `startSession()` type-checks
-and commits the row alone. Drizzle's `DatabaseOrTransaction` param has the
-same hole and a wider one — the ROOT `Database` satisfies the type too, and
+`enqueueModerationOutboxEvent` refuses the ROOT connection. Drizzle's `DatabaseOrTransaction` param cannot enforce a
+transaction by type — the ROOT `Database` satisfies the type too, and
 every repository here defaults to it, so forgetting the argument IS the
 mistake. `requireTransaction()` (`db/moderation/transactionGuard.ts`)
 discriminates by capability, not by name: the root database has no
@@ -34,14 +30,8 @@ discriminates by capability, not by name: the root database has no
 `MissingTransactionError` when handed the former.
 
 The upsert is `.onConflictDoNothing({ target: moderationOutbox.id })`, and a
-repeated enqueue is a genuine no-op for a different structural reason than
-the Mongo version worked to achieve. The Mongo write was
-`{ upsert: true, session, timestamps: false }` with `createdAt`/`updatedAt`
-explicit inside `$setOnInsert`, because `ModerationOutbox` declared
-`{ timestamps: true }` and letting Mongoose add its own `updatedAt` on top
-named that path twice in one update — Mongo refused the WHOLE write, taking
-the `Report` down with it. Drizzle has no implicit timestamping on a
-conflict branch: `$onUpdate` fires only for an `update()`, and
+repeated enqueue is a genuine no-op. Drizzle has no implicit timestamping
+on a conflict branch, so the insert can never name a timestamp path twice: `$onUpdate` fires only for an `update()`, and
 `onConflictDoNothing` writes nothing at all on a duplicate id.
 
 ## Enforcement modes and Mention's three primitives
@@ -185,8 +175,7 @@ back is worse than one held locally.
 
 - `moderationOutboxDispatcher` starts on EVERY task (`server.ts`, next to
   `engagementOutboxDispatcher`): claims are `SELECT ... FOR UPDATE SKIP
-  LOCKED` over Postgres (ported from Mongo's atomic `findOneAndUpdate` over
-  a disjunctive filter), so N tasks share the work and a dead task's
+  LOCKED` over Postgres, so N tasks share the work and a dead task's
   expired lease is reclaimed. No-ops where the deployment cannot deliver —
   the LOOP is gated, never the durable record, so reports taken while it
   could not deliver go out once it can.

@@ -30,7 +30,7 @@ export type FeedQualityLabel = 'junk' | 'good';
  *   - `acct`       — a federated handle (`user@host`); resolves to that actor's
  *     recent posts (an account-level label, the common case).
  *   - `activityId` — a specific federated activity id (one post).
- *   - `postId`     — a specific Mongo post id (one post).
+ *   - `postId`     — a specific post id (one post).
  */
 export interface FeedQualityLabelEntry {
   label: FeedQualityLabel;
@@ -62,7 +62,7 @@ export interface LabeledPost<TPost> {
 /**
  * Data access for {@link resolveLabeledPosts}, injected so the resolver stays pure
  * and decoupled from any concrete post shape. `TPost` is the caller's lean-post
- * type (the eval uses `CandidatePost`). The eval script supplies Mongo-backed
+ * type (the eval uses `CandidatePost`). The eval script supplies Postgres-backed
  * implementations.
  */
 export interface LabelResolverDeps<TPost> {
@@ -72,7 +72,7 @@ export interface LabelResolverDeps<TPost> {
   findActorByUri(uri: string): Promise<LabeledActor | null>;
   /** Resolve up to `limit` recent posts authored by a federated actor. */
   findRecentPostsForActor(actor: LabeledActor, limit: number): Promise<TPost[]>;
-  /** Resolve a single post by Mongo id, or `null`. */
+  /** Resolve a single post by id, or `null`. */
   findPostById(postId: string): Promise<TPost | null>;
   /** Resolve a single post by federation `activityId`, or `null`. */
   findPostByActivityId(activityId: string): Promise<TPost | null>;

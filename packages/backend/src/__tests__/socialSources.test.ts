@@ -9,12 +9,12 @@
  *
  * What each case is actually guarding:
  *
- *  - **`mentionsOfMe` is a correlated `EXISTS` over `post_mentions`.** Mongo
+ *  - **`mentionsOfMe` is a correlated `EXISTS` over `post_mentions`.** The legacy store
  *    matched an array element (`{ mentions: viewerId }`); the port must correlate
  *    `post_mentions.post_id` to `posts.id`. Lose that and the mentions feed is
  *    silently empty, so the case asserts a NON-EMPTY exact set.
  *  - **Starter-pack and list members are JUNCTION TABLES, not embedded id
- *    arrays.** Reading the pack row (as Mongo did) returns no members at all, so
+ *    arrays.** Reading the pack row (as the legacy store did) returns no members at all, so
  *    the case builds real member rows and asserts their posts come back.
  *  - **A reply is the stored `is_reply`, in both encodings.** The mirror image of
  *    the profile-feed case in `feedSources.test.ts`: `repliesFromFollows` must
@@ -350,7 +350,7 @@ describe('the mentionsOfMe source', () => {
   /**
    * THE correlated-subquery case of this file.
    *
-   * `mentions` became a junction table, so Mongo's array-element match becomes
+   * `mentions` became a junction table, so the legacy store's array-element match becomes
    * `exists (select 1 from post_mentions where post_id = posts.id and
    * oxy_user_id = $viewer)`. Render either side of that correlation BARE and it
    * compares two columns of `post_mentions` to each other — the mentions feed
@@ -425,7 +425,7 @@ describe('the hashtagFollows source', () => {
 describe('the starterPack source', () => {
   /**
    * Members are a JUNCTION TABLE, not the embedded `memberOxyUserIds` array
-   * Mongo held. Reading the pack row — the literal translation — returns no
+   * the legacy store held. Reading the pack row — the literal translation — returns no
    * members at all and therefore an empty feed, so this builds real member rows.
    */
   it('resolves members from the junction table and serves their posts', async () => {
@@ -449,7 +449,7 @@ describe('the starterPack source', () => {
   });
 
   it('returns nothing for a pack id that names no pack', async () => {
-    // The Mongo original guarded this with `ObjectId.isValid`; that guard is
+    // The legacy-store original guarded this with `ObjectId.isValid`; that guard is
     // deleted, and a text id naming no row already produces the same answer.
     await create({ oxyUserId: FRIEND_A });
     expect(await starterPackSource.gather({}, { packId: 'socialsrc-no-such-pack' }, 30)).toEqual(

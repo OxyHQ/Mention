@@ -22,22 +22,11 @@ router.get('/health/live', (_req, res) => {
  * survives that. `isPostgresConnected()` would answer "was a pool ever built",
  * which is true of exactly the task that is failing every request.
  *
- * ## Mongo was removed from this gate, and it had to be removed WITH the boot
+ * ## No other data store is part of this gate
  *
- * The gate used to `&&` in `isDatabaseConnected()`, a synchronous `readyState`
- * read on the default mongoose connection that `server.ts` opened at boot. The
- * previous version of this comment stated the consequence exactly — "once Mongo
- * is off, `isDatabaseConnected()` pins readiness false forever" — and it is
- * why this file is part of the same change that stopped the web task connecting
- * to Mongo. Dropping the connection alone would leave every task answering 503
- * on `/health/ready` for as long as it lived: the ALB would drain the fleet and
- * the deploy's own smoke checks would fail, on a store no request touches.
- *
- * `dependencies.mongo` is gone from the payload for the same reason it is gone
- * from the gate — reporting a store this process never opens would be inventing
- * a status. Nothing in this package opens Mongo any more: the driver, the
- * models and the copier have all been removed, so there is no longer any
- * process, one-shot included, whose readiness could involve it.
+ * `dependencies` reports only stores this process actually opens; reporting one
+ * it never opens would be inventing a status, and gating on one would let a
+ * store no request touches drain the fleet through `/health/ready`.
  */
 router.get('/health/ready', async (_req, res) => {
   const runtime = getRuntimeHealthState();

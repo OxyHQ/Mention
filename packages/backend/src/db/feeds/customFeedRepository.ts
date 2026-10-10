@@ -4,16 +4,15 @@
  * Extracted from `routes/customFeeds.routes.ts`, which still owns the WIRE
  * format (`serializeFeed`) — this module owns only the reassembly the wire
  * format and the feed ENGINE both need. It exists because they are two
- * consumers of one non-trivial join: Mongo carried the sources, signals,
- * filters, members, source lists and topics INSIDE the document, and a second
+ * consumers of one non-trivial join over the sources, signals,
+ * filters, members, source lists and topics tables, and a second
  * hand-rolled gather would be a second place for `position` order to be lost.
  *
- * ## Why the engine needed it
+ * ## Why the engine needs it
  *
- * `mtn/feed/definitions/customFeedDefinition.ts` loaded feeds from the Mongo
- * `CustomFeed` model, which nothing writes any more — every write goes through
- * `routes/customFeeds.routes.ts` into `custom_feeds`. A feed created after that
- * move therefore did not resolve, and the failure was a feed the user built
+ * `mtn/feed/definitions/customFeedDefinition.ts` must load feeds from the same
+ * `custom_feeds` rows `routes/customFeeds.routes.ts` writes. A feed loaded from
+ * anywhere else fails to resolve, and the failure is a feed the user built
  * rendering as "not found" rather than an error anyone could act on.
  */
 
@@ -39,9 +38,9 @@ export type FeedRow = typeof customFeeds.$inferSelect;
 /**
  * The child rows a feed needs before it can be serialized.
  *
- * Mongo carried all four of these INSIDE the document (`definition.sources` /
- * `.signals` / `.filters`, `memberOxyUserIds`, `sourceListIds`, `topicIds`), and
- * the API published every one of them. They are separate tables now, so every
+ * The API publishes all four of these (`definition.sources` /
+ * `.signals` / `.filters`, `memberOxyUserIds`, `sourceListIds`, `topicIds`).
+ * They are separate tables, so every
  * read that serializes a feed has to gather them back — the wire format is the
  * contract, not the storage shape.
  */
@@ -139,8 +138,7 @@ export async function loadFeedRelations(
 /**
  * The composable definition, or `undefined` for a feed that predates Phase 3.
  *
- * `definition_mode IS NULL` is exactly Mongoose's absent `definition`
- * subdocument, and the request-time fallback in `customFeedDefinition.ts`
+ * `definition_mode IS NULL` means the feed has no `definition`, and the request-time fallback in `customFeedDefinition.ts`
  * depends on telling the two apart — a feed given an empty definition instead of
  * no definition would render empty rather than falling back to its legacy
  * filters.

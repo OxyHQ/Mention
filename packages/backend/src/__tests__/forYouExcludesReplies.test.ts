@@ -39,7 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *
  * ## The `''` sentinel is UNREPRESENTABLE here, and that is the stronger answer
  *
- * Mongo could store `federation.inReplyTo: ''` on a post whose `parentPostId`
+ * The legacy store could store `federation.inReplyTo: ''` on a post whose `parentPostId`
  * was null, so "is the empty string a parent?" was a live question every reader
  * had to answer the same way. `posts_federated_reply_discriminator_check`
  * (`federation_in_reply_to is null or is_reply`) makes that row impossible to
@@ -358,7 +358,7 @@ describe('For You candidate pool — the fixture universe', () => {
    * pins — so `is_reply` comes out false, and
    * `posts_federated_reply_discriminator_check` then refuses the row: a stored
    * `federation_in_reply_to` may only exist on a post the discriminator agrees
-   * is a reply. So the state every Mongo reader had to interpret consistently
+   * is a reply. So the state every legacy-store reader had to interpret consistently
    * cannot arise here at all.
    *
    * Mutation: make `derivesReplyIntent` treat a non-null `inReplyTo` as a reply

@@ -64,7 +64,7 @@ async function resolveCustomFeedAccess(
   // since the cutover, so saving a feed you had just made was refused as
   // malformed.
   if (!feedId) return 'invalid';
-  // Postgres — the Mongo `CustomFeed` collection has no writer left.
+  // Read from `custom_feeds`, the table every custom-feed write goes to.
   const feed = await loadCustomFeedSource(feedId);
   if (!feed) return 'invalid';
   if (feed.ownerOxyUserId === userId || feed.isPublic === true) return 'ok';

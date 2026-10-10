@@ -33,7 +33,7 @@ vi.mock('../../../services/mtn/MentionNodeSyncService', () => ({
 // ordering that decides whether a new node is ever serviced at all — is pinned
 // against real rows in `__tests__/db/mtnNodeRepository.test.ts`. Stubbing a
 // named repository function keeps those two questions apart; stubbing the old
-// Mongoose model conflated them and left the ordering covered by nothing.
+// legacy-ODM model conflated them and left the ordering covered by nothing.
 vi.mock('../../../db/mtn/nodeRepository', () => ({
   findNodesToSync: (...a: unknown[]) => mockFindNodesToSync(...a),
 }));
@@ -214,7 +214,7 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     path.normalize('src/services/accountErasure'),
   ];
   const FORBIDDEN = [
-    // Re-expressed when the Mongoose `MentionUserNode` model gave way to
+    // Re-expressed when the legacy-ODM `MentionUserNode` model gave way to
     // Postgres. The invariant is unchanged — no hot-path module may reach the
     // node table — but the symbol that names it is now the drizzle table, so
     // the token had to move with it or it would match nothing and enforce
@@ -340,7 +340,7 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
     ).toEqual([]);
 
     // FLOOR — every forbidden token still NAMES something. A token whose symbol
-    // has been deleted (as `MentionUserNode` was, the moment the Mongoose model
+    // has been deleted (as `MentionUserNode` was, the moment the legacy-ODM model
     // gave way to `db/schema/mtn`'s `mentionUserNodes`) can never match again, and
     // the invariant it stood for quietly stops being enforced. When this fails,
     // re-express the token against the replacement symbol — do not delete it.

@@ -207,7 +207,7 @@ describe('the moreLikeThis source', () => {
   });
 
   it('returns nothing for a seed id that names no post', async () => {
-    // The Mongo original guarded this with `ObjectId.isValid`; that guard is
+    // The legacy-store original guarded this with `ObjectId.isValid`; that guard is
     // deleted, and a text id naming no row already produces the same answer.
     await create({ postClassification: { topics: ['relsrccats'] } });
     expect(await moreLikeThisSource.gather({}, { postId: 'relsrc-no-such-post' }, 30)).toEqual([]);

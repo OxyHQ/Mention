@@ -20,8 +20,7 @@ backend. The production service listens on port 3000 and serves both
 - `drizzle/` contains the versioned schema migrations, applied by `src/db/migrate.ts`.
 
 Engagement writes use multi-statement transactions, which Postgres provides
-with no topology requirement — the replica-set/mongos constraint that used to
-sit here belonged to Mongo and no longer applies. Redis may degrade API
+with no topology requirement. Redis may degrade API
 features, but a process never assumes singleton leadership without a lock.
 
 ## Setup

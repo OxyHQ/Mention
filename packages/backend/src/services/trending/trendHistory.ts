@@ -70,9 +70,8 @@ export async function getTrendingHistory(
   /**
    * The calendar day a batch belongs to, in UTC.
    *
-   * `at time zone 'UTC'` is not optional. Mongo's `$dateToString` with no
-   * `timezone` renders in UTC, while `to_char` on a `timestamptz` renders in
-   * the SESSION's `TimeZone` — so without it the day boundaries would shift
+   * `at time zone 'UTC'` is not optional. `to_char` on a `timestamptz` renders
+   * in the SESSION's `TimeZone` — so without it the day boundaries would shift
    * with whatever the connection happened to be set to, silently re-bucketing
    * every archived trend and changing the page count.
    */
@@ -94,12 +93,11 @@ export async function getTrendingHistory(
   }
 
   /**
-   * Two window passes replace Mongo's `$sort`/`$group $first` and
-   * `$group $push`/`$slice`, and BOTH orderings end in `id` for the same
-   * reason: neither `$group $first` nor `$slice` had a total order to work
-   * with, so both silently picked an arbitrary row out of a tie — the same
-   * page could answer differently on two requests. `score desc, id desc` is
-   * total (`id` is the primary key), so a tie now resolves the same way every
+   * Two window passes (first-per-group and top-N-per-group), and BOTH
+   * orderings end in `id` for the same reason: without a total order each
+   * would silently pick an arbitrary row out of a tie — the same page could
+   * answer differently on two requests. `score desc, id desc` is total (`id`
+   * is the primary key), so a tie resolves the same way every
    * time.
    *
    * `dedupRank = 1` keeps the highest-scoring row per (day, name, type) —

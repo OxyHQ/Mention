@@ -53,7 +53,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-// A chainable Mongoose query stub: `.select().sort().limit().maxTimeMS().lean()`.
+// A chainable query stub: `.select().sort().limit().maxTimeMS().lean()`.
 function chainable(rows: unknown[] | null) {
   const q: Record<string, unknown> = {};
   for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {

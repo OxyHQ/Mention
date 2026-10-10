@@ -4,7 +4,7 @@
  * Three things are checked, and the third is the one a convention could not give
  * you: that every swept column has the btree its predicate needs. A sweep whose
  * `column <= now() - N` cannot use an index is a full table scan on a schedule,
- * which is exactly the obligation Mongo's TTL index carried implicitly.
+ * which is exactly the obligation the legacy store's TTL index carried implicitly.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -47,9 +47,9 @@ afterAll(async () => {
  * The retention constants no longer have a second side to be compared against.
  *
  * Three cases lived here — notifications, trending, engagement outbox — each
- * asserting a Postgres constant still equalled its Mongoose model's
+ * asserting a Postgres constant still equalled its legacy-ODM model's
  * `expireAfterSeconds`, because both stores were live and a window changed on
- * one side only would have given the two different lifetimes. Mongo is gone, so
+ * one side only would have given the two different lifetimes. The legacy store is gone, so
  * every one of those numbers is now declared exactly once, beside the table it
  * bounds, and there is nothing left that could disagree with it. The same
  * reasoning retired the `moderation_outbox` and `moderation_events` cases
@@ -58,7 +58,7 @@ afterAll(async () => {
  * A walk over `src/models/` for `expireAfterSeconds` stood here too, deriving
  * the registry's size rather than restating it, so a model that gained a TTL
  * index in a directory nobody thought of could not silently go unswept. It
- * cannot be ported: there are no models, and no Mongoose to declare a TTL with.
+ * cannot be ported: there are no models, and no ODM to declare a TTL with.
  * What it protected passes to the exact list below, which is exact in BOTH
  * directions and is now the only thing standing between every table here and
  * unbounded growth.
@@ -72,7 +72,7 @@ describe('the sweep registry', () => {
     // separate merges, each a TTL'd collection ported without a registry entry
     // until this file said so.
     //
-    // Every entry is one Mongo used to reap for free, and each is named with
+    // Every entry is one the legacy store used to reap for free, and each is named with
     // what makes it unbounded now, because the obvious repair when a table's
     // last writer is deleted — dropping its entry too — is exactly the failure
     // this file exists to prevent. The sweep is about the TABLE, never about
@@ -84,7 +84,7 @@ describe('the sweep registry', () => {
       'engagement_outbox',
       // One row per impression.
       'feed_interactions',
-      // The MCP OAuth surface; Mongo reaped these for free, nothing else does.
+      // The MCP OAuth surface; the legacy store reaped these for free, nothing else does.
       'mcp_auth_codes',
       // One bounded, hash-only deduplication receipt per external MCP effect.
       'mcp_effect_receipts',
@@ -128,7 +128,7 @@ describe('the sweep registry', () => {
     ).filter((label) => !indexed.has(label));
 
     // Without a LEADING btree on the swept column the delete predicate is a
-    // sequential scan, which is the obligation Mongo's TTL index carried too.
+    // sequential scan, which is the obligation the legacy store's TTL index carried too.
     expect(unindexed).toEqual([]);
   });
 });

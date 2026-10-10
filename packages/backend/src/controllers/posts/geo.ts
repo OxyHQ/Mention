@@ -83,9 +83,8 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
         notCollapsedCrosspostSql(),
         withinRadius(geoColumn, longitude, latitude, radiusMeters),
       ),
-      // Chronological, not nearest-first: `$near` sorts by distance, but the
-      // Mongoose call overrode that with its own `createdAt` sort, so the
-      // distance ordering was already discarded before this port.
+      // Chronological, not nearest-first: the endpoint has always served
+      // newest-first within the radius.
       { orderBy: CHRONO_DESC, limit: MAX_NEARBY_POSTS },
     );
 
@@ -144,8 +143,8 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     }
 
     const geoColumn = locationType === 'post' ? postsTable.geo : postsTable.contentGeo;
-    // `ST_MakeEnvelope(west, south, east, north, 4326)` — the same corner order
-    // as Mongo's `$box`, and the same SRID the generated points carry. Cast to
+    // `ST_MakeEnvelope(west, south, east, north, 4326)` — the corner order the
+    // request uses, and the same SRID the generated points carry. Cast to
     // `geography` so the comparison is against the column's own type; the `&&`
     // bounding-box operator is what the GiST index answers.
     const envelope = sql`ST_MakeEnvelope(${westLng}, ${southLat}, ${eastLng}, ${northLat}, 4326)::geography`;

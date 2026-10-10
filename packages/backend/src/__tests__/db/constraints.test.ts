@@ -1,9 +1,9 @@
 /**
- * The constraints that carry a rule Mongo could not state, asserted by trying
+ * The constraints that carry a rule the legacy store could not state, asserted by trying
  * to violate them against real rows.
  *
  * Each case here corresponds to something that was previously enforced by
- * application code, by a Mongoose validator that updates bypassed, or by
+ * application code, by a legacy-ODM validator that updates bypassed, or by
  * nothing at all.
  */
 
@@ -61,7 +61,7 @@ describe('uuid v7 ids', () => {
 
   it('accepts a 24-char ObjectId hex verbatim as a primary key', async () => {
     // The migration preserves ids, so both formats must coexist in one column.
-    // A backfilled row's id is the raw Mongo `_id` — it appears in published
+    // A backfilled row's id is the raw legacy-store `_id` — it appears in published
     // ActivityPub URIs and inside signed MTN records, so it cannot be remapped.
     const objectIdHex = '6a2f9d8989b795cfdfac350f';
     await db.insert(posts).values({ id: objectIdHex, oxyUserId: 'oxy-constraints-author' });
@@ -73,10 +73,9 @@ describe('uuid v7 ids', () => {
 });
 
 describe('posts.status', () => {
-  it('accepts `restricted`, which the Mongoose enum forbids', async () => {
-    // `models/Post.ts` declares three values; `ModerationEnforcementService`
-    // writes a fourth through `updateOne`, which runs no validators. Porting the
-    // Mongoose enum verbatim would start rejecting rows Mongo has been storing.
+  it('accepts `restricted`', async () => {
+    // `ModerationEnforcementService` writes `restricted` alongside the three
+    // ordinary statuses, so the CHECK must admit all four.
     const [row] = await db
       .insert(posts)
       .values({ oxyUserId: 'oxy-constraints-author', status: 'restricted' })
@@ -97,7 +96,7 @@ describe('posts.status', () => {
 describe('posts.reply_permission', () => {
   it('rejects an element outside the closed set', async () => {
     // A scalar enum column cannot express this: the constraint is on the array's
-    // ELEMENTS, and Mongo's array-enum was never enforced on an update.
+    // ELEMENTS, and the legacy store's array-enum was never enforced on an update.
     await expect(
       db.execute(sql`
         insert into posts (id, reply_permission)
@@ -140,7 +139,7 @@ describe('post_authorships', () => {
     } catch (error) {
       caught = error;
     }
-    // `getOwnerId` assumes there is one owner. Mongo could hold two.
+    // `getOwnerId` assumes there is one owner. The legacy store could hold two.
     expect(isUniqueViolation(caught, 'post_authorships_one_owner_per_post')).toBe(true);
   });
 
@@ -187,7 +186,7 @@ describe('post_content_variants', () => {
       body: 'migrating databases carefully',
     });
 
-    // The port of Mongo's text index. A `LIKE '%…%'` scan would pass a
+    // The port of the legacy store's text index. A `LIKE '%…%'` scan would pass a
     // "does it find the row" test while being a table scan wearing one's
     // clothes, so the assertion is that the STEMMED query matches.
     const rows = await db.execute<{ id: string }>(sql`
@@ -307,7 +306,7 @@ describe('threadgate_allow_rules', () => {
 
 describe('user_settings.profile_media', () => {
   it('refuses a row that is half song and half podcast', async () => {
-    // Mongo got this mutual exclusion for free by storing ONE subdocument.
+    // The legacy store got this mutual exclusion for free by storing ONE subdocument.
     // Flattened into columns it has to be stated.
     await expect(
       db.insert(userSettings).values({

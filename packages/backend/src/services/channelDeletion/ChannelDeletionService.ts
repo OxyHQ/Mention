@@ -83,10 +83,9 @@
  * ## BATCHED, AND THEREFORE NEVER REFUSED FOR SIZE
  *
  * A channel is a publication and its archive is unbounded, so the posts are taken
- * in keyset batches rather than materialised whole. The Mongo shape refused past
- * a boost-closure cap; that refusal was correct there and would be a cascade
- * nobody could run here, because the bound would have to cover a whole archive
- * rather than one post's boosts. The keyset advances on `posts.id`, so a re-run
+ * in keyset batches rather than materialised whole. A boost-closure cap would be
+ * a cascade nobody could run here, because the bound would have to cover a whole
+ * archive rather than one post's boosts. The keyset advances on `posts.id`, so a re-run
  * after a partial failure simply re-walks from the start over what survived.
  *
  * ## RETRY CONTRACT

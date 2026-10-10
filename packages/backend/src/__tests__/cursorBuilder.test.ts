@@ -4,7 +4,7 @@ import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 /**
  * A 24-hex id, the shape every post id in this schema still has. Spelled out
  * rather than built through a driver: `ScoreCursor` only ever treats these as
- * opaque strings, so a Mongo ObjectId was never anything but a hex generator.
+ * opaque strings.
  */
 const oid = (n: number) => `5f${n.toString().padStart(22, '0')}`;
 

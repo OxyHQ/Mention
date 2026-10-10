@@ -1,7 +1,7 @@
 /**
  * `statistics.controller` against REAL Postgres rows — the `$facet` translation.
  *
- * Mongo ran ONE `$match` and four independent sub-pipelines over the matched
+ * The legacy store ran ONE `$match` and four independent sub-pipelines over the matched
  * set. The port runs four queries over the same predicate inside one
  * transaction, and three of its properties are load-bearing enough to have a
  * test that NAMES them when it breaks:
@@ -16,7 +16,7 @@
  *     counts with a second query and has the mutation test for it.)
  *  2. **The date bucket is a WIRE FORMAT.** `{ date: string }` ships to the
  *     client. `to_char(created_at at time zone 'UTC', 'YYYY-MM-DD')` has to
- *     produce byte-identically what Mongo's
+ *     produce byte-identically what the legacy store's
  *     `$dateToString {format:'%Y-%m-%d', timezone:'UTC'}` produced, which is the
  *     same thing `Date#toISOString().slice(0,10)` produces — so that is what it
  *     is compared against, rather than a string the test computed the same way
@@ -240,7 +240,7 @@ describe('GET /statistics/user — the overview totals', () => {
 
   it('returns numbers, not the strings a bigint sum comes back as', async () => {
     // `sum(integer)` widens to `bigint`, which postgres.js hands back as a
-    // STRING; `res.json` would ship `"7"` where Mongo shipped `7`.
+    // STRING; `res.json` would ship `"7"` where the legacy store shipped `7`.
     const userId = owner();
     await seedPost({ owner: userId, views: 7, likes: 3, replies: 2, boosts: 1, shares: 1 });
 
@@ -369,7 +369,7 @@ describe('topPosts', () => {
     /**
      * There is no offset here — this is one bounded leaderboard — so the `id`
      * tiebreak is not pagination protection; it is what stops WHICH posts tie
-     * into the last slot from being plan-dependent. Mongo left it arbitrary.
+     * into the last slot from being plan-dependent. The legacy store left it arbitrary.
      * Ids are SUPPLIED in an order that disagrees with insertion order, because
      * a generated `uuidv7()` is k-sortable and the two would coincide.
      */

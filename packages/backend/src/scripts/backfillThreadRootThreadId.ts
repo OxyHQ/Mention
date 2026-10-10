@@ -113,8 +113,7 @@ async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
     .from(posts)
     .where(
       and(
-        // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
-        // MISSING field, while SQL's `<>` against NULL matches nothing.
+        // `is not null`, never `<> null`: SQL's `<>` against NULL matches nothing.
         isNotNull(posts.threadId),
         // Native posts only — federated posts carry a federation activity id.
         isNull(posts.federationActivityId),

@@ -156,9 +156,8 @@ export async function saveTrendingBatch(
     return { insertedCount: inserted.length, rejected: rejectedOf(inserted) };
   } catch (error) {
     // A multi-row INSERT is ONE statement: a constraint violation on any row
-    // aborts the whole thing, which is exactly the all-or-nothing failure the
-    // unordered Mongo insert existed to avoid. Retrying row by row restores
-    // that property — every row is attempted, and a bad one costs exactly one
+    // aborts the whole thing — an all-or-nothing failure. Retrying row by row
+    // avoids that — every row is attempted, and a bad one costs exactly one
     // trend.
     logger.warn('[Trending] Batch insert failed; retrying row by row', {
       calculatedAt: calculatedAt.toISOString(),
@@ -210,15 +209,15 @@ async function saveMembershipsFailSoft(
 /**
  * Remove trends older than CLEANUP_DAYS (= the 90-day retention window) to
  * prevent unbounded growth. `trending` also has an entry in the expiry
- * registry (`db/expiry.ts`), the direct successor of its Mongo TTL index — so
+ * registry (`db/expiry.ts`) — so
  * this delete is redundant for that table. It is retained because
  * `trend_batches` has NO expiry entry and this is the only thing keeping it
  * bounded. Both are cleaned to the SAME cutoff so trend batches and their
  * trends expire together, and `getTrending` can never read a batch whose rows
  * have been reaped.
  *
- * `returning` gives the count. Mongo's `deletedCount` came free; here the rows
- * have to be asked for, and the id alone is enough to count them.
+ * `returning` gives the count: the rows have to be asked for, and the id alone
+ * is enough to count them.
  */
 export async function cleanupOldTrends(): Promise<void> {
   try {

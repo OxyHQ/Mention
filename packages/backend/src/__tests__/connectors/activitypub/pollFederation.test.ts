@@ -70,7 +70,7 @@ function questionFor(poll: NotePollContext, content: PostContent = body('vote no
  * A REAL poll: one `polls` row, its options as ordered `poll_options` rows, and
  * each ballot as a `poll_votes` row.
  *
- * The resolver used to read the Mongoose `Poll` model, which nothing has written
+ * The resolver used to read the legacy-ODM `Poll` model, which nothing has written
  * since polls moved to Postgres — so it resolved null for every poll and every
  * poll post federated as a plain Note. That is invisible from the outside: null
  * is also how "this post has no poll" is spelled.

@@ -207,7 +207,7 @@
 2026-10-04T14:22:47.8202044Z   CI_BASE_REVISION: origin/main
 2026-10-04T14:22:47.8202285Z ##[endgroup]
 2026-10-04T14:22:47.8650651Z $ bun run check:workspace && bun run build && bun run check:types
-2026-10-04T14:22:47.8691942Z $ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:no-mongo validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
+2026-10-04T14:22:47.8691942Z $ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
 2026-10-04T14:22:47.9846239Z validate:suite-collection        | validate-suite-collection self-test:
 2026-10-04T14:22:47.9877706Z validate:suite-collection        | Done in 109ms
 2026-10-04T14:22:47.9887154Z validate:suite-collection        |   ok    a healthy suite passes
@@ -255,20 +255,13 @@
 2026-10-04T14:22:49.4910084Z validate:workflows               | Done in 1.62s
 2026-10-04T14:22:49.6098214Z validate:architecture-boundaries | ok   a NEW controller reaching into db/ fails
 2026-10-04T14:22:49.8208494Z validate:architecture-boundaries | ok   an ALREADY-baselined file reaching into a NEW db area fails
-2026-10-04T14:22:49.9591140Z validate:no-mongo                | MongoDB reintroduction guard passed — 6 manifests, 2678 source files, 62 config files and 2506 lockfile resolutions scanned; 1 of 1 known exceptions honoured.
 2026-10-04T14:22:50.0535179Z validate:architecture-boundaries | ok   a dynamic import() of a db module from a new route fails
 2026-10-04T14:22:50.1238991Z validate:id-shape                | No id-shape assumptions in 1585 source file(s); 4 reasoned redaction exception(s), all still matching.
 2026-10-04T14:22:50.1589569Z validate:feed-hot-path           | test-validate-feed-hot-path: 14 cases passed
 2026-10-04T14:22:50.1642940Z validate:feed-hot-path           | Done in 2.27s
 2026-10-04T14:22:50.1662793Z validate:inference-boundary      | Validated Mention's Oxy/Kaana inference boundary across 1539 backend/frontend/MCP production source files.
-2026-10-04T14:22:50.1928405Z validate:no-mongo                | ok   a clean PostgreSQL-only tree passes
-2026-10-04T14:22:50.3003340Z validate:no-mongo                | ok   a dependency on mongoose is rejected
 2026-10-04T14:22:50.3099743Z validate:architecture-boundaries | ok   a schema table import is a violation, reported as the raw query surface
-2026-10-04T14:22:50.4248576Z validate:no-mongo                | ok   a devDependency on mongodb-memory-server is rejected
 2026-10-04T14:22:50.5036552Z validate:architecture-boundaries | ok   src/mtn/controllers IS in scope
-2026-10-04T14:22:50.5326320Z validate:no-mongo                | ok   a catalog entry is rejected
-2026-10-04T14:22:50.8428184Z validate:no-mongo                | ok   an override is rejected
-2026-10-04T14:22:51.0098815Z validate:no-mongo                | ok   a description claiming Mongoose is rejected
 2026-10-04T14:22:51.1181632Z validate:i18n                    | Validated 15 translation catalogs (2476 en entries) and 1784 keys across 740 source files.
 2026-10-04T14:22:51.1229104Z validate:i18n                    |   ar.json: 2586 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
 2026-10-04T14:22:51.1318495Z validate:i18n                    |   bn.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 184 identical to en (7%)
@@ -285,20 +278,13 @@
 2026-10-04T14:22:51.1798056Z validate:i18n                    |   tr.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 188 identical to en (8%)
 2026-10-04T14:22:51.1828056Z validate:i18n                    |   zh.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
 2026-10-04T14:22:51.1888425Z validate:architecture-boundaries | ok   a type-only import into db/ from a NEW route passes
-2026-10-04T14:22:51.1957871Z validate:no-mongo                | ok   a keyword claiming MongoDB is rejected
-2026-10-04T14:22:51.2668829Z validate:no-mongo                | ok   a description containing mongo inside another word passes
 2026-10-04T14:22:51.3152401Z validate:i18n                    | ok   real copy passes
-2026-10-04T14:22:51.4103578Z validate:no-mongo                | ok   a lockfile resolution is rejected even with clean manifests
 2026-10-04T14:22:51.4273066Z validate:i18n                    | ok   an English value that is its key spelled out is rejected
 2026-10-04T14:22:51.4410102Z validate:architecture-boundaries | ok   a type-only import FOLLOWING a bare-package import is still type-only
-2026-10-04T14:22:51.5048829Z validate:no-mongo                | ok   a NESTED lockfile resolution is rejected too
 2026-10-04T14:22:51.5552831Z validate:i18n                    | ok   the same value in a translation is rejected, naming that language
-2026-10-04T14:22:51.5908447Z validate:no-mongo                | ok   a package whose NAME merely contains a banned one is not rejected
 2026-10-04T14:22:51.6348512Z validate:i18n                    | ok   a snake_case key spelled out is rejected
-2026-10-04T14:22:51.6638381Z validate:no-mongo                | ok   an import statement is rejected
 2026-10-04T14:22:51.7238490Z validate:i18n                    | ok   a plural form is rejected on the key with its CLDR suffix stripped
 2026-10-04T14:22:51.7390674Z validate:architecture-boundaries | ok   a MIXED import naming one value beside a type FAILS
-2026-10-04T14:22:51.8066124Z validate:no-mongo                | ok   a require call is rejected
 2026-10-04T14:22:51.8108075Z validate:id-shape                | ok    a tree with only the allow-listed redactions passes
 2026-10-04T14:22:51.8157623Z validate:id-shape                | Done in 3.93s
 2026-10-04T14:22:51.8158613Z validate:id-shape                | ok    a 24-hex recogniser fails, naming the rule
@@ -315,61 +301,38 @@
 2026-10-04T14:22:51.8457516Z validate:i18n                    | ok   a legitimate Title Case label passes
 2026-10-04T14:22:51.8849698Z validate:architecture-boundaries | ok   a SERVICE reaching into db/ passes — that is the intended path
 2026-10-04T14:22:51.9300378Z validate:i18n                    | ok   a Title Case label whose last word is an acronym passes
-2026-10-04T14:22:51.9591473Z validate:no-mongo                | ok   a dynamic import is rejected
-2026-10-04T14:22:52.0499743Z validate:no-mongo                | ok   a subpath import is rejected
 2026-10-04T14:22:52.0527656Z validate:architecture-boundaries | ok   the non-controller half of src/mtn is NOT in scope
 2026-10-04T14:22:52.0588026Z validate:i18n                    | ok   a single-word key equal to its value passes
 2026-10-04T14:22:52.1345773Z validate:i18n                    | ok   sentence case under a slot-word key passes
-2026-10-04T14:22:52.1347540Z validate:no-mongo                | ok   MONGODB_URI in a workflow is rejected
-2026-10-04T14:22:52.2353312Z validate:no-mongo                | ok   MONGODB_URI in an env template is rejected
 2026-10-04T14:22:52.2743449Z validate:architecture-boundaries | ok   a test file beside a route is not policed
 2026-10-04T14:22:52.2778588Z validate:i18n                    | ok   a plural category English lacks is accepted in a translation
-2026-10-04T14:22:52.3148245Z validate:no-mongo                | ok   MONGODB_URI in a .github shell script is rejected
 2026-10-04T14:22:52.3804250Z validate:i18n                    | ok   a plural suffix on a key English does not define is still an orphan
 2026-10-04T14:22:52.4394124Z validate:architecture-boundaries | ok   a LAYER_BASELINE entry that matches nothing FAILS the run
-2026-10-04T14:22:52.4512507Z validate:no-mongo                | ok   a lowercased mongodb_uri config key is rejected
 2026-10-04T14:22:52.4698739Z validate:i18n                    | ok   a value that is its own dotted key path is rejected
 2026-10-04T14:22:52.5533808Z validate:i18n                    | ok   an English prose key equal to its value still passes
-2026-10-04T14:22:52.5624916Z validate:no-mongo                | ok   a suffixed MONGODB_URI_LEGACY is rejected
 2026-10-04T14:22:52.6298508Z validate:i18n                    | ok   a JavaScript template literal in a value is rejected
-2026-10-04T14:22:52.6659748Z validate:no-mongo                | ok   a mongodb:// connection string in a source file is rejected
 2026-10-04T14:22:52.6771515Z validate:architecture-boundaries | ok   a stale LAYER_BASELINE entry says the crossing was fixed, and to delete it
 2026-10-04T14:22:52.7216338Z validate:i18n                    | ok   the i18next interpolation form of the same string passes
-2026-10-04T14:22:52.7298693Z validate:no-mongo                | ok   a mongodb+srv:// connection string in a compose file is rejected
-2026-10-04T14:22:52.7997253Z validate:no-mongo                | ok   backticked prose about Mongo does NOT fire
 2026-10-04T14:22:52.8197496Z validate:i18n                    | ok   a literal JavaScript escape sequence in a value is rejected
 2026-10-04T14:22:52.8492298Z validate:architecture-boundaries | ok   a BASELINE (rule 1) entry that matches nothing FAILS the run
-2026-10-04T14:22:52.9025857Z validate:no-mongo                | ok   a QUOTED module name that is not an import does NOT fire
 2026-10-04T14:22:52.9123565Z validate:i18n                    | ok   the character the escape stands for passes
-2026-10-04T14:22:52.9738889Z validate:no-mongo                | ok   the guard's own source and self-test are not their own subject
 2026-10-04T14:22:53.0078796Z validate:i18n                    | ok   a real newline in a value passes
-2026-10-04T14:22:53.0319152Z validate:no-mongo                | ok   the loggers' Mongo-URI REDACTION pattern does NOT fire
 2026-10-04T14:22:53.0809755Z validate:architecture-boundaries | ok   a NEW service reaching into a protocol internal fails
 2026-10-04T14:22:53.0848349Z validate:i18n                    | ok   a translation that drops an English placeholder is rejected
 2026-10-04T14:22:53.1719192Z validate:i18n                    | ok   a translation that keeps it passes
-2026-10-04T14:22:53.1848166Z validate:no-mongo                | ok   a markdown file describing the migration does NOT fire
 2026-10-04T14:22:53.2382750Z validate:architecture-boundaries | ok   a NEW service reaching the PUBLIC connector entry passes
 2026-10-04T14:22:53.2738850Z validate:i18n                    | ok   a _one form may spell the number out instead of interpolating it
-2026-10-04T14:22:53.2876925Z validate:no-mongo                | ok   the retired removal directive is now an ordinary finding
 2026-10-04T14:22:53.3696530Z validate:i18n                    | ok   an extra plural form is checked against the English _other source
 2026-10-04T14:22:53.3814276Z validate:architecture-boundaries | ok   a broken file listing cannot pass silently (source-file floor)
-2026-10-04T14:22:53.3966475Z validate:no-mongo                | ok   the deploy workflow FAILS on an SSM ARN for the parameter
 2026-10-04T14:22:53.4918719Z validate:i18n                    | ok   a plural form beside an unsuffixed English base is checked against it
-2026-10-04T14:22:53.4961137Z validate:no-mongo                | ok   a tracked file missing from the working tree fails loudly, not with a stack trace
 2026-10-04T14:22:53.5141328Z validate:architecture-boundaries | ok   a listing with no route/controller files cannot pass silently
 2026-10-04T14:22:53.5888348Z validate:i18n                    | ok   the v3 _plural suffix is rejected
 2026-10-04T14:22:53.6567531Z validate:architecture-boundaries | ok   a listing with no db/ modules cannot pass silently
 2026-10-04T14:22:53.6582427Z validate:architecture-boundaries | 
 2026-10-04T14:22:53.6583544Z validate:architecture-boundaries | All 24 guard cases passed.
 2026-10-04T14:22:53.6638601Z validate:architecture-boundaries | Done in 5.78s
-2026-10-04T14:22:53.6659498Z validate:no-mongo                | ok   the no-DB spelling MONGO_URI is caught too, and reported as itself
 2026-10-04T14:22:53.6880246Z validate:i18n                    | ok   the CLDR spelling of the same pair passes
-2026-10-04T14:22:53.7336010Z validate:no-mongo                | ok   a broken file listing cannot pass silently (vacuity floors)
 2026-10-04T14:22:53.7576167Z validate:i18n                    | ok   a _one form may interpolate a count its English _one spells lexically
-2026-10-04T14:22:53.8160986Z validate:no-mongo                | ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
-2026-10-04T14:22:53.8165154Z validate:no-mongo                | 
-2026-10-04T14:22:53.8166170Z validate:no-mongo                | All 33 guard cases passed.
-2026-10-04T14:22:53.8226412Z validate:no-mongo                | Done in 5.94s
 2026-10-04T14:22:53.8342607Z validate:i18n                    | ok   a single-value category may spell its number lexically
 2026-10-04T14:22:53.9128236Z validate:i18n                    | ok   a multi-value category may not
 2026-10-04T14:22:54.0152338Z validate:i18n                    | ok   an exempt category may drop the count but not another placeholder

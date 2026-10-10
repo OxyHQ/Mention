@@ -62,7 +62,7 @@ vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor:
 // No `models/Article` mock: the article row is REAL, and cancelling the thread
 // has to remove it through `articles.post_id`'s `ON DELETE CASCADE` rather than
 // through a sweep. The stub that used to sit here was never asserted against —
-// it existed only to keep the Mongoose model out of the way — so once the
+// it existed only to keep the legacy-ODM model out of the way — so once the
 // article write path moved to Postgres it proved nothing in either direction.
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -234,17 +234,16 @@ describe('cancelling a scheduled thread', () => {
   });
 
   /**
-   * CURRENT BEHAVIOUR, PRESERVED FROM MONGO — NOT A PROPERTY ANYONE CHOSE.
+   * CURRENT BEHAVIOUR — NOT A PROPERTY ANYONE CHOSE.
    *
    * Deleting a post deletes every direct reply to it, unscoped by author and
-   * unscoped by status. That is what `Post.deleteMany({ parentPostId })` did on
-   * Mongo for as long as it has existed, and the Postgres port reproduces it
-   * deliberately: `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
+   * unscoped by status. The delete is explicit and deliberate:
+   * `posts.parent_post_id` is `ON DELETE SET NULL`, so WITHOUT an
    * explicit delete the replies would survive as orphans PROMOTED TO ROOT POSTS
    * — a new behaviour nobody asked for and strictly worse than either option.
    *
-   * The two tests below previously asserted the opposite, and passed on Mongo
-   * ONLY because they mock `repairRecentRepliersAfterPostDelete`, which was the
+   * The two tests below previously asserted the opposite, and passed ONLY
+   * because they mock `repairRecentRepliersAfterPostDelete`, which was the
    * single deleter — so the mock removed the entire mechanism under test. They
    * are honest now, and they disagree with the system.
    *

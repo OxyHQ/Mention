@@ -55,8 +55,7 @@ const POST_SUBJECT_TYPES: ReadonlySet<string> = new Set(['post', 'comment']);
 /**
  * What a reversal has to put back, as the two columns that hold it.
  *
- * Mongo stored this as a `previousState` subdocument; flattened, an action that
- * changed nothing simply writes neither column. Both stay optional for that
+ * An action that changed nothing simply writes neither column. Both stay optional for that
  * reason — `undefined` means "this action did not touch that field", which is
  * not the same as `null`.
  */
@@ -76,12 +75,11 @@ interface PostState {
 /**
  * The post's enforceable state, or `null` when there is no such post.
  *
- * There is deliberately NO id-shape guard here. The Mongoose version tested
- * `isValidObjectId` first, purely to dodge a `CastError` — but the caller reads
- * `null` as "the reported post no longer exists", so any subject id that was not
- * 24-char hex turned EVERY enforcement action into a silent no-op that recorded
- * a plausible reason in the audit trail. Post ids are `text` now: a
- * uuid v7 matches its row, a pre-cutover ObjectId hex matches its row, and an id
+ * There is deliberately NO id-shape guard here. The caller reads `null` as "the
+ * reported post no longer exists", so a guard that rejected a valid id shape
+ * would turn EVERY enforcement action into a silent no-op that recorded a
+ * plausible reason in the audit trail. Post ids are `text`: a uuid v7 matches
+ * its row, an ObjectId hex matches its row, and an id
  * that is neither matches nothing — which is the honest answer the caller was
  * already written for.
  */

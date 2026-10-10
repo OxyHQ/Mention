@@ -6,12 +6,11 @@
  * `services/mtn/MentionNodeScheduler.ts` is that nothing in a feed or hydration
  * request ever reaches a node, so every one of these queries is a sweep, a probe
  * or a registration — which means nothing is watching when one of them answers
- * wrongly. Three translations would have failed that way, silently, and are
+ * wrongly. Three queries would fail that way, silently, and are
  * called out where they live:
  *
  *  - **The sweeps order `NULLS FIRST`.** A node that has never been probed or
- *    never been synced has a `NULL` in the column the sweep orders by. Mongo
- *    sorted a missing field FIRST on `sort({field: 1})`; Postgres puts NULLs
+ *    never been synced has a `NULL` in the column the sweep orders by. Postgres puts NULLs
  *    LAST on a bare `ASC`. Bare, a freshly-registered node sorts behind every
  *    node that has ever been touched and is starved out of the batch — worst on
  *    the smallest deployments, where it never gets probed at all, and reported
@@ -134,8 +133,7 @@ function toRecord(row: typeof mentionUserNodes.$inferSelect): MentionUserNodeRec
  * Re-registering writes `managed` and `controller` every time, so flipping a
  * self-hosted node to a managed vault (or back) is deterministic. `nodeDid` is
  * only overwritten when the new record carries one — a record that omits it
- * leaves the previously advertised DID in place, which is what the Mongo
- * conditional `$set` did.
+ * leaves the previously advertised DID in place.
  *
  * `status` returns to `active` and `lastError` is cleared: a fresh signed
  * registration supersedes whatever the last probe concluded.

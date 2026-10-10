@@ -80,7 +80,7 @@ export async function assertLaneAssignable(params: LaneAssignmentParams): Promis
   }
 
   // The `ObjectId.isValid` short-circuit that stood here is GONE. Its stated
-  // purpose was avoiding a Mongo CastError for a malformed id, which Postgres
+  // purpose was avoiding a cast error for a malformed id, which Postgres
   // does not raise — a `text` comparison against a nonsense id simply matches
   // nothing and yields the same 404. What it actually did after the cutover was
   // refuse EVERY real lane: `lanes.id` is uuid v7, so every assignment answered

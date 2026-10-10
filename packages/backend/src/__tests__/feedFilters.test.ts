@@ -312,7 +312,7 @@ describe('mediaOnly filter', () => {
 
 describe('filters apply through keep() only', () => {
   it('every filter in the catalog is a keep predicate, apart from the declared marker', () => {
-    // Filters used to also carry a Mongo `clause()` that nothing ever evaluated
+    // Filters used to also carry a legacy-store `clause()` that nothing ever evaluated
     // — the engine applies filters exclusively through `keep()` on the merged
     // pool. `dedupe` is the ONE module with no predicate, and it says so: the
     // engine merge does that work, the module only declares the intent.

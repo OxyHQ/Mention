@@ -11,7 +11,7 @@
  *
  * The matcher is PURE: compile a viewer's rules once per request
  * ({@link compileMuteWords}), then test each candidate ({@link isMutedSubject}).
- * Loading the rules from Mongo lives in {@link ./viewerSafety} so this module stays
+ * Loading the rules from the database lives in {@link ./viewerSafety} so this module stays
  * trivially unit-testable.
  *
  * Scope honored (mirrors the `MuteWord` model — there is no expiry field):

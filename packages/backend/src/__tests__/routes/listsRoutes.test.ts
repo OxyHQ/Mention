@@ -700,7 +700,7 @@ describe('GET /lists — pagination on a total order', () => {
 });
 
 describe('wire format parity', () => {
-  it('emits _id alongside id, with the defaults a Mongoose document carried', async () => {
+  it('emits _id alongside id, with the documented defaults', async () => {
     const res = await createList({});
 
     expect(res.body._id).toBe(res.body.id);

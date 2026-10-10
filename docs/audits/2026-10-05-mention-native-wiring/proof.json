@@ -107,7 +107,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-wiring/records/frozen-fixtures/packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "9338d7c414254dfc356bc568e3a0b66f8f001511cbf55971929c166dfa24287f"
+      "sha256": "58aae3ef2b3879d25160f24b0dc9737cc3e2c04b7fe622aeae6628d1df866626"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-wiring/records/frozen-fixtures/packages/backend/src/__tests__/services/jevProduction.test.ts",
@@ -115,7 +115,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-wiring/records/final-runtime/packages/backend/src/services/PostClassificationService.ts",
-      "sha256": "765057e16b523251a2683dd8e4581632ecf1dab8f3f72ac01b5e4519c9cf53cf"
+      "sha256": "ef935ceefe561d761f6e9982fc0645a9b1dd3370239ba51bfa9b8ef46fa5e558"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-wiring/records/final-runtime/packages/backend/src/services/contentClassification/jevProduction.ts",

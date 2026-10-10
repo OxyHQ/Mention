@@ -648,11 +648,7 @@ class PostCreationService {
       ...(params.updatedAt != null ? { updatedAt: params.updatedAt } : {}),
     };
 
-    // `lane_id` goes in as an ordinary nullable value. Mongo had to set it
-    // ONLY when present, because `post_lane_chrono_v1`'s partial filter is
-    // `{ laneId: { $exists: true } }` and a stored `null` satisfies it —
-    // indexing every post in the collection and defeating the partial index.
-    // The Postgres partial index is `where lane_id is not null`, so NULL is the
+    // `lane_id` goes in as an ordinary nullable value. The partial index is `where lane_id is not null`, so NULL is the
     // state that stays out of it, and "absent" and "null" are one state rather
     // than two that can disagree.
     let post = await insertPostRecord(input);
@@ -1044,10 +1040,7 @@ class PostCreationService {
         // follows the channel with `notify`.
         const recipientIds = new Set<string>();
 
-        // Postgres: nothing has written the Mongo collection since post
-        // subscriptions moved, so this fan-out had stopped finding subscribers
-        // and new-post notifications quietly stopped being sent to anyone who
-        // subscribed after the cutover.
+        // Postgres: `post_subscriptions` is where every subscription is written.
         const subs = await getDb()
           .select({ subscriberId: postSubscriptions.subscriberId })
           .from(postSubscriptions)

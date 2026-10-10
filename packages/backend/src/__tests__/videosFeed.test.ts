@@ -3,7 +3,7 @@
  *
  * ## What changed, and why the old shape of this suite could not survive
  *
- * `buildVideosQuery` used to return a Mongo match OBJECT, and this suite read
+ * `buildVideosQuery` used to return a legacy-store match OBJECT, and this suite read
  * keys out of it — `elemMatch.orientation`, `and.find(c => …$nin…)`. It also
  * carried a hand-written `matchesVideosFeed()` predicate that RESTATED the query
  * in TypeScript and then tested that restatement. Both are gone, and the second
@@ -16,7 +16,7 @@
  * ## The property under test
  *
  * A qualifying post is public, published, not a boost, and carries at least one
- * media item that is a video with real dimensions on ONE row (Mongo's
+ * media item that is a video with real dimensions on ONE row (the legacy store's
  * `$elemMatch` semantics, now a correlated `EXISTS`). Federated posts qualify on
  * exactly the same terms as native ones — the videos corpus is almost entirely
  * federated, and a federation exclusion here would empty the feed.
@@ -247,7 +247,7 @@ describe('the videos content predicate', () => {
   });
 
   it('tolerates a seen id that names no row', async () => {
-    // The Mongo original filtered the incoming ids through `ObjectId.isValid` to
+    // The legacy-store original filtered the incoming ids through `ObjectId.isValid` to
     // dodge a `CastError`. Ids are `text` now, so an unknown one is simply an id
     // that excludes nothing — never an error, and never an empty page.
     const kept = await create();

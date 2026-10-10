@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 /**
  * `GET /posts/:id/likes`, `GET /posts/saved` and `GET /posts/bookmarks/folders`
- * — the three readers that moved off Mongoose in the batch-7 port and that
+ * — the three readers that moved off the legacy ODM in the batch-7 port and that
  * nothing in the suite exercised afterwards.
  *
  * They are grouped in one file because they share a subject: each one asks the
@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  *  - `getPostLikes` pages a keyset. A broken bound does not error; it repeats or
  *    skips a row at the page edge, which reads as a ranking quirk.
- *  - `getBookmarkFolders` filters `IS NOT NULL`. The literal Mongo translation
+ *  - `getBookmarkFolders` filters `IS NOT NULL`. The literal legacy-store translation
  *    (`folder <> null`) evaluates to NULL for every row and returns an EMPTY
  *    list for everyone — a result, not an error.
  *  - `getSavedPosts` escapes an `ILIKE` term. An unescaped `%` matches every
@@ -19,7 +19,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *
  * ## Why the assertions are all about rows
  *
- * There is nothing else left to assert on. The Mongoose models are gone from
+ * There is nothing else left to assert on. The legacy-ODM models are gone from
  * `controllers/posts/`, so there is no filter object to inspect and no `find`
  * to count — and that is the point, because a filter assertion could not have
  * distinguished any of the three failures above from correct behaviour anyway.
@@ -284,7 +284,7 @@ describe('getBookmarkFolders', () => {
     await seedBookmark('reading');
     await seedBookmark(null);
 
-    // `folder <> null` — the literal translation of Mongo's `$ne: null` — is
+    // `folder <> null` — the literal translation of the legacy store's `$ne: null` — is
     // NULL for every row and returns `[]` here. That is a WRONG RESULT, not an
     // error, so this row assertion is the only signal there is.
     expect(await folders()).toEqual(['reading']);

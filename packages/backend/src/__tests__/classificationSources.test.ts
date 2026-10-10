@@ -19,7 +19,7 @@
  *    hands `evil.com/mastodon.social/…` to anyone browsing `mastodon.social`,
  *    and `mastodon.social` matched inside `evil-mastodon.social`. Both attack
  *    shapes are fixtures.
- *  - **`newVoices` picks each author's LATEST post.** Mongo used `max(_id)`,
+ *  - **`newVoices` picks each author's LATEST post.** The legacy store used `max(_id)`,
  *    which worked only because an ObjectId encodes its creation time. It does
  *    not here, so the fixture gives the OLDER post the LARGER id — the exact
  *    disagreement a surviving `max(id)` would get wrong.
@@ -269,7 +269,7 @@ describe('the links source', () => {
 describe('the newVoices source', () => {
   it("returns each low-volume author's LATEST post, even when the id order disagrees", async () => {
     /**
-     * Mongo picked the latest post with `max(_id)`, which was only ever correct
+     * The legacy store picked the latest post with `max(_id)`, which was only ever correct
      * because an ObjectId encodes its creation time. Here the newer post is
      * given the SMALLER id, so a surviving `max(id)` returns the older one and
      * this goes red naming it.

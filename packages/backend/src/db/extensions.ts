@@ -31,9 +31,8 @@ export const REQUIRED_EXTENSIONS: readonly RequiredExtension[] = [
     name: 'postgis',
     reason:
       '`posts.geo` and `posts.content_geo` are generated `geography` point ' +
-      'columns with GiST indexes, replacing the two Mongo `2dsphere` indexes ' +
-      'that `posts.controller.ts` `$near`/`$geoWithin` and the `nearby` feed ' +
-      'source query. `geography`, `ST_MakePoint`, `ST_DWithin` and ' +
+      'columns with GiST indexes, serving the nearby queries in ' +
+      '`posts.controller.ts` and the `nearby` feed source. `geography`, `ST_MakePoint`, `ST_DWithin` and ' +
       '`ST_Distance` all come from PostGIS.',
   },
   {

@@ -1,14 +1,11 @@
 /**
- * Expiry Sweep registry — the replacement for Mongo TTL indexes
+ * Expiry Sweep registry — Mention's TTL rules
  *
- * Postgres has no TTL index. Several Mention collections relied on one before
- * the port, so every table that needs it adds an entry here rather than growing
+ * Postgres has no TTL index. Several Mention tables need one, so every table that needs it adds an entry here rather than growing
  * its own cleanup path. The registry stays here because it names THIS schema's
  * own tables; the mechanism that sweeps it (`sweepExpiredRows`,
  * `sweepAllExpiredRows`, `ExpirySweepTarget`) lives in `@oxy.so/db/expiry` — see
- * that module's doc comment for the full shape and for why a TTL index is a
- * behaviour of the SOURCE that does not survive a Mongo-to-Postgres port on its
- * own.
+ * that module's doc comment for the full shape.
  *
  * ## THE RULE, because it is the quietest failure in this file's subject
  *
@@ -18,45 +15,39 @@
  * and no orphaned function, nothing a reviewer diffing the change would see go
  * absent.
  *
- * That was not hypothetical during the port, where the omissions tracked the
- * porting frontier exactly — measured 2026-08-02, ten collections declared a TTL
- * index, eight had an entry, and the two gaps were precisely the two nobody had
- * ported yet. It stopped being self-correcting once the models were deleted:
- * there is no longer any source declaration a walk could derive this list from.
+ * There is no other declaration a walk could derive this list from.
  *
  * **So the registry is the WHOLE obligation, and `__tests__/db/expiry.test.ts`
  * holds it EXACT in both directions** — a table that lost its entry and a table
  * that never had one fail the same way. Two arrived exactly that way,
- * `mcp_auth_codes` and `trend_graphs`, each ported without an entry until that
+ * `mcp_auth_codes` and `trend_graphs`, each added without an entry until that
  * test said so. Deleting an entry alongside a table's last writer is the obvious
  * tidy-up and is exactly the failure this guards.
  *
  * ## The shape
  *
- * A Mongo TTL index is `{ <field>: 1 }, { expireAfterSeconds: N }` — delete a
- * document once `<field>` is more than N seconds in the past. A registry entry
- * is exactly that pair, so no semantic can be lost in translation:
+ * A TTL rule is a (field, N) pair — delete a row once `<field>` is more than N
+ * seconds in the past. A registry entry is exactly that pair:
  *
  *   { table, column, retentionSeconds }  →  delete where column <= now() - N
  *
- * Both uses in Mention's schema collapse into it: `expireAfterSeconds: 0` on an
- * `expiresAt` column (the column IS the deadline) and `expireAfterSeconds: N` on
+ * Both uses in Mention's schema collapse into it: N = 0 on an
+ * `expiresAt` column (the column IS the deadline) and N > 0 on
  * a birth column (`createdAt`, `at`, `calculatedAt`).
  *
- * ## THE RULE: a TTL index ported without a registry entry is unbounded growth
+ * ## THE RULE: a table that expires rows without a registry entry is unbounded growth
  *
- * Mongo reaped a TTL'd collection whether or not anybody remembered it existed.
- * Postgres does not, so porting a model that declares `expireAfterSeconds` and
- * NOT adding it here converts a self-limiting table into one that grows forever
+ * Postgres reaps nothing on its own, so adding a table whose rows are meant to
+ * expire and NOT adding it here produces a table that grows forever
  * — with no error, no failing test and no symptom at all until the disk fills.
  * There is nothing to notice, which is why this is a rule and not a habit:
- * porting a TTL'd model is TWO edits, the table and this registry, and neither
+ * adding an expiring table is TWO edits, the table and this registry, and neither
  * is optional. `__tests__/db/expiry.test.ts` is the gate — it pins the registry
  * to an exact table LIST, so a new TTL'd table fails it until it is named.
  *
  * ## Every entry was checked for INTENT, not just replicated
  *
- * A Mongo TTL index DELETES the document. The sibling oxy-api port found one
+ * A sweep DELETES the row. oxy-api found a TTL rule
  * that had been written meaning "mark expired" and had been destroying
  * subscription history instead, so each of these says what deleting the row
  * actually costs. One of them — `engagement_outbox` — would delete UNPROCESSED
@@ -64,7 +55,7 @@
  *
  * ## Coexistence with reads
  *
- * Mongo's TTL monitor lags ~60s; a sweep lags one interval. Mention has no read
+ * A sweep lags one interval. Mention has no read
  * path that depends on a swept row already being GONE — every consumer either
  * filters on its own deadline (`available_at`, `lease_until`, `calculated_at >=
  * cutoff`) or is a rolling view where an extra old row is stale, never unsafe.
@@ -115,7 +106,7 @@ import { moderationEvents, moderationOutbox } from './schema/moderation';
 import { engagementOutbox } from './schema/outbox';
 
 /**
- * Every table that had a Mongo TTL index. A table with an expiry column but no
+ * Every table whose rows expire. A table with an expiry column but no
  * entry here is never swept.
  */
 export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
@@ -174,7 +165,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: feedInteractions.createdAt,
     retentionSeconds: FEED_INTERACTION_RETENTION_SECONDS,
     reason:
-      'Ranking-feedback telemetry, ninety days exactly as the Mongo TTL kept. ' +
+      'Ranking-feedback telemetry, kept for ninety days. ' +
       'The only reader (`evalFeedQuality`) bounds its own `createdAt >= since`.',
   },
   {
@@ -186,8 +177,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'costs nothing a client can observe: the token endpoint checks `expires_at` ' +
       'explicitly and `used_at` makes redemption single-use, so a row the sweep ' +
       'has not reached yet is already inert. This entry is the whole reason the ' +
-      'table does not grow forever — Mongo reaped these with a TTL index, and a ' +
-      'TTL is a behaviour of the SOURCE that does not survive the port on its own.',
+      'table does not grow forever — Postgres has no TTL index to reap them.',
   },
   {
     table: mcpEffectReceipts,

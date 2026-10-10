@@ -13,8 +13,7 @@
  *
  * ## The schema does not normalize text, and that is deliberate
  *
- * `models/FederatedActor.ts` carries a long comment explaining that Mongoose's
- * `trim: true` was REMOVED from these fields because it was worse than nothing —
+ * A `trim` on these fields would be worse than nothing —
  * it strips the ends of a string and does nothing to the newline inside a display
  * name, which is the actual bug. Normalization belongs to the three ingest paths
  * that must strip HTML and decode entities BEFORE normalizing. Nothing is added

@@ -1,7 +1,7 @@
 -- Retire the Mention-local channel, and re-key `lanes` onto a single owner.
 --
 -- The Postgres half of what `src/migrations/0026-channel-accounts.ts` does to
--- Mongo, and the same four groups of operations. A channel is an Oxy ACCOUNT
+-- the source store, and the same four groups of operations. A channel is an Oxy ACCOUNT
 -- now (`kind: 'channel'`), so a channel post is AUTHORED BY it —
 -- `posts.oxy_user_id` and `post_authorships` hold the channel, and the human who
 -- wrote it is recorded outside authorship in `posts.written_by_oxy_user_id`
@@ -9,7 +9,7 @@
 -- previous shape, in which a channel was a Mention row and the post was authored
 -- by a person and published TO it.
 --
--- WHAT THIS COSTS, MEASURED RATHER THAN ASSUMED. Against production Mongo the
+-- WHAT THIS COSTS, MEASURED RATHER THAN ASSUMED. Against the production source the
 -- `channels`, `channelmembers` and `channelfollows` collections do not exist,
 -- the three tables here copied ZERO rows, and 0 of 596,309 posts carry a
 -- `channelId` (0 distinct values). `lanes` holds exactly one row and it is a
@@ -32,7 +32,7 @@
 --  1. The FK on `posts.channel_id` goes FIRST, so no `CASCADE` can get to it.
 --  2. The `lanes` UNIQUE is dropped and re-added under the SAME NAME, which is
 --     the one place this file cannot copy `0026`'s "create the new index before
---     dropping the old" ordering: Mongo derived two DIFFERENT index names from
+--     dropping the old" ordering: the source store derived two DIFFERENT index names from
 --     the two key shapes (`ownerType_1_ownerId_1_nameLower_1` and
 --     `ownerId_1_nameLower_1`) and could hold both at once, while here the
 --     constraint is named `lanes_owner_name_lower_key` on either key shape, so

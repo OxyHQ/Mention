@@ -16,7 +16,7 @@
  *     — the server is the single authority on it, so no client can decide to draw
  *     a two-point line.
  *
- * Pure and synchronous, with no Mongoose or Express import, so it is unit-testable
+ * Pure and synchronous, with no database or Express import, so it is unit-testable
  * without the app — the same reason `trendTelemetry.ts` sits outside its route.
  */
 

@@ -6,7 +6,7 @@
 
 **Architecture:** Oxy stores `privacySettings.fediverseSharing` (default `true`) and exposes it as a public derived boolean on user DTOs. Mention reads it through the user objects it already resolves (Redis-cached chokepoint `services/fediverseSharing.ts`) and gates webfinger, all `/ap/*` user surfaces, inbound activity handling, and outbound delivery. Toggling OFF triggers a protocol-cleanup job (Delete(actor) to remote servers, remove inbound `FederatedFollow`, bridge-unfollow Oxy edges). Frontend: Bloom BottomSheet educational flow + `FediverseBadge` + `settings/fediverse` screen.
 
-**Tech Stack:** oxy-api (Express+Mongoose+jest), @oxy.so/core SDK, Mention backend (Express+Mongoose+BullMQ+vitest via `bun run test`), Mention frontend (Expo/RN, Bloom UI, i18next).
+**Tech Stack:** oxy-api (Express+jest), @oxy.so/core SDK, Mention backend (Express+BullMQ+vitest via `bun run test`), Mention frontend (Expo/RN, Bloom UI, i18next).
 
 **Spec:** `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md` — read it first.
 

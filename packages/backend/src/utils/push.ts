@@ -228,9 +228,8 @@ export async function loadPushTargets(
  *
  * Structural rather than `typeof notifications.$inferSelect`: this is the whole
  * read surface, so the compiler rejects a caller that has not actually resolved
- * the row, and the function stays callable from a test with a literal. `id`
- * replaces Mongoose's `_id` — the value it carries is the same one, since the
- * backfill copies `_id` verbatim into the `text` primary key.
+ * the row, and the function stays callable from a test with a literal. `id` is
+ * the row's `text` primary key.
  */
 export interface PushNotificationSource {
   id: string;

@@ -10,7 +10,7 @@
  * everyone on every list anyone subscribed to — an access-control failure that
  * looks, from the outside, like a slightly fuller feed.
  *
- * The suite this replaces asserted the SHAPE of a Mongo `$or`. That could not
+ * The suite this replaces asserted the SHAPE of a legacy-store `$or`. That could not
  * distinguish a correct two-branch clause from one whose second branch matched
  * nothing, and there is no query object to inspect any more. Every case below
  * states an exact id set over rows that differ ONLY in the author's relationship

@@ -26,7 +26,7 @@ const scope = federationScope('inbound-update-security');
  * the models + heavy deps, let `apSchemas` validation and the content builder
  * run for real):
  *  1. NoSQL-injection safety: the raw remote `object.id` must be a real string
- *     before it reaches any Mongo filter — a non-string id never issues a
+ *     before it reaches any legacy-store filter — a non-string id never issues a
  *     `Post.updateOne` (CodeQL `js/sql-injection`).
  *  2. Ownership scope: an Update only edits the SENDING actor's OWN post — every
  *     query is scoped by `federation.actorUri`, so a remote server can't
@@ -330,7 +330,7 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
   });
 
   it('ignores an Update whose object.id is not a string (no updateOne, no injectable filter)', async () => {
-    // A non-string id (operator payload) must never reach a Mongo filter. It is
+    // A non-string id (operator payload) must never reach a legacy-store filter. It is
     // rejected by schema validation upstream AND the explicit handler string
     // guard — either way, no write is issued.
     await inboxProcessingService.processInboxActivity(

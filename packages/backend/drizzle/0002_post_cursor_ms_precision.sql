@@ -19,8 +19,8 @@
 -- truncated too, which makes all thirteen `created_at DESC` indexes on `posts`
 -- unusable and turns every feed page into a full sort.
 --
--- No data is lost. `MIGRATION-CONTRACT.md` treats a Mongo `Date` as an absolute
--- UTC instant, and Mongo stores those at MILLISECOND precision — every
+-- No data is lost. `MIGRATION-CONTRACT.md` treats a source `Date` as an absolute
+-- UTC instant, stored at MILLISECOND precision — every
 -- backfilled row already ends in `000`. Only `now()` was fabricating a
 -- distinction no reader can observe.
 --

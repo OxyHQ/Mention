@@ -74,8 +74,8 @@ export function startSchedulers(): void {
     logger.warn('Failed to start follower snapshot job', error);
   }
 
-  // Expiry sweep (leader-gated): the Postgres stand-in for Mongo's TTL indexes.
-  // Deletes rows past each `db/expiry.ts` registry entry's retention, in bounded
+  // Expiry sweep (leader-gated): Postgres has no TTL index, so this deletes
+  // rows past each `db/expiry.ts` registry entry's retention, in bounded
   // batches, every ten minutes (OxyHQ/Mention#1187).
   try {
     const { expirySweepJob } = require('../services/ExpirySweepJob');

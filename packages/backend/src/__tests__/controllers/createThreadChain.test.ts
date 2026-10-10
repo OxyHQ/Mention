@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * ## What changed with the Postgres port
  *
  * The old suite replaced `PostCreationService` with a stub that constructed a
- * Mongoose `Post` and never saved it, then asserted on the fields of the objects
+ * legacy-ODM `Post` and never saved it, then asserted on the fields of the objects
  * the controller happened to push into its response. Every link it checked was a
  * property of an in-memory document; nothing proved a row existed, that the two
  * link columns were written, or — most of all — that they SURVIVE, since

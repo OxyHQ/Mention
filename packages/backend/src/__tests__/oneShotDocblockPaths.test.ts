@@ -142,8 +142,7 @@ describe('ECS invocations written in comments name built paths', () => {
    *
    * Mutation: put any `packages/backend/….ts` path inside a `containerOverrides`
    * command array and this goes red naming it and its `dist` replacement. The
-   * original offender was the Mongo→Postgres copier's own docblock, which is
-   * deleted along with the copier.
+   * original offender was a deleted copier's own docblock.
    */
   it('cites no source path inside a containerOverrides command', () => {
     const offences = files.flatMap(offencesIn);

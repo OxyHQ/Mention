@@ -24,8 +24,8 @@
  *
  * ## Why this is a row question now, and what the predecessor could not see
  *
- * The predecessor walked the built Mongo `$match` looking for `_id` range
- * operators, and carried a hand-written `admitsId()` that RE-IMPLEMENTED Mongo's
+ * The predecessor walked the built legacy-store `$match` looking for `_id` range
+ * operators, and carried a hand-written `admitsId()` that RE-IMPLEMENTED the legacy store's
  * comparison semantics in TypeScript in order to judge them. Both techniques are
  * gone. There is no query object to inspect, and an interpreter of one could only
  * ever agree with itself: it cannot see a predicate Postgres evaluates
@@ -52,7 +52,7 @@ import type { MediaItem } from '@mention/shared-types';
 /**
  * Deterministic stand-in for `FeedRankingService`: LIKES ARE THE SCORE.
  *
- * The real service reads `UserBehavior` from Mongo and the viewer's follow graph
+ * The real service reads `UserBehavior` from the legacy store and the viewer's follow graph
  * from Oxy, so it cannot run here — but the stand-in scores off a REAL column on
  * the record rather than a private marker hung on the fixture, so the pool it
  * ranks is the one Postgres returned and the tie it produces is a property of
@@ -71,7 +71,7 @@ vi.mock('../services/FeedRankingService', () => ({
 }));
 
 // One single-item slice per candidate, order preserved: the real slicer runs its
-// own Mongo queries for thread children, and grouping is not what is under test.
+// own legacy-store queries for thread children, and grouping is not what is under test.
 vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (candidates: CandidatePost[]) => ({

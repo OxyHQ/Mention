@@ -17,8 +17,7 @@
  *
  * Fixtures are real trees with a real `git init`, so the guard's own file
  * listing runs rather than a stand-in for it. The filler that makes a fixture
- * tree "clean" is GENERATED from the guard's live baselines — the same coupling
- * `test-validate-no-mongo.mjs` uses on purpose, and for the same reason: the
+ * tree "clean" is GENERATED from the guard's live baselines, on purpose: the
  * self-test then proves the real entries describe real crossings. Adding a
  * baseline entry costs nothing here; the filler follows automatically.
  */

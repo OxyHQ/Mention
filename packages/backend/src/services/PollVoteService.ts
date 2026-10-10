@@ -165,11 +165,8 @@ type OptionSelector = (options: Array<{ id: string; text: string }>) => { id: st
  *
  * ## Where the atomicity comes from now
  *
- * Mongo got it from a single guarded `findOneAndUpdate`: the filter carried the
- * dedup predicate, so a concurrent double-vote or a redelivered federated vote
- * could never double-count.
- *
- * As rows, the two rules are NOT equally protected by the schema:
+ * A concurrent double-vote or a redelivered federated vote must never
+ * double-count. The two rules are NOT equally protected by the schema:
  *
  * - **multiple-choice** ("not already on THIS option") is exactly
  *   `poll_votes_option_id_user_id_key`, so the constraint alone would do.
@@ -180,8 +177,7 @@ type OptionSelector = (options: Array<{ id: string; text: string }>) => { id: st
  *
  * So the whole vote runs in one transaction that takes a row lock on the poll
  * (`select … for update`) before reading the guard. Concurrent voters on one
- * poll serialize on that row — the same contention profile Mongo's
- * document-level update had — and the read-then-insert can no longer interleave.
+ * poll serialize on that row, and the read-then-insert can no longer interleave.
  * The lock is taken uniformly rather than only on the single-choice branch: one
  * code path is worth more than a saved lock on a poll that is already the row
  * every vote touches.

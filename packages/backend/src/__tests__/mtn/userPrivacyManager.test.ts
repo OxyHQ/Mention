@@ -5,7 +5,7 @@
  * The Oxy helpers stay mocked — they are a network call to another service, and
  * this suite is not about Oxy. The MUTES are real rows, because they are the
  * half Mention owns and the half that just moved stores: nothing had written a
- * Mongo mute since mutes became a Postgres table, so a mute created after the
+ * legacy-store mute since mutes became a Postgres table, so a mute created after the
  * cutover was never applied and the reader kept seeing an author they had
  * explicitly silenced. The old suite mocked `models/Mute` and asserted the
  * arguments it was called with, which cannot distinguish "queried the right
@@ -157,9 +157,8 @@ describe('UserPrivacyManager Oxy authority', () => {
     ).rejects.toThrow('delegated privacy authorization rejected');
   });
 
-  it('applies a mute created now, which the Mongo read could not see', async () => {
-    // The regression this port fixes, stated as a case: a mute written through
-    // the live path must be honoured on the next read.
+  it('applies a mute created now on the next read', async () => {
+    // A mute written through the live path must be honoured on the next read.
     mocks.getBlockedUserIds.mockResolvedValue([]);
     await seedMutes(VIEWER, ['freshly-muted']);
 

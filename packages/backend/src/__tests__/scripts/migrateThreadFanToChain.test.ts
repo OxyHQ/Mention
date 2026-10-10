@@ -14,7 +14,7 @@
  *
  * ## The ordering key is `created_at`, not the id, and that is load-bearing
  *
- * The Mongo version sorted by ascending `_id` because an ObjectId encodes its
+ * The legacy-store version sorted by ascending `_id` because an ObjectId encodes its
  * creation time. `posts.id` holds ObjectId hex for pre-cutover rows and uuid v7
  * after, and the two interleave under text collation (`'0' < '6'`), so an
  * id-ordered re-chain would put a thread that straddles the cutover in the wrong

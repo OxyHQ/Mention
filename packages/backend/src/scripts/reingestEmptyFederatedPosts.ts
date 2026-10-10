@@ -129,10 +129,8 @@ function parseFlags(argv: string[]): Flags {
  * The predicate selecting federated posts with an empty body: a non-boost
  * federated post with no text, no media, no attachments, and no poll.
  *
- * The three "empty array" arms become `NOT EXISTS` over the child tables, which
- * is stronger than what Mongo could express: an embedded array had three empty
- * shapes (missing, null, `[]`) that each needed their own `$or` arm, while a
- * child table has one — the absence of a row.
+ * The three "empty array" arms are `NOT EXISTS` over the child tables: a child
+ * table has exactly one empty shape — the absence of a row.
  *
  * A variant carrying only whitespace still counts as empty, so the body test is
  * `NOT EXISTS (… body ~ '\S')` rather than merely "has no variant row".

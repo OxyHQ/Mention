@@ -3,12 +3,12 @@
  *
  * ## What this replaces
  *
- * The predecessor asserted the Mongo match object `buildMediaFeedQuery` returned
+ * The predecessor asserted the legacy-store match object `buildMediaFeedQuery` returned
  * (`$or` containing `{'content.media.0': {$exists: true}}`, and so on) and then
  * separately tested a hand-written `matchesMediaFeed()` that RESTATED the same
  * rule in TypeScript. Neither could observe a row. The restatement in particular
  * could only ever agree with itself: it would have stayed green through the
- * entire Mongo→Postgres port while the real query returned nothing.
+ * entire Postgres port while the real query returned nothing.
  *
  * ## The property under test
  *
@@ -135,7 +135,7 @@ describe('each arm of the "carries media" disjunction', () => {
       content: {
         variants: [{ source: 'author', text: 'with attachment' }],
         // `attachment_id` and `media_type` are BOTH required on a `media`
-        // descriptor (`post_attachments_media_fields_check`) — Mongo's
+        // descriptor (`post_attachments_media_fields_check`) — the legacy store's
         // conditionally-`required` validator, now a constraint.
         attachments: [{ type: 'media', id: 'media-described', mediaType: 'image' }],
       },
