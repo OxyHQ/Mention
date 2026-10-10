@@ -180,30 +180,13 @@ jobs:
           STALE_RELEASE: skip
         run: bash .github/scripts/require-current-main.sh
 
-      - name: Sync MCP signing secret to both services
-        if: steps.current_changes.outputs.current == 'true'
-        env:
-          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
-            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
-            exit 1
-          fi
-
-          # Running tasks keep their injected value. Update both parameter
-          # paths successfully before any task is restarted.
-          for path in \
-            /oxy/mention/MENTION_MCP_JWT_SECRET \
-            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
-            aws ssm put-parameter \
-              --name "$path" \
-              --value "$MENTION_MCP_JWT_SECRET" \
-              --type SecureString \
-              --overwrite \
-              >/dev/null
-            echo "Synced $path"
-          done
+      # Runtime secrets are NOT in GitHub. MENTION_MCP_JWT_SECRET lives only in
+      # SSM, at /oxy/mention-mcp/ (read by this service) and /oxy/mention/ (read
+      # by the backend), and nothing in this workflow writes either. A rotation
+      # is `aws ssm put-parameter --overwrite` of BOTH paths with the same value
+      # by its owner, before either service rolls (oxy-infra
+      # docs/runbooks/46-app-secrets-in-ssm.md). Until 2026-10-10 a step here
+      # copied the GitHub repo secret into both paths on every deploy.
 
       - name: Re-verify current main before ECS rollout
         id: current_release

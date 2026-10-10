@@ -519,13 +519,12 @@ for (const workflowName of workflowNames) {
 
 /**
  * The configuration-only redeploy (deploy-backend-config.yml) re-runs the code
- * release's secret sync and task render on the running image. It carries COPIES
- * of those two deploy-aws.yml steps, because sharing them would mean one
- * workflow mixing the dispatch trigger with the workflow_run head SHA — the
- * flow CodeQL correctly reports as cache poisoning. A copy is only safe while it
- * IS a copy, so any difference fails here: a secret synced by one path and not
- * the other, or a binding one path renders and the other drops, is exactly the
- * drift that a config redeploy would then ship to production.
+ * release's task render on the running image. It carries a COPY of that
+ * deploy-aws.yml step, because sharing it would mean one workflow mixing the
+ * dispatch trigger with the workflow_run head SHA — the flow CodeQL correctly
+ * reports as cache poisoning. A copy is only safe while it IS a copy, so any
+ * difference fails here: a binding one path renders and the other drops is
+ * exactly the drift that a config redeploy would then ship to production.
  *
  * And the redeploy itself must stay the shape that makes it safe: dispatch
  * only, main only, a required reason, github.sha checked out with no ref.
@@ -571,7 +570,6 @@ for (const workflowName of workflowNames) {
       return JSON.stringify({ id: step.id, env, run: step.run });
     };
     for (const [stepName, ignoredEnv] of [
-      ["Sync GitHub secrets to SSM", []],
       ["Register immutable task definition and deploy", ["IMAGE_URI", "RUN_MIGRATIONS"]],
     ]) {
       const original = comparable(releaseSteps.find((step) => step?.name === stepName), ignoredEnv);
@@ -584,6 +582,60 @@ for (const workflowName of workflowNames) {
         );
       }
     }
+  }
+}
+
+/**
+ * Runtime secrets live in SSM Parameter Store only, and no workflow writes one.
+ *
+ * Until 2026-10-10 the backend, config-redeploy and MCP deploys copied GitHub
+ * repo secrets into SSM on every run, which made GitHub the source of truth for
+ * production credentials: whoever could edit a repo secret changed what
+ * production ran with, and every value lived in two systems. SSM
+ * (`/oxy/mention/*`, `/oxy/mention-mcp/*`, SecureString) is now the only source,
+ * set with `aws ssm put-parameter --overwrite` by its owner (oxy-infra
+ * docs/runbooks/46-app-secrets-in-ssm.md).
+ *
+ * Both halves are asserted, because each can regress alone: a step that writes
+ * SSM again, and a workflow that starts reading app secrets out of GitHub again.
+ * The allowlist is what CI itself spends, per workflow; every workflow not named
+ * may read no repo secret but GITHUB_TOKEN. MENTION_SHELL_ACCESS_KEY is the
+ * Cloudflare shell Worker's own key, which deploy-frontends.yml uploads with the
+ * Worker code; the backend reads its copy from SSM.
+ */
+{
+  const CI_SECRET_ALLOWLIST = {
+    "add-to-roadmap.yml": ["ADD_TO_PROJECT_TOKEN"],
+    "deploy-frontends.yml": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "MENTION_SHELL_ACCESS_KEY"],
+  };
+  let secretReads = 0;
+  for (const workflowName of workflowNames) {
+    const source = await readFile(resolve(workflowsDirectory, workflowName), "utf8");
+    // Matched as an EXPRESSION, not as text, so a comment that names the
+    // pattern to explain its absence does not trip it.
+    if (/\$\{\{[^}]*toJSON\s*\(\s*secrets\s*\)/.test(source)) {
+      failures.push(`${workflowName}: must never enumerate the whole secrets context`);
+    }
+    if (/^(?!\s*#).*\bssm\s+put-parameter\b/m.test(source)) {
+      failures.push(
+        `${workflowName}: must not write an SSM parameter — runtime secrets are set in SSM by their owner, never by a workflow`,
+      );
+    }
+    const allowed = new Set(["GITHUB_TOKEN", ...(CI_SECRET_ALLOWLIST[workflowName] ?? [])]);
+    for (const match of source.matchAll(/\bsecrets\.([A-Za-z0-9_]+)/g)) {
+      if (source.slice(source.lastIndexOf("\n", match.index) + 1, match.index).trimStart().startsWith("#")) continue;
+      secretReads += 1;
+      if (!allowed.has(match[1])) {
+        failures.push(
+          `${workflowName}: reads secrets.${match[1]}, which is not a CI-only secret — runtime secrets live in SSM, not GitHub`,
+        );
+      }
+    }
+  }
+  // Vacuity floor: the CI-only secrets above ARE read, so a matcher that stops
+  // matching would otherwise pass every workflow silently.
+  if (secretReads === 0) {
+    failures.push("the repo-secret matcher found no secret reads at all; it has stopped matching");
   }
 }
 

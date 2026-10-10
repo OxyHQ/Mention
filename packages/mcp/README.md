@@ -332,7 +332,7 @@ tells its client to reconnect.
 | `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy, where the process cannot attest its task role |
 | `MENTION_MCP_JWT_SECRET` | No longer signs anything; only the last fallback salt for `IP_HASH_SALT` |
 
-Secrets: GitHub Actions → SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
+Secrets live only in SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`, set by their owner; no workflow writes them ([docs/AWS_DEPLOYMENT.md](../../docs/AWS_DEPLOYMENT.md#runtime-secrets)).
 
 ## Deployment (AWS)
 
