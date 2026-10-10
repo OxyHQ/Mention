@@ -120,9 +120,9 @@ cover BOTH profiles — naming a module it lacks stops the process booting, and
 **The shadow measurement does not currently go anywhere durable, so plan for
 that before scheduling a decision.** `feed_discovery_gated_total` lives in the
 in-process Prometheus registry (`utils/metrics.ts`), which is exposed only by the
-IP-restricted `GET /internal/metrics`. `utils/cloudwatchEmf.ts` ships three
-per-request metrics and nothing from that registry, and the cluster runs no
-scraper — verified against the account on 2026-09-19, where
+IP-restricted `GET /internal/metrics`. Request traffic reaches Oxy's shared
+ecosystem telemetry (`runtime/platformActivity.ts`), which carries nothing from
+that registry, and the cluster runs no scraper — verified against the account on 2026-09-19, where
 `DISCOVERY_GATE_ROLLOUT` is set in neither SSM nor the `oxy-mention` task
 definition, so production has been on the `shadow` default since the gate shipped
 in July. The counters therefore reset on every deploy and no history exists. A
