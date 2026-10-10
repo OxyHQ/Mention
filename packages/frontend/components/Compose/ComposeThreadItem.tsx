@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Image,
   type ImageStyle,
   type TextStyle,
   type ViewStyle,
@@ -27,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 // eight sheets, so naming it from inside `components/Compose/` pulled all of them
 // into every graph reaching this file — and made the module depend on its own
 // index. None of the four below is a sheet.
-import { VideoPreview } from '@/components/Compose/VideoPreview';
+import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { PollCreator } from '@/components/Compose/PollCreator';
 import { LocationDisplay } from '@/components/Compose/LocationDisplay';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
@@ -426,15 +425,11 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                     key={mediaItem.id}
                     className="border-border bg-muted" style={styles.mediaPreviewItem}
                   >
-                    {mediaItem.type === 'video' ? (
-                      <VideoPreview src={mediaUrl} />
-                    ) : (
-                      <Image
-                        source={{ uri: mediaUrl }}
-                        style={styles.mediaPreviewImage}
-                        resizeMode="cover"
-                      />
-                    )}
+                    <ComposeMediaPreview
+                      type={mediaItem.type}
+                      uri={mediaUrl}
+                      imageStyle={styles.mediaPreviewImage}
+                    />
                     {mediaItem.type === 'image' ? (
                       <ComposeAltButton
                         hasAlt={Boolean(mediaItem.alt?.trim())}

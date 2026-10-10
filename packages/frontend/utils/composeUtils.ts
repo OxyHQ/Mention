@@ -44,12 +44,21 @@ export type ComposerMediaType = "image" | "video" | "gif";
  */
 export type ComposerMediaItem = { id: string; type: ComposerMediaType; alt?: string };
 
+/**
+ * The composer's kind for an attachment.
+ *
+ * `gif` is the GIF picker's looping muted mp4 — what the feed plays through
+ * `VideoPlayer gif` and the composer through `VideoPreview` — so only a caller
+ * that SAYS `gif` gets it. An uploaded `image/gif` file is an animated image, not
+ * an mp4: typed `gif` it went to a video element that cannot decode it and showed
+ * nothing, in the composer and in the feed.
+ */
 export const toComposerMediaType = (value?: string, mime?: string): ComposerMediaType => {
   const lowerValue = typeof value === "string" ? value.toLowerCase() : "";
   const lowerMime = typeof mime === "string" ? mime.toLowerCase() : "";
 
   if (lowerValue === "video" || lowerMime.startsWith("video/")) return "video";
-  if (lowerValue === "gif" || lowerMime.includes("gif")) return "gif";
+  if (lowerValue === "gif") return "gif";
   return "image";
 };
 

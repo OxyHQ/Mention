@@ -1,5 +1,5 @@
 import React, { memo, useCallback, type ReactNode, type Ref } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
-import { VideoPreview } from '@/components/Compose/VideoPreview';
+import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { describeContentLanguage } from '@/constants/contentLanguages';
@@ -173,15 +173,11 @@ const VariantEditor = memo(function VariantEditor({
                 className="border-border bg-muted"
                 style={styles.mediaCard}
               >
-                {media.type === 'video' ? (
-                  <VideoPreview src={getFileDownloadUrl(media.id)} />
-                ) : (
-                  <Image
-                    source={{ uri: getFileDownloadUrl(media.id) }}
-                    style={styles.mediaImage}
-                    resizeMode="cover"
-                  />
-                )}
+                <ComposeMediaPreview
+                  type={media.type}
+                  uri={getFileDownloadUrl(media.id)}
+                  imageStyle={styles.mediaImage}
+                />
                 {media.type === 'image' ? (
                   <ComposeAltButton
                     hasAlt={

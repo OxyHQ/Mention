@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Pressable,
   ScrollView,
-  Image,
 } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
@@ -106,7 +105,7 @@ import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 // `lazy()` declarations below were loading eagerly anyway, from this very import.
 // None of the components on this list is a sheet.
 import { PollCreator } from '@/components/Compose/PollCreator';
-import { VideoPreview } from '@/components/Compose/VideoPreview';
+import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { ArticleEditor } from '@/components/Compose/ArticleEditor';
 import { EventEditor } from '@/components/Compose/EventEditor';
 import { LocationDisplay } from '@/components/Compose/LocationDisplay';
@@ -3017,15 +3016,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                 onRemove={() => removeMedia(mediaItem.id)}
                                 wrapperStyle={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                {mediaItem.type === 'video' ? (
-                                  <VideoPreview src={mediaUrl} />
-                                ) : (
-                                  <Image
-                                    source={{ uri: mediaUrl }}
-                                    style={styles.mediaPreviewImage}
-                                    resizeMode="cover"
-                                  />
-                                )}
+                                <ComposeMediaPreview
+                                  type={mediaItem.type}
+                                  uri={mediaUrl}
+                                  imageStyle={styles.mediaPreviewImage}
+                                />
                                 {mediaItem.type === 'image' ? (
                                   <ComposeAltButton
                                     hasAlt={Boolean(mediaItem.alt?.trim())}
