@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { socketService } from '@/services/socketService';
 
 /**
@@ -37,53 +37,6 @@ export function usePresence(userId: string | undefined): boolean {
   }, [userId]);
 
   return isOnline;
-}
-
-/**
- * Hook to track multiple users' online/offline status
- */
-export function usePresenceBulk(userIds: string[]): Record<string, boolean> {
-  const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({});
-
-  // Stable, order-independent key so the effect only re-runs when the set of
-  // userIds actually changes — not on every render with a new array reference.
-  const key = useMemo(() => [...userIds].sort().join(','), [userIds]);
-
-  useEffect(() => {
-    const ids = key ? key.split(',') : [];
-    if (!ids.length) {
-      setPresenceMap({});
-      return;
-    }
-
-    let cancelled = false;
-
-    // Get initial presence for all users (guarded against setState after unmount)
-    socketService
-      .getPresenceBulk(ids)
-      .then((map) => {
-        if (!cancelled) setPresenceMap(map);
-      })
-      .catch(() => {
-        if (!cancelled) setPresenceMap({});
-      });
-
-    // Subscribe to each user's presence
-    const unsubscribes = ids.map((userId) =>
-      socketService.subscribeToPresence(userId, (online) => {
-        if (!cancelled) {
-          setPresenceMap((prev) => ({ ...prev, [userId]: online }));
-        }
-      })
-    );
-
-    return () => {
-      cancelled = true;
-      unsubscribes.forEach((unsubscribe) => unsubscribe());
-    };
-  }, [key]);
-
-  return presenceMap;
 }
 
 export default usePresence;

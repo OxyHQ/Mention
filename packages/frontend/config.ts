@@ -69,7 +69,6 @@ export const WEB_BASE_URL =
 
 // Stripe Payment Links (open in browser)
 export const STRIPE_LINK_PLUS = process.env.EXPO_PUBLIC_STRIPE_LINK_PLUS || '';
-export const STRIPE_LINK_FILE = process.env.EXPO_PUBLIC_STRIPE_LINK_FILE || '';
 
 // Allo store listings, for "Message in Allo" when Allo is not installed
 // (lib/alloDirectMessage.ts). Unset while Allo has no listing.

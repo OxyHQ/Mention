@@ -35,13 +35,3 @@ export const INITIALIZATION_TIMEOUT = {
   /** Native only: pause after startup before asking for notification permission. */
   PERMISSION_PROMPT_DELAY: 400,
 } as const;
-
-/**
- * Z-Index layering constants
- * Ensures consistent stacking order across the application
- */
-export const Z_INDEX = {
-  PORTAL_OUTLET: 9999,
-  MODAL: 10000,
-  FLOATING_ACTION_BUTTON: 10000,
-} as const;

@@ -208,14 +208,6 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 }));
 
 /**
- * Cheap selector for a single provider's preference. `undefined` means "ask on
- * first play" (no explicit choice persisted yet).
- */
-export function useEmbedPref(source: EmbedPlayerSource): ExternalEmbedPref | undefined {
-  return useExternalEmbedsStore((state) => state.prefs[source]);
-}
-
-/**
  * Hydrate the store once on auth resolution. Wired a SINGLE time at the app root
  * (alongside {@link useServerAppearanceSync}); mirrors its gating so the server
  * fetch only fires when the private API is usable, while the cache still loads
