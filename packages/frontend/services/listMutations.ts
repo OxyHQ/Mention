@@ -15,7 +15,7 @@
  * `<Feed>` re-fetches automatically. No manual refresh, no TTL wait.
  *
  * This is intentionally NOT a Zustand slice — subscribers are imperative screen
- * effects, mirroring `subscribeToNewLocalPosts` in `feedScrollStore`.
+ * effects, mirroring `subscribeToSafetyFilterChanges` in `safetyInvalidation`.
  */
 
 import { queryClient } from '@/lib/queryClient';
@@ -41,8 +41,8 @@ export function subscribeToListChanges(listener: ListChangeListener): () => void
 
 /**
  * Announce that a list changed (members added/removed, created, renamed,
- * deleted). Invalidates the React Query caches the list UIs read, the feed
- * caches, and notifies the imperative list-backed feed screens to re-fetch.
+ * deleted). Invalidates the React Query caches the list UIs read, and notifies
+ * the imperative list-backed feed screens to re-fetch.
  *
  * @param listId The affected list id, or `null` when the change is to the list
  *   collection as a whole (create/delete) with no specific viewing target.
@@ -60,16 +60,11 @@ export function notifyListChanged(listId: string | null): void {
     predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'lists'),
   });
 
-  // 2. React Query: any feed query (custom feeds backed by this list read the
-  //    feed cache). The list-backed `<Feed>` itself is memory-mode and is
-  //    handled by the imperative broadcast below, but custom feeds and any
-  //    React-Query-driven feed consumers are refreshed here.
-  queryClient.invalidateQueries({
-    predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'feeds'),
-  });
-
-  // 3. Imperative subscribers: list-backed feed screens re-fetch the list,
-  //    producing a new `authors` filter that makes `<Feed>` re-fetch.
+  // 2. Imperative subscribers: list-backed feed screens re-fetch the list,
+  //    producing a new `authors` filter — a new feed key, so a new read. The
+  //    `feeds` family is deliberately NOT invalidated: it is every `<Feed>` the
+  //    viewer has open or cached, and invalidating it would read every loaded
+  //    page of each of them again for a change that reaches one.
   for (const listener of listChangeListeners) {
     listener(listId);
   }

@@ -49,7 +49,7 @@ describe('empty feed copy', () => {
     for (const type of ['replies', 'boosts', 'likes', 'media', 'mentions'] as const) {
       expect(emptyCopy(t, type).title).not.toBe('No posts yet');
     }
-    expect(emptyCopy(t, 'for_you', { showOnlySaved: true }).title).toBe('No saved posts yet');
+    expect(emptyCopy(t, 'saved').title).toBe('No saved posts yet');
   });
 
   it('gives the profile mentions tab its own copy', () => {

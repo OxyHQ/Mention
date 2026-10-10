@@ -7,7 +7,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 interface FeedFooterProps {
-    showOnlySaved?: boolean;
     hasMore: boolean;
     isLoadingMore: boolean;
     hasItems: boolean;
@@ -19,7 +18,7 @@ interface FeedFooterProps {
  * Shows sign-in prompt for unauthenticated users
  */
 export const FeedFooter = memo<FeedFooterProps>(
-    ({ showOnlySaved, hasMore, isLoadingMore, hasItems }) => {
+    ({ hasMore, isLoadingMore, hasItems }) => {
         const theme = useTheme();
         const { isAuthenticated, isAuthResolved, signIn } = useAuth();
 
@@ -30,7 +29,7 @@ export const FeedFooter = memo<FeedFooterProps>(
         // Show sign-in prompt for unauthenticated users at the end of the feed.
         // Gate on isAuthResolved so the prompt never appears during the cold-boot
         // restore window (when `isAuthenticated: false` is still UNDETERMINED).
-        if (isAuthResolved && !isAuthenticated && hasItems && !showOnlySaved) {
+        if (isAuthResolved && !isAuthenticated && hasItems) {
             return (
                 <TouchableOpacity
                     className="flex-row items-center justify-center py-4 px-5 border-border"
@@ -47,7 +46,7 @@ export const FeedFooter = memo<FeedFooterProps>(
             );
         }
 
-        if (showOnlySaved || !hasMore || !isLoadingMore) return null;
+        if (!hasMore || !isLoadingMore) return null;
         if (!hasItems) return null;
 
         return (

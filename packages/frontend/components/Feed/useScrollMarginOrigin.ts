@@ -21,7 +21,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
  *  - It never re-ran on RETURN, because the row count does not change again —
  *    so a single poisoned measurement lasted the rest of the session. The
  *    ordinary causes all reached it: a background refresh, a socket update, the
- *    memory-mode new-post broadcast.
+ *    viewer's own new post landing in the feed cache.
  *
  * A `ResizeObserver` closes both. It fires on the 0 -> real transition when the
  * element is shown again, and on any later layout change, so the origin is

@@ -32,9 +32,8 @@ describe('emptySticker', () => {
     expect(emptySticker(type)).toBe(name);
   });
 
-  it('a thread with no replies is its own case, and "saved only" wins over the type', () => {
+  it('a thread with no replies is its own case', () => {
     expect(emptySticker('replies', { isThread: true })).toBe('threadNoReplies');
-    expect(emptySticker('posts', { showOnlySaved: true })).toBe('saved');
   });
 
   it('falls back to the following feed for a type with no sticker of its own', () => {

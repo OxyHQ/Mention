@@ -84,12 +84,6 @@ describe('buildFeedScrollKey', () => {
         );
     });
 
-    it('collapses showOnlySaved to the saved effective type', () => {
-        const saved = buildFeedScrollKey({ type: 'for_you', showOnlySaved: true });
-        const explicit = buildFeedScrollKey({ type: 'saved' });
-        expect(saved).toBe(explicit);
-    });
-
     it('treats no filters and empty filters as equivalent', () => {
         const none = buildFeedScrollKey({ type: 'for_you' });
         const empty = buildFeedScrollKey({ type: 'for_you', filters: {} as FeedFilters });

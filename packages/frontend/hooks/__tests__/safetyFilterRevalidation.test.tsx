@@ -1,9 +1,10 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
+import { queryClient } from '@/lib/queryClient';
 import { usePostsStore } from '@/stores/postsStore';
-import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import {
     invalidateSafetyFilters,
@@ -147,7 +148,11 @@ async function flush(): Promise<void> {
 async function openFeed(): Promise<TestRenderer.ReactTestRenderer> {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-        renderer = TestRenderer.create(<HomeFeed />);
+        renderer = TestRenderer.create(
+            <QueryClientProvider client={queryClient}>
+                <HomeFeed />
+            </QueryClientProvider>,
+        );
     });
     await flush();
     openFeeds.add(renderer);
@@ -186,7 +191,7 @@ describe('safety rules converge on the feeds the viewer is looking at', () => {
     beforeEach(() => {
         latest = undefined;
         jest.clearAllMocks();
-        clearAllFeedMemoryCaches();
+        queryClient.clear();
         resetEngagementInvalidation();
         resetSafetyInvalidation();
         serverPosts = [];
@@ -263,7 +268,7 @@ describe('safety rules converge on the feeds the viewer is looking at', () => {
         expect(renderedIds()).toEqual(['post-cats', 'post-dogs']);
         closeFeed(firstVisit);
 
-        // Nothing is subscribed now, so only the retained slice's age can carry
+        // Nothing is subscribed now, so only the held read's age can carry
         // the change to the next mount.
         mutedWords = ['dogs'];
         invalidateSafetyFilters();
@@ -305,7 +310,7 @@ describe('safety rules converge on the feeds the viewer is looking at', () => {
     });
 
     /**
-     * Native reads its feed out of SQLite rather than local state, so the same
+     * Native reads its feed out of SQLite rather than a feed query, so the same
      * question is asked in a different place: `fetchInitial` skips the fetch
      * entirely when the store says this feed was already loaded. That skip has to
      * notice a safety rule changed since, or the rows SQLite is holding — which

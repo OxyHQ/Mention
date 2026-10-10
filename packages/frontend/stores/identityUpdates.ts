@@ -41,9 +41,9 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  *     entry), and `useUserByUsername` pairs a five-minute `staleTime` with
  *     `refetchOnMount: true`, which deliberately does NOT refetch an entry that
  *     is still fresh.
- *   * every `post.user` already embedded in a rendered post — in the feed
- *     store's retained slice and in SQLite. Nothing rewrites those, and a
- *     remount warm-starts from the retained slice rather than refetching page 1.
+ *   * every `post.user` already embedded in a rendered post — in a feed
+ *     query's cached pages and in SQLite. Nothing rewrites those, and a
+ *     remount warm-starts from those pages rather than refetching page 1.
  *
  * A full reload is the only thing that discards all of them at once, which is
  * exactly why one appeared to be required.
@@ -67,7 +67,7 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  *   * The post rows themselves — `components/Feed/PostItem.tsx` resolves its
  *     actors through {@link useKnownIdentitySet}, so a feed row, a post detail, a
  *     quote card and a boosted original all correct themselves wherever their
- *     copy of the post came from (SQLite, the memory-mode slice, or a response
+ *     copy of the post came from (SQLite, a feed query's pages, or a response
  *     that has not landed yet).
  *
  * **This module holds STATE ONLY — no query client, no SDK.** It is imported by

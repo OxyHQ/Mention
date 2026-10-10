@@ -19,7 +19,7 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { resetLivePresence } from '@/stores/livePresenceStore';
 import { useTrendsStore } from '@/stores/trendsStore';
-import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { clearFeedScrollOffsets } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { resetPendingDocuments } from '@/stores/pendingDocuments';
@@ -120,7 +120,7 @@ export function AccountSwitchReset({
     useLiveRoomsStore.getState().resetViewerState();
     resetLivePresence();
     useTrendsStore.getState().resetViewerState();
-    clearAllFeedMemoryCaches();
+    clearFeedScrollOffsets();
     // The previous viewer's engagements say nothing about the next viewer's
     // lists, and every cache they could have marked stale is gone anyway. The
     // same holds for the safety rules they changed — muted words and the

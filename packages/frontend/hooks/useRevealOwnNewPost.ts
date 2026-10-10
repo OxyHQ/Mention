@@ -1,6 +1,4 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import type { FeedType } from '@mention/shared-types';
-import type { FeedFilters } from '@/utils/feedUtils';
 import {
     getLocalPostRevision,
     subscribeToLocalPostRevision,
@@ -24,28 +22,6 @@ import {
  * remount must still know it has a publish to answer.
  */
 const answeredRevisionByFeed = new Map<string, number>();
-
-const HOME_FEED_TYPES: ReadonlySet<FeedType> = new Set<FeedType>(['mixed', 'for_you', 'following', 'posts']);
-
-/**
- * Whether a viewer's new post goes at the top of this feed — the same selection
- * `postsStore.createPost` inserts into: the home feeds, and the viewer's own
- * profile posts. A scoped (filtered) feed, the saved feed and anybody else's
- * profile never receive it, so they never jump.
- */
-export function feedReceivesOwnNewPost(params: {
-    type: FeedType;
-    userId?: string;
-    filters?: FeedFilters;
-    showOnlySaved?: boolean;
-    currentUserId?: string;
-}): boolean {
-    const { type, userId, filters, showOnlySaved, currentUserId } = params;
-    if (showOnlySaved) return false;
-    if (filters && Object.keys(filters).length > 0) return false;
-    if (!userId) return HOME_FEED_TYPES.has(type);
-    return type === 'posts' && Boolean(currentUserId) && String(userId) === String(currentUserId);
-}
 
 export function useRevealOwnNewPost({
     feedKey,

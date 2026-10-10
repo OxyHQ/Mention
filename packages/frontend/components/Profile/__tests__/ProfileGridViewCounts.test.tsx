@@ -75,7 +75,7 @@ jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
 }));
-jest.mock('@/stores/feedScrollStore', () => ({
+jest.mock('@/stores/feedQueryCache', () => ({
   publishNewLocalPost: jest.fn(),
   publishRemovedLocalPost: jest.fn(),
 }));

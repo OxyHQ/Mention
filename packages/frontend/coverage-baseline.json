@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 43.7,
-      "covered": 11769,
-      "total": 26926
+      "pct": 44.07,
+      "covered": 11842,
+      "total": 26868
     },
     "branches": {
-      "pct": 38.2,
-      "covered": 7422,
-      "total": 19429
+      "pct": 38.82,
+      "covered": 7531,
+      "total": 19397
     },
     "functions": {
-      "pct": 38.66,
-      "covered": 2661,
-      "total": 6883
+      "pct": 39.08,
+      "covered": 2692,
+      "total": 6888
     },
     "lines": {
-      "pct": 44.46,
-      "covered": 10695,
-      "total": 24050
+      "pct": 44.78,
+      "covered": 10742,
+      "total": 23985
     }
   },
   "pins": {
@@ -90,10 +90,10 @@
       "lines": 100
     },
     "components/providers/constants.ts": {
-      "statements": 16,
+      "statements": 33,
       "branches": 0,
-      "functions": 0,
-      "lines": 16
+      "functions": 50,
+      "lines": 33
     },
     "components/providers/handleLanguageError.ts": {
       "statements": 100,
@@ -187,9 +187,9 @@
     },
     "hooks/useAccountTheme.ts": {
       "statements": 98,
-      "branches": 86,
+      "branches": 90,
       "functions": 100,
-      "lines": 97
+      "lines": 98
     },
     "hooks/useAppColorSave.ts": {
       "statements": 0,
@@ -240,10 +240,10 @@
       "lines": 0
     },
     "hooks/useDeepCompare.ts": {
-      "statements": 66,
-      "branches": 50,
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
-      "lines": 66
+      "lines": 100
     },
     "hooks/useDismissKeyboardOnBlur.ts": {
       "statements": 100,
@@ -305,6 +305,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useFeedQuery.ts": {
+      "statements": 100,
+      "branches": 96,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useFeedSettings.ts": {
       "statements": 91,
       "branches": 68,
@@ -312,10 +318,10 @@
       "lines": 97
     },
     "hooks/useFeedState.ts": {
-      "statements": 72,
-      "branches": 64,
-      "functions": 70,
-      "lines": 73
+      "statements": 96,
+      "branches": 91,
+      "functions": 100,
+      "lines": 97
     },
     "hooks/useFocusedScrollable.ts": {
       "statements": 100,
@@ -1218,10 +1224,10 @@
       "lines": 100
     },
     "stores/engagementInvalidation.ts": {
-      "statements": 90,
-      "branches": 85,
+      "statements": 95,
+      "branches": 92,
       "functions": 100,
-      "lines": 93
+      "lines": 100
     },
     "stores/entityFollowStore.ts": {
       "statements": 68,
@@ -1235,11 +1241,23 @@
       "functions": 38,
       "lines": 50
     },
+    "stores/feedQueryCache.ts": {
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
     "stores/feedScrollStore.ts": {
-      "statements": 78,
-      "branches": 50,
-      "functions": 84,
-      "lines": 79
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "stores/feedStaleness.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "stores/hapticsStore.ts": {
       "statements": 0,
@@ -1357,7 +1375,7 @@
     },
     "utils/apiError.ts": {
       "statements": 98,
-      "branches": 92,
+      "branches": 93,
       "functions": 100,
       "lines": 98
     },
@@ -1404,10 +1422,10 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 82,
-      "branches": 53,
+      "statements": 91,
+      "branches": 95,
       "functions": 70,
-      "lines": 87
+      "lines": 92
     },
     "utils/displayName.ts": {
       "statements": 100,
@@ -1476,10 +1494,10 @@
       "lines": 96
     },
     "utils/feedUtils.ts": {
-      "statements": 89,
-      "branches": 79,
+      "statements": 90,
+      "branches": 81,
       "functions": 100,
-      "lines": 93
+      "lines": 94
     },
     "utils/forYouTuning.ts": {
       "statements": 100,
@@ -1530,8 +1548,8 @@
       "lines": 90
     },
     "utils/linkifyPattern.ts": {
-      "statements": 91,
-      "branches": 83,
+      "statements": 92,
+      "branches": 87,
       "functions": 100,
       "lines": 100
     },

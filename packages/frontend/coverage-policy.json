@@ -139,6 +139,9 @@
     ],
     "feed pagination and state restoration": [
       "hooks/useFeedState.ts",
+      "hooks/useFeedQuery.ts",
+      "stores/feedQueryCache.ts",
+      "stores/feedStaleness.ts",
       "stores/feedScrollStore.ts",
       "utils/feedUtils.ts",
       "utils/feedMemoryMode.ts",
@@ -195,11 +198,6 @@
       "since": "2026-08-15",
       "measured": "0%",
       "reason": "No direct test. expo-share-intent's module surface needs a mock nobody has written; utils/composeIntent.ts, at 97%, is the parser it feeds."
-    },
-    "hooks/useFeedState.ts": {
-      "since": "2026-08-15",
-      "measured": "65.21% statements / 54.65% branches",
-      "reason": "hooks/__tests__/useFeedState.test.ts and useFeedState.memory.test.tsx cover memory mode and the auth-identity keying. The remaining third is unattributed; the hook also owns loadMore and the federated pending/poll state, neither of which those two files drive."
     },
     "db/cacheLifecycle.ts": {
       "since": "2026-08-15",
@@ -266,11 +264,11 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 280,
-    "pins": 276,
+    "domainFiles": 283,
+    "pins": 279,
     "unenforceable": 4,
-    "belowBarExemptions": 10,
-    "criticalPaths": 32,
+    "belowBarExemptions": 9,
+    "criticalPaths": 35,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }

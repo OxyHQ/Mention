@@ -22,13 +22,14 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * predicate would hide some sensitive posts and leave others up, which is worse
  * than a filter that does not exist.
  *
- * Mention holds gated content in TWO read caches, and neither can see the other
- * (the same seam `engagementInvalidation` documents):
+ * Mention holds gated content in TWO kinds of read cache, which answer a change
+ * differently (the same seam `engagementInvalidation` documents):
  *
- *   * React Query owns search results and the notifications list. The server
- *     gates both with these exact two rules.
- *   * The feed store owns every `<Feed>` surface, and warm-starts a remount from
- *     a retained slice rather than refetching.
+ *   * Search results and the notifications list are ordinary React Query
+ *     lists, invalidated like them. The server gates both with these exact two
+ *     rules.
+ *   * Every `<Feed>` surface is a feed cache (a feed query, or SQLite on native)
+ *     that warm-starts a remount from the pages it holds rather than refetching.
  *
  * A feed also differs from the engagement lists in one way that decides the
  * design: the viewer changes a safety rule from a settings screen pushed OVER

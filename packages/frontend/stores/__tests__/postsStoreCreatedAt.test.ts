@@ -41,7 +41,7 @@ jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists:
 jest.mock('@/stores/profileCountsInvalidation', () => ({ invalidateProfileCounts: jest.fn() }));
 jest.mock('@/lib/queryClient', () => ({ queryClient: {} }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
-jest.mock('@/stores/feedScrollStore', () => ({
+jest.mock('@/stores/feedQueryCache', () => ({
   publishNewLocalPost: jest.fn(),
   publishRemovedLocalPost: jest.fn(),
 }));

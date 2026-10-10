@@ -8,10 +8,9 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
-import { feedReceivesOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
-import { FeedFilters, shallowFiltersEqual } from '@/utils/feedUtils';
+import { FeedFilters, feedReceivesOwnNewPost, shallowFiltersEqual } from '@/utils/feedUtils';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
 import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import { FeedHeader } from './FeedHeader';
@@ -49,7 +48,6 @@ export interface FeedProps {
     hideHeader?: boolean;
     hideRefreshControl?: boolean;
     scrollEnabled?: boolean;
-    showOnlySaved?: boolean;
     filters?: FeedFilters;
     reloadKey?: string | number;
     style?: React.ComponentProps<typeof View>['style'];
@@ -89,14 +87,13 @@ export interface FeedProps {
     previewLimit?: number;
 }
 
-type DefaultedFeedProp = 'showComposeButton' | 'hideHeader' | 'hideRefreshControl' | 'scrollEnabled' | 'showOnlySaved';
+type DefaultedFeedProp = 'showComposeButton' | 'hideHeader' | 'hideRefreshControl' | 'scrollEnabled';
 
 const DEFAULT_FEED_PROPS: Required<Pick<FeedProps, DefaultedFeedProp>> = {
     showComposeButton: false,
     hideHeader: false,
     hideRefreshControl: false,
     scrollEnabled: true,
-    showOnlySaved: false,
 };
 
 export type ResolvedFeedProps = FeedProps & Required<Pick<FeedProps, DefaultedFeedProp>>;
@@ -106,7 +103,6 @@ export function useFeedCore(props: FeedProps) {
     const {
         type,
         userId,
-        showOnlySaved,
         filters,
         reloadKey,
         threaded,
@@ -125,9 +121,8 @@ export function useFeedCore(props: FeedProps) {
     const feedState = useFeedState({
         type,
         userId,
-        showOnlySaved,
         filters,
-        useScoped: !!(filters && Object.keys(filters).length) && !showOnlySaved,
+        useScoped: !!(filters && Object.keys(filters).length),
         reloadKey,
         isAuthenticated,
         currentUserId,
@@ -141,12 +136,11 @@ export function useFeedCore(props: FeedProps) {
         items: feedState.items,
         interstitials: feedState.interstitials,
         type,
-        showOnlySaved,
         currentUserId,
         blockedSet,
         threaded,
         threadPostId,
-    }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUserId, blockedSet, threaded, threadPostId]);
+    }), [feedState.slices, feedState.items, feedState.interstitials, type, currentUserId, blockedSet, threaded, threadPostId]);
     // Memoized explicitly, not left to the compiler: these rows are FlashList's
     // `data`, and a new array identity re-renders every mounted row.
     const feedRows = useMemo(() => boundFeedRows(allFeedRows, previewLimit), [allFeedRows, previewLimit]);
@@ -196,10 +190,10 @@ export function useFeedCore(props: FeedProps) {
     // the feed is reloaded, so impressions count once per post per session.
     // `canUsePrivateApi` keeps an anonymous (or still-resolving) viewer from ever
     // POSTing, which would 401 `/feed/mtn/interactions` in a loop.
-    const feedDescriptor = resolveFeedDescriptor(type, userId, filters, showOnlySaved);
+    const feedDescriptor = resolveFeedDescriptor(type, userId, filters);
     const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey, canUsePrivateApi);
 
-    const receivesOwnNewPost = feedReceivesOwnNewPost({ type, userId, filters, showOnlySaved, currentUserId });
+    const receivesOwnNewPost = feedReceivesOwnNewPost({ type, userId, filters, currentUserId });
 
     // While the pinned post holds the first presentation, the feed is still
     // "loading": no rows, no leading element, no footer.
@@ -220,23 +214,21 @@ export function useFeedCore(props: FeedProps) {
             errorKind={feedState.errorKind}
             hasItems={false}
             type={type}
-            showOnlySaved={showOnlySaved}
             onRetry={handleRetry}
             pending={feedState.pending}
             isThread={isThread}
         />
-    ), [feedState.isLoading, holdForLeading, feedState.error, feedState.errorKind, type, showOnlySaved, handleRetry, feedState.pending, isThread]);
+    ), [feedState.isLoading, holdForLeading, feedState.error, feedState.errorKind, type, handleRetry, feedState.pending, isThread]);
 
     const footerHasMore = previewLimit === undefined && feedState.hasMore;
     const hasPresentedRows = presentedRows.length > 0;
     const footer = useMemo(() => showFooter ? (
         <FeedFooter
-            showOnlySaved={showOnlySaved}
             hasMore={footerHasMore}
             isLoadingMore={isLoadingMore}
             hasItems={hasPresentedRows}
         />
-    ) : null, [showFooter, showOnlySaved, footerHasMore, isLoadingMore, hasPresentedRows]);
+    ) : null, [showFooter, footerHasMore, isLoadingMore, hasPresentedRows]);
 
     return {
         props: merged,
@@ -292,7 +284,6 @@ export function areFeedPropsEqual(prevProps: FeedProps, nextProps: FeedProps): b
         prevProps.reloadKey !== nextProps.reloadKey ||
         prevProps.type !== nextProps.type ||
         prevProps.userId !== nextProps.userId ||
-        prevProps.showOnlySaved !== nextProps.showOnlySaved ||
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.previewLimit !== nextProps.previewLimit ||
         prevProps.threaded !== nextProps.threaded ||

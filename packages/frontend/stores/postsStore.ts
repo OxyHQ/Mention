@@ -19,7 +19,7 @@ import type {
 import { createLogger } from '@oxy.so/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
-import { publishNewLocalPost, publishNewLocalReply, publishRemovedLocalPost } from '@/stores/feedScrollStore';
+import { publishNewLocalPost, publishNewLocalReply, publishRemovedLocalPost } from '@/stores/feedQueryCache';
 import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { queryClient } from '@/lib/queryClient';
@@ -212,15 +212,15 @@ interface FeedSliceUI {
    * carried (never from its message). Meaningless while `error` is null, and
    * read only through the feed selectors below — it exists so the SQLite feed
    * path can tell an offline device from a backend hiccup exactly as the
-   * memory-mode path does in `useFeedState`.
+   * feed query does in `useFeedQuery`.
    */
   errorKind?: FeedFailureKind;
   lastUpdated: number;
   filters?: FeedFilters;
   /**
    * Recommendation-card placements accumulated across the loaded pages (replaced
-   * on fetch/refresh, appended on load-more — mirroring how the memory-mode feed
-   * accumulates them). They live in this in-memory UI slice rather than SQLite:
+   * on fetch/refresh, appended on load-more — mirroring how the feed query's
+   * pages accumulate them). They live in this in-memory UI slice rather than SQLite:
    * they are per-response placement metadata, valid only for the viewer and the
    * page set currently loaded, and must never outlive the session.
    */
@@ -267,8 +267,8 @@ interface PostsStoreState {
   // already-cached post (e.g. when the post-detail screen opens from the feed).
   revalidatePostById: (postId: string) => Promise<FeedItem | null>;
   // Upsert post objects into the shared cache WITHOUT touching feed ordering.
-  // Used by the memory-mode feed path (web without SQLite, and scoped feeds),
-  // which owns its own ordering in local React state but must still seed the
+  // Used by the feed query path (web without SQLite, and scoped feeds), which
+  // owns its own ordering in the React Query cache but must still seed the
   // shared post cache so the post-detail screen can render instantly from
   // `getPostFromDb(id)` instead of issuing a cold blocking fetch on open.
   cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => void;
@@ -278,7 +278,7 @@ interface PostsStoreState {
   updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => void;
   removePostEverywhere: (postId: string) => void;
   // Rollback counterpart of `removePostEverywhere` — re-adds a post after a
-  // failed optimistic delete (SQLite feeds + memory-mode broadcast).
+  // failed optimistic delete (SQLite feeds + the feed query cache).
   reinsertPost: (post: FeedItem) => void;
   removePostLocally: (postId: string, feedType: FeedType) => void;
   addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
@@ -973,8 +973,8 @@ export const usePostsStore = create<PostsStoreState>()(
           feedKeys.push(userFeedKey);
         }
 
-        // Memory-mode feeds (web without SQLite) don't read SQLite — broadcast the
-        // new post so any mounted in-memory home/profile feed prepends it live.
+        // The feed queries (web without SQLite, scoped feeds) don't read SQLite —
+        // put the new post at the top of the home/profile ones, mounted or not.
         publishNewLocalPost(newPost);
 
         notifyPostChanges([newPost.id]);
@@ -1026,9 +1026,9 @@ export const usePostsStore = create<PostsStoreState>()(
           feedKeys.push(userFeedKey);
         }
 
-        // Memory-mode feeds (web without SQLite) don't read SQLite — broadcast the
-        // thread's lead post so any mounted in-memory home/profile feed prepends it
-        // live. The thread renders as one slice headed by the first post.
+        // The feed queries (web without SQLite, scoped feeds) don't read SQLite —
+        // put the thread's lead post at the top of the home/profile ones, mounted
+        // or not. The thread renders as one slice headed by the first post.
         if (newPosts[0]) {
           publishNewLocalPost(newPosts[0]);
         }
@@ -1546,11 +1546,11 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── cachePosts ───────────────────────────────────────────
-    // Seed the shared post cache from the memory-mode feed path. Transforms raw
-    // feed items into the canonical UI shape (so the detail screen reads the same
+    // Seed the shared post cache from the feed query path. Transforms raw feed
+    // items into the canonical UI shape (so the detail screen reads the same
     // shape the SQLite path produces) and upserts them — plus any embedded
-    // related posts — without writing feed_items, so memory mode's own
-    // ordering in local React state is untouched.
+    // related posts — without writing feed_items, so the query's own ordering
+    // in its cached pages is untouched.
     cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => {
       if (!posts || posts.length === 0) return;
 
@@ -1596,10 +1596,10 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── removePostEverywhere ─────────────────────────────────
     // Single removal authority. On the SQLite path this drops the post from every
     // feed + the post cache and notifies only selectors for feeds that contained
-    // it, so the post vanishes reactively. On the memory-mode path (web without SQLite)
-    // those SQLite calls are no-ops, so we also broadcast the removal to mounted
-    // memory feeds (mirror of `createPost` → `publishNewLocalPost`) — without this
-    // the post would linger in local React state until a manual refresh.
+    // it, so the post vanishes reactively. The feed queries (web without SQLite,
+    // scoped feeds) never read SQLite, so the removal is also written into every
+    // one of them (mirror of `createPost` → `publishNewLocalPost`) — without this
+    // the post would linger in their cached pages until a manual refresh.
     removePostEverywhere: (postId: string) => {
       const affectedFeedKeys = dbGetFeedKeysForPost(postId);
       dbRemovePostFromAllFeeds(postId);
@@ -1612,7 +1612,7 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── reinsertPost ─────────────────────────────────────────
     // Rollback counterpart of `removePostEverywhere`: re-add a previously-removed
     // post after a failed optimistic delete. Mirrors `createPost`'s insertion
-    // (SQLite home/profile feeds at top + memory-mode broadcast) so the post
+    // (SQLite home/profile feeds at top + the feed query cache) so the post
     // reappears on both platforms. Position is restored to the top of the feed
     // (the same semantics a freshly created own-post uses), which is acceptable on
     // the rare delete-failure path.

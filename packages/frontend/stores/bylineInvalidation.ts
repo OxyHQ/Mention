@@ -51,15 +51,15 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  *     underneath — on this flow, the channel's own page, which is where the
  *     operator came from and where they will land on Back.
  *   * {@link isFeedCacheStaleForByline} converges the rest on their next mount,
- *     because the feed store warm-starts from a retained slice instead of
- *     refetching page 1 and has no staleness notion of its own.
+ *     because a feed warm-starts from the pages it holds instead of refetching
+ *     page 1 and has no age-based staleness.
  *
  * **The feed half is global, though the write names one channel.** A channel's
  * posts are not confined to its page: they reach For You, Following, a list feed,
  * a hashtag feed, search — and they ride inside OTHER people's posts as a quote
  * card or a boosted original, so even a feed whose subject is somebody else can be
  * holding one. Answering "could this slice contain that channel?" would mean
- * walking every item of every retained slice on every mount, to save a single
+ * walking every item of every held feed on every mount, to save a single
  * refetch of a rare, operator-initiated write. The React Query half below is
  * scoped where scoping is free — the writers list is keyed by channel — and global
  * where it is not.
@@ -155,8 +155,8 @@ export function noteChannelBylineChanged(channelOxyUserId: string): void {
  * gives: those two record something about the VIEWER — their own engagements, their
  * own safety rules — which says nothing about the next viewer. A channel's byline is
  * the channel's fact and is the same fact whoever is signed in. It would also be
- * inert either way: the switch drops every retained slice, so every slice the next
- * viewer holds is retained after this stamp and none of them is condemned by it.
+ * inert either way: the switch drops every held feed, so every feed the next
+ * viewer holds was read after this stamp and none of them is condemned by it.
  */
 export function resetBylineInvalidation(): void {
   changedAt = 0;

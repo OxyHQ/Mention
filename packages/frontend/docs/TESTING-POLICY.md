@@ -72,7 +72,7 @@ areas issue #700 names:
 | permissions and channel management | 4 | 3 |
 | federation-facing UI state | 4 | 1 |
 | deep links and share intents | 3 | 1 |
-| feed pagination and state restoration | 6 | 3 |
+| feed pagination and state restoration | 9 | 8 |
 
 Branches are held higher relative to reality than statements on purpose: a
 permission check, a consent gate and a cursor boundary are all branches, and a

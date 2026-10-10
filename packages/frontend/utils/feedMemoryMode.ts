@@ -4,7 +4,8 @@
  * A tiny, dependency-free module so the gate logic can be unit-tested without
  * pulling in SQLite, Zustand, or network layers.
  *
- * "Memory mode" means feed items live in local React state (instead of SQLite).
+ * "Memory mode" means feed pages live in the in-memory React Query cache
+ * (`hooks/useFeedQuery`) instead of SQLite.
  * It is active when:
  *   1. The feed is scoped/filtered (useScoped is true), OR
  *   2. SQLite is unavailable (web without COOP/COEP — SharedArrayBuffer absent)

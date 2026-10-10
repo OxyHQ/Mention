@@ -159,7 +159,7 @@ jest.mock('@/stores/engagementInvalidation', () => ({
 jest.mock('@/lib/precacheActorsFromPosts', () => ({
   precacheActorsFromPosts: jest.fn(),
 }));
-jest.mock('@/stores/feedScrollStore', () => ({
+jest.mock('@/stores/feedQueryCache', () => ({
   publishNewLocalPost: jest.fn(),
   publishRemovedLocalPost: jest.fn(),
 }));

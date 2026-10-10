@@ -6,13 +6,20 @@ virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 
 ## Two post-list caches
 
-React Query (the saved screen) and the feed store (every `<Feed>` surface,
-warm-starting a remount from `stores/feedScrollStore` instead of refetching
-page 1) cannot see each other. `stores/engagementInvalidation.ts` is the
-single authority; **do not invalidate from the callers** — the feed row's
-commands (`components/Feed/postInteractions.tsx`) and `app/(app)/videos.tsx`
-both write through the store directly. There is no query key for
-likes/boosts lists, so `invalidateQueries` there is a no-op. Client-wide
+The saved screen is an ordinary React Query list. Every `<Feed>` surface is a
+feed cache: one infinite query per feed (`hooks/useFeedQuery`, key
+`viewerQueryKeys.feed`) on web and for every scoped feed on native, SQLite for
+native unscoped feeds. A feed warm-starts a remount from the pages it holds
+and requests nothing: its `staleTime` is `Infinity`, and staleness is decided
+by RULE — `stores/feedStaleness.ts` asks the engagement, lane, safety and byline
+authorities whether a write postdates the held read, and only then is page 1
+read again (never every loaded page). **Never invalidate the `feeds` family**:
+that refetches every loaded page of every open feed. The viewer's own new post,
+reply and deletion are written into the feed queries by
+`stores/feedQueryCache.ts`, mounted or not. `stores/engagementInvalidation.ts`
+is the single authority for engagement writes; **do not invalidate from the
+callers** — the feed row's commands (`components/Feed/postInteractions.tsx`)
+and `app/(app)/videos.tsx` both write through the store directly. Client-wide
 `refetchOnMount` must stay at the library default.
 
 ## Rules
@@ -25,7 +32,7 @@ likes/boosts lists, so `invalidateQueries` there is a no-op. Client-wide
 - **React Query keys and effect deps MUST include `isAuthenticated` / `user?.id`** — SSO restore takes 5–25 s, and keying on `oxyServices` or `[]` fetches once while anonymous and never recovers. Gate private endpoints on `useAuth().canUsePrivateApi`, not just `isAuthenticated` (`usePrivacyControls`'s infinite-401 pattern). Jest does not reproduce this; verify in a real foregrounded tab.
 - **A virtualized web list must be opted out of the React Compiler EXPLICITLY** (`'use no memo'`) — a stable virtualizer instance's re-renders are internal to the hook, so the compiler freezes `getTotalSize()`/`getVirtualItems()` forever in prod builds only. Do not reason about which shape is safe: compile the file with the app's own `babel-plugin-react-compiler` and read the CompileError/CompileSuccess events. Verify on a PROD build. Detail and the measured `try`/`finally`-bails table: `docs/frontend-compiler-notes.md`.
 - **One feed core, two scrollers.** `Feed.native.tsx` (FlashList) and `Feed.web.tsx` (window virtualizer) differ only in how they virtualize. Data, rows, pagination, retry/refresh, the pinned-post hold, empty/footer states, the header, impression telemetry, the error boundary and memoization live once in `components/Feed/useFeedCore.tsx`. A behaviour change goes there, never into one platform file; `feedCore.test.tsx` fails if a platform file reads feed state, auth or builds rows itself.
-- **`VirtualizedWebFeed`** (`Feed.web.tsx`) is the single scroll-owning path for top-level feed screens, warm-starting a remount from `stores/feedScrollStore.ts`; `EmbeddedWebFeed` is for genuinely nested sub-lists only. The `Math.max(totalSize, lastItemEnd)` spacer-size guard stays even though its original cause (a compiler freeze) is gone — cheap insurance. Bloom `AppShell` owns the reading panel, its gutter/masks, document scroll and mobile reveal. `PageHeader` owns route headers; the remaining `PanelStickyFooter` only anchors post-detail replies above shared bottom occupancy. Individual screens own semantic body spacing, never a second page frame.
+- **`VirtualizedWebFeed`** (`Feed.web.tsx`) is the single scroll-owning path for top-level feed screens, warm-starting a remount from the feed query's cached pages (`hooks/useFeedQuery`); `EmbeddedWebFeed` is for genuinely nested sub-lists only. The `Math.max(totalSize, lastItemEnd)` spacer-size guard stays even though its original cause (a compiler freeze) is gone — cheap insurance. Bloom `AppShell` owns the reading panel, its gutter/masks, document scroll and mobile reveal. `PageHeader` owns route headers; the remaining `PanelStickyFooter` only anchors post-detail replies above shared bottom occupancy. Individual screens own semantic body spacing, never a second page frame.
 - **ONE retry policy for feed reads, in `utils/feedRetry.ts`.** `services/feedService`
   passes `retry: false` to the SDK linked client and wraps each feed read in
   `withFeedRetry`: 3 requests per failed load, ~500ms/1s with jitter. Do not add

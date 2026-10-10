@@ -1,8 +1,9 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
-import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { queryClient } from '@/lib/queryClient';
 import {
     invalidateEngagementLists,
     resetEngagementInvalidation,
@@ -14,15 +15,15 @@ import { useFeedState, type UseFeedStateReturn } from '../useFeedState';
  * next time those tabs open — with no page reload.
  *
  * Those tabs are `<Feed>` surfaces, and a feed deliberately warm-starts from its
- * retained slice on remount rather than refetching page 1, which is what keeps a
+ * cached pages on remount rather than refetching page 1, which is what keeps a
  * deep-scrolled feed from resetting every time the user navigates away and back.
  * That is correct until the viewer changes what the list CONTAINS: no optimistic
- * update can know the server's paging or ordering, so the retained slice is
- * simply out of date and the warm start has to revalidate.
+ * update can know the server's paging or ordering, so the cached read is simply
+ * out of date and the warm start has to revalidate.
  *
  * The write side of that signal is `postsStore`, which reports every successful
  * engagement to `stores/engagementInvalidation`; the read side is `useFeedState`,
- * which compares the slice's age against it. This file drives the READ side
+ * which compares the read's age against it. This file drives the READ side
  * directly through the real hook, so it fails if either half stops honouring the
  * signal. The `saved` half of the same authority is covered against the real
  * screen in `app/(app)/__tests__/savedScreenRevalidation.test.tsx`.
@@ -112,7 +113,11 @@ async function flush(): Promise<void> {
 async function openTab(tab: 'likes' | 'boosts'): Promise<TestRenderer.ReactTestRenderer> {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-        renderer = TestRenderer.create(<ProfileTab tab={tab} />);
+        renderer = TestRenderer.create(
+            <QueryClientProvider client={queryClient}>
+                <ProfileTab tab={tab} />
+            </QueryClientProvider>,
+        );
     });
     await flush();
     return renderer;
@@ -132,7 +137,7 @@ describe('engagement lists revalidate on their next visit', () => {
     beforeEach(() => {
         latest = undefined;
         jest.clearAllMocks();
-        clearAllFeedMemoryCaches();
+        queryClient.clear();
         resetEngagementInvalidation();
         serverLists = { likes: [], boosts: [] };
         getUserFeedMock.mockImplementation((_userId: string, request: { type: string }) =>
@@ -222,7 +227,11 @@ describe('engagement lists revalidate on their next visit', () => {
 
         let firstVisit!: TestRenderer.ReactTestRenderer;
         await act(async () => {
-            firstVisit = TestRenderer.create(<OtherProfileLikes />);
+            firstVisit = TestRenderer.create(
+                <QueryClientProvider client={queryClient}>
+                    <OtherProfileLikes />
+                </QueryClientProvider>,
+            );
         });
         await flush();
         expect(getUserFeedMock).toHaveBeenCalledTimes(1);
@@ -233,7 +242,11 @@ describe('engagement lists revalidate on their next visit', () => {
 
         let secondVisit!: TestRenderer.ReactTestRenderer;
         await act(async () => {
-            secondVisit = TestRenderer.create(<OtherProfileLikes />);
+            secondVisit = TestRenderer.create(
+                <QueryClientProvider client={queryClient}>
+                    <OtherProfileLikes />
+                </QueryClientProvider>,
+            );
         });
         await flush();
         expect(getUserFeedMock).toHaveBeenCalledTimes(1);

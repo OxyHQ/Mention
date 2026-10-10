@@ -92,7 +92,6 @@ export interface BuildFeedRowsParams {
     slices?: FeedPostSlice[];
     items: HydratedPost[];
     type: FeedType;
-    showOnlySaved?: boolean;
     currentUserId?: string;
     blockedSet: Set<string>;
     threaded?: boolean;
@@ -204,7 +203,6 @@ export function buildFeedRows({
     slices,
     items: src,
     type,
-    showOnlySaved,
     currentUserId,
     blockedSet,
     threaded,
@@ -323,8 +321,7 @@ export function buildFeedRows({
 
     // Sort recent user posts to top for for_you feed
     let finalItems = filteredByPrivacy;
-    const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
-    if (effectiveType === 'for_you' && currentUserId && filteredByPrivacy.length > 0) {
+    if (type === 'for_you' && currentUserId && filteredByPrivacy.length > 0) {
         const now = Date.now();
         const THRESHOLD_MS = 60 * 1000;
         const mineNow: { item: FeedItem; ts: number }[] = [];

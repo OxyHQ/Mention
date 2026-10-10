@@ -1,12 +1,15 @@
 import {
-    clearAllFeedMemoryCaches,
+    advanceLocalPostRevision,
+    clearFeedScrollOffsets,
     getFeedScrollOffset,
+    getLocalPostRevision,
     setFeedScrollOffset,
+    subscribeToLocalPostRevision,
 } from '../feedScrollStore';
 
 describe('feedScrollStore native offsets', () => {
     beforeEach(() => {
-        clearAllFeedMemoryCaches();
+        clearFeedScrollOffsets();
     });
 
     it('keeps offsets isolated by feed identity', () => {
@@ -23,7 +26,24 @@ describe('feedScrollStore native offsets', () => {
         expect(getFeedScrollOffset('viewer-a|explore')).toBe(0);
 
         setFeedScrollOffset('viewer-a|explore', 200);
-        clearAllFeedMemoryCaches();
+        clearFeedScrollOffsets();
         expect(getFeedScrollOffset('viewer-a|explore')).toBe(0);
+    });
+});
+
+describe('feedScrollStore local-post revision', () => {
+    it('advances once per published post and tells its subscribers until they leave', () => {
+        const listener = jest.fn();
+        const unsubscribe = subscribeToLocalPostRevision(listener);
+        const before = getLocalPostRevision();
+
+        advanceLocalPostRevision();
+        expect(getLocalPostRevision()).toBe(before + 1);
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        unsubscribe();
+        advanceLocalPostRevision();
+        expect(getLocalPostRevision()).toBe(before + 2);
+        expect(listener).toHaveBeenCalledTimes(1);
     });
 });

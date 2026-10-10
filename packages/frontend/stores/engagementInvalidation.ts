@@ -13,11 +13,17 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * second half has no optimistic path: those lists are server-ordered and paged,
  * so the only correct response is to let their caches know they are out of date.
  *
- * Mention holds those lists in TWO read caches, and neither can see the other:
+ * Mention holds those lists in TWO kinds of read cache, which answer a write
+ * differently:
  *
- *   * React Query owns the saved screen (`app/(app)/saved.tsx`).
- *   * The feed store owns every `<Feed>` surface, including the profile likes
- *     and boosts tabs, and warm-starts them from a retained slice on remount.
+ *   * The saved screen (`app/(app)/saved.tsx`) is an ordinary React Query list,
+ *     invalidated like one.
+ *   * Every `<Feed>` surface, including the profile likes and boosts tabs, is a
+ *     feed cache — a feed query (`hooks/useFeedQuery`) on web and for scoped
+ *     feeds, SQLite on native — that warm-starts a remount from the pages it
+ *     holds. Neither kind is ever invalidated wholesale: each judges its held
+ *     read against the write times recorded here (`stores/feedStaleness`) and
+ *     reads page 1 again only when a write postdates it.
  *
  * So a write has to speak to both, and it must do so from ONE place or the two
  * will drift — which is exactly how this broke: the saved screen was told and
@@ -25,16 +31,16 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * `postsStore` calls it from every engagement write that succeeds.
  *
  * Nothing here needs the viewer's id. Only the acting viewer's own lists can
- * change, and an account switch already drops the previous viewer's React Query
- * namespace (`clearViewerQueryCache`) and every retained feed slice
- * (`clearAllFeedMemoryCaches`), so "this family, whoever it belongs to" and
- * "this family, for the signed-in viewer" describe the same entries.
+ * change, and an account switch already clears the whole React Query client —
+ * every feed query with it — and the SQLite feeds, so "this family, whoever it
+ * belongs to" and "this family, for the signed-in viewer" describe the same
+ * entries.
  *
  * This module is the authority for ENGAGEMENT writes only. A lane write — moving
  * a post between lanes, changing a lane's `displayMode`, muting one — changes
  * list membership too, but it is a different write class reaching different
  * surfaces, and `stores/laneInvalidation` owns it. Both must be consulted by any
- * feed deciding whether its retained slice is still good; neither subsumes the
+ * feed deciding whether its held read is still good; neither subsumes the
  * other.
  */
 export type EngagementKind = 'like' | 'boost' | 'save';

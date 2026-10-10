@@ -83,10 +83,6 @@ describe('resolveFeedDescriptor', () => {
         expect(resolveFeedDescriptor('videos')).toBe('videos');
     });
 
-    it('maps the saved feed regardless of type', () => {
-        expect(resolveFeedDescriptor('for_you', undefined, undefined, true)).toBe('saved');
-    });
-
     it('maps a profile feed to author|<userId>', () => {
         expect(resolveFeedDescriptor('posts', 'user-123')).toBe('author|user-123');
     });
@@ -104,10 +100,6 @@ describe('resolveFeedDescriptor', () => {
     it('maps a lane tab to lane|<laneId>, ahead of the author feed', () => {
         expect(resolveFeedDescriptor('posts', undefined, { laneId: 'lane-1' })).toBe('lane|lane-1');
         expect(resolveFeedDescriptor('posts', 'user-123', { laneId: 'lane-1' })).toBe('lane|lane-1');
-    });
-
-    it('keeps the saved feed ahead of a lane filter', () => {
-        expect(resolveFeedDescriptor('posts', undefined, { laneId: 'lane-1' }, true)).toBe('saved');
     });
 
     // A CHANNEL's page needs no branch of its own: a channel is an Oxy account,

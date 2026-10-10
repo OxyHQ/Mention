@@ -1,6 +1,22 @@
 import type { QueryClient } from '@tanstack/react-query';
+import type { FeedType } from '@mention/shared-types';
+import type { FeedFilters } from '@/utils/feedUtils';
 
 export type ViewerId = string | null | undefined;
+
+/** The feed a {@link viewerQueryKeys.feed} key names. */
+export interface FeedQueryIdentity {
+  type: FeedType;
+  userId?: string;
+  filters?: FeedFilters;
+}
+
+function normalizeFeedFilters(filters?: FeedFilters): FeedFilters | null {
+  if (!filters) return null;
+  const keys = Object.keys(filters).sort();
+  if (keys.length === 0) return null;
+  return Object.fromEntries(keys.map((key) => [key, filters[key] ?? '']));
+}
 
 const ANONYMOUS_VIEWER = 'anon';
 const PUBLIC_ROOT = ['mention', 'public'] as const;
@@ -177,15 +193,40 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'feeds',
   ] as const,
+  /**
+   * One `<Feed>`'s loaded pages (`hooks/useFeedQuery`): a feed type, the
+   * profile it belongs to, and its filters.
+   *
+   * The filters are normalised the way `buildFeedScrollKey` normalises them —
+   * keys sorted, an absent value read as `''`, and no filters at all the same
+   * as an empty bag — so the two identities of one feed can never disagree on
+   * whether two `<Feed>`s are the same feed.
+   */
   feed: (
     viewerId: ViewerId,
-    type: string,
-    filters?: Readonly<Record<string, unknown>>,
+    type: FeedType,
+    userId?: string,
+    filters?: FeedFilters,
   ) => [
     ...viewerQueryKeys.feedsRoot(viewerId),
     type,
-    filters,
+    userId ?? null,
+    normalizeFeedFilters(filters),
   ] as const,
+  /**
+   * What a {@link viewerQueryKeys.feed} key names, or `null` for any other key.
+   * The local-write paths (`stores/feedQueryCache`) choose which feeds a post
+   * goes into by this, so the key's shape stays known in one place.
+   */
+  feedIdentity: (queryKey: readonly unknown[]): FeedQueryIdentity | null => {
+    if (!viewerQueryKeys.isFamily(queryKey, 'feeds') || typeof queryKey[3] !== 'string') return null;
+    const [, , , type, userId, filters] = queryKey;
+    return {
+      type: type as FeedType,
+      userId: typeof userId === 'string' ? userId : undefined,
+      filters: filters ? (filters as FeedFilters) : undefined,
+    };
+  },
   search: (
     viewerId: ViewerId,
     tab: string,
