@@ -121,7 +121,7 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
   // Oxy One adopts the owner-approved prereleases contracts 4.11.0-oxy-one.0,
-  // core 4.5.0-oxy-one.0 and services 11.2.0-oxy-one.0. A caret range never
+  // core 4.5.0-oxy-one.1 and services 11.2.0-oxy-one.2. A caret range never
   // admits a prerelease, so every published dependent below would otherwise
   // nest a second, stable copy, and core/services are Oxy runtime singletons.
   // The prereleases are additive minors of the same majors. Each entry stops
@@ -130,9 +130,9 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "@oxy.so/mcp -> @oxy.so/contracts@^4.9.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
   "@oxy.so/stickers -> @oxy.so/contracts@^4.3.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
   "@oxy.so/federation -> @oxy.so/contracts@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0": "Oxy One prerelease: same single contracts copy as @oxy.so/protocol.",
-  "@oxy.so/federation -> @oxy.so/core@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0": "Oxy One prerelease: core 4.5.0-oxy-one.0 is an additive 4.x minor and a runtime singleton; federation must not load a second core.",
-  "@alia.onl/sdk -> @oxy.so/core@^3.0.0 || ^4.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single core 4.5.0-oxy-one.0.",
-  "@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single services 11.2.0-oxy-one.0.",
+  "@oxy.so/federation -> @oxy.so/core@^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0": "Oxy One prerelease: core 4.5.0-oxy-one.1 is an additive 4.x minor and a runtime singleton; federation must not load a second core.",
+  "@alia.onl/sdk -> @oxy.so/core@^3.0.0 || ^4.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single core 4.5.0-oxy-one.1.",
+  "@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0": "Oxy One prerelease: the optional SDK peer shares the app's single services 11.2.0-oxy-one.2.",
 };
 
 /**
