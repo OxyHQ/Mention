@@ -1,4 +1,4 @@
-import { type ComponentProps } from 'react';
+import type { ComponentProps } from 'react';
 // The SUBPATH, never the `@expo/vector-icons` barrel. The barrel re-exports
 // every icon family, so importing one glyph through it pulls Zocial, EvilIcons,
 // MaterialCommunityIcons and the rest of their fonts into the web bundle —
