@@ -4,6 +4,7 @@ import type {
   FeedPostSlice,
   HydratedPost,
 } from '@mention/shared-types';
+import { getItemKey } from '@/utils/feedUtils';
 
 /**
  * Session-scoped memory-mode retention store + local new-post bridge.
@@ -108,6 +109,34 @@ export function clearFeedMemoryCache(key: string): void {
 export function clearAllFeedMemoryCaches(): void {
     useFeedScrollStore.getState().clearAllMemoryCaches();
     nativeFeedScrollOffsets.clear();
+    ownNewPostScopes.clear();
+}
+
+/**
+ * Put a post at the top of a retained slice: its items, and its slices when the
+ * feed renders by slice. Returns the entry unchanged when the post is already
+ * there.
+ */
+export function prependToMemoryCache(entry: FeedMemoryCacheEntry, item: HydratedPost): FeedMemoryCacheEntry {
+    const key = getItemKey(item);
+    if (entry.items.some((p) => getItemKey(p) === key)) return entry;
+    const slices = entry.slices
+        && !entry.slices.some((slice) => slice.items.some((si) => getItemKey(si.post) === key))
+        ? [localPostSlice(item), ...entry.slices]
+        : entry.slices;
+    // The viewer's own new post does not make the slice any fresher than the
+    // read it came from, so `retainedAt` stays; the card placements are
+    // anchored by slice key and survive intact.
+    return { ...entry, items: [item, ...entry.items], slices };
+}
+
+/** A single-post slice for a post the viewer just created. */
+export function localPostSlice(item: HydratedPost): FeedPostSlice {
+    return {
+        _sliceKey: `local-new:${getItemKey(item)}`,
+        isIncompleteThread: false,
+        items: [{ post: item, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
+    };
 }
 
 /** Read the last native offset observed for a viewer/feed identity. */
@@ -140,6 +169,23 @@ export type LocalNewPostListener = (item: HydratedPost) => void;
 const localNewPostListeners = new Set<LocalNewPostListener>();
 
 /**
+ * Which of the viewer's new posts a retained memory-mode feed takes at its top:
+ * all of them (a home feed) or one author's (a profile feed).
+ */
+export type OwnNewPostScope = { kind: 'home' } | { kind: 'author'; authorId: string };
+
+// By feed identity, for every feed that has retained a slice this session. It
+// outlives the feed's mount on purpose: a new post has to reach the retained
+// slice of a feed that is NOT mounted (on web the composer replaces the home
+// feed), or that feed warm-starts without it.
+const ownNewPostScopes = new Map<string, OwnNewPostScope>();
+
+/** Declare which of the viewer's new posts the feed retained under `key` takes. */
+export function setFeedOwnNewPostScope(key: string, scope: OwnNewPostScope): void {
+    ownNewPostScopes.set(key, scope);
+}
+
+/**
  * Subscribe to newly created posts so a memory-mode feed can prepend them to its
  * live items. Returns an unsubscribe function. No-op for the SQLite path, which
  * updates reactively via selectors.
@@ -152,11 +198,18 @@ export function subscribeToNewLocalPosts(listener: LocalNewPostListener): () => 
 }
 
 /**
- * Broadcast a freshly created post to all mounted memory-mode feeds. Called by
- * `postsStore` after a successful create, mirroring the SQLite "insert at top"
- * behavior for the in-memory path.
+ * Put a freshly created post at the top of every memory-mode feed it belongs
+ * in — the retained slice of each one, mounted or not, and the live items of
+ * the mounted ones. Called by `postsStore` after a successful create, mirroring
+ * the SQLite "insert at top" for the in-memory path.
  */
 export function publishNewLocalPost(item: HydratedPost): void {
+    const authorId = String(item.user?.id ?? '');
+    for (const [key, scope] of ownNewPostScopes) {
+        if (scope.kind === 'author' && scope.authorId !== authorId) continue;
+        const entry = getFeedMemoryCache(key);
+        if (entry) setFeedMemoryCache(key, prependToMemoryCache(entry, item));
+    }
     for (const listener of localNewPostListeners) {
         listener(item);
     }

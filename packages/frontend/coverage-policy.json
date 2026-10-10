@@ -201,11 +201,6 @@
       "measured": "65.21% statements / 54.65% branches",
       "reason": "hooks/__tests__/useFeedState.test.ts and useFeedState.memory.test.tsx cover memory mode and the auth-identity keying. The remaining third is unattributed; the hook also owns loadMore and the federated pending/poll state, neither of which those two files drive."
     },
-    "stores/feedScrollStore.ts": {
-      "since": "2026-08-15",
-      "measured": "65.62% statements / 50% branches",
-      "reason": "stores/__tests__/feedScrollStore.test.ts covers retention and keying. Half the branches are unexercised; the store also owns clearAllFeedMemoryCaches (viewer change) and the retainedAt warm-start comparison."
-    },
     "db/cacheLifecycle.ts": {
       "since": "2026-08-15",
       "measured": "83.87% statements / 54.54% branches",
@@ -274,7 +269,7 @@
     "domainFiles": 280,
     "pins": 276,
     "unenforceable": 4,
-    "belowBarExemptions": 11,
+    "belowBarExemptions": 10,
     "criticalPaths": 32,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
