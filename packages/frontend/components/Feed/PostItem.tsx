@@ -669,7 +669,7 @@ const PostItem: React.FC<PostItemProps> = ({
         return null;
     }
 
-    // Canonical post-item layout tokens (single source of truth: COMPONENT_SPACING.post).
+    // Canonical post-item layout tokens (single source of truth: POST_ITEM_SPACING in styles/shared.ts).
     // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
     const { HPAD, VPAD, SECTION_GAP, AVATAR_SIZE, AVATAR_OFFSET } = POST_ITEM_SPACING;
 

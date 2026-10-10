@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '@/components/common/EmptyState';
-import { flattenStyleArray } from '@/styles/shared';
 
 interface ErrorProps {
   title?: string;
@@ -45,7 +44,7 @@ export function Error({
   return (
     <View
       className="flex-1 justify-center items-center py-8 px-6"
-      style={flattenStyleArray([
+      style={StyleSheet.flatten([
         { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
         style,
       ])}

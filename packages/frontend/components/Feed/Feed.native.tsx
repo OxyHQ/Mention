@@ -20,7 +20,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { flattenStyleArray } from '@/styles/shared';
 import { useIsFocused } from 'expo-router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
@@ -559,7 +558,7 @@ const Feed = ((props: FeedProps) => {
     // last so an explicit override still wins.
     const listContentStyle = useMemo(
         () =>
-            flattenStyleArray([
+            StyleSheet.flatten([
                 feedRowStyles.listContent,
                 topInset > 0 ? { paddingTop: topInset } : null,
                 contentContainerStyle,
