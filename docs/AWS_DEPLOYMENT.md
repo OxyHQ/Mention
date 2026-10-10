@@ -105,8 +105,8 @@ Two values have more than one home, and a rotation writes all of them first:
 A NEW secret is written to SSM FIRST and only then named in the deploy step's
 `TASK_SECRET_OVERRIDES_JSON` (in `deploy-aws.yml` and its copy in
 `deploy-backend-config.yml`): a task definition naming a parameter that does not
-exist registers fine and then cannot start. The full procedure is oxy-infra
-`docs/runbooks/46-app-secrets-in-ssm.md`.
+exist registers fine and then cannot start. The full procedure is runbook 46
+("App runtime secrets live in SSM, not GitHub") in the oxy-infra repository.
 
 ## Release transaction
 
