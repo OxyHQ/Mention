@@ -13,6 +13,7 @@ import { loadPostRecord } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
+import { chunk } from '@oxy.so/utils/text';
 
 let firebaseInitialized = false;
 
@@ -56,12 +57,6 @@ export function buildPreview(text: string, limit: number = 200): string {
   const preview = normalizeInlineText(text || '');
   if (!preview) return '';
   return preview.length > limit ? `${preview.slice(0, limit)}…` : preview;
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
 }
 
 /** True when FCM is configured and initialized — nothing below does any work otherwise. */

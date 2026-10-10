@@ -24,6 +24,7 @@ import { posts } from '../db/schema/posts';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { oxySignalsClient, type OxySignalsClient, type InterestSignal } from './OxySignalsClient';
+import { chunk } from '@oxy.so/utils/text';
 
 /** Engagement window: posts created within this many days count toward the score. */
 const WINDOW_DAYS = 30;
@@ -187,16 +188,6 @@ export class InterestScoreService {
     }
   }
 
-  /** Split into fixed-size chunks for bounded pushes. */
-  private chunk(items: InterestSignal[], size: number): InterestSignal[][] {
-    if (items.length <= size) return items.length > 0 ? [items] : [];
-    const out: InterestSignal[][] = [];
-    for (let i = 0; i < items.length; i += size) {
-      out.push(items.slice(i, i + size));
-    }
-    return out;
-  }
-
   /**
    * {@link run}, unless a run completed less than `intervalMs` ago. What the
    * scheduler calls.
@@ -274,7 +265,7 @@ export class InterestScoreService {
     }
 
     let pushed = 0;
-    for (const batch of this.chunk(deltas, PUSH_CHUNK_SIZE)) {
+    for (const batch of chunk(deltas, PUSH_CHUNK_SIZE)) {
       await this.signalsClient.pushInterests(batch);
       await this.writeLastPushed(batch);
       pushed += batch.length;
