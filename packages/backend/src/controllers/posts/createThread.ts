@@ -20,7 +20,7 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
-import { ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
@@ -156,6 +156,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // SAME reader and lets `PostCreationService` run the real gate itself, so
     // nothing routes around the authorization.
     const memberReader = createUserScopedOxyServices(req);
+    const mediaOwnerClient = createPostMediaOwnerClient(req);
     const batchMemberReader = memberReader ? cacheAccountMemberReads(memberReader) : undefined;
     /**
      * The account THIS request names for an entry, if any. In thread mode the
@@ -539,7 +540,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // EXACT pre-existing side-effect behavior (the response is byte-identical).
       const isThreadContinuation = mode === 'thread' && i > 0 && Boolean(previousPostId);
       // Post media renders from the public CDN, and uploads arrive private.
-      await ensurePostMediaPublic(memberReader, postContent);
+      await ensurePostMediaPublic(mediaOwnerClient, postContent);
 
       const post = await postCreationService.create({
         oxyUserId: userId,

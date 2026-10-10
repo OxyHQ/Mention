@@ -29,7 +29,7 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
-import { ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
@@ -491,7 +491,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // become visible together. Check the unpublished carve-out AFTER taking the
     // same content/row locks used by shadow claims and content writers.
     // Post media renders from the public CDN, and uploads arrive private.
-    await ensurePostMediaPublic(createUserScopedOxyServices(req), content);
+    await ensurePostMediaPublic(createPostMediaOwnerClient(req), content);
 
     const written = await updatePostAndContent(post.id, patch, content, nextMentions,
       loaded.status === 'draft' || loaded.status === 'scheduled' ? loaded.status : undefined);

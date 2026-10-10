@@ -21,7 +21,7 @@ import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import { ensurePostMediaPublic } from '../../services/postMediaVisibility';
+import { createPostMediaOwnerClient, ensurePostMediaPublic } from '../../services/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
@@ -428,7 +428,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const autoAcceptCollaboratorIds = resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
 
     // Post media renders from the public CDN, and uploads arrive private.
-    await ensurePostMediaPublic(createUserScopedOxyServices(req), postContent);
+    await ensurePostMediaPublic(createPostMediaOwnerClient(req), postContent);
 
     const post = await postCreationService.create({
       oxyUserId: userId,

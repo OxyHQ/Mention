@@ -69,11 +69,14 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
  * authorization decision must never be served from another caller's cached
  * membership list.
  */
-export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices | undefined {
+export function createUserScopedOxyServices(
+  req: ScopedOxyRequest,
+  options: { requestTimeout?: number } = {},
+): OxyServices | undefined {
   if (req.mcp || req.capability) return undefined;
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
-  const client = new OxyServices({ baseURL: OXY_BASE_URL });
+  const client = new OxyServices({ baseURL: OXY_BASE_URL, ...options });
   client.session.setAccessToken(token);
   return client;
 }
