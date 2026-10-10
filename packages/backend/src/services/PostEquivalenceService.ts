@@ -856,12 +856,6 @@ export async function classifyStoredPair(
   return classifyPair(a, b, declaredOriginalUrls, await loadIdentityProof([a, b]));
 }
 
-/** The sibling posts a stored post would be compared against — dry-run only. */
-export async function findCrosspostSiblings(postId: string): Promise<string[]> {
-  const candidate = await loadCandidate(postId);
-  return candidate ? findSiblingIds(candidate) : [];
-}
-
 /** One variant of a cluster, as the hydration path reads it. */
 export interface CrosspostVariantRow {
   postId: string;

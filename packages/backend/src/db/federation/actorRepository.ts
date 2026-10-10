@@ -1057,24 +1057,6 @@ export async function updateActorText(
   return true;
 }
 
-/**
- * Set or clear an actor's tombstone.
- *
- * Separate from {@link tombstoneActor}, which also reports the linked Oxy account
- * so the caller can archive it: this is the plain flag write the purge sweep uses
- * to CLEAR a tombstone when a supposedly-gone actor answers again.
- */
-export async function updateActorSuspended(
-  actorId: string,
-  suspended: boolean,
-  db: DatabaseOrTransaction = getDb(),
-): Promise<void> {
-  await db
-    .update(federatedActors)
-    .set({ suspended, updatedAt: new Date() })
-    .where(eq(federatedActors.id, actorId));
-}
-
 /** Delete actor caches while retaining legacy identity evidence as audit history. */
 export async function deleteActorsByUris(
   uris: readonly string[],

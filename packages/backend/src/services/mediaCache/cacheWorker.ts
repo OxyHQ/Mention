@@ -559,15 +559,6 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
   }
 }
 
-export async function persistRemoteMediaForFederatedOwner(
-  remoteUrl: string,
-  ownerUserId: string,
-  metadata?: Record<string, unknown>,
-): Promise<PersistedFederatedMedia | null> {
-  const result = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerUserId, metadata);
-  return result.ok ? result.media : null;
-}
-
 /**
  * Increment failCount and either schedule a backoff or mark `failed`.
  *

@@ -218,13 +218,6 @@ export async function submitApplication(params: SubmitApplicationParams): Promis
   });
 }
 
-export async function getApplicationById(id: string): Promise<MentionJobApplication | undefined> {
-  const [row] = await getDb().select().from(mentionJobApplications).where(eq(mentionJobApplications.id, id)).limit(1);
-  if (!row) return undefined;
-  const answers = await answersForApplication(id);
-  return toMentionJobApplication(row, answers);
-}
-
 /** The raw row (never sent on the wire directly) — callers that need `jobId`/`applicantOxyUserId` for an authority check without paying for the answers join. */
 export async function getApplicationRowById(id: string): Promise<MentionJobApplicationRow | undefined> {
   const [row] = await getDb().select().from(mentionJobApplications).where(eq(mentionJobApplications.id, id)).limit(1);

@@ -46,11 +46,6 @@ export function isValidInstagramUsername(value: string | undefined | null): valu
   return typeof value === 'string' && INSTAGRAM_USERNAME_RE.test(value);
 }
 
-/** `instagram-graph:<id>` for a Graph user id. */
-export function instagramGraphActorUri(igUserId: string): string {
-  return `${INSTAGRAM_GRAPH_ACTOR_URI_PREFIX}${igUserId}`;
-}
-
 /** The IG user id inside an `instagram-graph:<id>` URI, or undefined. */
 export function igUserIdFromActorUri(uri: string | undefined | null): string | undefined {
   if (typeof uri !== 'string' || !uri.startsWith(INSTAGRAM_GRAPH_ACTOR_URI_PREFIX)) return undefined;

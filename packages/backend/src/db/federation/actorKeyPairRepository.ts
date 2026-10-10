@@ -26,15 +26,3 @@ export async function hasActorKeyPair(
     .limit(1);
   return rows.length > 0;
 }
-
-/** Remove the keypair of one Oxy account. Returns the number of rows removed. */
-export async function deleteActorKeyPair(
-  oxyUserId: string,
-  db: DatabaseOrTransaction = getDb(),
-): Promise<number> {
-  const deleted = await db
-    .delete(actorKeyPairs)
-    .where(eq(actorKeyPairs.oxyUserId, oxyUserId))
-    .returning({ id: actorKeyPairs.id });
-  return deleted.length;
-}
