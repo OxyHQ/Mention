@@ -265,7 +265,22 @@ if (existsSync(workflowPath)) {
         .values.join(' ')
     : (removalsLine?.[1] ?? '');
   const removals = folded.split(/\s+/).filter(Boolean);
-  for (const retiredSecret of ['ALIA_API_KEY', 'OXY_SERVICE_TOKEN']) {
+  /**
+   * The Oxy service key pair is retired too, and its removal is now a standing
+   * absence assertion rather than an option.
+   *
+   * Every revision is rendered from the RUNNING one, so this list is the only
+   * thing that keeps a name off it. Once `/oxy/mention/OXY_SERVICE_API_KEY` and
+   * `_SECRET` are deleted from SSM, a revision that still names them cannot
+   * start at all — ECS fails the task while resolving its secrets — so dropping
+   * them from here would turn the next deploy into an outage, not a no-op.
+   */
+  for (const retiredSecret of [
+    'ALIA_API_KEY',
+    'OXY_SERVICE_TOKEN',
+    'OXY_SERVICE_API_KEY',
+    'OXY_SERVICE_API_SECRET',
+  ]) {
     if (!removals.includes(retiredSecret)) {
       failures.push(
         `.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`,
@@ -273,21 +288,20 @@ if (existsSync(workflowPath)) {
     }
   }
   /**
-   * The Oxy service credential is NOT a retired secret, and this gate exists
-   * because for nine hours it was treated as one.
+   * And the condition that removal waited for stays written down beside it.
    *
-   * Mention can attest its ECS task role and mint a real service token without
-   * the pair — that much was verified before the pair came off. What was not
-   * verified is that the token carries the same AUTHORITY: the workload mint
-   * drops every privileged scope by design, and Mention's credential names
-   * `federation:write`, `signals:write` and `catalogs:write`. The pair came off
-   * at task revision 384 and the federation worker failed every ~6 minutes from
-   * then until revision 389 put it back — 313 `Missing required scope:
-   * federation:write` against zero in the preceding 36 hours.
+   * For nine hours the pair was treated as retired before it was. Mention could
+   * attest its ECS task role and mint a real service token without it, but the
+   * token did not carry the same AUTHORITY: the workload mint then dropped every
+   * privileged scope, and Mention's credential named `federation:write`,
+   * `signals:write` and `catalogs:write`. The pair came off at task revision 384
+   * and the federation worker failed every ~6 minutes until revision 389 put it
+   * back — 313 `Missing required scope: federation:write` against zero in the
+   * preceding 36 hours.
    *
-   * So this refuses the removal rather than the credential, and it disarms
-   * itself the honest way: name the date the role's BINDING was given those
-   * scopes. A gate that can only ever be deleted teaches people to delete it.
+   * oxy#1350 let a BINDING name scopes, the role was re-bound with all nine on
+   * 2026-09-20, and the marker records the date. It is required while the
+   * removal is, so the record cannot be deleted without the reason.
    */
   const scopesBound = workflow.match(/workload-scopes-bound:\s*(\d{4}-\d{2}-\d{2})/);
   for (const credentialPart of ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {

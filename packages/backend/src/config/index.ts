@@ -3,6 +3,7 @@ import {
   withManagedDeploymentEnvironment,
   mcpDeploymentIdentity,
 } from '@mention/shared-types/deployment';
+import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import * as z from 'zod';
 
 export const MENTION_INFERENCE_ROUTING_PROFILE_ID = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
@@ -1035,11 +1036,19 @@ export function validateEnvironment(): void {
   if (config.classification.enabled && !config.inference.routingProfileId) {
     missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');
   }
+  // Classification spends through the Kaana edge AS Mention, so it needs an
+  // identity Oxy accepts — the either-or `canAuthenticateAsService` answers,
+  // asked here directly because that module imports this one. Demanding the key
+  // pair alone made switching classification on in ECS, where the task role
+  // attests and no pair exists (oxy ADR 0026), a reason to put one back.
   if (
     config.classification.enabled &&
+    !canAttestWorkloadIdentity() &&
     !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
   ) {
-    missing.push('OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET');
+    missing.push(
+      'an Oxy service identity (ECS task role, or OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET)',
+    );
   }
   if (config.gif.libraryWriteEnabled && !environment.KLIPY_APP_KEY && config.runtime.isProduction) {
     missing.push('KLIPY_APP_KEY');

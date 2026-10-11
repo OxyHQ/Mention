@@ -24,7 +24,8 @@ const cleanFiles = {
     'env:',
     '  TASK_ENV_OVERRIDES_JSON: >-',
     '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+    '  # workload-scopes-bound: 2026-09-20',
+    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET',
     '',
   ].join('\n'),
 };
@@ -315,7 +316,8 @@ await runCase(
       '  TASK_ENV_OVERRIDES_JSON: >-',
       '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",',
       '     "WEB_SHELL_ORIGIN":"https://shell.mention.earth"}',
-      '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+      '  # workload-scopes-bound: 2026-09-20',
+      '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET',
       '',
     ].join('\n'),
   },
@@ -332,9 +334,12 @@ await runCase(
       'env:',
       '  TASK_ENV_OVERRIDES_JSON: >-',
       '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+      '  # workload-scopes-bound: 2026-09-20',
       '  TASK_SECRET_REMOVALS: >-',
       '    ALIA_API_KEY',
       '    OXY_SERVICE_TOKEN',
+      '    OXY_SERVICE_API_KEY',
+      '    OXY_SERVICE_API_SECRET',
       '',
     ].join('\n'),
   },
@@ -396,6 +401,29 @@ await runCase(
   },
   'must re-assert removal of OXY_SERVICE_TOKEN',
 );
+// The pair is retired, so its removal is standing: once the SSM parameters are
+// deleted, a revision that still names them cannot start. Dropping either half
+// from the list fails, even with the marker that recorded why it went.
+for (const kept of ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {
+  const dropped = kept === 'OXY_SERVICE_API_KEY' ? 'OXY_SERVICE_API_SECRET' : 'OXY_SERVICE_API_KEY';
+  await runCase(
+    `the Oxy key pair's ${dropped} dropped from the removals`,
+    {
+      '.github/workflows/deploy-aws.yml': [
+        'env:',
+        '  TASK_ENV_OVERRIDES_JSON: >-',
+        '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+        '  # workload-scopes-bound: 2026-09-20',
+        '  TASK_SECRET_REMOVALS: >-',
+        '    ALIA_API_KEY',
+        '    OXY_SERVICE_TOKEN',
+        `    ${kept}`,
+        '',
+      ].join('\n'),
+    },
+    `must re-assert removal of ${dropped}`,
+  );
+}
 await runCase(
   'lost retirement assertion',
   {
