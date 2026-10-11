@@ -1,7 +1,7 @@
 /**
  * `posts` — the central table. Ported from `models/Post.ts`.
  *
- * Mongo held one enormous document with five nested subdocuments
+ * The model is one wide record with five nested groups
  * (`content`, `stats`, `metadata`, `federation`, `postClassification`) and four
  * embedded arrays. Here the SCALAR subdocuments become prefixed columns on this
  * table and every ARRAY becomes a child table in `postContent.ts` — a jsonb blob
@@ -19,7 +19,7 @@
  * ## `stats.*` is kept, and that is a decision
  *
  * The migration contract forbids "denormalized counters inherited only because
- * Mongo could not JOIN". These are not that: `stats_likes_count` and friends are
+ * the store could not JOIN". These are not that: `stats_likes_count` and friends are
  * read INSIDE the ranking expression of every feed aggregation
  * (`engagementScoreExpr`), so they are ranking inputs on the hot path, not a
  * cache of a COUNT. `PostEngagementCommandService` already maintains them
@@ -31,7 +31,7 @@
  *
  * `deletePost` (`controllers/posts.controller.ts:1687`) deletes the post and
  * then, best-effort, its article, poll, likes, bookmarks and notifications. It
- * does NOT touch replies, boosts or quotes — Mongo simply leaves those pointing
+ * does NOT touch replies, boosts or quotes, which would otherwise be left pointing
  * at an id that no longer resolves. Postgres has to choose, so each self-
  * reference below states its choice and why. `parent_post_id` is the one that
  * genuinely changes behaviour and is escalated rather than settled here.
@@ -66,14 +66,14 @@ export const POST_VISIBILITIES = ['public', 'followers_only', 'private'] as cons
 
 /**
  * `PostPublicationStatus` — and the reason it is FOUR values, not the three the
- * Mongoose enum declares.
+ * model enum declares.
  *
  * `models/Post.ts` declares `enum: ['draft', 'published', 'scheduled']`, but
  * `ModerationEnforcementService.ts:122` writes `{ $set: { status: 'restricted' } }`
  * through `Post.updateOne`, which does not run validators. So the live
- * collection contains a fourth value the Mongoose schema forbids, and
+ * data contains a fourth value the model schema forbids, and
  * `@mention/shared-types` `PostPublicationStatus` documents it as real. A CHECK
- * built from the Mongoose enum verbatim would start REJECTING rows Mongo has
+ * built from the model enum verbatim would start REJECTING rows production has
  * been storing happily — the exact failure the migration contract warns about.
  *
  * A production `db.posts.distinct('status')` is still required before the
@@ -207,8 +207,8 @@ export const posts = pgTable(
 
     /**
      * Denormalized owner, synced FROM the `owner` row of `post_authorships` by
-     * the Mongoose `pre('save')` hook. Nullable because the Mongoose field is
-     * `required: false` and the raw federated `insertMany` path can omit it.
+     * the write path. Nullable because the field is
+     * not required and the raw federated `insertMany` path can omit it.
      * No foreign key: this is an Oxy account id (see the module docblock).
      */
     oxyUserId: text(),
@@ -276,7 +276,7 @@ export const posts = pgTable(
     language: text(),
 
     /**
-     * Editorial curation flag. Mongo indexed this SPARSE — only curated posts
+     * Editorial curation flag. Indexed SPARSE — only curated posts
      * carry it — so it stays nullable with a partial index rather than becoming
      * `NOT NULL DEFAULT false`, which would index every row in the table.
      */
@@ -300,7 +300,7 @@ export const posts = pgTable(
     /** Prior body revisions, oldest first. Opaque strings. */
     editHistory: text().array(),
     /**
-     * Who may reply/quote. Mongo stored an enum ARRAY with `default: ['anyone']`;
+     * Who may reply/quote. An enum ARRAY with `default: ['anyone']`;
      * the CHECK below constrains the ELEMENTS, which a scalar enum column could
      * not express.
      *
@@ -348,9 +348,8 @@ export const posts = pgTable(
     /**
      * The boosted original. CASCADE: a `type:'boost'` row carries an
      * intentionally EMPTY body and exists only to point here, so with the
-     * original gone it can never render anything. Mongo leaves these behind as
-     * permanently blank cards; deleting them is the fix, and it is a BEHAVIOUR
-     * CHANGE worth knowing about.
+     * original gone it can never render anything. Without CASCADE these would be left behind as
+     * permanently blank cards.
      */
     boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
 
@@ -396,7 +395,7 @@ export const posts = pgTable(
      * Set once by the writer from the post's own intent and never updated, so
      * `ON DELETE SET NULL` clearing `parent_post_id` cannot change it: an
      * orphaned reply stays a reply and stays out of For You / Following /
-     * Explore, which is the behaviour Mongo had and the condition the schema's
+     * Explore, which is the intended behaviour and the condition the schema's
      * `SET NULL` choice was accepted under.
      *
      * It also SUBSUMES the second encoding of the same fact. `utils/postReply.ts`
@@ -458,7 +457,7 @@ export const posts = pgTable(
      * federated at creation must not federate a second time when a later invite
      * resolves (`federation_delivered`).
      *
-     * `NOT NULL DEFAULT false` is the faithful port: Mongo stored them as ABSENT
+     * `NOT NULL DEFAULT false`: the source data held them as ABSENT
      * or `true`, and every reader tests truthiness.
      */
     metadataCollabFederationDeferred: boolean().notNull().default(false),
@@ -480,8 +479,8 @@ export const posts = pgTable(
     // ── `content` scalar leaves (the arrays live in `postContent.ts`) ──
     /**
      * The attached poll. No foreign key in this direction: `polls.post_id` is the
-     * owning side and carries the constraint, and Mongo's `content.pollId` /
-     * `metadata.pollId` were two mirrors of it that could disagree. One column,
+     * owning side and carries the constraint; a `content.pollId` /
+     * `metadata.pollId` pair would be two mirrors of it that could disagree. One column,
      * one direction — the mirror is dropped.
      */
     contentPollId: text(),
@@ -492,7 +491,7 @@ export const posts = pgTable(
 
     contentEventId: text(),
     contentEventName: text(),
-    /** ISO date STRING in Mongo, kept as an instant here. */
+    /** An instant (the source data held an ISO date string). */
     contentEventDate: timestamptz(),
     contentEventLocation: text(),
     contentEventDescription: text(),
@@ -513,7 +512,7 @@ export const posts = pgTable(
 
     // ── Locations ──
     //
-    // Mongo stored `{ type: 'Point', coordinates: [lng, lat] }` twice: once as
+    // A post carries a `{ type: 'Point', coordinates: [lng, lat] }` twice: once as
     // `content.location` (shared BY the author, visible) and once as `location`
     // (capture metadata). Both are ported as NAMED coordinate columns plus a
     // GENERATED geography point, so the `(longitude, latitude)` ordering is
@@ -538,8 +537,8 @@ export const posts = pgTable(
     /** Slug-only topic list (Stage A + B). The resolved form is a child table. */
     classificationTopics: text().array(),
     /**
-     * EVERY detected/declared ISO 639-1 language, primary first. Multikey in
-     * Mongo; the feed engine's language-overlap test is an `$in`, which a
+     * EVERY detected/declared ISO 639-1 language, primary first. The
+     * feed engine's language-overlap test is an `$in`, which a
      * `text[]` + GIN answers directly.
      */
     classificationLanguages: text().array(),
@@ -639,16 +638,16 @@ export const posts = pgTable(
       'posts_classification_intent_check',
       sql`${t.classificationIntent} in (${sql.raw(inList(POST_INTENTS))})`,
     ),
-    // The ELEMENTS of the array, which is what Mongo's array-enum meant. `<@`
-    // is true for an empty array too, matching Mongo (an empty list forbids
+    // The ELEMENTS of the array, which is what an array-enum means. `<@`
+    // is true for an empty array too (an empty list forbids
     // replies from nobody in particular — the application, not the schema,
     // decides that an empty list means "anyone").
     check(
       'posts_reply_permission_check',
       sql`${t.replyPermission} <@ array[${sql.raw(inList(REPLY_PERMISSIONS))}]::text[]`,
     ),
-    // Every classification score is a probability. Mongo declared `min`/`max` on
-    // each; Mongoose only enforced them on document saves, so the same
+    // Every classification score is a probability. The model declared `min`/`max` on
+    // each but only enforced them on document saves, so the same
     // production audit the `status` CHECK needs applies here.
     check(
       'posts_classification_scores_check',
@@ -660,7 +659,7 @@ export const posts = pgTable(
         and ${t.classificationScoreNegativity} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}
         and ${t.classificationConfidence} between ${sql.raw(String(SCORE_MIN))} and ${sql.raw(String(SCORE_MAX))}`,
     ),
-    // A coordinate pair is all-or-nothing. Mongo's validator allowed an empty
+    // A coordinate pair is all-or-nothing. The model's validator allowed an empty
     // array and the federated insert path had to strip half-written pairs by
     // hand (`outbox.service.ts:904`); here the state is simply unrepresentable.
     check(
@@ -696,8 +695,7 @@ export const posts = pgTable(
       sql`${t.federationInReplyTo} is null or ${t.isReply}`,
     ),
 
-    // Federation dedup. Mongo's `{unique: true, sparse: true}`; a Postgres
-    // partial unique index is the exact analogue, and NULLs are distinct here
+    // Federation dedup: a partial unique index, and NULLs are distinct here
     // anyway so local posts are unaffected.
     uniqueIndex('posts_federation_activity_id_key')
       .on(t.federationActivityId)
@@ -718,10 +716,10 @@ export const posts = pgTable(
       .on(t.federationUrl)
       .where(sql`${t.federationUrl} is not null`),
 
-    // ── Hot paths, ported from the Mongo index manifest + the model's own list ──
-    // The names are the manifest's, kept so a DBA reading `pg_indexes` and a
-    // developer reading the migration see the same ones. Both the manifest and
-    // the model are deleted; these declarations are now the only record.
+    // ── Hot paths ──
+    // The names are kept stable so a DBA reading `pg_indexes` and a
+    // developer reading the migration see the same ones. These declarations
+    // are the only record.
     index('post_public_chrono_v1').on(t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
     // The root-feed predicate, which is now a column test rather than the
     // `parent_post_id IS NULL` + `federation.inReplyTo` disjunction it used to
@@ -881,13 +879,10 @@ export const posts = pgTable(
      * The lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`,
      * and this serves the predicate and the order end to end.
      *
-     * PARTIAL on `lane_id is not null`, which is what Mongo's
-     * `partialFilterExpression: { laneId: { $exists: true } }` meant and is the
+     * PARTIAL on `lane_id is not null`, which is the
      * whole point: nearly every post carries no lane, so a full index would be
-     * the size of the table to serve a set that is a rounding error of it. Mongo
-     * additionally had to forbid storing an explicit `null` (it satisfies
-     * `$exists` and would have bloated the index back); here `null` IS "no lane",
-     * so the two states cannot diverge and there is nothing to forbid.
+     * the size of the table to serve a set that is a rounding error of it. `null` IS "no lane",
+     * so there is no second "absent" state to diverge from it.
      */
     index('post_lane_chrono_v1')
       .on(t.laneId, t.visibility, t.status, t.createdAt.desc(), t.id.desc())
@@ -971,7 +966,7 @@ export const posts = pgTable(
       .on(t.classificationStatus, t.createdAt)
       .where(sql`${t.classificationStatus} = 'pending'`),
 
-    // Mongo indexed `curated` SPARSE. A partial index is the analogue and keeps
+    // `curated` is SPARSE. A partial index keeps
     // the index the size of the curated set rather than the whole table.
     index('posts_curated_idx').on(t.createdAt.desc()).where(sql`${t.curated} is true`),
 

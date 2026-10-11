@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Rate-limit every statistics endpoint (200 req/min, keyed by user with IP
 // fallback) — same ROUTER-level posture as `notifications.ts`, which carries the
-// same CodeQL finding, and for the same reason: every handler here reaches Mongo,
+// same CodeQL finding, and for the same reason: every handler here reaches the database,
 // so the surface is the file, not the one route the dataflow happened to reach.
 //
 // Not production-gated (unlike `posts.ts` / `feed.routes.ts`): `RedisStore`

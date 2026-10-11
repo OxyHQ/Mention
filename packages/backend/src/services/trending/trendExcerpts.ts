@@ -39,8 +39,7 @@ const TREND_EXCERPTS_PER_TERM = 12;
  * posts.
  *
  * The body comes from the PRIMARY rendition (`position = 0` of
- * `post_content_variants`), which is the author's own words — the same one the
- * Mongo projection took. Ordered by `created_at` alone with no id tie-break:
+ * `post_content_variants`), which is the author's own words. Ordered by `created_at` alone with no id tie-break:
  * `posts.id` mixes ObjectId hex and uuid v7 and is not a chronological axis,
  * and for a sample of twelve an arbitrary tie is not worth a wrong order.
  *

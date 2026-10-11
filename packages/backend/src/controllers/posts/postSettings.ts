@@ -232,10 +232,7 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
       boostOf: post.boostOf,
     });
 
-    // NULL, and here that is exactly right. Mongo needed `$unset` rather than a
-    // stored null because `post_lane_chrono_v1`'s partial filter is
-    // `{ laneId: { $exists: true } }`, which a null SATISFIES — leaving a
-    // laneless post indexed forever. The Postgres partial index is
+    // NULL, and here that is exactly right. The partial index is
     // `where lane_id is not null`, so null is the state that removes the row
     // from it. "Absent" and "null" are one state here, so the trap does not
     // survive the port.

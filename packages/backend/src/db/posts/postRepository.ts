@@ -40,8 +40,8 @@
  *
  * ## Ordering
  *
- * Mongo sorts missing values FIRST and Postgres sorts NULLs LAST, which silently
- * reverses a batch-bounded sweep. Nothing in this module sorts on a nullable
+ * Postgres sorts NULLs LAST on an ascending sort, which silently starves the
+ * never-touched rows of a batch-bounded sweep. Nothing in this module sorts on a nullable
  * column: the child tables are ordered by their `NOT NULL` `position`, and post
  * lists are ordered by `created_at` (also `NOT NULL`). A future caller that
  * needs a nullable sort key must say `nulls first` explicitly.
@@ -328,9 +328,8 @@ async function loadChildRows(
       .select()
       .from(postClassificationTopicRefs)
       .where(inArray(postClassificationTopicRefs.postId, [...postIds]))
-      // Mongo's array preserved the order the classifier emitted, and the table
-      // has no `position` column to reproduce it. `relevance DESC` recovers the
-      // MEANING of that order wherever the classifier supplied one, with `name`
+      // The table has no `position` column for the order the classifier
+      // emitted. `relevance DESC` recovers the MEANING of that order wherever the classifier supplied one, with `name`
       // as a deterministic tie-break so a page never reshuffles between reads;
       // plain alphabetical (what this was) discards the ranking entirely. Every
       // reader today is set-like — membership, grouping — so this is about not
@@ -891,12 +890,9 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     lastCorrectedAt: null,
 
     boostOf: input.boostOf ?? null,
-    // Ordinary nullable values. Mongo had to set them ONLY when present,
-    // because `post_lane_chrono_v1`'s partial filter was `{ laneId: { $exists:
-    // true } }` and a stored `null` SATISFIED it — indexing the whole
-    // collection and defeating the partial index. The Postgres filter is
+    // Ordinary nullable values. `post_lane_chrono_v1`'s filter is
     // `where lane_id is not null`, so NULL is exactly the state that stays out
-    // of it: "absent" and "null" are one state here rather than two that can
+    // of it: "absent" and "null" are one state rather than two that can
     // disagree.
     writtenByOxyUserId: input.writtenByOxyUserId ?? null,
     laneId: input.laneId ?? null,
@@ -1414,9 +1410,8 @@ export interface PostRecordPatch {
  *
  * `metadata` and `postClassification` are MERGED key by key rather than
  * replaced, because they arrive as partials: a caller flipping
- * `federationDelivered` must not clear `isPinned`. The Mongo counterpart of this
- * was a dotted `$set`, and the trap it carried is the reason this is explicit —
- * a Mongo dot path handed to drizzle's `set()` is an unknown property that
+ * `federationDelivered` must not clear `isPinned`. It is explicit because
+ * a dot path handed to drizzle's `set()` is an unknown property that
  * drizzle silently IGNORES, so the write does nothing and throws nothing.
  */
 export async function updatePostRecord(
@@ -1599,10 +1594,9 @@ export interface PostCounterDelta {
  * `UPDATE … RETURNING`, so no window exists in which a response could report a
  * value another transaction has already moved.
  *
- * The `greatest(0, …)` clamp is a DELIBERATE difference from the Mongo `$inc` it
- * replaces, and matches what `PostEngagementCommandService` already chose: a
- * double unboost drove `stats.boostsCount` negative in Mongo, and a negative
- * count is both nonsense on the wire and a ranking input that pushes a post below
+ * The `greatest(0, …)` clamp is DELIBERATE, and matches what
+ * `PostEngagementCommandService` chose: without it a double unboost drives
+ * `stats.boostsCount` negative, and a negative count is both nonsense on the wire and a ranking input that pushes a post below
  * every post with no engagement at all.
  *
  * The AUTHOR comes back with the counters, on the same round trip, because the
@@ -1965,9 +1959,8 @@ export async function replacePostAuthorship(
         })),
       );
     }
-    // Keep the denormalized projection in step with its authority. Mongoose did
-    // this in a `pre('save')` hook, which a bulk write bypassed; here it is part
-    // of the same transaction as the rows it projects.
+    // Keep the denormalized projection in step with its authority, in the same
+    // transaction as the rows it projects.
     const owner = authorship.find((entry) => entry.role === 'owner');
     await tx
       .update(posts)
@@ -2121,8 +2114,7 @@ export async function findBoostedPostIds(
 }
 
 /**
- * Posts authored by `oxyUserId` — the `post_authorships` join that replaces the
- * Mongo `$elemMatch`.
+ * Posts authored by `oxyUserId` — a `post_authorships` join.
  *
  * A collaborator sees their accepted collaborations on their own profile, which
  * is why this is an authorship join and not `posts.oxy_user_id = $1`. Returns a

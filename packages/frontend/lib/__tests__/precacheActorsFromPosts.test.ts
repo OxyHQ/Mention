@@ -81,8 +81,8 @@ describe('precacheActorsFromPosts — extraction', () => {
     ]);
   });
 
-  it('does not admit a legacy Mongo `_id` as canonical post identity', () => {
-    precacheActorsFromPosts([{ user: { _id: 'author-2', username: 'mongo' } }]);
+  it('does not admit a legacy `_id` as canonical post identity', () => {
+    precacheActorsFromPosts([{ user: { _id: 'author-2', username: 'legacy' } }]);
     expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
   });
 

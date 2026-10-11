@@ -95,8 +95,7 @@ const UNRESOLVABLE = scope.user('unresolvable');
 /**
  * Post ids, spelled out rather than minted.
  *
- * They were `new mongoose.Types.ObjectId().toString()` and there is nothing left
- * that cares: `posts.id` is `text` holding a 24-char ObjectId hex for a
+ * Nothing cares about their shape: `posts.id` is `text` holding a 24-char ObjectId hex for a
  * pre-cutover row and a uuid v7 for a new one, and no shape check survives
  * anywhere (`@oxy.so/db`). What DOES still matter is that they are unique across
  * the whole run — one database serves every file in parallel and this is a

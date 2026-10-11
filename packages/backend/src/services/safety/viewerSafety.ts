@@ -70,8 +70,8 @@ export async function loadShowSensitiveContent(userId: string | undefined): Prom
  *
  * Returns `[]` for anonymous viewers or on any load failure. `actorTarget` is
  * `NOT NULL DEFAULT 'all'` in the schema, so a row written before the field
- * existed still reads as applying to every author — the same answer Mongoose's
- * `?? 'all'` produced, now guaranteed by the column rather than the reader.
+ * existed still reads as applying to every author, guaranteed by the column
+ * rather than the reader.
  */
 export async function loadMuteWords(userId: string | undefined): Promise<MuteWordRule[]> {
   if (!userId) return [];

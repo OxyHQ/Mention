@@ -52,7 +52,7 @@ export interface CurationEdge {
 /**
  * The data accessors {@link computeStarterPackScores} depends on. Injected so the
  * policy can be tested with mocks (and so a future ingest path can supply edges
- * from somewhere other than Mongo).
+ * from somewhere other than Postgres).
  */
 export interface StarterPackCurationDeps {
   /** Candidate curation edges for a batch of authors — ONE call per batch. */
@@ -138,7 +138,7 @@ function groupByAuthorAndCurator(edges: CurationEdge[]): Map<string, Map<string,
  * per-author or per-post I/O. Returns ONLY authors with a score > 0 — an author
  * nobody curated is simply absent, which the ranking signal reads as exactly
  * neutral (1.0). Never throws: an accessor failure degrades the whole batch to
- * "no scores" (logged), so a Mongo/Redis hiccup can never break a feed.
+ * "no scores" (logged), so a database/Redis hiccup can never break a feed.
  */
 export async function computeStarterPackScores(
   authorIds: string[],
@@ -197,10 +197,8 @@ export async function computeStarterPackScores(
 /**
  * The bounded set of curation edges for a batch of authors — ONE statement.
  *
- * Mongo needed six aggregation stages here (`$match` → `$project`/`$unwind` over
- * the member ARRAY → `$match` → `$group` → `$group` with `$topN`), because the
- * membership it had to join against lived INSIDE the pack document. As a
- * junction table the whole thing is an ordinary join plus a window function:
+ * Pack membership is a junction table, so the whole thing is an ordinary join
+ * plus a window function:
  *
  *  - `eligible` — packs that contain one of these authors and are already
  *    crowd-validated (`use_count >= minUseCount`), with SELF-OWNED packs dropped

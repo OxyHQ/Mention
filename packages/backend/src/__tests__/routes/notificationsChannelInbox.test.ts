@@ -6,7 +6,7 @@
  *
  * ## Why this file is real rows and not a mock
  *
- * The suite this replaces asserted the Mongo FILTER OBJECT — `recipientId: { $in:
+ * The suite this replaces asserted the legacy-store FILTER OBJECT — `recipientId: { $in:
  * [...] }` — against a mocked `models/Notification`. Nothing reads that model any
  * more: every recipient-scoped query in `routes/notifications.ts` is
  * `inArray(notifications.recipientId, recipientIds)` against Postgres, so each of

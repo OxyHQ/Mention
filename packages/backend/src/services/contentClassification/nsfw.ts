@@ -67,7 +67,7 @@ function normalizeHashtagSlug(hashtag: string | null | undefined): string {
  *
  * This module owns the low-level blocklist PRIMITIVES ({@link NSFW_HASHTAGS} +
  * this predicate). The higher-level feed-safety gating — the post-level
- * sensitivity predicate (`isSfw`/`isSensitivePost`) and the canonical Mongo
+ * sensitivity predicate (`isSfw`/`isSensitivePost`) and the canonical SQL
  * exclusion clauses — lives in `mtn/feed/feedSafety.ts`, which composes these
  * primitives. Import feed safety from there, not from here.
  */

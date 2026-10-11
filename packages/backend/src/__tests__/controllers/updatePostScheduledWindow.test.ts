@@ -205,7 +205,7 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
   /**
    * `status` is `NOT NULL DEFAULT 'published'` here, so the legacy "no explicit
-   * status" row the Mongo version modelled cannot exist — the default IS the
+   * status" row the legacy-store version modelled cannot exist — the default IS the
    * answer, and it is the same one. Asserted through the default rather than
    * through an absent field.
    */

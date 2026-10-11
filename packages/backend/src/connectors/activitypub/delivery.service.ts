@@ -28,7 +28,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 /**
  * Mention's outbound DELIVERY service.
  *
- * The delivery transport (sign → SSRF-safe POST → BullMQ/Mongo durable queue), the
+ * The delivery transport (sign → SSRF-safe POST → BullMQ/Postgres durable queue), the
  * shared-inbox dedup fan-out, and the follow protocol (Follow / Undo(Follow) /
  * Accept(Follow)) + the `Update(Person)` rebroadcast now live in
  * `@oxy.so/federation`'s `createDeliveryService` so every Oxy app federates

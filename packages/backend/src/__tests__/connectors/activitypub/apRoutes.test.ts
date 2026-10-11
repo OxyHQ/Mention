@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * That distinction is the whole reason for the rewrite. The previous version
  * mocked `Post.find` and asserted the FILTER OBJECT (`parentPostId: null`,
  * `$or: …`), which cannot tell a correct query from one that matches nothing —
- * and pinned a Mongo spelling that has since become SQL, so it would go red on a
+ * and pinned a legacy-store spelling that has since become SQL, so it would go red on a
  * correct port and green on a broken one. Two user-visible bugs live exactly
  * there and are now covered by rows:
  *
@@ -206,7 +206,7 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
 
   it('advertises the banner as AP image when the user has a profileHeaderImage', async () => {
     // A REAL `user_settings` row. Under the previous mock this passed while the
-    // production read went to a Mongoose model nothing writes any more, so every
+    // production read went to a legacy-ODM model nothing writes any more, so every
     // actor JSON omitted `image` and no banner ever reached Mastodon.
     await setBanner('banner-id');
     mocks.resolveMediaRef.mockReturnValue({ url: 'https://cloud.oxy.so/banner-id' });
@@ -328,7 +328,7 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
   it('never publishes an ORPHANED REPLY as a top-level Note', async () => {
     // `parent_post_id` is `ON DELETE SET NULL`, so deleting the parent leaves a
     // reply whose parent id is NULL while `is_reply` stays true. Scoping the
-    // outbox on `parent_post_id IS NULL` — the literal translation of the Mongo
+    // outbox on `parent_post_id IS NULL` — the literal translation of the legacy-store
     // filter — publishes it to the fediverse as if the author had posted it on
     // its own. `is_reply = false` is what prevents that, and this is the only
     // test that can tell the two predicates apart.
@@ -583,7 +583,7 @@ describe('an author surface filters on the AUTHOR and nothing else', () => {
    * captured query object: the scope is shared between the count, the page window
    * and the featured collection precisely so they cannot drift, and a query
    * assertion for each would be three separate claims about three separate
-   * strings (and would pin a Mongo spelling that is SQL now).
+   * strings (and would pin a legacy-store spelling that is SQL now).
    */
   const CHANNEL = scope.user('the-daily');
 

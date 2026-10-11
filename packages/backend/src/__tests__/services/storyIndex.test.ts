@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * this existed. Diversity is a nicety and must never cost a feed, so the two
  * cases that matter most are the ones about NOT waiting and NOT retrying.
  *
- * Real `trending` rows. The suite this replaces mocked the Mongoose model, so it
+ * Real `trending` rows. The suite this replaces mocked the legacy-ODM model, so it
  * asserted what a stub had been told to answer — and the read is Postgres now.
  * The two cases about the memo need to count QUERIES, which a row fixture cannot
  * do on its own; they spy on `getDb` and pass it straight through, so the count

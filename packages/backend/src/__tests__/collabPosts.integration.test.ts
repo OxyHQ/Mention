@@ -56,7 +56,7 @@ describe('collaborative posts integration', () => {
   /**
    * The author-feed predicate, against REAL ROWS.
    *
-   * This used to assert the Mongo `$elemMatch` object literal, which proved only
+   * This used to assert the legacy-store `$elemMatch` object literal, which proved only
    * that the helper returned the shape someone typed into the test. The
    * predicate is now a correlated `EXISTS` over `post_authorships` — the exact
    * construct that renders a bare column name and silently matches NOTHING (see

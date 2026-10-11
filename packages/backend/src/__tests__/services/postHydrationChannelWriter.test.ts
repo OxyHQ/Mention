@@ -467,7 +467,7 @@ describe('PostHydrationService — the channel writer byline', () => {
  * THE FOUR-PROJECTION HAZARD DOES NOT EXIST ON THIS BRANCH, and that is worth
  * stating rather than silently dropping.
  *
- * On Mongo, `writtenByOxyUserId` had to be named in FOUR separate `select`
+ * On the legacy store, `writtenByOxyUserId` had to be named in FOUR separate `select`
  * strings (`mtn/feed/FeedAPI`, `controllers/feed.controller`,
  * `services/ThreadSlicingService`, `routes/search`); missing from one, the
  * writer hydrated `undefined` with no error, so the same post named its writer

@@ -351,7 +351,7 @@ describe('wire format parity', () => {
 
   it('OMITS an absent description rather than sending null', async () => {
     /**
-     * Mongoose left `description` `undefined`, which `JSON.stringify` drops.
+     * The legacy ODM left `description` `undefined`, which `JSON.stringify` drops.
      * Drizzle hands back `null`, which serializes as `"description": null` — a
      * different response body for the same absent value, and the exact shape a
      * client `if (pack.description)` check would start rendering as empty.

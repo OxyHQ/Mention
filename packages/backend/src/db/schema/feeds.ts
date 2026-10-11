@@ -3,8 +3,8 @@
  * legacy filter arrays), `feed_generators`, `feed_likes`, `feed_reviews`,
  * `feed_interactions`, and the viewer's saved-feed layout.
  *
- * `CustomFeed` is the one model where the migration contract's "no Mongo
- * baggage" and "no relational link may be lost" pull hardest. The document
+ * `CustomFeed` is the one model where "no document-store baggage" and "no
+ * relational link may be lost" pull hardest. The document
  * carries BOTH the current composable `definition` subdocument AND seven legacy
  * filter fields the doc comment marks "read-only; consumed only by the migration
  * + the request-time fallback while the backfill has not yet run". Both are
@@ -69,15 +69,12 @@ export const FEED_GENERATOR_NETWORKS = ['atproto'] as const;
  */
 export const FEED_INTERACTION_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
-/** `FeedReview.rating` bounds, from the Mongoose `min`/`max`. */
 /**
  * The review scale, exported because the ROUTE has to enforce it too.
  *
  * `feed_reviews_rating_check` is the floor, not the gate: a value outside the
  * range — or a fractional one, which an `integer` column refuses outright — 500s
- * on a request path. Mongoose declared the same `min`/`max` and never ran them
- * (`runValidators` is set nowhere in this package) and cast whatever it was
- * given, so the port turns a quietly-stored bad value into a visible error.
+ * on a request path — a visible error rather than a quietly-stored bad value.
  * Better, but the honest answer to a malformed body is a 400.
  */
 export const RATING_MIN = 1;
@@ -252,10 +249,9 @@ export const customFeedSourceLists = pgTable(
 /**
  * `custom_feed_topics` — the junction replacing `CustomFeed.topicIds`.
  *
- * Mongo typed these `Schema.Types.ObjectId, ref: 'Topic'`, but there is no
- * `Topic` collection in Mention's database — the registry lives in Oxy (see the
- * comment on `Post.postClassification.topicRefs`). So the ref was never
- * resolvable and this carries no foreign key.
+ * There is no `Topic` table in Mention's database — the registry lives in Oxy
+ * (see the comment on `Post.postClassification.topicRefs`). So this carries no
+ * foreign key.
  */
 export const customFeedTopics = pgTable(
   'custom_feed_topics',
@@ -372,12 +368,12 @@ export const feedReviews = pgTable(
 /**
  * `feed_interactions` — impressions/clicks/engagement, for ranking feedback.
  *
- * Mongo reaped these with a 90-day TTL index on `createdAt`; the analogue is a
+ * Rows expire 90 days after `created_at` via a
  * registry entry in `db/expiry.ts`, and `created_at` carries the btree the sweep
  * predicate needs.
  *
  * `post_uri` carries a POST ID, not a URL — `FeedInteractionTracker` says so
- * outright ("`postUri` is the local post id (Mongo `_id` string)"). It is
+ * outright ("`postUri` is the local post id"). It is
  * client-supplied and validated before use, so it carries no foreign key: a
  * forged value must produce no row rather than a constraint error.
  */
@@ -426,8 +422,7 @@ export const userFeedPreferences = pgTable('user_feed_preferences', {
 /**
  * `user_saved_feeds` — one saved/pinned feed in the viewer's layout.
  *
- * Mongo's subdocument used `_id: false` because "a saved feed is identified by
- * its `key`, not an ObjectId"; the unique `(preference_id, key)` below is that
+ * A saved feed is identified by its `key`, not by a row id; the unique `(preference_id, key)` below is that
  * statement as a constraint.
  */
 export const userSavedFeeds = pgTable(

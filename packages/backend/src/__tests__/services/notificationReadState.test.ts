@@ -2,7 +2,7 @@
  * Marking notifications read, against real rows.
  *
  * This exists because of a live bug: `server.ts`'s socket handlers wrote the
- * Mongoose model while `routes/notifications.ts` read and wrote Postgres, so a
+ * legacy-ODM model while `routes/notifications.ts` read and wrote Postgres, so a
  * notification marked read over the socket came back UNREAD on the next load,
  * for every user, with nothing in any log. Neither half was wrong on its own —
  * they simply disagreed about where the state lived, which is why no test
@@ -84,7 +84,7 @@ describe('marking one notification read', () => {
    * The round trip — the exact shape the split store broke.
    *
    * Asserting only that the call resolved would have passed throughout the bug:
-   * the Mongoose write succeeded, it just landed somewhere nothing reads.
+   * the legacy-ODM write succeeded, it just landed somewhere nothing reads.
    */
   it('persists, so a later read sees it', async () => {
     const id = await seedNotification(RECIPIENT);

@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * ## What the Postgres port changed here, and what it did not
  *
  * An entry is now a {@link PostRecord} — a plain immutable value with `id`, not
- * a Mongoose document with `_id` — and `federatePublishedPost` answers with the
+ * a legacy-ODM document with `_id` — and `federatePublishedPost` answers with the
  * RE-READ record when it delivered and `null` when it did not, rather than a
  * boolean beside a document it mutated in place. The batch path still reads that
  * answer as "did this go out", so `!delivered` is the same test it always was

@@ -1733,8 +1733,8 @@ export class PostHydrationService {
    * The privacy columns of `user_settings` for a set of accounts.
    *
    * ONE reader for every site that needs them (author privacy, profile
-   * visibility, the viewer's own preference), because the Mongoose model these
-   * replaced was consulted from four places and each rebuilt the same defaults.
+   * visibility, the viewer's own preference), so four call sites do not each
+   * rebuild the same defaults.
    * A row's ABSENCE is meaningful — it means "never saved settings" — so the
    * caller applies `DEFAULT_PRIVACY` rather than this returning a padded map.
    */
@@ -1786,7 +1786,7 @@ export class PostHydrationService {
       ]);
 
       // `value` is `1` or `-1` and NOT NULL, so a downvote is the only way into
-      // the second bucket — the Mongo read defaulted a missing value to 1.
+      // the second bucket.
       for (const like of likeRows) {
         if (like.value === 1) viewerContext.likedPosts.add(like.postId);
         else viewerContext.downvotedPosts.add(like.postId);
@@ -1821,7 +1821,7 @@ export class PostHydrationService {
     }
 
     try {
-      // Three tables where Mongo had one document: the options are their own
+      // Three tables: the options are their own
       // rows (ordered by `position`, which is what preserves the order the
       // author wrote them in) and each ballot is a row rather than an id inside
       // `options[].votes`. The wire shape is unchanged — `votes` is a count per

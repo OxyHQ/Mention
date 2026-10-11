@@ -4,7 +4,7 @@
  * The whole point of this file is one guarantee: **the unique index IS the
  * idempotency.** `notifications_dedup_key` on
  * `(recipient_id, actor_id, type, entity_id)` is what stops a second like from
- * the same actor on the same post minting a second row, and the Mongo version
+ * the same actor on the same post minting a second row, and the legacy-store version
  * expressed that as read-then-write — two concurrent callers could both pass the
  * read. The port moved it into `ON CONFLICT DO NOTHING` on those four columns.
  *

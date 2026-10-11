@@ -16,8 +16,7 @@
  *
  * Both are applied by the CALLER as an exclusion on `posts.lane_id` — see
  * `buildAuthoredConditions` in `mtn/feed/engine/sources/userSources.ts`, which
- * has to spell the NULL case out: Mongo's `$nin` matched a document with no
- * `laneId`, but SQL's `not in` is NULL for a NULL column and would drop every
+ * has to spell the NULL case out: SQL's `not in` is NULL for a NULL column and would drop every
  * post outside every lane.
  */
 

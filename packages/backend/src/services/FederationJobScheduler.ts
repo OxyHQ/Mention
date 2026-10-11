@@ -68,7 +68,7 @@ import type { User } from '@oxy.so/core';
 /** Staleness threshold after which an actor profile is re-fetched. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-/** Legacy (no-Redis) Mongo delivery-retry loop cadence. */
+/** Legacy (no-Redis) table-backed delivery-retry loop cadence. */
 const DELIVERY_RETRY_INTERVAL_MS = 60 * 1000; // 1 minute
 
 /** Legacy startup delay before the initial outbox sync + recent backfill run. */
@@ -134,18 +134,18 @@ class FederationJobScheduler {
     // Invoked ONLY by the elected scheduler leader (via leaderElection →
     // startSchedulers). Two transports:
     //  - Queue mode (Redis configured): register BullMQ repeatable jobs so each
-    //    periodic task runs once across the fleet, and drain any in-flight Mongo
-    //    deliveries into the BullMQ delivery queue. Delivery RETRIES are owned by
+    //    periodic task runs once across the fleet, and drain any in-flight
+    //    `federation_delivery_queue` rows into the BullMQ delivery queue. Delivery RETRIES are owned by
     //    BullMQ, so there is no in-process delivery-retry interval here.
     //  - Legacy mode (no Redis): keep the in-process setInterval scheduler and
-    //    the Mongo delivery-retry loop. This is the local-dev / degraded path.
+    //    the table-backed delivery-retry loop. This is the local-dev / degraded path.
     if (isQueueEnabled()) {
       this.usingQueue = true;
       void this.registerRepeatableJobs().catch((err) =>
         logger.error('Failed to register federation repeatable jobs:', err),
       );
-      void this.drainPendingMongoDeliveries().catch((err) =>
-        logger.error('Failed to drain pending Mongo deliveries into BullMQ:', err),
+      void this.drainPendingTableDeliveries().catch((err) =>
+        logger.error('Failed to drain pending table deliveries into BullMQ:', err),
       );
       logger.info('Federation job scheduler started (BullMQ queue mode)');
       return;
@@ -168,7 +168,7 @@ class FederationJobScheduler {
     }, REFRESH_STALE_ACTORS_INTERVAL_MS);
     this.actorRefreshInterval.unref?.();
 
-    // Retry failed deliveries every minute (Mongo delivery queue)
+    // Retry failed deliveries every minute (`federation_delivery_queue`)
     this.deliveryRetryInterval = setInterval(() => {
       this.retryFailedDeliveries().catch((err) => logger.error('Delivery retry job failed:', err));
     }, DELIVERY_RETRY_INTERVAL_MS);
@@ -368,12 +368,12 @@ class FederationJobScheduler {
    * older build or while the queue was unavailable) into the BullMQ delivery
    * queue, then mark them migrated so a re-run never re-enqueues the same row.
    *
-   * Idempotency: each row is enqueued with a STABLE jobId derived from its Mongo
-   * `_id`, so even if the process dies between enqueue and mark, re-running the
+   * Idempotency: each row is enqueued with a STABLE jobId derived from its
+   * `id`, so even if the process dies between enqueue and mark, re-running the
    * drain maps the same row to the same BullMQ job and BullMQ dedupes it. No
    * pending delivery is dropped.
    */
-  private async drainPendingMongoDeliveries(): Promise<void> {
+  private async drainPendingTableDeliveries(): Promise<void> {
     let totalDrained = 0;
 
     // Page through pending, not-yet-migrated rows to bound memory.
@@ -419,7 +419,7 @@ class FederationJobScheduler {
     }
 
     if (totalDrained > 0) {
-      logger.info(`[FedDeliver] drained ${totalDrained} pending Mongo deliveries into BullMQ`);
+      logger.info(`[FedDeliver] drained ${totalDrained} pending table deliveries into BullMQ`);
     }
   }
 
@@ -843,10 +843,9 @@ class FederationJobScheduler {
           );
 
           if (success) {
-            // `error` is deliberately not cleared. The Mongo write said
-            // `error: undefined`, which Mongoose STRIPS from a `$set`, so a
-            // delivered row has always kept whatever a prior failed attempt
-            // left there. Clearing it here would be a behaviour change.
+            // `error` is deliberately not cleared: a delivered row has always
+            // kept whatever a prior failed attempt left there. Clearing it here
+            // would be a behaviour change.
             await recordDeliveryAttempt(delivery.id, {
               status: 'delivered',
               lastAttemptAt: now,

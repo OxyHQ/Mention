@@ -10,7 +10,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * Plus the fail-soft direction, which is not arbitrary: a lookup failure must
  * degrade to an UNCURATED profile, never an empty one.
  *
- * The two lookups run against REAL rows. They used to assert the Mongo filter
+ * The two lookups run against REAL rows. They used to assert the legacy-store filter
  * object each function built, which proved the helper returned the shape someone
  * typed into the test and nothing about which lanes came back — and the reads
  * are Postgres now, so there is no filter object left to inspect. The fail-soft

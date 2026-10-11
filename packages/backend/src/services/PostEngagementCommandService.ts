@@ -12,28 +12,24 @@
  *
  * ## Isolation: READ COMMITTED, deliberately
  *
- * The Mongoose version opened every command with `readConcern: 'snapshot'`,
- * which reads as "serializable" and translates most directly to Postgres
- * REPEATABLE READ. It is NOT ported, and the reason is that REPEATABLE READ
- * would be strictly worse here: two viewers liking the same post concurrently
- * would abort one transaction with a serialization failure (SQLSTATE 40001) that
+ * Not REPEATABLE READ, because it would be strictly worse here: two viewers
+ * liking the same post concurrently would abort one transaction with a serialization failure (SQLSTATE 40001) that
  * the retry below does not answer for, turning a normal race into a 500. Under
  * READ COMMITTED, `greatest(0, stats_likes_count + 1)` takes a row lock and
- * re-reads the latest version, which is exactly the atomic counter the snapshot
- * was there to guarantee. The relationship's own uniqueness is enforced by the
- * index, not by isolation level.
+ * re-reads the latest version, which is exactly the atomic counter required.
+ * The relationship's own uniqueness is enforced by the index, not by isolation
+ * level.
  *
  * ## Counters are clamped, not trusted
  *
- * `greatest(0, …)` is the port of Mongo's `$max: [0, …]`. A counter that a
+ * `greatest(0, …)` floors every counter at zero. A counter that a
  * legacy writer left ahead of reality must not be driven negative by a correct
  * decrement; `EngagementProjectionReconciliationService` is what re-derives it.
  *
  * ## There is no id-shape guard, and that is the fix
  *
- * The Mongoose version called `isValidObjectId` before touching anything, purely
- * to dodge a `CastError`. A Postgres `text` id needs no such guard: a uuid v7
- * matches its row, a pre-cutover ObjectId hex matches its row, and an id that is
+ * A Postgres `text` id needs no shape guard: a uuid v7 matches its row, an
+ * ObjectId hex matches its row, and an id that is
  * neither matches nothing — which is the `EngagementPostNotFoundError` (→ 404)
  * every caller was already written for.
  */
@@ -73,10 +69,9 @@ class EngagementRelationshipRaceError extends Error {
 /**
  * The post state an engagement response is built from.
  *
- * FLAT, matching the columns. Mongo's `stats.*` / `federation.*` were subdocument
- * nesting, not structure anyone chose, and re-nesting Postgres columns into that
- * shape for one internal DTO would be carrying the baggage forward. The HTTP
- * response bodies in `posts.controller.ts` are unchanged.
+ * FLAT, matching the columns; re-nesting them into `stats.*` / `federation.*`
+ * for one internal DTO would add structure nobody needs. The HTTP response
+ * bodies in `posts.controller.ts` are unchanged.
  */
 const POST_SNAPSHOT_COLUMNS = {
   oxyUserId: posts.oxyUserId,
@@ -142,8 +137,7 @@ async function inIdempotentTransaction<T>(operation: (tx: Transaction) => Promis
 
 /**
  * Narrow a stored vote to the closed set. TOTAL — `likes_value_check` already
- * forbids anything but `1` and `-1`, and the Mongoose version treated every
- * non-`-1` value as an upvote for the same reason.
+ * forbids anything but `1` and `-1`, so every non-`-1` value is an upvote.
  */
 function asVoteValue(value: number): EngagementVoteValue {
   return value === -1 ? -1 : 1;
@@ -468,10 +462,8 @@ export async function removeVoteCommand(input: {
  *
  * `ON CONFLICT DO NOTHING` names NO target on purpose, so it answers for both
  * unique indexes at once: the supplied MTN rkey already existing, and a row for
- * this (user, post) existing under a DIFFERENT rkey. Mongo could only express
- * the first — the second raised a duplicate-key error that the retry loop
- * re-raised three times and threw — which contradicted this function's own
- * idempotency contract. Both are now the same `{ changed: false }`.
+ * this (user, post) existing under a DIFFERENT rkey. Both are the same
+ * `{ changed: false }`, which is this function's idempotency contract.
  */
 export async function materializeEngagementRelationship(input: {
   kind: MaterializedEngagementKind;

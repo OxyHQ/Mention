@@ -173,7 +173,7 @@ export const userBehaviorAuthors = pgTable(
   (t) => [
     check('user_behavior_authors_weight_check', sql`${t.weight} between 0 and 1`),
     unique('user_behavior_authors_behavior_id_author_id_key').on(t.behaviorId, t.authorId),
-    // Mongo indexed `preferredAuthors.authorId` — the reverse lookup.
+    // The reverse lookup.
     index('user_behavior_authors_author_id_idx').on(t.authorId),
   ],
 );
@@ -235,8 +235,8 @@ export const userBehaviorRegions = pgTable(
  * fediverse-sharing consent flag lives in Oxy's `privacySettings` and is
  * deliberately never stored here.
  *
- * The `feedTuning` group carries no bounds in the schema on purpose, exactly as
- * in Mongo: `validateForYouTuning` (the shared spec) is the authoritative
+ * The `feedTuning` group carries no bounds in the schema on purpose:
+ * `validateForYouTuning` (the shared spec) is the authoritative
  * validator run in the settings controller before any write, so duplicating its
  * ranges as CHECKs would create a second place for them to drift.
  */
@@ -287,8 +287,8 @@ export const userSettings = pgTable(
      * Whether a post published by this account, WHEN THIS ACCOUNT IS A CHANNEL,
      * also names the person who wrote it.
      *
-     * **NULLABLE, and the null is the point.** Mongo held this in a
-     * `channelAccount` subdocument that is ABSENT on a person's settings, which
+     * **NULLABLE, and the null is the point.** It belongs to the
+     * `channelAccount` settings group, which is ABSENT on a person's settings, which
      * is what makes "is this account a channel" a question nothing here has to
      * answer. Flattened to `NOT NULL DEFAULT false` that distinction would be
      * destroyed — every person's settings would read as a channel that does not
@@ -307,10 +307,8 @@ export const userSettings = pgTable(
     profileCoverPhotoEnabled: boolean().notNull().default(true),
     profileMinimalistMode: boolean().notNull().default(false),
     /**
-     * The single pinned profile media. Mongo held a discriminated union in one
-     * subdocument so that storing one shape REPLACED the other; flattened, that
-     * mutual exclusion becomes the CHECK below rather than an emergent property
-     * of overwriting a field.
+     * The single pinned profile media, a discriminated union: storing one shape
+     * REPLACES the other, and that mutual exclusion is the CHECK below.
      */
     profileMediaType: text({ enum: PROFILE_MEDIA_TYPES }),
     profileMediaTitle: text(),
@@ -412,7 +410,7 @@ export const userSettings = pgTable(
       'user_settings_profile_media_type_check',
       sql`${t.profileMediaType} is null or ${t.profileMediaType} in (${sql.raw(inList(PROFILE_MEDIA_TYPES))})`,
     ),
-    // The mutual exclusion Mongo got from storing one subdocument: a song's
+    // The mutual exclusion of the union: a song's
     // fields cannot coexist with a podcast's, and neither can exist untyped.
     check(
       'user_settings_profile_media_shape_check',

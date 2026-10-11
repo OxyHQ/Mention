@@ -6,7 +6,7 @@
 
 **Architecture:** Every signal wraps a new (or existing-data) per-post scorer in `FeedRankingService.calculatePostScore`, provenance/data-gated to default-neutral (multiplier 1.0) when the input is absent. The engine already forwards a definition's enabled signal `weightKey`s to ranking; Phase 2b makes those keys real. New data plumbing (dwell store, seen-set penalize, network-engagement) is added where needed, fail-soft.
 
-**Tech Stack:** TS, Mongoose, Redis (for dwell/seen), vitest. Builds on the merged Phase 0-3 engine on `main`.
+**Tech Stack:** TS, Redis (for dwell/seen), vitest. Builds on the merged Phase 0-3 engine on `main`.
 
 ## Global Constraints
 

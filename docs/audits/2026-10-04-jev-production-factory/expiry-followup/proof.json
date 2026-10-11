@@ -8,11 +8,11 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "3e06861afe50af3fcd0ff0199f4ddb1adc9c6735a7cc823a50032e40dfe936ed"
+      "sha256": "3f2228b79ed8492a3220f22da3a9e5bf3cde354f3648000d1bd6c555ae73222d"
     },
     {
       "path": "packages/backend/src/services/PostClassificationService.ts",
-      "sha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd"
+      "sha256": "9aecfdf3deae5220840c616f20a280451b978acdd763b7a6f1f8b9c78fe0f4fa"
     },
     {
       "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
@@ -58,7 +58,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-production-factory/expiry-followup/records/fixture.ts",
-      "sha256": "3e06861afe50af3fcd0ff0199f4ddb1adc9c6735a7cc823a50032e40dfe936ed"
+      "sha256": "3f2228b79ed8492a3220f22da3a9e5bf3cde354f3648000d1bd6c555ae73222d"
     }
   ],
   "results": {

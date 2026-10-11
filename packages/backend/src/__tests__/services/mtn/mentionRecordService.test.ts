@@ -14,7 +14,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  * Exercises the REAL `@oxy.so/protocol` engine (custodial `signEnvelope` +
  * `verifyAndAppend`) against an in-memory `RecordStore` and a resolver whose
  * subject VMs come from a mocked `oxyServices.identity.resolveDid`, so the whole chain
- * (sign → verify → append → re-verify) runs without Mongo. Covers:
+ * (sign → verify → append → re-verify) runs without the legacy store. Covers:
  *  - a local post create writes a verifiable `app.mention.feed.post` record with
  *    the right chain coordinates (genesis seq 0, then seq 1 / prev = head),
  *  - a like writes an `app.mention.feed.like` record,
@@ -24,13 +24,13 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  * ## What changed with the Postgres port
  *
  * The chain STORE is still in-memory here on purpose — `MentionRecordStore` is
- * Mongo and is not part of this port, and an in-memory `RecordStore` is what
+ * the legacy store and is not part of this port, and an in-memory `RecordStore` is what
  * lets the real `@oxy.so/protocol` engine run end to end.
  *
  * What did change is the emitter's INPUT. `emitPostCreated` takes a `PostRecord`
  * and reads `post.id` for the record's `rkey`, `post.content.variants` for the
  * body, and the stored `status`/`visibility`/`federation` for its three gates.
- * The old suite hand-built objects carrying a Mongo-shaped `_id`, so the record
+ * The old suite hand-built objects carrying a legacy-store-shaped `_id`, so the record
  * key it asserted on came from the literal the test wrote — and a post whose id
  * never survived a round trip would have looked identical. Every post the
  * emitter block hands over is now a real row, read back through

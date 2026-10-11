@@ -1,9 +1,9 @@
 # Postgres schema conventions — Mention
 
-Binding for every table in this schema. Decision + reason, nothing else. The
-two prime directives that shaped it during the port from MongoDB — **no
-relational link may be lost**, and **no Mongo baggage travels** — still decide
-new tables. Where they conflict, STOP and escalate rather than resolving it
+Binding for every table in this schema. Decision + reason, nothing else. Two
+prime directives decide new tables — **no relational link may be lost**, and
+**no document-store baggage travels** (no `_id`/`__v`, no stringly-typed
+references, no embedded id arrays). Where they conflict, STOP and escalate rather than resolving it
 silently: `posts.parent_post_id` is the one place that happened, and it is
 recorded as an open decision rather than settled here.
 
@@ -38,10 +38,9 @@ the build.
 
 ## Naming
 
-**Tables: explicit snake_case, plural.** `post_authorships`, not the
-Mongoose-derived `postauthorships` this data arrived under. The derived name was
-a `pluralize()` artifact rather than a design, and no call site was shimmed to
-keep it.
+**Tables: explicit snake_case, plural.** `post_authorships`, never a
+`pluralize()`-style `postauthorships`; no call site is shimmed to keep a legacy
+name.
 
 **Columns: camelCase in TypeScript, snake_case in SQL**, derived by drizzle. Do
 not pass an explicit column name unless the SQL name genuinely differs from the
@@ -87,7 +86,7 @@ quotes every identifier it emits. Hand-written SQL must quote it too.
 `text`, holding the 24-char ObjectId hex verbatim for pre-cutover rows and a
 **uuid v7** for new ones. This is not negotiable and not a convenience:
 
-- The MTN `rkey` **is** a Mongo `_id`, and `rkey`/`collection`/`subject` are all
+- The MTN `rkey` **is** the post's original 24-char id, and `rkey`/`collection`/`subject` are all
   inside the signed envelope. A remapped id invalidates every record ever signed.
 - Every published ActivityPub identifier below the actor embeds one: the Note id,
   the `Create`/`Announce`/`Update` id, the `Delete` id and its `Tombstone`
@@ -158,13 +157,12 @@ never because Mention started minting uuid v7.
 - Declare the values once as a `const` tuple and derive both the column type and
   the CHECK from it, so they cannot drift.
 
-**Every CHECK here is WIDER than the model it came from, on purpose.** Mongoose
-enums were never enforced on an update — `Post.updateOne` ran no validators — so
-the collection this data was copied from held values its own schema forbade:
-`posts.status` was already `'restricted'` in production while the model declared
-three values, and `post_attachments.type` included `'room'` in
-`@mention/shared-types` but not in the model's enum. A narrow CHECK would have
-rejected real rows at backfill time. Each one is the union of the old enum, the
+**Every CHECK here is WIDER than the model it came from, on purpose.** The
+previous models' enums were never enforced on an update, so the data this table
+was copied from held values its own schema forbade: `posts.status` was already
+`'restricted'` in production while the model declared three values, and
+`post_attachments.type` included `'room'` in `@mention/shared-types` but not in
+the model's enum. A narrow CHECK would have rejected real rows at backfill time. Each one is the union of the old enum, the
 shared-types union, and every literal written anywhere in the code; widen a CHECK
 the same way rather than trusting one declaration.
 
@@ -177,16 +175,15 @@ subquery, so "every element is in range" is written as array CONTAINMENT
 
 Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxy.so/db`).
 `timestamp` without a time zone reinterprets the value in the session's
-`TimeZone` on every read, silently changing what a Mongo `Date` meant.
+`TimeZone` on every read, silently changing what a stored instant meant.
 
-| Mongoose | Postgres |
+| Model shape | Postgres |
 |---|---|
 | `timestamps: true` | `created_at` + `updated_at`, both `NOT NULL DEFAULT now()` |
 | `timestamps: { createdAt: true, updatedAt: false }` | `created_at` only — the ABSENCE of `updated_at` is the append-only contract |
 | `timestamps: false` + own `createdAt: { default: Date.now }` | `created_at`, identical to the row above |
 
-**`updated_at` is maintained by the application** (`$onUpdate`), matching
-Mongoose. Deliberately not a trigger: a trigger is invisible in the schema file,
+**`updated_at` is maintained by the application** (`$onUpdate`). Deliberately not a trigger: a trigger is invisible in the schema file,
 and it would fire during backfill and overwrite the historical value the
 migration exists to preserve.
 
@@ -206,7 +203,7 @@ on `posts` states its choice against that:
 
 | Column | Action | Why |
 |---|---|---|
-| `boost_of` | CASCADE | A `type:'boost'` row has an intentionally EMPTY body and exists only to point at the original. Mongo leaves permanently blank cards behind. |
+| `boost_of` | CASCADE | A `type:'boost'` row has an intentionally EMPTY body and exists only to point at the original. Without CASCADE it would be left as a permanently blank card. |
 | `quote_of` | SET NULL | A quote has a body of its own and must outlive its subject; NULL is exactly "the quoted post is gone". |
 | `thread_id` | SET NULL | Continuations are real posts. |
 | `parent_post_id` | SET NULL — **ESCALATED** | Neither choice is a faithful port. See below. |
@@ -223,20 +220,20 @@ the query phase MUST make root-feed membership stop depending on
 **`ON DELETE SET NULL` needs care where NULL already means something.** Nothing
 in this schema hits that today; check it for every new relation.
 
-## Expiry — the Mongo TTL replacement
+## Expiry — the TTL registry
 
-Postgres has no TTL index and seven Mention models relied on one. The mechanism
+Postgres has no TTL index and seven Mention tables need one. The mechanism
 is defined once in `db/expiry.ts`; a table adds a registry entry rather than its
-own cleanup path. An entry is the exact analogue of a Mongo TTL index —
+own cleanup path. An entry is a TTL rule —
 `{ table, column, retentionSeconds }` → `delete where column <= now() - N`.
 
 Every registered column MUST have a supporting btree index (the sweep's predicate
-is a range scan; Mongo's TTL index carried the same obligation). Deletion is
+is a range scan). Deletion is
 batched via `ctid` so a backlog cannot hold one long transaction open.
 
-**Check every registry entry for INTENT, not just for a deadline.** A Mongo TTL
-index DELETED the document, and the sibling oxy-api port found one written
-meaning "mark expired" that had been destroying subscription history. Six of
+**Check every registry entry for INTENT, not just for a deadline.** A sweep
+DELETES the row, and oxy-api found a TTL rule written meaning "mark expired"
+that had been destroying subscription history. Six of
 Mention's seven are genuine housekeeping. The seventh — `engagement_outbox` —
 deletes **unprocessed work**: the predicate is the deadline alone, not the
 status, so a `pending` event whose dispatcher stalled for the whole window is
@@ -253,19 +250,19 @@ window.
 
 ## Unique constraints
 
-Mongo unique index → `UNIQUE`. Mongo `sparse`/`partialFilterExpression` → a
-Postgres partial unique index (`uniqueIndex().where(...)`).
+A unique rule → `UNIQUE`. A unique rule over a subset of rows → a Postgres
+partial unique index (`uniqueIndex().where(...)`).
 
 Postgres treats NULLs as DISTINCT by default, so a plain `UNIQUE` on a nullable
-column is already correct — but the partial form is kept where Mongo used one
-(`starter_packs.source_uri`, the MTN chain indexes), because it also keeps the
+column is already correct — but the partial form is used where the rule covers
+a subset (`starter_packs.source_uri`, the MTN chain indexes), because it also keeps the
 index the size of the real set and states the v1/v2 split at the constraint.
 
 A sparse-unique column must be written **NULL, never `''`** — an empty string is
 a VALUE, so it collides for real, converting a non-problem into a live bug.
 `bookmarks.folder` is the one to watch: `default: null` there means "unfiled".
 
-Three invariants Mongo could not state at all, now constraints:
+Three invariants enforced as constraints:
 
 - `post_authorships` — exactly ONE `owner` per post (a partial unique index).
   `getOwnerId` has always assumed it.
@@ -277,13 +274,12 @@ Three invariants Mongo could not state at all, now constraints:
 ## Arrays and objects
 
 - A scalar array (`hashtags`, `tags`, `search_terms`) → a native `type[]`, with
-  a GIN index where Mongo's multikey index served an `$in`. Postgres arrays are
+  a GIN index where a query tests element membership. Postgres arrays are
   first-class; a child table for a set never queried by element is
   over-normalization.
 - An array of IDS or entities → a real junction table. Never a `jsonb` id array:
   it cannot be joined, constrained, or usefully indexed. `starterPackCuration.ts`
-  is the proof — its `$in` + `$unwind` + two-level `$group` is a join Mongo could
-  not perform.
+  is the proof — its curation is a join over the junction table.
 - A `Mixed`/`Map`/nested object with a known shape → real columns or a child
   table. `post_variant_alt_texts` was a `Record<mediaId, string>`; as a table,
   "does this media have localized alt in language X" becomes indexable.
@@ -302,11 +298,10 @@ PARSED value, so jsonb's key reordering, duplicate-key collapse, number
 reformatting and unicode unescaping are representation-only. One hazard remains,
 and it is the correct failure mode: a NUL byte fails the INSERT loudly.
 
-## Mongoose behaviour that has no schema counterpart
+## Normalization lives at the call site
 
-`trim: true`, `lowercase: true` and setter-style defaults were Mongoose
-APPLICATION behaviour. Postgres has no equivalent, so normalization lives at the
-CALL SITE and belongs there for anything new too. It is deliberately NOT encoded
+`trim`, `lowercase` and setter-style defaults are APPLICATION behaviour.
+Postgres has no equivalent, so normalization lives at the CALL SITE and belongs there for anything new too. It is deliberately NOT encoded
 as CHECK constraints: a CHECK would have rejected existing rows at backfill time
 and turns a silent normalization into a 500.
 
@@ -318,9 +313,8 @@ decode entities BEFORE normalizing. Nothing was added back.
 
 ## Protected columns — the `select: false` replacement
 
-**Mongoose had `select: false`; Mention used it on no model.** That is the reason
-to have this module, not to skip it: a column only stayed out of a response
-because no DTO happened to include it, and `db.select().from(t)` returns EVERY
+**No column is hidden by default.** That is the reason to have this module: a
+column stays out of a response only because no DTO happens to include it, and `db.select().from(t)` returns EVERY
 column. The first naive query over a table holding a secret is the first time
 that secret can leave the process.
 
@@ -345,7 +339,7 @@ table.
 
 ## Generated columns
 
-Where Mongoose derived a value in a hook, the derivation belongs in the schema —
+Where a value is derived from other columns, the derivation belongs in the schema —
 not because it is tidier, but because a hook is bypassable and a
 `GENERATED ALWAYS ... STORED` column is not. No write path (route, service,
 backfill, `psql`) can produce a row whose derived value disagrees with its
@@ -362,18 +356,16 @@ Measured against `pg_proc.provolatile`, not assumed:
 
 ## Text search
 
-A Mongo text index becomes a `tsvector` GENERATED column plus a GIN index — never
+Full-text search is a `tsvector` GENERATED column plus a GIN index — never
 `LIKE '%…%'`, which is not a port of a text index but a table scan wearing one's
 clothes.
 
-- `post_content_variants.search_vector` uses `'english'`, Mongo's
-  `default_language`. Note the port CHANGES SHAPE: Mongo indexed the multikey
-  `content.variants.text` on the post document, so search now joins the variants
-  table back to `posts`.
-- `gifs.search_vector` reproduces Mongo's `default_language: 'none'` and its 5:1
+- `post_content_variants.search_vector` uses `'english'`. The text lives on
+  the variants table, so search joins it back to `posts`.
+- `gifs.search_vector` uses no language stemming and a 5:1
   `searchTerms`:`title` weighting with `setweight(array_to_tsvector(...), 'A')`
   and `setweight(to_tsvector('simple', title), 'B')`. `array_to_tsvector` takes
-  each element as a lexeme verbatim, which is also the more faithful port —
+  each element as a lexeme verbatim, which is correct here —
   `normalizeToTerms` already lowercases, strips diacritics and drops stop words
   on BOTH the stored terms and the query.
 
@@ -413,8 +405,8 @@ run `postgis/postgis:17-3.5`.
 
 ## Indexes
 
-Port the indexes that earn their keep, drop the ones that do not, add the ones
-Mongo needed and lacked.
+Keep the indexes that earn their keep, drop the ones that do not, add the ones
+a query needs.
 
 - **Ported by name** where the manifest named them (`post_public_chrono_v1`,
   `post_replies_chrono_v1`, `post_links_chrono_v1`), so a DBA reading
@@ -442,5 +434,5 @@ break the thing it guards and it goes red naming the offending table and column.
 | Deferred FK becomes mandatory when its parent lands; every id-shaped column classified; every FK declares an explicit `ON DELETE` | `__tests__/db/foreignKeys.test.ts` |
 | uuid v7 format and ordering; ObjectId hex accepted verbatim; the widened `status` CHECK; array-element CHECKs; one-owner-per-post; one-variant-per-language; the generated search vector; CASCADE/SET NULL behaviour on real rows | `__tests__/db/constraints.test.ts` |
 | `geo` is generated, SRID 4326, POINT, built as `(longitude, latitude)`, GiST-indexed, and unwritable | `__tests__/db/postgis.test.ts` |
-| Sweep semantics, batching, the index each swept column requires, and the retention constants still equal the Mongoose models' | `__tests__/db/expiry.test.ts` |
+| Sweep semantics, batching, the index each swept column requires, and the retention constants | `__tests__/db/expiry.test.ts` |
 | Protected-column registry, the `publicColumns` filter at runtime AND at the type level, and no implicit whole-row read anywhere in `src/` | `__tests__/db/protectedColumns.test.ts` |

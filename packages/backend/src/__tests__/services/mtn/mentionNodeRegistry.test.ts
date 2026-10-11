@@ -23,7 +23,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  *  - `probeLiveness` flips the badge from a mocked `safeFetch` result.
  *
  * The real `@oxy.so/protocol` engine runs against an in-memory `RecordStore` (so
- * the managed record genuinely signs + verifies + appends without Mongo); the
+ * the managed record genuinely signs + verifies + appends without the legacy store); the
  * `MentionUserNode` model + `safeFetch` are mocked.
  */
 
@@ -149,7 +149,7 @@ const NODE_PUBLIC_KEY = 'ab'.repeat(33); // 66 hex chars — a valid secp256k1 k
 /**
  * The stored node row.
  *
- * This used to read the `$set` of the last call to a mocked Mongo static, which
+ * This used to read the `$set` of the last call to a mocked legacy-store static, which
  * asserted what the service ASKED FOR rather than what the store kept — so it
  * could not see a write the database would reject (the `managed`/`controller`
  * CHECK) nor a field the update silently dropped.

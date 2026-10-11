@@ -19,7 +19,7 @@
  * all-or-nothing and that the resilience has to be written out by hand.
  *
  * The wire format is the other subject. `_id`, an OMITTED `topicId`, and `Date`
- * (not string) timestamps are what Mongoose's `.lean()` produced, and the
+ * (not string) timestamps are what the legacy ODM's `.lean()` produced, and the
  * frontend consumes this response directly.
  */
 
@@ -192,7 +192,7 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
   it('tolerates the same (name, type) appearing TWICE inside one batch', async () => {
     // Two hashtags that lowercase to one name — the shape `aggregateHashtags`
     // can still produce, since it groups on the stored casing and lowercases
-    // afterwards. Mongo errored on the second; `DO NOTHING` also sees rows this
+    // afterwards. The legacy store errored on the second; `DO NOTHING` also sees rows this
     // very command inserted, so it is skipped instead.
     const name = uniqueName('collide');
     const at = batchStamp();
@@ -261,7 +261,7 @@ describe('getTrending — the wire format is the contract', () => {
 
   it('emits _id, Date timestamps, and OMITS topicId when there is none', async () => {
     /**
-     * Mongoose's `.lean()` gave an ObjectId `_id` that JSON-serialized to a
+     * The legacy ODM's `.lean()` gave an ObjectId `_id` that JSON-serialized to a
      * string, `Date` instants, and NO `topicId` key at all when the field was
      * unset. Postgres would happily hand back `null` for that last one and a raw
      * timestamp STRING for the first two if the query bypassed drizzle's mappers.
@@ -279,7 +279,7 @@ describe('getTrending — the wire format is the contract', () => {
     expect(trend?.calculatedAt).toBeInstanceOf(Date);
     expect(trend?.updatedAt).toBeInstanceOf(Date);
     expect(trend).not.toHaveProperty('topicId');
-    // Mongo bookkeeping that no reader ever looked at must not reappear.
+    // Legacy-store bookkeeping that no reader ever looked at must not reappear.
     expect(trend).not.toHaveProperty('__v');
     // The whole key set, pinned: a NULL column must be OMITTED rather than
     // emitted as `null` (the SDK's zod parse rejects a null where it expects
@@ -366,7 +366,7 @@ describe('getTrending — the wire format is the contract', () => {
 describe('loadVolumeSeries — one series per TERM, in time order', () => {
   it('reads volumes ordered by batch time', async () => {
     /**
-     * Mongo's array happened to be in time order because the planner streamed a
+     * The legacy store's array happened to be in time order because the planner streamed a
      * matching index; `array_agg(... order by calculated_at)` states it. An
      * aggregate's input order is not guaranteed in Postgres, so leaving it out
      * would draw a sparkline whose points are in whatever sequence the planner

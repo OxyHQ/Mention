@@ -60,7 +60,7 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
 
     const db = getDb();
     // Ordered by `created_at` descending to match `pokes_poked_id_created_at_idx`
-    // exactly, as Mongo did. This is a bounded list, not a paginated one — there
+    // exactly. This is a bounded list, not a paginated one — there
     // is no cursor to straddle, so no tiebreak column is owed.
     const received = await db
       .select()
@@ -270,8 +270,7 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
 
     // One active poke per ORDERED pair — `pokes_poker_id_poked_id_key` is
     // directional, so A→B and B→A are two rows. `ON CONFLICT DO NOTHING` on that
-    // pair replaces the Mongo upsert AND its duplicate-key rescue in one
-    // statement: a re-poke returns the same `{poked: true}` without a second row
+    // pair is the upsert AND its duplicate-key rescue in one statement: a re-poke returns the same `{poked: true}` without a second row
     // and, crucially, without a second notification. An empty `returning()` is
     // what says "already poked", the same fact `upsertedCount` carried.
     const inserted = await getDb()

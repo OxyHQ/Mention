@@ -21,7 +21,7 @@ import { and, eq, inArray, type SQL } from 'drizzle-orm';
  * shows: with no exclusion left to hide the damage, moving the writer into
  * `post_authorships` puts the post on their profile for real.
  *
- * Against REAL ROWS rather than a Mongoose strict-schema round trip. The failure
+ * Against REAL ROWS rather than a legacy ODM strict-schema round trip. The failure
  * this guards is not "a schema dropped the field" — it is "the field ended up
  * somewhere that changes which queries match", and only executing those queries
  * can tell.

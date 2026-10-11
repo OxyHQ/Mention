@@ -9,7 +9,7 @@
  * an ordinary `GROUP BY`.
  *
  * `subscriber_count` / `use_count` stay as maintained counters. They are not
- * "Mongo could not JOIN" leftovers: both are SORT keys
+ * "could not JOIN" leftovers: both are SORT keys
  * (`{ useCount: -1, createdAt: -1 }`, `{ isPublic: 1, category: 1, subscriberCount: -1 }`)
  * and a sort on a live `COUNT(*)` cannot use an index.
  */
@@ -174,16 +174,15 @@ export const starterPacks = pgTable(
       'starter_packs_source_network_check',
       sql`${t.sourceNetwork} is null or ${t.sourceNetwork} in (${sql.raw(inList(EXTERNAL_LIST_NETWORKS))})`,
     ),
-    // Mongo stored `source` as a subdocument, so its three fields arrived or
-    // were absent together. Flattened into columns they could diverge; the CHECK
-    // restores the all-or-nothing the subdocument gave for free.
+    // `source` is one object on the wire, so its three fields arrive or are
+    // absent together. As columns they could diverge; the CHECK
+    // enforces the all-or-nothing.
     check(
       'starter_packs_source_complete_check',
       sql`(${t.sourceNetwork} is null and ${t.sourceUri} is null and ${t.sourceSyncedAt} is null)
         or (${t.sourceNetwork} is not null and ${t.sourceUri} is not null and ${t.sourceSyncedAt} is not null)`,
     ),
-    // Mongo's `{ 'source.uri': 1 }, { unique: true, sparse: true }` — one Mention
-    // pack per remote pack, which is what closes the concurrent-import race.
+    // One Mention pack per remote pack, which is what closes the concurrent-import race.
     uniqueIndex('starter_packs_source_uri_key')
       .on(t.sourceUri)
       .where(sql`${t.sourceUri} is not null`),
@@ -200,8 +199,7 @@ export const starterPacks = pgTable(
 /**
  * `starter_pack_members` — the junction replacing `memberOxyUserIds`.
  *
- * Mongo compounded the multikey member array with `useCount` to serve the
- * curation aggregation. The equivalent here leads with the member id, because
+ * The index leads with the member id, because
  * the curation query starts from a batch of feed authors and asks which packs
  * contain them.
  */
@@ -228,8 +226,8 @@ export const starterPackMembers = pgTable(
 /**
  * `starter_pack_uses` — who has used this pack.
  *
- * Mongo's `usedByOxyUserIds: [String]`, used as a `$ne` exclusion when
- * recommending packs the viewer has not used. As a junction it is a NOT EXISTS,
+ * Used as an exclusion when recommending packs the viewer has not used. As a
+ * junction it is a NOT EXISTS,
  * and `use_count` above becomes a projection of its cardinality rather than an
  * independently incremented number that could drift from the array's length.
  */

@@ -13,7 +13,7 @@
  * a NUL byte anywhere in the envelope fails the INSERT loudly rather than
  * corrupting a signature silently.
  *
- * ## `rkey` IS a Mongo `_id`, and it is covered by the signature
+ * ## `rkey` IS the record's row id, and it is covered by the signature
  *
  * `MtnUri` is `mtn://<oxyUserId>/<collection>/<rkey>` and every emitter passes
  * `String(post._id)` / `String(like._id)` / `String(boost._id)` as the `rkey`;
@@ -22,12 +22,11 @@
  * single strongest reason the migration preserves ids verbatim — it is not a
  * convenience, it is the only option that keeps the chain verifiable.
  *
- * ## The chain indexes are PARTIAL, exactly as in Mongo
+ * ## The chain indexes are PARTIAL
  *
- * v1 rows carry none of `recordId`/`seq`/`nsid`/`idempotencyKey`. Mongo made
- * those indexes partial so a unique constraint would not collide across every
- * v1 row's missing field; Postgres treats NULLs as distinct in a plain unique
- * index, but the partial form is kept because it also keeps the index the size
+ * v1 rows carry none of `recordId`/`seq`/`nsid`/`idempotencyKey`. Postgres
+ * treats NULLs as distinct in a plain unique index, but the partial form is
+ * used because it also keeps the index the size
  * of the v2 set and states the v1/v2 split at the constraint.
  */
 
@@ -112,13 +111,11 @@ export const mentionSignedRecords = pgTable(
     /**
      * v2 only: the AtProto-style collection NSID (`app.mention.feed.post`).
      *
-     * The column is `nsid`, not `collection`, because Mongoose reserves
-     * `Document.collection`. Postgres has no such reservation, but the name is
-     * kept: it is what every query, the oxy-api sibling model and the code
+     * The column is `nsid`, not `collection`: it is what every query, the oxy-api sibling model and the code
      * comments already say, and renaming it would be a gratuitous divergence.
      */
     nsid: text(),
-    /** v2 only: the record key within the collection — a Mongo `_id`. */
+    /** v2 only: the record key within the collection — the record's row id. */
     rkey: text(),
     createdAt: createdAt(),
   },
@@ -128,7 +125,7 @@ export const mentionSignedRecords = pgTable(
       sql`${t.chainStatus} is null or ${t.chainStatus} in (${sql.raw(inList(MTN_CHAIN_STATUSES))})`,
     ),
     check('mention_signed_records_seq_check', sql`${t.seq} is null or ${t.seq} >= 0`),
-    // Globally-unique content address (Mongo `recordId_1`, partial on string).
+    // Globally-unique content address (partial on present values).
     uniqueIndex('mention_signed_records_record_id_key')
       .on(t.recordId)
       .where(sql`${t.recordId} is not null`),
@@ -138,7 +135,7 @@ export const mentionSignedRecords = pgTable(
     uniqueIndex('mention_signed_records_oxy_user_id_seq_key')
       .on(t.oxyUserId, t.seq)
       .where(sql`${t.seq} is not null`),
-    // At-least-once delivery idempotency (Mongo `mtn_event_idempotency_unique_v1`).
+    // At-least-once delivery idempotency.
     uniqueIndex('mention_signed_records_idempotency_key')
       .on(t.oxyUserId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),
@@ -227,7 +224,7 @@ export const mentionUserNodes = pgTable(
     ),
     check('mention_user_nodes_cursor_check', sql`${t.cursor} is null or ${t.cursor} >= 0`),
     // A managed node is operated by Oxy, by definition — the two flags cannot
-    // disagree. Mongo held them as two independent fields.
+    // disagree.
     check(
       'mention_user_nodes_managed_controller_check',
       sql`${t.managed} = (${t.controller} = 'oxy')`,
@@ -266,7 +263,7 @@ export const mentionNodeIngestWitnesses = pgTable(
     /**
      * When Mention first ingested and witnessed this record.
      *
-     * Mongo stored a raw millisecond NUMBER because it is part of the
+     * A raw millisecond NUMBER because it is part of the
      * canonicalized signing input (`{ recordId, oxyUserId, ingestedAt }`) and
      * must round-trip byte-identically. A `timestamptz` would re-render it, so
      * the number is preserved exactly — this is the one place a date is

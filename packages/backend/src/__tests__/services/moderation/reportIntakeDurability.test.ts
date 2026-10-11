@@ -18,7 +18,7 @@ import { and, eq, like, sql } from 'drizzle-orm';
  *
  * ## What the Postgres port changed
  *
- * The old file asserted on the SESSION each write received, because in Mongo that
+ * The old file asserted on the SESSION each write received, because in the legacy store that
  * was the only way to tell one transaction from two adjacent writes. There is no
  * session to inspect now, and the substitute is stronger rather than weaker: a
  * `before insert` TRIGGER on `moderation_outbox`, scoped to one probe subject so
@@ -35,13 +35,13 @@ import { and, eq, like, sql } from 'drizzle-orm';
  *    the root connection. Re-asserting it here through intake would be a second,
  *    weaker copy of a stronger check.
  *  - *"refuses to report success for a transaction that produced no result"* —
- *    that guarded Mongo's `withTransaction`, which can return without having run
+ *    that guarded the legacy store's `withTransaction`, which can return without having run
  *    its body (it re-invokes the callback on a transient error). Drizzle's
  *    `db.transaction(fn)` RETURNS the callback's value and has no re-invoke path,
  *    so there is no state in which intake could answer 201 about a body that never
  *    ran. Restating it would be asserting a property of the driver.
  *
- * And one test is NEW, because the port made a race reachable that Mongo never
+ * And one test is NEW, because the port made a race reachable that the legacy store never
  * had: `reports_reporter_reported_key`. See its own comment.
  */
 
@@ -268,11 +268,11 @@ describe('report intake — durable reception (§7.1)', () => {
     'answers a CONCURRENT duplicate the same way it answers a sequential one (%s)',
     async (_branch, arrange, build) => {
       /**
-       * A race Postgres made REACHABLE and Mongo never had.
+       * A race Postgres made REACHABLE and the legacy store never had.
        *
        * The dedup read and the insert are one transaction, but two intakes running
        * at once both read nothing and both insert; `reports_reporter_reported_key`
-       * is what refuses the second. Mongo declared no such index, so there the
+       * is what refuses the second. The legacy store declared no such index, so there the
        * double-tap simply stored two reports and delivered two of them.
        *
        * Left alone the refusal surfaces as a raw 23505, which the route answers
@@ -462,7 +462,7 @@ describe('report intake — an operator is not an identifier', () => {
    * `CreateReportInput` types these as strings and the route rejects a missing one,
    * but a type is erased at runtime and a truthiness check passes `{$ne: null}`.
    *
-   * In Mongo, handed that, the dedup `findOne` matched an UNRELATED report and
+   * In the legacy store, handed that, the dedup `findOne` matched an UNRELATED report and
    * intake answered "you already reported this" about somebody else's row — a wrong
    * answer about another user rather than a crash. A parameterised query cannot be
    * turned into a different query by one of its parameters, so that particular

@@ -268,8 +268,8 @@ export const mentionsOfMeSource: SourceModule = {
     const viewerId = ctx.currentUserId;
     if (!viewerId) return [];
 
-    // `mentions` became a junction table, so Mongo's `{ mentions: viewerId }`
-    // array-element match becomes a correlated EXISTS. Built through the query
+    // `mentions` is a junction table, so "the viewer is mentioned" is a
+    // correlated EXISTS. Built through the query
     // builder so `post_mentions.post_id = posts.id` renders qualified.
     const mentioned = sql`exists ${getDb()
       .select({ one: sql`1` })
@@ -323,7 +323,7 @@ export const hashtagFollowsSource: SourceModule = {
 
     return fetchChrono(
       [
-        // Array OVERLAP — the analogue of Mongo's `$in` against a multikey field.
+        // Array OVERLAP — any of the tags appears in the post's array.
         //
         // Through `arrayOverlaps`, never a raw `${tags}::text[]`: a JS array
         // interpolated into a `sql` template binds as a ROW CONSTRUCTOR
@@ -350,7 +350,7 @@ export const starterPackSource: SourceModule = {
     const packId = typeof params.packId === 'string' ? params.packId : '';
     if (!packId) return [];
 
-    // Members are a junction TABLE here, not the embedded id array Mongo held —
+    // Members are a junction TABLE here, not an embedded id array —
     // `CONVENTIONS.md` makes an array of ids a real table so it can be joined,
     // constrained and indexed. So this is a member query, not a pack lookup:
     // reading the pack row would return no members at all.
@@ -385,11 +385,10 @@ export const starterPackSource: SourceModule = {
  * `onThisDay`: nostalgia — the viewer's own posts (or the viewer + their follows
  * when `params.scope === 'follows'`) from earlier years on today's month/day.
  *
- * `extract(... from created_at)` is the port of Mongo's `$month`/`$dayOfMonth`
- * `$expr`, and like it, it is evaluated per row — so the query is bounded by the
- * author-id filter exactly as before. The timestamps are `timestamptz`, so the
- * extraction runs in the session time zone; `at time zone 'utc'` pins it to the
- * same UTC calendar day the original operators used, which is also what the JS
+ * `extract(... from created_at)` matches month and day, and it is evaluated per
+ * row — so the query is bounded by the author-id filter. The timestamps are
+ * `timestamptz`, so the extraction runs in the session time zone;
+ * `at time zone 'utc'` pins it to the UTC calendar day, which is also what the JS
  * side computes with `getUTCMonth`/`getUTCDate`.
  */
 export const onThisDaySource: SourceModule = {
@@ -471,10 +470,9 @@ export const newsSource: SourceModule = {
  * host-prefix match — correct but not index-served. The fix is to persist and
  * index the domain at ingest.
  *
- * `local` keys off `federation_actor_uri IS NULL`. In Mongo the whole
- * `federation` subdocument was absent for a local post; here the columns are
- * individually null, and the actor URI is the one every federated ingest path
- * writes.
+ * `local` keys off `federation_actor_uri IS NULL`. The federation columns are
+ * individually null for a local post, and the actor URI is the one every
+ * federated ingest path writes.
  */
 export const instanceSource: SourceModule = {
   id: 'instance',
@@ -560,10 +558,9 @@ export const linksSource: SourceModule = {
  * LOW-VOLUME authors active in the recency window, earliest-arriving first, and
  * fetches each qualifying author's latest post. Always SFW.
  *
- * `max(id)` picked the latest post in Mongo because an ObjectId encodes its
- * creation time. It does not here (see `chronoOrderBy`), so "latest" is resolved
- * with `DISTINCT ON` over the real `(created_at DESC, id DESC)` order — which is
- * also strictly more correct for federated posts, whose import-time id bears no
+ * `max(id)` would not pick the latest post: id order is not time order (see
+ * `chronoOrderBy`), so "latest" is resolved with `DISTINCT ON` over the real
+ * `(created_at DESC, id DESC)` order — which is also strictly more correct for federated posts, whose import-time id bears no
  * relation to when they were written.
  *
  * "Earliest-arriving first" is the `ORDER BY min(created_at) DESC` below and

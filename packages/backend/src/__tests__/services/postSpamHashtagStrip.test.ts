@@ -3,11 +3,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 /**
  * A trailing block of 4+ hashtags is stripped from what a native post STORES.
  *
- * This behaviour used to live in the `Post` schema's Mongoose `pre('validate')`
+ * This behaviour used to live in the `Post` schema's legacy-ODM `pre('validate')`
  * hook, which ran on `.save()` — and `.save()` is how both native write paths
  * persisted a post until the Postgres cutover (`new Post(...).save()` in
  * `PostCreationService`, `post.save()` in `updatePost`). So it fired on every
- * native create and every native edit for as long as the store was Mongo; it is
+ * native create and every native edit for as long as the store was the legacy store; it is
  * a behaviour that was LOST, not a validator that never ran. The federated
  * ingest never went through the hook (`apPostContent.ts` calls
  * `normalizePostHashtags` itself), which is why the gap presented as Mention
@@ -22,7 +22,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *  - three consecutive hashtags stay VISIBLE (the threshold is a threshold, and a
  *    test that only checks the stripping direction cannot tell a working rule from
  *    one that eats every hashtag);
- *  - an edit that does not touch the body rewrites NOTHING — the Mongoose hook was
+ *  - an edit that does not touch the body rewrites NOTHING — the legacy-ODM hook was
  *    guarded by `isModified('content.variants')` and dropping that guard would let
  *    a media-only edit silently rewrite an author's words years later.
  *
@@ -256,7 +256,7 @@ describe('a native post is stored without its trailing hashtag block — EDIT', 
   it('rewrites NOTHING when the edit did not touch the body', async () => {
     // Seeded straight into the table with a block already in it — the shape a
     // post written before this rule existed, or imported, actually has. The
-    // Mongoose hook was guarded by `isModified('content.variants')`; without the
+    // legacy-ODM hook was guarded by `isModified('content.variants')`; without the
     // equivalent guard a settings-only edit would silently rewrite the author's
     // words, so this is the case that pins the placement rather than the rule.
     const author = scope.user('settings-editor');

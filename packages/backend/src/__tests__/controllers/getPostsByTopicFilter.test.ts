@@ -5,7 +5,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 /**
  * The topic-page and hashtag-page predicates, against REAL ROWS.
  *
- * These used to assert the Mongo filter OBJECT each builder returned, which
+ * These used to assert the legacy-store filter OBJECT each builder returned, which
  * proved only that the builder produced the literal someone typed into the test.
  * Both are now correlated `EXISTS` / array-containment SQL — the exact shapes
  * that render a bare column and silently match NOTHING (see `@oxy.so/db`) —

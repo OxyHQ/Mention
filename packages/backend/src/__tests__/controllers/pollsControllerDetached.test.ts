@@ -252,7 +252,7 @@ describe('createPoll', () => {
 
     expect(body.data.postId).toBe(postId);
     expect(body.data.createdBy).toBe(author);
-    // Mongoose named these `created_at`/`updated_at`, and the client reads
+    // The legacy ODM named these `created_at`/`updated_at`, and the client reads
     // them as ISO strings — the shape `PollDetail` declares and the shape a
     // real `res.json()` would have produced from a `Date` anyway.
     expect(body.data.created_at).toEqual(expect.any(String));
@@ -296,7 +296,7 @@ describe('createPoll', () => {
 
   it('answers 404 for a post id that names nothing, not 400', async () => {
     // The `try/catch` that answered 400 'Invalid post ID format' existed only to
-    // convert a Mongoose `CastError`. A `text` id that matches no row reaches the
+    // convert a legacy-ODM `CastError`. A `text` id that matches no row reaches the
     // 404, which is the more useful of the two answers.
     const { createPoll } = pollsController;
     const { captured } = await call(createPoll, {
@@ -326,7 +326,7 @@ describe('createPoll', () => {
     ['a missing postId', { question: 'Q', options: ['a', 'b'] }],
   ])('answers 400 for %s', async (_label, body) => {
     /**
-     * These are the Mongoose validators that had no Postgres counterpart —
+     * These are the legacy-ODM validators that had no Postgres counterpart —
      * `required` treats `''` as missing, `postId` was `required`, and an
      * uncastable date was a `ValidationError`. Re-applied at the call site, they
      * keep the same 400 out the front.
@@ -434,7 +434,7 @@ describe('deletePoll', () => {
   });
 
   it('deletes a poll that was never attached to a post', async () => {
-    // Mongo stored a `temp_` placeholder here, and `Post.findByIdAndUpdate`
+    // The legacy store stored a `temp_` placeholder here, and `Post.findByIdAndUpdate`
     // threw a `CastError` on it — so deleting a never-attached poll answered
     // 500. A NULL `post_id` simply skips the unlink.
     const author = `author-${randomUUID()}`;

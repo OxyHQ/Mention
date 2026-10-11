@@ -409,7 +409,7 @@ export class OutboxSyncService {
     // us PULLING from it. Every outbox sync — the scheduled followed-actor sweep,
     // the recent-post backfill, the profile-view refresh, and the post-Accept
     // backfill — converges here, and each of them loads its actor straight from
-    // Mongo, so none of them passes through the resolver's policy check.
+    // the database, so none of them passes through the resolver's policy check.
     //
     // Cooldown is deliberately NOT stamped and the reason is NOT permanently
     // unavailable: the outbox is fine, our policy refused it. Unblocking the
@@ -816,8 +816,7 @@ export class OutboxSyncService {
 
       // Build the rows for batch insert. Each carries a PRE-ASSIGNED id, so the
       // media-enrich pass below can address every post without reading anything
-      // back — the same reason the Mongo version minted its own `ObjectId`
-      // rather than letting the driver do it.
+      // back.
       const newDocs: PostRecordInput[] = [];
       const linkPreviewsByPostId = new Map<string, RemoteLinkPreview[]>();
       // Federated replies inserted in this batch, to be linked into their threads
@@ -844,8 +843,7 @@ export class OutboxSyncService {
         const inReplyToUri = extractInReplyToUri(note.inReplyTo);
 
         // A CHANNEL POST TAKES NO REPLIES, and this batch bypasses every write
-        // guard: `Post.collection.insertMany` below skips Mongoose middleware,
-        // schema defaults and `PostCreationService` entirely, so a candidate that
+        // guard: the batch insert below skips `PostCreationService` entirely, so a candidate that
         // is not filtered out HERE is stored unchallenged.
         //
         // Only a LOCAL `inReplyTo` can name a channel's post — a remote object,
@@ -867,7 +865,7 @@ export class OutboxSyncService {
 
         // Preserve the ORIGINAL remote publish date (validated) so the post is
         // ordered by when it was authored, not when we backfilled it. The raw
-        // `insertMany` below bypasses Mongoose timestamps, so a valid date is
+        // batch insert below bypasses `PostCreationService`, so a valid date is
         // written directly; an invalid/missing date leaves createdAt/updatedAt
         // off the doc and the schema default (now) applies.
         const published = parseApPublished(note.published ?? activity.published);
@@ -889,8 +887,8 @@ export class OutboxSyncService {
         // Rewrite this note's @mention anchors to internal `[mention:<id>]`
         // placeholders using the shared page-level resolution, so hydration renders
         // each mention as a real profile link instead of dead `@user` text. Must
-        // run BEFORE the builder derives the body (the raw `insertMany` bypasses
-        // Mongoose, so there is no later hook to do it). `applyMentionPlaceholders`
+        // run BEFORE the builder derives the body (the batch insert has no later
+        // hook to do it). `applyMentionPlaceholders`
         // returns the note unchanged when it has no resolved mentions (zero cost).
         const mentionResult = mentionsByNote.get(note) ?? emptyMentions;
         const noteObject = applyMentionPlaceholders(note, mentionResult.anchorMap);
@@ -898,7 +896,7 @@ export class OutboxSyncService {
         // Build the storable body via the shared builder: contentMap fallback,
         // the SAME hashtag normalization the inbox path runs (fixes the ingest
         // asymmetry), media materialization, and the empty-note guard. The raw
-        // `insertMany` below bypasses Mongoose middleware, so the builder is the
+        // batch insert below bypasses `PostCreationService`, so the builder is the
         // single place that normalization/guarding happens for this path. A Note
         // that carries nothing storable is skipped rather than inserted blank.
         const built = await buildFederatedNoteContent(noteObject, resolvedOxyUserId, {
@@ -959,8 +957,8 @@ export class OutboxSyncService {
         // `postClassification.languages`.
         const apLanguage = extractApLanguage(note);
         const apLanguages = extractApLanguages(note);
-        // Stage-A deterministic baseline. The raw insertMany bypasses Mongoose
-        // middleware AND schema defaults, so the baseline fields are set
+        // Stage-A deterministic baseline. The batch insert bypasses
+        // `PostCreationService`, so the baseline fields are set
         // explicitly here (mirroring the explicit `postClassification` seed; the
         // hashtag normalization now runs inside `buildFederatedNoteContent`).
         // Best-effort: a classifier throw must not abort the whole batch insert —
@@ -1051,10 +1049,8 @@ export class OutboxSyncService {
         }
       }
 
-      // The half-written-coordinate strip that used to sit here is gone, and
-      // deliberately: Mongo's validator accepted `{ coordinates: [] }` and the
-      // 2dsphere index then rejected the write, so this path had to prune the
-      // pairs by hand. `posts_content_location_pair_check` and
+      // There is no half-written-coordinate strip here, deliberately:
+      // `posts_content_location_pair_check` and
       // `posts_location_pair_check` make a half-present pair unrepresentable, and
       // nothing on this path writes a location at all.
 
@@ -1062,8 +1058,7 @@ export class OutboxSyncService {
         // Per-row rather than one multi-row INSERT, because a post is nine tables
         // and `insertPostRecords` writes them in ONE transaction each — so a
         // duplicate `federation.activity_id` rolls back only its own post instead
-        // of aborting the batch, which is what `{ ordered: false }` bought on the
-        // Mongo side. A unique violation is the EXPECTED outcome of a concurrent
+        // of aborting the batch. A unique violation is the EXPECTED outcome of a concurrent
         // import and is counted, not logged as a failure.
         //
         // The batch form, not `insertPostRecord` per row under `allSettled`: that

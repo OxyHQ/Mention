@@ -301,14 +301,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
 
       try {
-        // Postgres, through the shared writer. This used to `new Poll().save()`
-        // into Mongo while `PostHydrationService` — the single DTO producer for
-        // every post surface — reads polls from Postgres, so a poll created here
-        // was written to one store and looked for in the other: the post said it
-        // had a poll and rendered none.
+        // Postgres, through the shared writer — the same store
+        // `PostHydrationService`, the single DTO producer for every post
+        // surface, reads polls from.
         //
-        // `postId` stays NULL until the post exists; the `temp_` placeholder the
-        // Mongo code used is not portable to a real foreign key.
+        // `postId` stays NULL until the post exists; a `temp_` placeholder is
+        // not storable in a real foreign key.
         pollId = await createPollWithOptions({
           question: pollInput.question,
           options: pollInput.options,

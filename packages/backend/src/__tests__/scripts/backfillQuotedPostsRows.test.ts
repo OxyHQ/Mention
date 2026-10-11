@@ -9,19 +9,19 @@ import { eq } from 'drizzle-orm';
  * those rules. This file exists for the one thing a pure test structurally cannot
  * see: WHICH STORE the script selects from and writes to.
  *
- * That is not hypothetical. The script arrived from `main` writing Mongo and
+ * That is not hypothetical. The script arrived from `main` writing the legacy store and
  * merged into the Postgres port with zero conflicts and zero type errors, because
  * `models/Post` is among the models the port kept. The pure suite stayed green
  * throughout — it never touches a store.
  *
- * Two properties beyond the store, both of which the Mongo original got wrong and
+ * Two properties beyond the store, both of which the legacy-store original got wrong and
  * neither of which a counter can attest to on its own:
  *
  *  - `candidates` bounds the SCAN, so it distinguishes "the SQL filter kept a row
  *    out" from "the loop looked at it and skipped it". Without an assertion on it
  *    a body-only assertion passes either way.
  *  - A DRY RUN MUST NOT IMPORT. `ensureQuotedNote` stores what it fetches, so the
- *    Mongo version's token-free default invocation created rows while its own
+ *    legacy-store version's token-free default invocation created rows while its own
  *    docblock promised "only `=false` writes".
  */
 
@@ -195,7 +195,7 @@ describe('quoted-post backfill — the rows, not the call', () => {
     const result = await backfillQuotedPosts({ dryRun: true });
 
     /**
-     * `ensureQuotedNote` STORES the Note it fetches. The Mongo original called it
+     * `ensureQuotedNote` STORES the Note it fetches. The legacy-store original called it
      * on the dry-run path, so its default, confirmation-token-free invocation
      * created rows while the docblock promised "only `=false` writes".
      */
@@ -244,7 +244,7 @@ describe('quoted-post backfill — the rows, not the call', () => {
      * Here someone else links the post between the SELECT and the UPDATE (the
      * import step is the real window for that, which is why it is staged from
      * inside it). The UPDATE carries `quote_of is null` in its own WHERE, so it
-     * matches NOTHING — Mongo's `modifiedCount: 0` with `matchedCount: 1`,
+     * matches NOTHING — the legacy store's `modifiedCount: 0` with `matchedCount: 1`,
      * expressed in SQL. `linked` still counts 1, because a quote target really
      * was resolved, and `noOpWrites` fires precisely because those two disagree.
      */
@@ -344,7 +344,7 @@ describe('quoted-post backfill — the rows, not the call', () => {
      * `quote_of is null` is in the SELECT, so a linked row drops out of the
      * candidate set entirely. That is also what makes `BACKFILL_MAX` mean
      * something: successive runs advance instead of re-examining the same rows,
-     * which the Mongo original's unordered pre-filter limit could not do.
+     * which the legacy-store original's unordered pre-filter limit could not do.
      */
     expect(first.written).toBe(1);
     expect(second.candidates).toBe(0);

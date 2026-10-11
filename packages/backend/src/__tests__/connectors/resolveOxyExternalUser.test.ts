@@ -82,7 +82,7 @@ describe('resolveOxyExternalUser', () => {
       ok: true,
       media: { oxyFileId: 'banner_file', contentType: 'image/png', sizeBytes: 10 },
     });
-    mocks.userSettingsUpdateOne.mockRejectedValue(new Error('Mongo write conflict'));
+    mocks.userSettingsUpdateOne.mockRejectedValue(new Error('write conflict'));
 
     const result = await resolveOxyExternalUser(actor);
 

@@ -27,7 +27,7 @@
     },
     {
       "path": "packages/backend/src/services/PostClassificationService.ts",
-      "sha256": "f65bb358e0f1dde062b02ebf35b4059907c48c3aa6124e153d77848614fadda2"
+      "sha256": "ffbd8ea867a0d1619990425efbf3cbacda67ca2d295e10a598e3f569934bcf88"
     },
     {
       "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
@@ -57,7 +57,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline.json",
-      "sha256": "931a6d1c0ea40c4acb2c2555c0bf25d47a113d18389662992fa1db8b654ca49f"
+      "sha256": "e31a2ac0f1d3a8365cff01c75c0c96e3f7e4e66a6b430644f744527480c84f91"
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/focal-final.log",
@@ -105,7 +105,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-runtime/packages/backend/src/services/PostClassificationService.ts",
-      "sha256": "a258c14be9556719602cdd0e1b452c48c1a8c5240b14ab71a2577f19d49536bd"
+      "sha256": "9aecfdf3deae5220840c616f20a280451b978acdd763b7a6f1f8b9c78fe0f4fa"
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/baseline-runtime/packages/backend/src/db/posts/postEvaluationRepository.ts",
@@ -117,7 +117,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/final-runtime/packages/backend/src/services/PostClassificationService.ts",
-      "sha256": "f65bb358e0f1dde062b02ebf35b4059907c48c3aa6124e153d77848614fadda2"
+      "sha256": "ffbd8ea867a0d1619990425efbf3cbacda67ca2d295e10a598e3f569934bcf88"
     },
     {
       "path": "docs/audits/2026-10-04-mention-bounded-shadow/records/final-runtime/packages/backend/src/db/posts/postEvaluationRepository.ts",

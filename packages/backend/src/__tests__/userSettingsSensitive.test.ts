@@ -10,7 +10,7 @@ import { loadShowSensitiveContent } from '../services/safety/viewerSafety';
  * `privacy.showSensitiveContent` — the gate every read surface consults before
  * showing a viewer someone else's sensitive post.
  *
- * This used to construct a Mongoose document and read the schema default off
+ * This used to construct a legacy-ODM document and read the schema default off
  * it, which asserted a fact about a model nothing loads any more. The default
  * now lives in the COLUMN (`privacy_show_sensitive_content boolean not null
  * default false`), so the only way to state it is to insert a row that mentions

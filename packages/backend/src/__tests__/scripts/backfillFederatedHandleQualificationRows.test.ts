@@ -9,7 +9,7 @@ import { eq, like } from 'drizzle-orm';
  * place for the rewriting rules themselves. This file exists for the one thing a
  * pure test structurally cannot see: WHICH STORE the script writes to.
  *
- * That is not hypothetical here. The script arrived from `main` writing Mongo and
+ * That is not hypothetical here. The script arrived from `main` writing the legacy store and
  * merged into the Postgres port with zero conflicts and zero type errors, because
  * `models/Post` and `models/FederatedActor` are among the models the port kept.
  * A pure-function suite stayed green throughout — it never touches a store — so

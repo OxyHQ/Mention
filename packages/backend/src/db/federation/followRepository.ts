@@ -8,17 +8,16 @@
  *
  * ## `updateOne` is not `UPDATE`
  *
- * Mongo's `updateOne` writes AT MOST ONE document; a bare SQL `UPDATE` writes
+ * A follow transition must write AT MOST ONE row; a bare SQL `UPDATE` writes
  * every matching row. Three of the follow transitions are matched by
  * `(remote_actor_uri, direction, status)` WITHOUT a local user — an `Accept` that
  * arrives with no resolvable Follow id has to guess which pending row it answers
  * — so on any instance where two local users follow the same remote actor, the
- * direct translation accepts BOTH from one Accept. Each of those three goes
+ * bare `UPDATE` accepts BOTH from one Accept. Each of those three goes
  * through {@link oneRowMatching}, which pins the update to a single id chosen by
  * the same predicate.
  *
- * The arbitrariness is inherited, not introduced: Mongo picked whichever row its
- * index scan reached first. Preserving "exactly one" is the point — widening it
+ * Which row is chosen is arbitrary; "exactly one" is the point — widening it
  * would mean a remote server could accept a follow it was never asked about.
  */
 
@@ -225,7 +224,7 @@ export async function findFollow(
  *
  * An `Undo(Follow)` may or may not name the local target, so the engine asks for
  * "the inbound follow from this actor" and takes whichever row answers when it
- * cannot narrow further — the shape Mongo's `findOne` had.
+ * cannot narrow further.
  */
 export async function findInboundFollow(
   remoteActorUri: string,

@@ -255,7 +255,7 @@ describe('GET /profile/settings/:userId profile-design visibility', () => {
 
     expect(settings.profileHeaderImage).toBe('private-banner-file');
     // The OWNER sees their whole appearance object, defaults included. That is
-    // not a wire change: the Mongoose schema declared the same defaults and
+    // not a wire change: the legacy-ODM schema declared the same defaults and
     // applied them on document creation, so a real settings document always
     // carried these three. The previous expectation was written against a
     // hand-built partial fixture that production could not produce — the port

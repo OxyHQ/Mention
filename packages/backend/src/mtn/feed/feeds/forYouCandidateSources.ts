@@ -405,8 +405,7 @@ export async function gatherAffinityLane(
 /**
  * TOPICS (DISCOVERY): classification-topic match, sensitive excluded (SFW).
  *
- * ANY-overlap over the `classification_topics` array — `&&` is the direct
- * analogue of Mongo's `$in` against a multikey array field.
+ * ANY-overlap over the `classification_topics` array (`&&`).
  */
 export async function gatherTopicsLane(
   params: GatherForYouCandidatesParams,

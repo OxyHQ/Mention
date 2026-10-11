@@ -8,15 +8,13 @@
  * transaction. `routes/starterPacks.ts` owns the same invariant for packs a user
  * creates; this is the second writer, not a second SPELLING of the first.
  *
- * ## Why the mirror needed porting at all
+ * ## Why the mirror writes these tables
  *
- * It upserted the Mongo `StarterPack` model while every reader had moved:
  * `routes/starterPacks.ts` serves the API from `starter_packs`, and
- * `starterPackCuration` ranks from `starter_pack_members`. So a mirrored pack
- * was written to a store nothing reads — it never appeared in the API, never
- * curated anything, and re-synced cleanly forever. The API even distinguishes
- * them (`isFederatedPack` reads `source_network`), which is what says they were
- * meant to be there.
+ * `starterPackCuration` ranks from `starter_pack_members`. A mirrored pack
+ * written anywhere else would never appear in the API, never curate anything,
+ * and re-sync cleanly forever. The API distinguishes them (`isFederatedPack`
+ * reads `source_network`), which is what says they are meant to be there.
  */
 
 import { eq, isNotNull } from 'drizzle-orm';
@@ -44,8 +42,7 @@ export interface MirroredStarterPack {
  * specification`, which is a run-time error no type would have caught.
  *
  * The three `source_*` columns are written together because
- * `starter_packs_source_complete_check` requires all-or-nothing: Mongo held them
- * as one subdocument, where that was free.
+ * `starter_packs_source_complete_check` requires all-or-nothing.
  *
  * @returns The pack's id.
  */

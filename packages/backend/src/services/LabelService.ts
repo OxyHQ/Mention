@@ -3,18 +3,16 @@
  *
  * ## The wire format is the contract, not the storage shape
  *
- * Mongo stored `labelDefinitions` as an embedded array on the labeler and the
- * viewer's subscriptions as a raw id array on `UserSettings`. Postgres holds the
+ * The wire carries `labelDefinitions` as an embedded array on the labeler and the
+ * viewer's subscriptions as a raw id array. Postgres holds the
  * definitions in `labeler_label_definitions` (so `(labeler, slug)` — the way
  * every call site addresses one — is a real unique constraint rather than a
  * hope) and keeps the subscription list as a `text[]` read whole.
  *
- * Neither change may reach a client. `serializeLabeler` re-assembles the
- * embedded array and still emits `_id`, because the frontend reads
- * `String(l._id || l.id)` and the fediverse-facing rule is that a port changes
- * no response body. An absent optional is OMITTED rather than sent as `null` —
- * Mongoose's `undefined` disappeared from the JSON, and drizzle's `null` would
- * not.
+ * The storage shape never reaches a client. `serializeLabeler` re-assembles the
+ * embedded array and emits `_id`, because the frontend reads
+ * `String(l._id || l.id)`. An absent optional is OMITTED rather than sent as
+ * `null`, which is the wire contract clients rely on.
  */
 
 import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
@@ -59,7 +57,7 @@ export interface SerializedLabeler {
 export interface SerializedContentLabel {
   _id: string;
   id: string;
-  /** Populated with the labeler's name, matching Mongoose's `.populate()`. */
+  /** Populated with the labeler's name. */
   labelerId: { _id: string; id: string; name: string };
   targetType: 'post' | 'user';
   targetId: string;
@@ -96,7 +94,7 @@ export interface LabelActionPreference {
 /** Search results are bounded; a labeler directory is not a paginated surface. */
 const LABELER_LIST_LIMIT = 200;
 
-/** Drop a key entirely when the column held NULL, matching Mongoose's `undefined`. */
+/** Drop a key entirely when the column held NULL, so the wire omits it. */
 function optional<T>(value: T | null): { present: false } | { present: true; value: T } {
   return value === null ? { present: false } : { present: true, value };
 }
@@ -187,8 +185,8 @@ export class LabelService {
             description: definition.description ?? null,
             severity: definition.severity,
             defaultAction: definition.defaultAction,
-            // Explicit, because the embedded Mongo array was ordered and the
-            // client renders them in that order.
+            // Explicit, because the definitions are ordered and the client
+            // renders them in that order.
             position,
           })),
         );
@@ -230,9 +228,8 @@ export class LabelService {
   /**
    * One labeler, or `null`.
    *
-   * No id-shape guard: the Mongoose version returned `null` for anything that
-   * was not 24-char hex, which after the cutover would have hidden every labeler
-   * created since. A `text` id that names no row already answers `null`.
+   * No id-shape guard: ids are 24-char hex OR uuid v7, and a `text` id that
+   * names no row already answers `null`.
    */
   static async getLabelerById(id: string): Promise<SerializedLabeler | null> {
     const [row] = await getDb().select().from(labelers).where(eq(labelers.id, id)).limit(1);
@@ -246,8 +243,7 @@ export class LabelService {
    *
    * The array append and the counter move together in one transaction, and the
    * append itself is conditional on the id being absent — so a double-click
-   * increments `subscriberCount` exactly once, the same guarantee Mongo got from
-   * `$addToSet` plus `modifiedCount`.
+   * increments `subscriberCount` exactly once.
    */
   static async subscribeToLabeler(userId: string, labelerId: string): Promise<void> {
     await getDb().transaction(async (tx) => {
@@ -309,9 +305,8 @@ export class LabelService {
       /**
        * `greatest(… - 1, 0)`, not a bare decrement. `labelers_subscriber_count_check`
        * forbids a negative count, so a legacy row whose counter had already drifted
-       * below its real subscriber set would turn an unsubscribe into a 500. Mongo
-       * would have gone to -1 silently; neither is right, and clamping is the one
-       * that still removes the subscription.
+       * below its real subscriber set would turn an unsubscribe into a 500.
+       * Clamping still removes the subscription.
        */
       await tx
         .update(labelers)
@@ -431,10 +426,9 @@ export class LabelService {
   /**
    * The viewer's subscribed labelers and their per-label action overrides.
    *
-   * No id filter on the subscription list. The Mongoose version ran the array
-   * through `ObjectId.isValid` before the lookup, so a labeler created after the
-   * cutover — a uuid v7 — silently vanished from the viewer's effective label
-   * set and their hide/warn/blur choices stopped applying to it, with nothing
+   * No id-shape filter on the subscription list: an ObjectId-only filter would
+   * silently drop every uuid v7 labeler from the viewer's effective label set
+   * and their hide/warn/blur choices would stop applying to it, with nothing
    * logged. An id that names no labeler simply returns no row, which is what
    * the caller has to handle anyway (a labeler can be deleted).
    */
@@ -482,10 +476,10 @@ export class LabelService {
    * Replace the viewer's action overrides for the labelers named in `incoming`,
    * leaving every other labeler's overrides untouched.
    *
-   * Mongo did this by reading the whole array, merging in memory and writing it
-   * back — a lost update whenever two tabs saved at once. As rows, the merge is
-   * a scoped delete plus an insert inside one transaction, so concurrent saves
-   * for DIFFERENT labelers can no longer clobber each other.
+   * The merge is a scoped delete plus an insert inside one transaction, so
+   * concurrent saves for DIFFERENT labelers cannot clobber each other (reading
+   * the whole set, merging in memory and writing it back would lose an update
+   * whenever two tabs saved at once).
    */
   static async setLabelActions(userId: string, incoming: LabelActionPreference[]): Promise<void> {
     await getDb().transaction(async (tx) => {

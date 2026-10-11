@@ -1,10 +1,10 @@
 /**
  * `articles` — the long-form body of a post.
  *
- * The READ side (`controllers/articles.controller.ts`) was ported first, which
- * left the write side in Mongo: every article written after that point was
- * stored somewhere `GET /articles/:id` does not look, and the route answered a
- * perfectly ordinary 404 for it. This module is the other half.
+ * The write side of `articles`; the READ side is
+ * `controllers/articles.controller.ts`. An article written anywhere else would be
+ * stored somewhere `GET /articles/:id` does not look, and the route would answer
+ * a perfectly ordinary 404 for it.
  *
  * ## The id is minted before the row exists, on purpose
  *
@@ -12,14 +12,12 @@
  * document, so the article's id has to be known BEFORE the post row is created,
  * while the row itself must not be written until the post it belongs to
  * succeeded — otherwise a failed post creation leaves an orphan article behind.
- * Mongoose got this for free (`new Model()` mints `_id` client-side and `save()`
- * is a separate act); {@link newArticleId} plus a later {@link insertArticle} is
- * the same two-step, spelled out.
+ * {@link newArticleId} plus a later {@link insertArticle} is that two-step,
+ * spelled out.
  *
  * ## `trim` has no Postgres counterpart
  *
- * `models/Article.ts` declared `trim: true` on `title` and `body`. That is
- * application behaviour, and it stays in the write path here rather than being
+ * `title` and `body` are trimmed. That is application behaviour, and it stays in the write path here rather than being
  * dropped on the floor or turned into a CHECK that would reject historical rows.
  */
 
@@ -44,7 +42,7 @@ export interface ArticleContent {
 }
 
 /**
- * Apply what the Mongoose schema applied on the way in: trim, and drop an empty
+ * Trim on the way in, and drop an empty
  * string to absent so an unset field is `null` rather than `''`.
  */
 function normalize(value: string | undefined): string | null {
@@ -53,7 +51,7 @@ function normalize(value: string | undefined): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-/** Enforce the `maxlength` the Mongoose schema declared on `title`. */
+/** Enforce the `title` length ceiling. */
 function normalizeTitle(value: string | undefined): string | null {
   const trimmed = normalize(value);
   if (trimmed === null) return null;

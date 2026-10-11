@@ -3,7 +3,7 @@
  *
  * Four of this service's reads crossed the store boundary in this batch: the
  * viewer's likes (batch 2 made `likes` a Postgres table but every reader stayed
- * on Mongo), the viewer's reply/boost targets, post-author resolution, and the
+ * on the legacy store), the viewer's reply/boost targets, post-author resolution, and the
  * two coverage AGGREGATIONS.
  *
  * The aggregations are why this file exists rather than a probe. Both are a
@@ -13,9 +13,9 @@
  *
  *  - `count(*)` instead of `count(distinct id)` scores a post covering three
  *    preferred topics as THREE posts, because `unnest` emits one row per
- *    (post, topic) pair. Mongo's `$sum: 1` counted documents.
+ *    (post, topic) pair. The legacy store's `$sum: 1` counted documents.
  *  - capping AFTER the grouping instead of before turns a bounded scan into a
- *    full-corpus one. Mongo's `$limit` sat between `$sort` and `$group`.
+ *    full-corpus one. The legacy store's `$limit` sat between `$sort` and `$group`.
  *
  * Neither shows up as an error, so both are asserted on values here.
  */
@@ -157,7 +157,7 @@ describe('the topic-coverage aggregation', () => {
 });
 
 describe('the hashtag-coverage aggregation', () => {
-  it('runs end to end without touching Mongo', async () => {
+  it('runs end to end against Postgres', async () => {
     await create({ hashtags: ['tech'] });
     // No followed hashtags for this viewer, so the result is empty — the point
     // is that the query PATH executes rather than throwing.
@@ -229,7 +229,7 @@ describe('the reads batch 2 left split across two stores', () => {
   it('resolves post authors and skips a malformed id instead of losing the batch', async () => {
     const record = await create();
 
-    // Under Mongoose ONE malformed id threw a CastError and the catch discarded
+    // Under the legacy ODM ONE malformed id threw a CastError and the catch discarded
     // every author in the batch. A `text` id simply matches no row.
     const authors = await internals(service).resolvePostAuthors([record.id, 'not-an-id-at-all']);
 

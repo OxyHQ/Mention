@@ -56,7 +56,7 @@ class ScheduledPostPublisher {
     try {
       // `scheduled_for` is NOT NULL for every row this predicate can match (the
       // partial index `posts_scheduled_idx` is built on exactly this status), so
-      // the ascending sort has no NULL ordering to disagree with Mongo about.
+      // the ascending sort has no NULL ordering to worry about.
       const duePosts = await findPostRecords(
         and(eq(posts.status, 'scheduled'), lte(posts.scheduledFor, now)),
         { orderBy: [asc(posts.scheduledFor)], limit: this.BATCH_SIZE },

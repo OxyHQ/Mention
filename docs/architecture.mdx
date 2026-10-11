@@ -214,19 +214,18 @@ Redis health is tracked locally with a shared connection attempt and circuit
 breaking. Normal operations do not issue a `PING`. A process never assumes
 singleton leadership when it cannot acquire the distributed lock.
 
-Nothing in the repo can open Mongo — models, deps, config bindings and the
-`MONGODB_URI` SSM param are all deleted; `scripts/validate-no-mongo.mjs`
-(`bun run check`) enforces it. Schema changes go through `drizzle/` and
-`src/db/migrate.ts`, and nothing else — a migrations-constants module, a
-`MIGRATIONS` array, or a hot-path-index manifest describes the deleted Mongo
-mechanism, not a pattern to resurrect for a Postgres index. History:
-`docs/MONGO-TO-POSTGRES-CUTOVER.md`; per-table conventions:
+PostgreSQL is the only application database. Schema changes go through
+`drizzle/` and `src/db/migrate.ts`, and nothing else — no migrations-constants
+module, `MIGRATIONS` array or hot-path-index manifest. Ids in `text` id columns
+are either legacy 24-hex ids or uuid v7; the two spaces interleave under text
+collation, so no chronological query may order or page by id (see the id
+helpers in the external `@oxy.so/db` package and `mtn/feed/CursorBuilder.ts`).
+A few hundred legacy posts have no `authorship` row and still await their own
+backfill. Per-table conventions:
 `packages/backend/src/db/schema/CONVENTIONS.md`.
-`packages/backend/src/db/MIGRATION-CONTRACT.md` is now a historical stub
-holding two RDS facts (PostGIS privilege, the ownership-probe trap);
-ecosystem-wide porting rules live in oxy-api's own migration contract in
-the OxyHQServices repo. Production's `mention` role OWNS the `mention`
-database.
+`packages/backend/src/db/MIGRATION-CONTRACT.md` holds the two RDS
+prerequisites (PostGIS privilege, the ownership-probe trap). Production's
+`mention` role OWNS the `mention` database.
 
 ## Process lifecycle
 

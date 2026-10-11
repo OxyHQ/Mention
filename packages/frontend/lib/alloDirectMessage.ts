@@ -52,7 +52,7 @@ export const ALLO_APP_SCHEME = 'allo';
 
 /**
  * An Oxy account id as it may appear in a path segment. Both shapes Oxy issues
- * (uuid v7, and the 24-hex ObjectId the Mongo backfill kept) fit; anything that
+ * (uuid v7, and the legacy 24-hex ObjectId) fit; anything that
  * could escape the segment (`/`, `?`, `#`, `%`, whitespace) does not, so a
  * malformed id yields no link rather than one that opens some other screen.
  */

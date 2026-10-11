@@ -26,9 +26,8 @@
  * the newest recorded `created_at`" rule — so a database migrated by either is
  * understood by the other.
  *
- * THIS IS THE ONLY MIGRATION MECHANISM. A separate data-migration runner used to
- * sit beside it for the Mongo store, with its own ledger; both are gone, and a
- * schema change now goes through `drizzle/` and this file and nothing else.
+ * THIS IS THE ONLY MIGRATION MECHANISM. A schema change goes through `drizzle/`
+ * and this file and nothing else.
  *
  * DRY RUN. `DRY_RUN=true` reports which migrations WOULD be applied and writes
  * nothing — not even the ledger table.
