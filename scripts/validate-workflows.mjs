@@ -84,6 +84,28 @@ for (const workflowName of workflowNames) {
               '`deploy-ecs-image.sh` refuses that at deploy time, so it fails every release rather than one review',
           );
         }
+        /**
+         * Every task render keeps the retired Oxy key pair OFF, in every
+         * workflow that renders one.
+         *
+         * A render derives from the RUNNING revision, so the removal list is
+         * the only thing that keeps a name off it, and both services attest
+         * their task roles (oxy ADR 0026) with no pair to read. Once
+         * `/oxy/mention/OXY_SERVICE_API_*` are deleted from SSM, a revision
+         * still naming them cannot start — ECS fails the task resolving its
+         * secrets — so a render that dropped the removal would be an outage
+         * the first time a stale revision carried the names forward.
+         */
+        if (String(step?.run ?? '').includes('deploy-ecs-image.sh')) {
+          for (const name of ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {
+            if (!removals.includes(name)) {
+              failures.push(
+                `${workflowName}: ${jobName} renders an ECS task without removing ${name} — ` +
+                  'the retired Oxy key pair must stay off every revision',
+              );
+            }
+          }
+        }
       }
     }
     const imagePublication = isReviewedImagePublisher(workflowName, workflow, (file) =>

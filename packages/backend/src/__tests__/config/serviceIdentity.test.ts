@@ -65,3 +65,44 @@ describe('acting as Mention against Oxy', () => {
     );
   });
 });
+
+/**
+ * The fourth call site. Classification spends through the Kaana edge as Mention,
+ * and the boot check that guards it still asked for the key pair — so the first
+ * deployment to switch it on in ECS, where the task role attests and no pair
+ * exists, would refuse to start and the obvious fix would be the pair coming back.
+ */
+async function loadValidation(environment: Record<string, string>) {
+  vi.resetModules();
+  vi.stubEnv('POST_CLASSIFICATION_ENABLED', 'true');
+  vi.stubEnv('OXY_INFERENCE_ROUTING_PROFILE_ID', '01a06477-94f5-74f0-bc25-4c5c13b93ccd');
+  for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value);
+  return (await import('../../config')).validateEnvironment;
+}
+
+describe('switching classification on', () => {
+  it('boots on a task role alone, with no secret anywhere', async () => {
+    const validateEnvironment = await loadValidation({
+      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/abc',
+    });
+
+    expect(() => validateEnvironment()).not.toThrow();
+  });
+
+  it('boots on a key pair where there is no task role', async () => {
+    const validateEnvironment = await loadValidation({
+      OXY_SERVICE_API_KEY: 'mention-key',
+      OXY_SERVICE_API_SECRET: 'mention-secret',
+    });
+
+    expect(() => validateEnvironment()).not.toThrow();
+  });
+
+  it('refuses to boot with neither, naming both ways to fix it', async () => {
+    const validateEnvironment = await loadValidation({});
+
+    expect(() => validateEnvironment()).toThrow(
+      /an Oxy service identity \(ECS task role, or OXY_SERVICE_API_KEY\/OXY_SERVICE_API_SECRET\)/,
+    );
+  });
+});
