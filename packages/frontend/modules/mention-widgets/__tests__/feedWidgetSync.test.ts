@@ -208,7 +208,7 @@ describe('toWidgetFeedPosts', () => {
         thumbUrl: 'https://cloud.oxy.so/file?variant=w320',
         url: 'https://cloud.oxy.so/file',
         alt: 'Alt text',
-        image: 'https://img.test/1.jpg',
+        image: 'https://img.test/1.jpg?variant=w320',
         name: 'The Verge',
         username: 'verge@mastodon.social',
         avatar: '6a30d42d0ef11d23d365ad09',

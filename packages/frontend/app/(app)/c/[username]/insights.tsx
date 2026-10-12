@@ -10,7 +10,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
-import { InsightsView } from '@/components/insights/InsightsView';
+import LazyInsightsView from '@/components/insights/LazyInsightsView';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -135,7 +135,7 @@ export default function ChannelInsightsScreen() {
   return (
     <View className="flex-1">
       {header}
-      <InsightsView accountId={channel.accountId} />
+      <LazyInsightsView accountId={channel.accountId} />
     </View>
   );
 }
