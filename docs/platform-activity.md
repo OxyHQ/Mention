@@ -33,12 +33,19 @@ Counters describe observed application operations, not network bytes. Direct
 object-storage downloads, media transports, database wire protocols and third
 party runtime internals require instrumentation at their owning services.
 
-## Static edge requests
+## Static web traffic
 
-The deployed frontend Worker observes requests before its ASSETS binding, including static files and navigations. Enable with private Worker bindings `OXY_EDGE_ACTIVITY_ENABLED=true`, `OXY_EDGE_ACTIVITY_API_KEY`, `OXY_EDGE_ACTIVITY_API_SECRET`, and optional `OXY_EDGE_ACTIVITY_API_URL`. These credentials are separate from backend credentials and must never use a public frontend environment prefix. Disabled or unavailable telemetry leaves the response unchanged; publication runs in `ctx.waitUntil`.
+This app's web traffic is measured keylessly by Oxy from Cloudflare's own
+analytics (see [Cloudflare web activity](https://github.com/OxyHQ/oxy/blob/main/docs/operations/cloudflare-web-activity.md)
+in OxyHQ/oxy). The
+frontend Worker holds no Oxy activity secret and runs no activity code: it only
+applies the shell access gate and serves its ASSETS binding. The
+`OXY_EDGE_ACTIVITY_*` bindings were never provisioned and nothing reads them now;
+if an operator ever finds one on a deployment it can simply be deleted.
 
-The serving Cloudflare PoP appears as a pulse for external edge activity. It does not fabricate an arc to a visitor location. Verified internal peers may supply a known source region.
+The gate itself is covered by `scripts/shell-worker.test.mjs`
+(`bun run test:shell-worker`, part of `check:workspace`).
 
 ## Package versions
 
-Core and contracts are aligned through workspace overrides so browser and server packages share one version. Edge activity uses the published telemetry package; the lockfile records registry artifacts. Run the edge observer checks in `scripts/edge-activity.test.mjs` alongside the existing package checks.
+Core and contracts are aligned through workspace overrides so browser and server packages share one version.
