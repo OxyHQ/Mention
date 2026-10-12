@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronUpIcon } from '@/assets/icons/chevron-up-icon';
 import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';

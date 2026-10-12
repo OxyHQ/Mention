@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getBaseLanguage, getPrimaryLanguage } from '@oxy.so/core';
 import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';

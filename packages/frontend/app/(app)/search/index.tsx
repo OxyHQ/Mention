@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
+  type TextInput,
   TouchableOpacity,
   type NativeSyntheticEvent,
   type TextInputSelectionChangeEventData,

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState, type ReactNode } from 'react';
+import { memo, useCallback, useState, type ReactNode } from 'react';
 import type { ViewStyle } from 'react-native';
 import { EmptyState as BloomEmptyState } from '@oxy.so/bloom/empty-state';
 import type { BloomIconComponent } from '@oxy.so/bloom';

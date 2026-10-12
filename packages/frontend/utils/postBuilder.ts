@@ -10,7 +10,7 @@ import type {
   UpdatePostRequest,
 } from '@mention/shared-types';
 import { buildAttachmentsPayload } from './attachmentsUtils';
-import { ComposerMediaItem, createMediaAttachmentKey } from './composeUtils';
+import { type ComposerMediaItem, createMediaAttachmentKey } from './composeUtils';
 import {
   attachmentKeysOf,
   hasArticleContent,

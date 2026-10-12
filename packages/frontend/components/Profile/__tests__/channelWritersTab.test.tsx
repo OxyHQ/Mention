@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import TestRenderer, { act } from 'react-test-renderer';

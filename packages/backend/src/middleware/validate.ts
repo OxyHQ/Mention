@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { isLiveEntityId } from '@oxy.so/db';
 import { sendError, ErrorCodes } from '../utils/apiResponse';

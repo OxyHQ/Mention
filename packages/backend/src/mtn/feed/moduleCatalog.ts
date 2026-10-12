@@ -29,7 +29,7 @@ import type {
   ModuleParamsSchema,
 } from '@mention/shared-types';
 import type { ModuleKind } from './engine/types';
-import { feedModuleRegistry, FeedModuleRegistry } from './engine/FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from './engine/FeedModuleRegistry';
 
 const EMPTY_SCHEMA: ModuleParamsSchema = {
   type: 'object',

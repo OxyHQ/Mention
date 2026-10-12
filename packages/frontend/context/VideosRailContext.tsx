@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 /**
  * Reference to the currently-active video post, published by the /videos screen

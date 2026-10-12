@@ -1,4 +1,4 @@
-import { type User } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 import { createDomainPolicy, createUrlBuilders } from '@oxy.so/federation';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';

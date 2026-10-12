@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, type DimensionValue } from 'react-native';
 import type { PostPodcastContent } from '@mention/shared-types/post';
 import VideoPlayer from '@/components/common/VideoPlayer';

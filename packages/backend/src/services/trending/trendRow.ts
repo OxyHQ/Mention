@@ -7,7 +7,7 @@
  * deliberately never a filter.
  */
 
-import { trending } from '../../db/schema/discovery';
+import type { trending } from '../../db/schema/discovery';
 import type { PostUser, TrendCategory, TrendScope, TrendStatus } from '@mention/shared-types';
 
 /**

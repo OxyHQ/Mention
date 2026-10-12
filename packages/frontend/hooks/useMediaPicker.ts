@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import type { FileMetadata } from '@oxy.so/core';
 import type { RouteName } from '@oxy.so/services';
-import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
+import { type ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import { normalizeApiError } from '@/utils/apiError';
 
 interface UseMediaPickerProps {

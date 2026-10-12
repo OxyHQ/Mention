@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';

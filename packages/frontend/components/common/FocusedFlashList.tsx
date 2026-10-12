@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { FlashList, type FlashListProps, type FlashListRef } from '@shopify/flash-list';
 import Animated, { useAnimatedScrollHandler, type AnimatedProps } from 'react-native-reanimated';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';

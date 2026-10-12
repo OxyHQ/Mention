@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { deleteUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
@@ -28,7 +28,7 @@ import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/pub
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
-import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
+import type { TrackSummary, PodcastSummary } from '@syra.fm/sdk';
 import {
   EXTERNAL_EMBED_SOURCES,
   type EmbedPlayerSource,

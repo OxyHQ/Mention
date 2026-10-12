@@ -1,9 +1,8 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockNavigate = jest.fn();
 const mockReselect = jest.fn();
-let mockPathname = '/';
+const mockPathname = '/';
 
 jest.mock('expo-router', () => ({
   usePathname: () => mockPathname,

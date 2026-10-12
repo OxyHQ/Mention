@@ -118,7 +118,7 @@ vi.mock('../../services/PostRecentReplierService', async (importOriginal) => {
   return { ...actual, repairRecentRepliersAfterPostDelete: mocks.repairRecentRepliers };
 });
 
-import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
 import { feedInteractions } from '../../db/schema/feeds';
 import { postgates } from '../../db/schema/gates';

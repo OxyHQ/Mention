@@ -22,7 +22,7 @@ import { ScoreCursor, ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';
 import { capDiscoveryShare } from '../capDiscoveryShare';
 import {
-  RankedCandidate,
+  type RankedCandidate,
   readCandidateId,
   readCandidateScore,
   sliceAuthorKey,
@@ -38,7 +38,7 @@ import {
   originForFederation,
 } from '../feedMetrics';
 import { resolveAuthorQuality } from '../authorQuality';
-import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from './FeedModuleRegistry';
 import type {
   CandidatePost,
   FeedDefinition,

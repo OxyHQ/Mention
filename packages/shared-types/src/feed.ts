@@ -3,7 +3,7 @@
  * Shared between frontend and backend
  */
 
-import { HydratedPost, PostContentInput, PostVisibility, PostUser } from './post';
+import type { HydratedPost, PostContentInput, PostVisibility, PostUser } from './post';
 
 export interface Reply extends HydratedPost {
   postId?: string;

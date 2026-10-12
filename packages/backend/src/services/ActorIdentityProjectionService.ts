@@ -81,7 +81,7 @@ export async function reconcileActorIdentityProjection(
     throw new Error('A source actor and authoritative Oxy user are required');
   const result = await getDb().transaction(async (tx) => {
     await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${'actor-projection:' + input.actorUri}))`,
+      sql`select pg_advisory_xact_lock(hashtext(${`actor-projection:${input.actorUri}`}))`,
     );
     const [actor] = await tx
       .select()

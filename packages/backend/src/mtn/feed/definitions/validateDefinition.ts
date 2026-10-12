@@ -20,7 +20,7 @@
 
 import type { StoredFeedDefinition } from '../engine/types';
 import type { FeedDefinitionMode, ModuleRef } from '../engine/types';
-import { feedModuleRegistry, FeedModuleRegistry } from '../engine/FeedModuleRegistry';
+import { feedModuleRegistry, type FeedModuleRegistry } from '../engine/FeedModuleRegistry';
 
 export interface ValidateDefinitionOptions {
   /** Registry to validate against; defaults to the shared, server-populated singleton. */

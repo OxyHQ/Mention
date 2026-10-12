@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { View } from 'react-native';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';

@@ -82,7 +82,7 @@ function addReleaseSigningConfig(contents) {
         'app/build.gradle. The Expo template changed — update this plugin.',
     );
   }
-  let next = contents.replace(debugSigningBlock, `$1${RELEASE_SIGNING_CONFIG}`);
+  const next = contents.replace(debugSigningBlock, `$1${RELEASE_SIGNING_CONFIG}`);
 
   // Point the release buildType at it. The debug buildType also contains
   // `signingConfig signingConfigs.debug`, so only replace the occurrence that

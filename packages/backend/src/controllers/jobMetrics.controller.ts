@@ -15,7 +15,7 @@
  * neither method below calls the other, so neither needs `this.`.
  */
 
-import { Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createError } from '../utils/error';

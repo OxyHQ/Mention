@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Animated, ScrollView, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';

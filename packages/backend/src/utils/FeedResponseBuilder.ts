@@ -3,7 +3,7 @@
  * Centralized response building with consistent error handling and cursor management
  */
 
-import {
+import type {
   FeedResponse,
   FeedPostSlice,
   HydratedPost,

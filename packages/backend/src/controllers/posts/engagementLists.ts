@@ -6,14 +6,14 @@
  * bound and the actor mapping are shared rather than repeated per handler.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { likes as likesTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostUser } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { resolveUserSummaries, degradedActorSummary } from '../../services/PostHydrationService';
 import { config } from '../../config';

@@ -1,5 +1,5 @@
-import express, { Response } from 'express';
-import { type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import express, { type Response } from 'express';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, count, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
@@ -10,7 +10,7 @@ import {
   PUSH_TOKEN_TYPES,
 } from '../db/schema/discovery';
 import { loadPostRecords } from '../db/posts/postRepository';
-import { Server } from 'socket.io';
+import type { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';

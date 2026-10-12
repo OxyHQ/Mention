@@ -25,9 +25,9 @@
 import { and, asc, eq, gt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
-  MODERATION_OUTBOX_KINDS,
+  type MODERATION_OUTBOX_KINDS,
   MODERATION_OUTBOX_RETENTION_SECONDS,
-  MODERATION_OUTBOX_STATUSES,
+  type MODERATION_OUTBOX_STATUSES,
   moderationOutbox,
 } from '../schema/moderation';
 import { requireTransaction } from './transactionGuard';

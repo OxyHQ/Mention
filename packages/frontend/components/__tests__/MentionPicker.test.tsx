@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import MentionPicker from '../MentionPicker';
 import type { MentionUser } from '@/utils/mentionSearch';

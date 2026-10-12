@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { PassThrough, Readable } from 'node:stream';
+import { PassThrough, type Readable } from 'node:stream';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

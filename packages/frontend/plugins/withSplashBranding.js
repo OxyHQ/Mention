@@ -54,9 +54,9 @@
  */
 
 const { withDangerousMod, withMod, AndroidConfig, IOSConfig, XML } = require('expo/config-plugins');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 const { Parser, Builder } = require('xml2js');
 const ImageUtils = require('@expo/image-utils');
 

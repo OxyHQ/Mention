@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import type React from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +18,7 @@ import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDateInput } from '@/utils/dateUtils';
-import { type ProfileHoverCardProps } from './types';
+import type { ProfileHoverCardProps } from './types';
 
 /**
  * A profile preview on hover. Bloom owns WHEN and WHERE it appears (`HoverCard`:

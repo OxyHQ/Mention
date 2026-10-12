@@ -1,6 +1,6 @@
 import { useState, useCallback, createElement, Suspense } from 'react';
 import type { TFunction } from 'i18next';
-import { toast as toastFn } from '@oxy.so/bloom/toast';
+import type { toast as toastFn } from '@oxy.so/bloom/toast';
 import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
 import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { addMinutes, formatScheduledLabel } from '@/utils/dateUtils';

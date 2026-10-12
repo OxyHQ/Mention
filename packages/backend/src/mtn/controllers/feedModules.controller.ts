@@ -8,7 +8,7 @@
  * `validateDefinition` accepts.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { buildModuleCatalog } from '../feed/moduleCatalog';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';

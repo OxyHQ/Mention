@@ -124,7 +124,7 @@ vi.mock('../../utils/push', () => ({
   formatPushForNotification: vi.fn(),
 }));
 
-import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { uuidv7 } from '@oxy.so/db';
 import { notifications } from '../../db/schema/discovery';
 import { muteWords } from '../../db/schema/engagement';

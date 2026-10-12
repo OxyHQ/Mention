@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';

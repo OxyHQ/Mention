@@ -7,7 +7,7 @@
  * the id every score/cursor helper needs.
  */
 
-import { FeedPostSlice } from '@mention/shared-types';
+import type { FeedPostSlice } from '@mention/shared-types';
 
 /**
  * A ranked candidate post: a post record decorated with `finalScore` by

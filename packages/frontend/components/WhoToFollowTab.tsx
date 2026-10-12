@@ -20,7 +20,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@oxy.so/core/logger';
 import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
-import { type ProfileData } from '@/lib/recommendations';
+import type { ProfileData } from '@/lib/recommendations';
 
 const APP_URL = 'https://mention.earth';
 

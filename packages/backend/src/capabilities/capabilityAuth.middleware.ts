@@ -65,7 +65,7 @@ function normalizeLimitValueAtPath(
   kind: MentionLimitKey['kind'],
 ): void {
   const [segment, ...rest] = path;
-  if (!segment || !Object.prototype.hasOwnProperty.call(input, segment)) return;
+  if (!segment || !Object.hasOwn(input, segment)) return;
   if (rest.length > 0) {
     const nested = input[segment];
     if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { BloomIconComponent } from '@oxy.so/bloom';
 

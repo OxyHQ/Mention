@@ -19,7 +19,7 @@
 
 import type { HydratedPost } from '@mention/shared-types';
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
-import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext } from '../FeedAPI';
+import type { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext } from '../FeedAPI';
 import { getDb } from '../../../db/postgres';
 import { feedGenerators, posts } from '../../../db/schema';
 import { assemblePostRecords } from '../../../db/posts/postRepository';

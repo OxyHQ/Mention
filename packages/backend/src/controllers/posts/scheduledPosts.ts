@@ -3,7 +3,7 @@
  * publishing a scheduled post ahead of its time or a draft at all.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';

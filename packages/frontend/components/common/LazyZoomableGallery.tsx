@@ -1,4 +1,4 @@
-import React, { forwardRef, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   ZoomableMediaGallery,
   type ZoomableMediaGalleryHandle,

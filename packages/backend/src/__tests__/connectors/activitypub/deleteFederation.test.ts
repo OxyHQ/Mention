@@ -54,7 +54,6 @@ import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {
   clearFederationScope,
   federationScope,
-  seedActor,
   seedFollowerWithInbox,
 } from '../../helpers/federationFixtures';
 import { followService } from '../../../connectors/activitypub/follow.service';

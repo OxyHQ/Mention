@@ -516,7 +516,7 @@ async function continuity(runs) {
           : 'RESTARTED';
     const cell = (v, w) => String(v).padStart(w);
     console.log(
-      `${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 8)} | ${cell(after?.ct?.toFixed(2) ?? '-', 7)} | ${cell(monotonic ?? '-', 4)} | ${cell(longestBlank === null ? '-' : longestBlank + 'ms', 13)} | ${String(edge).padEnd(29)} | ${verdict}`,
+      `${cell(i + 1, 3)} | ${cell(before?.ct?.toFixed(2) ?? '-', 8)} | ${cell(after?.ct?.toFixed(2) ?? '-', 7)} | ${cell(monotonic ?? '-', 4)} | ${cell(longestBlank === null ? '-' : `${longestBlank}ms`, 13)} | ${String(edge).padEnd(29)} | ${verdict}`,
     );
     await page.close();
   }

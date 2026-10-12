@@ -3,7 +3,7 @@ import { reconcileMentionData, type MentionData } from '@/utils/mentions';
 import { logger } from '@oxy.so/core/logger';
 import type { MentionJobLocation } from '@mention/shared-types';
 import { isCountryCode } from '@mention/shared-types/job';
-import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
+import { type ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import {
   attachmentKeysOf,
   hasArticleContent,

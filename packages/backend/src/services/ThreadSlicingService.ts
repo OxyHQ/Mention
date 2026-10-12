@@ -8,10 +8,10 @@
  */
 
 import {
-  FeedPostSlice,
-  FeedSliceItem,
-  FeedSliceReason,
-  HydratedPost,
+  type FeedPostSlice,
+  type FeedSliceItem,
+  type FeedSliceReason,
+  type HydratedPost,
   MtnConfig,
   PostVisibility,
 } from '@mention/shared-types';

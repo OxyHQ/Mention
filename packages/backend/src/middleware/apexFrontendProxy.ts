@@ -24,8 +24,8 @@
  * Fail-soft: a slow/broken CDN yields a 502 with a minimal bootable shell rather
  * than a crash or a hung apex.
  */
-import http, { type IncomingMessage } from 'http';
-import https from 'https';
+import http, { type IncomingMessage } from 'node:http';
+import https from 'node:https';
 import type { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { logger } from '../utils/logger';
@@ -319,13 +319,13 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   }
   res.removeHeader('Pragma');
   res.removeHeader('Expires');
-  const etag = upstream.headers['etag'];
+  const etag = upstream.headers.etag;
   if (etag) res.setHeader('ETag', etag);
   const lastModified = upstream.headers['last-modified'];
   if (lastModified) res.setHeader('Last-Modified', lastModified);
   // The body varies by encoding — keep the CDN's Vary (or set the minimum) so a
   // shared cache never hands a Brotli body to a client that only accepts gzip.
-  const vary = upstream.headers['vary'];
+  const vary = upstream.headers.vary;
   res.setHeader('Vary', vary ?? 'Accept-Encoding');
 
   if (req.method === 'HEAD') {

@@ -3,7 +3,7 @@
  * the correction record an edit to a published post leaves behind.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
@@ -17,8 +17,8 @@ import { baselineContentClassifier } from '../../services/BaselineContentClassif
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   PostVisibility,
-  StoredPostContent,
-  PostContentVariant,
+  type StoredPostContent,
+  type PostContentVariant,
   toBaseLanguages,
 } from '@mention/shared-types';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';

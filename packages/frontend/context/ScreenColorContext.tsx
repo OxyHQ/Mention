@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import type React from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { AppColorName } from '@oxy.so/bloom/theme';
 
 interface ScreenColorContextValue {

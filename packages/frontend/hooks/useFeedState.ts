@@ -6,7 +6,7 @@ import type {
   HydratedPost,
 } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
-import { FeedFilters, buildFeedScrollKey } from '@/utils/feedUtils';
+import { type FeedFilters, buildFeedScrollKey } from '@/utils/feedUtils';
 import { createLogger } from '@oxy.so/core/logger';
 import { classifyFeedFailure, logFeedFailure, type FeedFailureKind } from '@/utils/feedRetry';
 import { useDeepCompareEffect } from './useDeepCompare';

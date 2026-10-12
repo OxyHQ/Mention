@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 
 type Props = Record<string, unknown> & { children?: React.ReactNode };

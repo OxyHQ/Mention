@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { useRouter } from 'expo-router';
 import type {
@@ -18,7 +18,7 @@ import FeedInterstitial from './interstitials/FeedInterstitial';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { createLogger } from '@oxy.so/core/logger';
-import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
+import { getItemKey, deduplicateItems, buildReplyTree, type ReplyNode } from '@/utils/feedUtils';
 import {
   THREAD_LINE_WIDTH,
   THREAD_LINE_BORDER_RADIUS,

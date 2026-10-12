@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { type Href } from 'expo-router';
+import type { Href } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AppColorName } from '@oxy.so/bloom/theme';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';

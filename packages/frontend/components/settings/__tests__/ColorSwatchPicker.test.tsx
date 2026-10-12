@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text, View } from 'react-native';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';

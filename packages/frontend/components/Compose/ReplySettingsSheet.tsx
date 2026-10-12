@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';

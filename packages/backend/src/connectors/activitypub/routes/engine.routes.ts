@@ -1,4 +1,4 @@
-import { type Request } from 'express';
+import type { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import type { User } from '@oxy.so/core';
 import {

@@ -20,8 +20,8 @@ import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
-  CandidateUserBehavior,
-  GatherForYouCandidatesParams,
+  type CandidateUserBehavior,
+  type GatherForYouCandidatesParams,
   gatherFollowingLane,
   gatherSubscribedListsLane,
   gatherAffinityLane,

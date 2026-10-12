@@ -130,18 +130,13 @@ describe('generated ranges', () => {
   };
 
   it('HASHTAG_START_CLASS matches exactly \\p{L}', () => {
-    expect(
-      sweep(new RegExp(`^[${HASHTAG_START_CLASS}]$`, 'u'), new RegExp('^[\\p{L}]$', 'u')),
-    ).toBe(0);
+    expect(sweep(new RegExp(`^[${HASHTAG_START_CLASS}]$`, 'u'), /^[\p{L}]$/u)).toBe(0);
   });
 
   it('HASHTAG_CONTINUE_CLASS matches exactly \\p{L}\\p{N}\\p{M} and _', () => {
-    expect(
-      sweep(
-        new RegExp(`^[${HASHTAG_CONTINUE_CLASS}]$`, 'u'),
-        new RegExp('^[\\p{L}\\p{N}\\p{M}_]$', 'u'),
-      ),
-    ).toBe(0);
+    expect(sweep(new RegExp(`^[${HASHTAG_CONTINUE_CLASS}]$`, 'u'), /^[\p{L}\p{N}\p{M}_]$/u)).toBe(
+      0,
+    );
   });
 });
 

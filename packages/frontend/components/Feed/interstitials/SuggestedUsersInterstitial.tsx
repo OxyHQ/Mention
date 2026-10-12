@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCardData } from '@/components/ProfileCard';
 import { SuggestedProfileCardSkeleton } from '@/components/SuggestedProfileCard';

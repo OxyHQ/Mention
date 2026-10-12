@@ -3,7 +3,6 @@ import { VoiceSession } from '@alia.onl/sdk/voice';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { useAuth } from '@oxy.so/services/ui/client';
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useSafeBack } from '@/hooks/useSafeBack';

@@ -1,7 +1,7 @@
-import React from 'react';
+import type React from 'react';
 import { Path, Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
-import { IconProps } from './types';
+import type { IconProps } from './types';
 
 export const CalendarIcon: React.FC<IconProps> = ({
   size = 20,

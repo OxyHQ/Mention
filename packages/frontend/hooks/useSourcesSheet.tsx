@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
+import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 // Lazy load SourcesSheet - only loaded when user opens it
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));

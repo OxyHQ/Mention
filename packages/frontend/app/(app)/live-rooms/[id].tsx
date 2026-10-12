@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
+import type React from 'react';
+import { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueries } from '@tanstack/react-query';

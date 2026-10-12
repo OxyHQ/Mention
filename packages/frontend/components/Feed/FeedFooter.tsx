@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';

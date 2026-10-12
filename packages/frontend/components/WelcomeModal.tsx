@@ -1,5 +1,6 @@
 import { INSTANCE_NAME, INSTANCE_LOGO_URL } from '@/config';
-import React, { useCallback, useMemo, memo, useId } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, memo, useId } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,7 +8,7 @@ import {
   Pressable,
   ImageBackground,
   Image,
-  ImageSourcePropType,
+  type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';

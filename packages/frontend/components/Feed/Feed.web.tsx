@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, memo } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';

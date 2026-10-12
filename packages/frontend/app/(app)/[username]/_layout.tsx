@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLocalSearchParams, Slot } from 'expo-router';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import ProfileChromeFrame from '@/components/Profile/ProfileChromeFrame';

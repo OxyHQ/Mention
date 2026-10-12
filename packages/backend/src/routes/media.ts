@@ -1,12 +1,12 @@
-import express, { NextFunction, Request, Response } from 'express';
-import { IncomingMessage } from 'node:http';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import type { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
 import { SsrfRejection, assertSafePublicUrl } from '@oxy.so/core/server';
 import {
-  UpstreamResult,
+  type UpstreamResult,
   contentTypeFamily,
   contentTypeFamilyFromString,
   fetchUpstreamFollowingRedirects,

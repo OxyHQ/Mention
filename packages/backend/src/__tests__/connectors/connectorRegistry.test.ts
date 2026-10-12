@@ -29,12 +29,7 @@ vi.mock('../../services/fediverseSharing', () => ({
 }));
 
 import type { PostContent } from '@mention/shared-types';
-import type {
-  NetworkConnector,
-  NetworkId,
-  LocalNetworkEvent,
-  LocalPostEventPayload,
-} from '@oxy.so/federation';
+import type { NetworkConnector, NetworkId, LocalNetworkEvent } from '@oxy.so/federation';
 import type { FederatablePost } from '../../services/serviceRegistry';
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
 

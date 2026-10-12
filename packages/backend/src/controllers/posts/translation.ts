@@ -4,7 +4,7 @@
  * rate limiter at the route.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';

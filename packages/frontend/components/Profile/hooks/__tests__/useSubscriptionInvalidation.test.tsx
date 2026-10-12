@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useSubscription } from '../useSubscription';

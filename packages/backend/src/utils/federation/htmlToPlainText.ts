@@ -86,7 +86,7 @@ function collapseAnchors(html: string, preserveMentionLinks: boolean): string {
         // human profile URL cannot be reconstructed from their username.
         const label = decodeEntities(visible);
         const href = ANCHOR_HREF_REGEX.exec(attrs)?.[1];
-        if (preserveMentionLinks && label.startsWith('@') && !/[\[\]\r\n]/.test(label) && href) {
+        if (preserveMentionLinks && label.startsWith('@') && !/[[\]\r\n]/.test(label) && href) {
           try {
             const url = new URL(decodeEntities(href));
             if (url.protocol === 'https:' || url.protocol === 'http:') {

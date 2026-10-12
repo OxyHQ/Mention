@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Pressable } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';

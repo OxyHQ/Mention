@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // Redis is unavailable in unit tests; calculatePostScore never touches it (the
 // engagement cache is either pinned in-context or computed pure), but mock it to

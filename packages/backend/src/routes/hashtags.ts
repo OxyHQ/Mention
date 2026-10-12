@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import { and, desc, eq, gte, max, sql } from 'drizzle-orm';
 import { HASHTAG_TOKEN_SOURCE } from '@mention/shared-types/hashtags';
 import { getDb } from '../db/postgres';

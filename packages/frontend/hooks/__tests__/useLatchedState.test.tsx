@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useLatchedState } from '../useLatchedState';

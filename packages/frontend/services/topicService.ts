@@ -1,6 +1,6 @@
 import { authenticatedClient } from '@/utils/api';
 import { logger } from '@oxy.so/core/logger';
-import { TopicData, TopicType } from '@oxy.so/core';
+import type { TopicData, TopicType } from '@oxy.so/core';
 
 class TopicService {
   async getCategories(locale?: string): Promise<TopicData[]> {

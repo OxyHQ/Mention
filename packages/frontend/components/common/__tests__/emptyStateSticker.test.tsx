@@ -1,10 +1,3 @@
-/**
- * An empty state's picture is a catalogue sticker (here the feed's sad bear): resolved by id
- * through `@oxy.so/stickers`, drawn by Bloom's `Sticker` (stubbed in
- * `test-support/bloomSticker.js`, which keeps the props on the node), and a
- * fixed-size blank until it resolves so the copy below it does not jump.
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StickersProvider } from '@oxy.so/stickers/react';

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';

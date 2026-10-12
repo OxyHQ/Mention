@@ -22,7 +22,7 @@
  * already use — no new flag channel.
  */
 
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { getDiscoveryGateRolloutMode } from '../../config';
 import type { DiscoveryGateBucket } from './engine/types';
 

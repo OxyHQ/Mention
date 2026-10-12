@@ -51,7 +51,6 @@ function useStatusVisual(status: MentionNode['status']): {
         color: colors.warning,
         icon: RiErrorWarningFill,
       };
-    case 'revoked':
     default:
       return {
         label: t('settings.node.status.revoked', { defaultValue: 'Revoked' }),
@@ -66,7 +65,7 @@ function StatusBadge({ status }: { status: MentionNode['status'] }) {
   return (
     <View
       className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full"
-      style={{ backgroundColor: color + '20' }}
+      style={{ backgroundColor: `${color}20` }}
     >
       <StatusIcon width={14} height={14} fill={color} />
       <Text className="text-[13px] font-semibold" style={{ color }}>

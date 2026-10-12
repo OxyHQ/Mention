@@ -1,6 +1,6 @@
 const pkg = require('./package.json');
 
-module.exports = function (_config) {
+module.exports = (_config) => {
   /**
    * App version number. Should be incremented as part of a release cycle.
    */

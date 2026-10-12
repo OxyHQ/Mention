@@ -1,6 +1,5 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { type SharedValue } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 
 import {
   BottomBarVisibilityProvider,

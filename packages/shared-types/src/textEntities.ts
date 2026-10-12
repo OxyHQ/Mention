@@ -603,7 +603,7 @@ export function qualifyBareHandles(text: string, networkDomain: string): string 
     // `@alice@mastodon.social` as the bare `@alice`, and mutation confirmed it
     // is dead once the two-part form has its own kind, so it is gone.
     if (entity.kind !== 'bareHandle') continue;
-    result += text.slice(cursor, entity.end) + `@${domain}`;
+    result += `${text.slice(cursor, entity.end)}@${domain}`;
     cursor = entity.end;
   }
   return cursor === 0 ? text : result + text.slice(cursor);

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Image } from 'expo-image';

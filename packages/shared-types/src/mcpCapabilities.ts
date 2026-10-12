@@ -575,7 +575,7 @@ function compileInvocationPath(template: string): RegExp {
       /^\{[^{}]+\}$/.test(segment) ? '[^/]+' : segment.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'),
     )
     .join('/');
-  return new RegExp('^' + pattern + '$');
+  return new RegExp(`^${pattern}$`);
 }
 
 /**

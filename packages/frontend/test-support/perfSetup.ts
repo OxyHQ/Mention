@@ -106,7 +106,7 @@ jest.mock('@/lib/syraApi', () => {
 });
 
 jest.mock('@/lib/oxyServices', () => {
-  const deep: unknown = new Proxy(function () {}, {
+  const deep: unknown = new Proxy(() => {}, {
     get: (_t, name) => (name === 'then' ? undefined : deep),
     apply: () => deep,
   });
@@ -117,7 +117,7 @@ jest.mock('@/lib/oxyServices', () => {
 // a signed-out viewer, which is what a first feed paint is.
 jest.mock('@oxy.so/services', () => {
   const noop = () => undefined;
-  const oxyServices: unknown = new Proxy(function () {}, {
+  const oxyServices: unknown = new Proxy(() => {}, {
     get: (_t, name) => (name === 'then' ? undefined : oxyServices),
     apply: () => oxyServices,
   });

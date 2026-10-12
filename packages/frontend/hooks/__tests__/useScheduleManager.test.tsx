@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { View } from 'react-native';
 import type { TFunction } from 'i18next';

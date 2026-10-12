@@ -1,4 +1,3 @@
-import React from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';

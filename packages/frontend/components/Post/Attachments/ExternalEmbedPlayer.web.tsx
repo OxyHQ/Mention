@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { getPlayerAspect, type EmbedPlayerParams } from '@/utils/embedPlayer';
 import { ExternalEmbedPoster } from './ExternalEmbedPoster';

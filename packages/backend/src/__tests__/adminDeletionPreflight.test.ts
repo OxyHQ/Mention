@@ -21,7 +21,7 @@ import {
 } from '../scripts/lib/adminDeletionPreflight';
 import { assertAdminRunComplete } from '../scripts/lib/adminScriptLifecycle';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { REPORTED_TYPES } from '../db/schema/moderation';
+import type { REPORTED_TYPES } from '../db/schema/moderation';
 import { contentLabels, labelers, moderationEnforcements, reports } from '../db/schema/moderation';
 import { articles } from '../db/schema/articles';
 import { actorKeyPairs, federatedFollows, federationDeliveryQueue } from '../db/schema/federation';

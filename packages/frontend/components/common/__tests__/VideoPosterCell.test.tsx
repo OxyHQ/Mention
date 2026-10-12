@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';

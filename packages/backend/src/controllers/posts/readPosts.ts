@@ -6,7 +6,7 @@
  * post DTO by hand.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, arrayContains, eq, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../../db/posts/postRepository';

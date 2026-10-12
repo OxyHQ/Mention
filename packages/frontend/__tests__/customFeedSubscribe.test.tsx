@@ -1,5 +1,5 @@
 jest.mock('@oxy.so/bloom/layout', () => ({ useBottomEdgeInset: () => 0 }));
-import React from 'react';
+import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';

@@ -20,7 +20,7 @@
 
 import express, { type NextFunction, type Response } from 'express';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest } from '@oxy.so/core/server';

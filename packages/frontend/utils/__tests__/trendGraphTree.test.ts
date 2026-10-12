@@ -1,4 +1,4 @@
-import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
+import type { TrendGraphNodeDTO } from '@mention/shared-types';
 import { buildTrendTree } from '../trendGraphTree';
 
 const node = (term: string, volume: number, story?: string): TrendGraphNodeDTO => ({

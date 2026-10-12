@@ -1,4 +1,5 @@
-import React, { Component, ReactNode } from 'react';
+import type React from 'react';
+import { Component, type ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';

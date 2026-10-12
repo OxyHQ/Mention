@@ -1,4 +1,3 @@
-import React from 'react';
 import { Keyboard } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 

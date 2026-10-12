@@ -1,7 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import type { RequestHandler } from 'express';
-import { Request } from 'express';
+import type { Request } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { RedisStore } from './rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';

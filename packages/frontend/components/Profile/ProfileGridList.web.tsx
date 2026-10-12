@@ -1,4 +1,5 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';

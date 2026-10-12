@@ -1,4 +1,5 @@
-import React, { lazy, Suspense, useContext, useMemo } from 'react';
+import type React from 'react';
+import { lazy, Suspense, useContext, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import type {
   CommunityNoteRating,

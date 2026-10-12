@@ -11,7 +11,7 @@
 
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { trendBatches, trending, TrendingType } from '../db/schema/discovery';
+import { trendBatches, trending, type TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { emitTrendsUpdated } from '../utils/socket';

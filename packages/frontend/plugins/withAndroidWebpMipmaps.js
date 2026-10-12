@@ -37,8 +37,8 @@
  * than a conflict: it skips files that are already WebP.
  */
 
-const fs = require('fs/promises');
-const path = require('path');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { withDangerousMod } = require('expo/config-plugins');
 
 const RES_DIR = path.join('app', 'src', 'main', 'res');

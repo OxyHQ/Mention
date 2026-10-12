@@ -1,8 +1,8 @@
-import express, { Response } from 'express';
+import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { searchGifs, getTrendingGifs, GifResponse } from '../services/gifService';
+import { searchGifs, getTrendingGifs, type GifResponse } from '../services/gifService';
 import {
-  GifImportCandidate,
+  type GifImportCandidate,
   type GifRecord,
   ensureImported,
   getImportedByKlipyIds,

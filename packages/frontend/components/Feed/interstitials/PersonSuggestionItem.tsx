@@ -1,4 +1,3 @@
-import React from 'react';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';

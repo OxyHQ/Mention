@@ -35,9 +35,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInteractionEventName(value: unknown): value is FeedInteractionEventName {
-  return (
-    typeof value === 'string' && Object.prototype.hasOwnProperty.call(INTERACTION_EVENTS, value)
-  );
+  return typeof value === 'string' && Object.hasOwn(INTERACTION_EVENTS, value);
 }
 
 export type ParsedFeedInteractionBatch =

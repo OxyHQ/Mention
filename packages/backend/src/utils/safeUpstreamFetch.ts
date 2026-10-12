@@ -1,4 +1,4 @@
-import http, { IncomingMessage, IncomingHttpHeaders } from 'node:http';
+import http, { type IncomingMessage, type IncomingHttpHeaders } from 'node:http';
 import https from 'node:https';
 import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
 import type { LookupFunction } from 'node:net';

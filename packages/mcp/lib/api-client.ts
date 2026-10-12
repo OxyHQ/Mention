@@ -35,7 +35,7 @@ function headers(method: string): Record<string, string> {
   };
   const token = resolveToken();
   if (token) {
-    h['Authorization'] = `${requestContext.getStore()?.authorizationScheme ?? 'Bearer'} ${token}`;
+    h.Authorization = `${requestContext.getStore()?.authorizationScheme ?? 'Bearer'} ${token}`;
   }
   const context = requestContext.getStore();
   if (context?.authMode === 'capability' && context.userToken) {

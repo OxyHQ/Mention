@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Image, type ImageStyle, type StyleProp } from 'react-native';
 import { VideoPreview } from '@/components/Compose/VideoPreview';
 import type { ComposerMediaType } from '@/utils/composeUtils';

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';

@@ -1,6 +1,7 @@
 'use no memo';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import Animated, { useEvent, useHandler, withSpring } from 'react-native-reanimated';

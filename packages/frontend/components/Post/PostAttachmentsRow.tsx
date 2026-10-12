@@ -2,11 +2,11 @@ import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   ScrollView,
   StyleSheet,
-  GestureResponderEvent,
+  type GestureResponderEvent,
   Dimensions,
   Platform,
   View,
-  ViewStyle,
+  type ViewStyle,
 } from 'react-native';
 import { oxyServices } from '@/lib/oxyServices';
 import type {
@@ -31,11 +31,11 @@ import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import {
-  type ZoomableMediaGalleryHandle,
-  type GalleryImage,
-  type MeasureThumb,
-  type MeasuredRect,
+import type {
+  ZoomableMediaGalleryHandle,
+  GalleryImage,
+  MeasureThumb,
+  MeasuredRect,
 } from '@oxy.so/bloom/zoomable-media-gallery';
 import { useMediaFlight } from '@oxy.so/bloom/media-flight';
 import {

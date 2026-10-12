@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 

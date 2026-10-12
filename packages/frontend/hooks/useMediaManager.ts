@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { moveItem } from '@oxy.so/bloom/hooks';
 import type { FileMetadata } from '@oxy.so/core';
-import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
+import { type ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import { normalizeApiError } from '@/utils/apiError';
 
 export const useMediaManager = () => {

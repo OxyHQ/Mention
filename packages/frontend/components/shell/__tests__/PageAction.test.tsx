@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Platform, Text, View } from 'react-native';
 import { PageAction } from '../PageAction';

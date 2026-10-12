@@ -20,7 +20,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
-import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
+import { SEVERITY_COLORS, type Severity, type LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 

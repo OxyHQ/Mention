@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Modal } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { EventEditor } from '../EventEditor';

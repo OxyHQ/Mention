@@ -1,4 +1,4 @@
-import type http from 'http';
+import type http from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
 import { closePostgres } from '../db/postgres';
 import { shutdownQueues } from '../queue/workers';

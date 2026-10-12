@@ -5,8 +5,8 @@
  * Replaces the IFeedStrategy interface.
  */
 
-import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
-import { FeedDescriptor } from '@mention/shared-types';
+import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
+import type { FeedDescriptor } from '@mention/shared-types';
 import type { FeedTuning } from '@mention/shared-types';
 import type {
   RankingUserBehavior,

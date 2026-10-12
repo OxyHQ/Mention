@@ -1,4 +1,4 @@
-import { TRawNotification } from '../types/validation';
+import type { TRawNotification } from '../types/validation';
 
 /**
  * Types that should be grouped when they share the same target entity.

@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { View } from 'react-native';
 import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
@@ -10,7 +11,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
-import { FeedFilters, feedReceivesOwnNewPost, shallowFiltersEqual } from '@/utils/feedUtils';
+import { type FeedFilters, feedReceivesOwnNewPost, shallowFiltersEqual } from '@/utils/feedUtils';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
 import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import { FeedHeader } from './FeedHeader';

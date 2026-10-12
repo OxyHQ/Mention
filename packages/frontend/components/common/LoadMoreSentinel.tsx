@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
 
 interface LoadMoreSentinelProps {

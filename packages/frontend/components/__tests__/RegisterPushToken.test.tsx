@@ -1,4 +1,3 @@
-import React from 'react';
 import TestRenderer, { type ReactTestRenderer } from 'react-test-renderer';
 
 import { RegisterPushToken } from '../RegisterPushToken';

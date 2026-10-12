@@ -6,7 +6,7 @@
  * `geography` column is the thing that answers it.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, eq, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../../db/postgres';

@@ -192,7 +192,7 @@ export function resolveTypedMentions(
     }
     if (user === null) continue;
 
-    text += value.text.slice(cursor, entity.start) + `[mention:${user.id}]`;
+    text += `${value.text.slice(cursor, entity.start)}[mention:${user.id}]`;
     cursor = entity.end;
     added.push({
       userId: user.id,

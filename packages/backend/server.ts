@@ -1,8 +1,8 @@
-import http from 'http';
+import http from 'node:http';
 import type { Socket } from 'socket.io';
 import { startPlatformActivity } from './src/runtime/platformActivity';
 import { getRuntimeHealthState } from './src/utils/runtimeHealth';
-import { hostname } from 'os';
+import { hostname } from 'node:os';
 import { config, validateEnvironment } from './src/config';
 import { connectPostgres, getPostgresClient } from './src/db/postgres';
 import { assertPostgresMigrationsCurrent } from './src/db/migrationsFolder';

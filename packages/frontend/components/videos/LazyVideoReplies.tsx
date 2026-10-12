@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { Loading } from '@oxy.so/bloom/loading';
 import type { VideoRepliesProps } from './VideoReplies';
 

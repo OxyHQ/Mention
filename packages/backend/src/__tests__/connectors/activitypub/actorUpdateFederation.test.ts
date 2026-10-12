@@ -61,7 +61,6 @@ import { userSettings } from '../../../db/schema/userProfile';
 import {
   clearFederationScope,
   federationScope,
-  seedActor,
   seedFollowerWithInbox,
 } from '../../helpers/federationFixtures';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';

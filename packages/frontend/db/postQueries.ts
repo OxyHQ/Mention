@@ -6,7 +6,7 @@
  */
 
 import { getDb, isDbAvailable } from './database';
-import { PostRow, FeedItem, postToRow, rowToFeedItem } from './schema';
+import { type PostRow, type FeedItem, postToRow, rowToFeedItem } from './schema';
 import { notifyPostsStored } from './postObservers';
 import {
   memUpsertPost,

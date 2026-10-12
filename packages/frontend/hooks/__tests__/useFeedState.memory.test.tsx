@@ -1,15 +1,3 @@
-/**
- * Memory mode — every feed on web, and every scoped feed on native — is one
- * React Query infinite query per feed. The query cache is the retention: a
- * remount renders the cached pages synchronously and requests nothing, unless a
- * write the feed cannot see has happened since its read; then it reads page 1
- * again, and only page 1.
- *
- * Every request is counted here, because the request count IS the behaviour: a
- * warm start that refetches, a refresh that reads every loaded page again, or a
- * load-more that double-fires all render the same rows in the end.
- */
-import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';

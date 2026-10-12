@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import {
   requireOxyAuth as requireAuth,
   type OxyAuthRequest as AuthRequest,

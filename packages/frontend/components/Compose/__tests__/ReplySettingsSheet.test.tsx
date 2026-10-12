@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import ReplySettingsSheet from '../ReplySettingsSheet';
 import { RadioGroup } from '@oxy.so/bloom/radio';

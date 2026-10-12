@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Item } from '@oxy.so/bloom/item';

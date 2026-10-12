@@ -2,7 +2,7 @@ import {
   activeMuteIdentityIds,
   unmuteIdentityProjection,
 } from '../services/ActorIdentityProjectionService';
-import { Router, Response } from 'express';
+import { Router, type Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';

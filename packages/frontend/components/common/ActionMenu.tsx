@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import { present, type SurfaceControls } from '@oxy.so/bloom/surfaces';

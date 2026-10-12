@@ -213,7 +213,7 @@
  */
 
 import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, sql, type SQL } from 'drizzle-orm';
-import { type PostContentVariant } from '@mention/shared-types';
+import type { PostContentVariant } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';

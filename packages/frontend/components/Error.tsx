@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';

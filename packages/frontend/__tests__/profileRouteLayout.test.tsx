@@ -19,7 +19,7 @@
  * lifetime and therefore cannot appear and disappear underneath a mounted
  * child.
  */
-import React from 'react';
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { ProfileTab } from '@/components/Profile/types';
 import UsernameLayout from '@/app/(app)/[username]/_layout';

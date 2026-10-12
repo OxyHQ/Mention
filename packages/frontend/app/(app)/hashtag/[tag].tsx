@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useLocalSearchParams, usePathname } from 'expo-router';
 import { PageHeader } from '@oxy.so/bloom/page-header';

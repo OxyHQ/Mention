@@ -66,7 +66,7 @@ vi.mock('../../utils/clarityDocumentWarm', () => ({
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readScopePosts, serviceScope } from '../helpers/serviceFixtures';
 import { createThread } from '../../controllers/posts/createThread';
-import { posts } from '../../db/schema/posts';
+import type { posts } from '../../db/schema/posts';
 
 const scope = serviceScope('create-thread-chain');
 const AUTHOR = scope.user('thread-author');

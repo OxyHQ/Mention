@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Text, StyleSheet, StyleProp, TextStyle } from 'react-native';
+import type React from 'react';
+import { useMemo } from 'react';
+import { Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import { Link, type Href } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';

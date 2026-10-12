@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@oxy.so/bloom/dialog';

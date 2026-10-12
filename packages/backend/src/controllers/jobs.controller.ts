@@ -5,7 +5,7 @@
  * in `jobsManagement.controller.ts` / `routes/jobsManagement.ts`.
  */
 
-import { Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   MENTION_JOB_EMPLOYMENT_TYPES,

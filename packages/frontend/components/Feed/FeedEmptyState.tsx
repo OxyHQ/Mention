@@ -124,7 +124,6 @@ export function emptySticker(
       return 'feedCustom';
     case 'saved':
       return 'saved';
-    case 'following':
     default:
       return 'feedFollowing';
   }
@@ -203,7 +202,6 @@ export function emptyCopy(
         title: t('feed.emptyState.saved.title'),
         subtitle: t('feed.emptyState.saved.subtitle'),
       };
-    case 'following':
     default:
       return {
         title: t('feed.emptyState.following.title'),

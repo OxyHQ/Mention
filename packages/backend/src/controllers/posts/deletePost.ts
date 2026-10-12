@@ -7,7 +7,7 @@
  * scheduled-continuation cleanup, and the response.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
