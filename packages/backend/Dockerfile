@@ -1,6 +1,12 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7.1@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 
-FROM oven/bun:1.4.3-alpine AS manifests
+# Base images and the Dockerfile frontend are pinned by digest: the digest is
+# what the build pulls, and the tag is kept only for readers and for
+# scripts/validate-bun-pins.mjs. Bumping either (Bun release or base OS
+# security fixes) needs a new multi-arch index digest, then an owner review and
+# `python3 .github/scripts/reviewed-image.py pin`.
+
+FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
@@ -23,7 +29,7 @@ COPY packages/backend/ packages/backend/
 RUN bun run --cwd packages/shared-types build
 RUN bun run --cwd packages/backend build
 
-FROM oven/bun:1.4.3-alpine AS runtime
+FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS runtime
 WORKDIR /app
 
 # ffmpeg powers bounded local frame extraction for /media/poster.
