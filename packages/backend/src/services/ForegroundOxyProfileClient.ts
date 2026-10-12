@@ -8,6 +8,52 @@ export interface ForegroundProfileReader {
   recommend(input: Readonly<Record<string, unknown>>): Promise<unknown>;
 }
 
+/** The foreground round trip that failed. */
+export type ForegroundRankingStage = 'approval' | 'ticket' | 'invoke' | 'cleanup';
+
+/** Why a stage failed, reduced to values that can never carry a bearer or a body. */
+export interface ForegroundRankingFailure {
+  stage: ForegroundRankingStage;
+  /** HTTP status Oxy answered with, when it answered. */
+  status?: number;
+  /** The SDK's or Oxy's error code, when it is a plain identifier. */
+  code?: string;
+  /** The attempt hit its own timeout rather than an answer. */
+  timeout?: boolean;
+}
+
+const SAFE_ERROR_CODE = /^[A-Za-z0-9_.:-]{1,64}$/;
+
+function describeFailure(stage: ForegroundRankingStage, error: unknown): ForegroundRankingFailure {
+  const failure: ForegroundRankingFailure = { stage };
+  if (typeof error !== 'object' || error === null) return failure;
+  const { status, code, timeout } = error as {
+    status?: unknown;
+    code?: unknown;
+    timeout?: unknown;
+  };
+  if (typeof status === 'number' && Number.isInteger(status) && status > 0) failure.status = status;
+  if (typeof code === 'string' && SAFE_ERROR_CODE.test(code)) failure.code = code;
+  if (timeout === true) failure.timeout = true;
+  return failure;
+}
+
+/**
+ * A refused or failed foreground ranking. The message stays the stable
+ * `FOREGROUND_*` code; `failure` says which round trip failed and how, so a
+ * refusal can be told apart from Oxy being slow. SDK errors can contain request
+ * bodies, so the original error is never kept.
+ */
+export class ForegroundRankingError extends Error {
+  constructor(
+    message: string,
+    readonly failure: ForegroundRankingFailure,
+  ) {
+    super(message);
+    this.name = 'ForegroundRankingError';
+  }
+}
+
 export class ForegroundOxyProfileClient implements ForegroundProfileReader {
   private readonly catalog: CapabilityCatalogBinding;
 
@@ -42,16 +88,26 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         },
         { requesterToken: this.requesterToken },
       )
-      .catch(() => {
-        throw new Error('FOREGROUND_APPROVAL_REFUSED');
+      .catch((error: unknown) => {
+        throw new ForegroundRankingError(
+          'FOREGROUND_APPROVAL_REFUSED',
+          describeFailure('approval', error),
+        );
       });
     try {
-      const grant = await this.server.agency.issueCapabilityTicket({
-        executionAuthorizationId: authorization.id,
-        expectedCatalog: this.catalog,
-        runId,
-        stepId,
-      });
+      const grant = await this.server.agency
+        .issueCapabilityTicket({
+          executionAuthorizationId: authorization.id,
+          expectedCatalog: this.catalog,
+          runId,
+          stepId,
+        })
+        .catch((error: unknown) => {
+          throw new ForegroundRankingError(
+            'FOREGROUND_TICKET_REFUSED',
+            describeFailure('ticket', error),
+          );
+        });
       const claims = grant.claims;
       if (
         !grant.decision.allowed ||
@@ -70,7 +126,10 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         claims.catalog.version !== this.catalog.version ||
         claims.catalog.digest !== this.catalog.digest
       ) {
-        throw new Error('FOREGROUND_TICKET_REFUSED');
+        throw new ForegroundRankingError('FOREGROUND_TICKET_REFUSED', {
+          stage: 'ticket',
+          code: grant.decision.allowed ? 'claims_mismatch' : 'decision_refused',
+        });
       }
       // Oxy derives private ranking clientId from the verified coordinator.
       // The configured application ID is retained as an explicit parity check.
@@ -85,17 +144,24 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
         retry: false,
         timeout: 5000,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof ForegroundRankingError) throw error;
       // SDK errors can contain request bodies. Never log or return a bearer.
-      throw new Error('FOREGROUND_PROFILE_READ_REFUSED');
+      throw new ForegroundRankingError(
+        'FOREGROUND_PROFILE_READ_REFUSED',
+        describeFailure('invoke', error),
+      );
     } finally {
       try {
         await this.server.agency.revokeExecutionAuthorization(authorization.id, {
           requesterToken: this.requesterToken,
         });
-      } catch {
+      } catch (error) {
         // Do not return private data while bounded approval cleanup failed.
-        throw new Error('FOREGROUND_APPROVAL_CLEANUP_FAILED');
+        throw new ForegroundRankingError(
+          'FOREGROUND_APPROVAL_CLEANUP_FAILED',
+          describeFailure('cleanup', error),
+        );
       }
     }
   }

@@ -102,8 +102,15 @@ export default function RootLayout() {
 
   // React Query managers - setup once on mount
   useEffect(() => {
+    // Online means "has a network", never NetInfo's reachability probe. On
+    // native that probe fetches a Google URL; where it is blocked, slow or
+    // behind a captive portal it reports unreachable, and React Query's
+    // `networkMode: 'online'` would pause every query — feed modules and
+    // who-to-follow stay on skeletons forever while Mention's own API is
+    // perfectly reachable. A request that really cannot get through fails and
+    // retries on its own. `null` (not yet known) counts as connected.
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      onlineManager.setOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+      onlineManager.setOnline(state.isConnected !== false);
     });
 
     const onAppStateChange = (status: AppStateStatus) => {

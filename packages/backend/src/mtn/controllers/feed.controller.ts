@@ -422,8 +422,10 @@ class MtnFeedController {
       //   - the descriptor-scoped mutual / friends-of-friends id sets (below);
       //   - the viewer's muted words (prefetched; only awaited if the page has
       //     slices — see the tuner block).
-      // Each branch already soft-fails to a safe default, so one failure can't
-      // break the feed.
+      // Every branch but the privacy state soft-fails to a safe default. The
+      // privacy state fails CLOSED: with no fresh or stale copy of the viewer's
+      // blocks it throws, because a feed served without them could show a
+      // blocked author.
       const feedSource = parseFeedDescriptor(descriptor).source;
       const requestOxyClient = createScopedOxyClient(req);
       // Viewer-private endpoints (blocks/restrictions) must use ONLY the

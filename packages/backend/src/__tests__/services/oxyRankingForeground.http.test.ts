@@ -2,7 +2,10 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServer } from '@oxy.so/core/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ForegroundOxyProfileClient } from '../../services/ForegroundOxyProfileClient';
+import {
+  ForegroundOxyProfileClient,
+  ForegroundRankingError,
+} from '../../services/ForegroundOxyProfileClient';
 
 const mocks = vi.hoisted(() => ({ serviceRequest: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -180,6 +183,24 @@ describe('foreground ranking through common agency and installed SDK transport',
       if (failure !== 'approval') expect(observed.at(-1)?.method).toBe('DELETE');
       if (failure === 'ticket' || failure === 'subject')
         expect(observed.some((record) => record.path.startsWith('/_oxy/'))).toBe(false);
+    },
+  );
+
+  it.each([
+    ['approval', 'FOREGROUND_APPROVAL_REFUSED', { stage: 'approval', status: 403 }],
+    ['ticket', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'decision_refused' }],
+    ['subject', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'claims_mismatch' }],
+    ['invoke', 'FOREGROUND_PROFILE_READ_REFUSED', { stage: 'invoke', status: 403 }],
+    ['cleanup', 'FOREGROUND_APPROVAL_CLEANUP_FAILED', { stage: 'cleanup', status: 503 }],
+  ] as const)(
+    'says which round trip failed on %s, without the bearer',
+    async (failure, message, expected) => {
+      const { client } = await endpoint(failure);
+      const error = await client.recommend({ limit: 10 }).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ForegroundRankingError);
+      expect((error as ForegroundRankingError).message).toBe(message);
+      expect((error as ForegroundRankingError).failure).toMatchObject(expected);
+      expect(JSON.stringify((error as ForegroundRankingError).failure)).not.toContain(REQUESTER);
     },
   );
 });
