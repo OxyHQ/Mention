@@ -21,8 +21,6 @@
       "!packages/frontend/locales",
       // Machine-recorded by `coverage:record` (JSON.stringify output).
       "!packages/frontend/coverage-baseline.json",
-      // sha256-pinned in scripts/reviewed-image-publisher.mjs.
-      "!.github/scripts/reviewed-images.json",
       // Not a project file. Sandboxed agent runs bind-mount an EMPTY file at
       // this path (see .gitignore), which is not valid JSON and would fail
       // `biome ci` inside the sandbox.

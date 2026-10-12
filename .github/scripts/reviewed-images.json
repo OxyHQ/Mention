@@ -3,27 +3,19 @@
   "recipes": [
     {
       "name": "mention",
-      "services": [
-        "mention"
-      ],
       "ecrRepository": "oxy/mention",
       "dockerfile": "packages/backend/Dockerfile",
-      "dockerfileSha256": "03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8",
+      "context": ".",
       "target": null,
-      "tagSuffix": "",
-      "cacheScope": "mention-backend"
+      "buildInputsSha256": "2eacaff7e63c578490ce059de68f36693aa98d4a670dc8c90c8ce8169f346b31"
     },
     {
       "name": "mention-mcp",
-      "services": [
-        "mention-mcp"
-      ],
       "ecrRepository": "oxy/mention-mcp",
       "dockerfile": "packages/mcp/Dockerfile",
-      "dockerfileSha256": "e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae",
+      "context": ".",
       "target": null,
-      "tagSuffix": "",
-      "cacheScope": "mention-mcp"
+      "buildInputsSha256": "df4ffd3b91c08a993cf601552370307a75ec2c3324024efca4b0409ee85a89fc"
     }
   ]
 }
