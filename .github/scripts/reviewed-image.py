@@ -132,14 +132,15 @@ def check(root):
         for literal in HARDCODED_LABEL.findall(text):
             problems.append(name + ': hardcoded hash label ' + literal[:40] + '...; take it from `reviewed-image.py guard`')
     any_guard = re.compile(r'reviewed-image\.py\s+guard\s+--recipe\s+[a-z0-9-]+')
+    consumes = re.compile(r'steps\.reviewed[A-Za-z0-9_-]*\.outputs\.')
     for name, text in workflows.items():
         # A build that takes its inputs from a guard it no longer runs gets
         # empty outputs, and build-push-action then falls back to its OWN
         # defaults: an unreviewed build, not a refusal. So every workflow that
         # consumes the outputs must run the guard itself; one guarded workflow
         # elsewhere does not cover it.
-        if 'steps.reviewed.outputs.' in strip_comments(text) and not any_guard.search(strip_comments(text)):
-            problems.append(name + ': builds from `steps.reviewed.outputs` but runs no `reviewed-image.py guard`')
+        if consumes.search(strip_comments(text)) and not any_guard.search(strip_comments(text)):
+            problems.append(name + ': builds from `steps.reviewed*.outputs` but runs no `reviewed-image.py guard`')
     live = '\n'.join(strip_comments(t) for t in workflows.values())
     for r in config['recipes']:
         guard = re.compile(r'reviewed-image\.py\s+guard\s+--recipe\s+' + re.escape(r['name']) + r'(?![a-z0-9-])')
