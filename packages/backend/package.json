@@ -24,7 +24,7 @@
   "dependencies": {
     "@clarity.surf/sdk": "^0.4.0",
     "@crowdsource.you/contracts": "1.1.0",
-    "@crowdsource.you/core": "1.4.0",
+    "@crowdsource.you/core": "3.0.0",
     "@mention/shared-types": "workspace:*",
     "@mercaria.co/sdk": "^0.1.0",
     "@oxy.so/contracts": "catalog:",

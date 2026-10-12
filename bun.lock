@@ -19,7 +19,7 @@
       "dependencies": {
         "@clarity.surf/sdk": "^0.4.0",
         "@crowdsource.you/contracts": "1.1.0",
-        "@crowdsource.you/core": "1.4.0",
+        "@crowdsource.you/core": "3.0.0",
         "@mention/shared-types": "workspace:*",
         "@mercaria.co/sdk": "^0.1.0",
         "@oxy.so/contracts": "catalog:",
@@ -514,7 +514,7 @@
 
     "@crowdsource.you/contracts": ["@crowdsource.you/contracts@1.1.0", "", { "dependencies": { "zod": "^4.6.5" } }, "sha512-MKCsX8i3rBQuq6MnA+e4jxvPKh9E5fnJnXMpjyvKEEt+isygzdJg7h2fcWOvnFrhrFN4o+SQCBuilRDRfemgOQ=="],
 
-    "@crowdsource.you/core": ["@crowdsource.you/core@1.4.0", "", { "dependencies": { "zod": "^4.6.5" }, "peerDependencies": { "@crowdsource.you/contracts": "^1.1.0", "@oxy.so/core": "^1.6.0", "@oxy.so/db": "^1.0.0", "drizzle-orm": "^0.45.2", "express": ">=4.18.0 <6", "postgres": "^3.4.9" }, "optionalPeers": ["@oxy.so/core", "@oxy.so/db", "drizzle-orm", "express", "postgres"] }, "sha512-OOGTOgvwgyi7Vp01YKjytuLgV97IVCeSGaMxBCcbArjN+yrfjHBZri4tovqUG7Pl66Fm0LWcPVul0YprLd3w+g=="],
+    "@crowdsource.you/core": ["@crowdsource.you/core@3.0.0", "", { "dependencies": { "zod": "^4.6.5" }, "peerDependencies": { "@crowdsource.you/contracts": "^1.1.0", "@oxy.so/core": "^4.0.0", "@oxy.so/db": "^1.0.0", "drizzle-orm": "^0.45.3", "express": ">=4.18.0 <6", "postgres": "^3.4.9" }, "optionalPeers": ["@oxy.so/core", "@oxy.so/db", "drizzle-orm", "express", "postgres"] }, "sha512-kvuEofpy9CjqWTKB9/eIl8bdHNix3frN+UaimPxqRrtKas+Ch1hmuk8XOw+1kurJu4iLuDlQwH98024objpGeg=="],
 
     "@dominicstop/ts-event-emitter": ["@dominicstop/ts-event-emitter@1.1.0", "", {}, "sha512-CcxmJIvUb1vsFheuGGVSQf4KdPZC44XolpUT34+vlal+LyQoBUOn31pjFET5M9ctOxEpt8xa0M3/2M7uUiAoJw=="],
 
