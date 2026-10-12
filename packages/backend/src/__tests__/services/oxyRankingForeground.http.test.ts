@@ -53,6 +53,19 @@ async function endpoint(
         approval = body;
         res.statusCode = failure === 'approval' ? 403 : 201;
         res.end(JSON.stringify({ authorization: { id: 'fixture_approval' } }));
+      } else if (
+        req.url === '/capabilities/tickets' &&
+        (body.runId !== undefined || body.stepId !== undefined)
+      ) {
+        // Oxy's contract for a `direct_request` authorization: the run identity
+        // comes from the authorization row, and a request naming one is refused
+        // (`capabilityAuthority.service.ts`, `direct_request_runtime_scope_override`).
+        res.statusCode = 403;
+        res.end(
+          JSON.stringify({
+            decision: { allowed: false, reason: 'direct_request_runtime_scope_override' },
+          }),
+        );
       } else if (req.url === '/capabilities/tickets') {
         res.end(
           JSON.stringify({
@@ -131,6 +144,11 @@ describe('foreground ranking through common agency and installed SDK transport',
     expect(approval?.body.subjectToken).toBe(REQUESTER);
     expect(approval?.body.expectedCatalog).toEqual(CATALOG);
     expect(approval?.body).not.toHaveProperty('requesterAccountId');
+    const ticket = observed.find((record) => record.path === '/capabilities/tickets');
+    expect(ticket?.body).toEqual({
+      executionAuthorizationId: 'fixture_approval',
+      expectedCatalog: CATALOG,
+    });
     const invoke = observed.find(
       (record) => record.path === '/_oxy/capabilities/profiles/recommendations',
     );
