@@ -53,7 +53,8 @@ describe('userSummaryCache.mget', () => {
     vi.clearAllMocks();
     mocks.multi.mockReturnValue({
       setEx: mocks.setEx,
-      exec: mocks.exec,
+      // The pipeline's own call: a non-transactional batch (see `setExInBatches`).
+      execAsPipeline: mocks.exec,
     });
     mocks.exec.mockResolvedValue([]);
     mocks.del.mockResolvedValue(1);
@@ -122,7 +123,7 @@ describe('userSummaryCache.mget', () => {
     expect(mocks.mGet).not.toHaveBeenCalled();
   });
 
-  it('writes through one pipeline without a readiness PING', async () => {
+  it('writes through one non-transactional pipeline without a readiness PING', async () => {
     await mset(
       new Map([
         [
