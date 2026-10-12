@@ -10,7 +10,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getMentionOxyClientId: mocks.getMentionOxyClientId,
 }));
 
-import { OxyRankingClient } from '../../services/OxyRankingClient';
+import {
+  OXY_RECOMMENDATION_EXCLUDE_IDS_MAX,
+  OxyRankingClient,
+} from '../../services/OxyRankingClient';
 
 const CLIENT_ID = 'app_mention_123';
 
@@ -60,6 +63,18 @@ describe('OxyRankingClient.rank', () => {
       excludeTypes: ['federated'],
     });
     expect(options).toBeUndefined();
+  });
+
+  it('never sends more excludeIds than Oxy accepts', async () => {
+    mocks.serviceRequest.mockResolvedValue({ data: [] });
+    const client = new OxyRankingClient();
+    const excludeIds = Array.from({ length: 650 }, (_, index) => `x${index}`);
+
+    await client.rank({ limit: 20, excludeIds });
+
+    const body = mocks.serviceRequest.mock.calls[0][2];
+    expect(body.excludeIds).toHaveLength(OXY_RECOMMENDATION_EXCLUDE_IDS_MAX);
+    expect(body.excludeIds[0]).toBe('x0');
   });
 
   it('forwards a positive pagination offset in the request body', async () => {

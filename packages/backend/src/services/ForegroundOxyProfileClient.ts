@@ -96,11 +96,15 @@ export class ForegroundOxyProfileClient implements ForegroundProfileReader {
       });
     try {
       const grant = await this.server.agency
+        // The run identity is the authorization's own: Oxy refuses ANY runId or
+        // stepId on a `direct_request` ticket request
+        // (`direct_request_runtime_scope_override`), so sending them here made
+        // every signed-in who-to-follow fail at this step from #1309 on. The
+        // claims below are still checked against the run this authorization was
+        // created for.
         .issueCapabilityTicket({
           executionAuthorizationId: authorization.id,
           expectedCatalog: this.catalog,
-          runId,
-          stepId,
         })
         .catch((error: unknown) => {
           throw new ForegroundRankingError(
