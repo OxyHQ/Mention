@@ -770,9 +770,11 @@ export const posts = pgTable(
       .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
     /**
      * Recent public posts that carry classified topics, newest first, with the
-     * author and the topics in the key — the scan behind topic affinity
-     * (`ContentAffinityService.computeTopicAffinity`), which feeds both the For
-     * You affinity lane and who-to-follow (migration 0064).
+     * author and the topics in the key (migration 0064). It serves the query
+     * that builds `topic_affinity_posts` (0065), which topic affinity
+     * (`ContentAffinityService.computeTopicAffinity`) reads on the For You and
+     * who-to-follow request paths; the view's refresh is one window scan every
+     * few minutes instead of one per viewer.
      *
      * Without it that query was a GIN bitmap over every post that ever matched
      * the viewer's topics, ANDed with a 30-day `created_at` bitmap, lossy at the

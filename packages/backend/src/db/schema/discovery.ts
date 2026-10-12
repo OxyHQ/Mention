@@ -18,6 +18,7 @@ import {
   index,
   integer,
   jsonb,
+  pgMaterializedView,
   pgTable,
   text,
   unique,
@@ -668,4 +669,44 @@ export const pushTokens = pgTable(
     // The delivery fan-out: this user's enabled tokens.
     index('push_tokens_user_enabled_idx').on(t.userId).where(sql`${t.enabled}`),
   ],
+);
+
+/**
+ * How far back `topic_affinity_posts` reaches. It must cover the longest window
+ * a reader asks for: `ContentAffinityService`'s topic affinity reads 30 days.
+ */
+export const TOPIC_AFFINITY_WINDOW_DAYS = 30;
+
+/**
+ * `topic_affinity_posts` — the posts topic affinity reads, and nothing else.
+ *
+ * Public, published, authored, non-boost posts with a non-empty topic list from
+ * the last {@link TOPIC_AFFINITY_WINDOW_DAYS} days: ~22k narrow rows
+ * (production, 2026-10-12) instead of the 1.9M wide `posts` rows they come from.
+ *
+ * Why a materialized view and not a query on `posts`: `computeTopicAffinity`
+ * runs for every viewer whose affinity cache expired, on the request path of
+ * both the For You feed and who-to-follow. On `posts` it read up to ~17k heap
+ * pages per call — pages the engagement counters rewrite all day, so they are
+ * never all-visible (no index-only scan) and rarely stay cached. Its slow-query
+ * median was 18 s in a normal week (2026-10-03..09). Here the same read is a few
+ * hundred stable pages.
+ *
+ * `TopicAffinityRefreshJob` refreshes it CONCURRENTLY on the leader every few
+ * minutes, so a new or reclassified post reaches topic affinity within one
+ * refresh, and a post made private or deleted leaves it within one. Only author
+ * ids, topics and counts are derived from it; every candidate's profile access
+ * is still checked live (`filterCandidateProfileAccess`).
+ *
+ * The unique `post_id` index is what makes `REFRESH ... CONCURRENTLY` legal;
+ * both indexes are created in migration 0065, since drizzle cannot declare an
+ * index on a view.
+ */
+export const topicAffinityPosts = pgMaterializedView('topic_affinity_posts', {
+  postId: text().notNull(),
+  oxyUserId: text().notNull(),
+  createdAt: timestamptz().notNull(),
+  topics: text().array().notNull(),
+}).as(
+  sql`select ${posts.id} as post_id, ${posts.oxyUserId} as oxy_user_id, ${posts.createdAt} as created_at, ${posts.classificationTopics} as topics from ${posts} where ${posts.visibility} = 'public' and ${posts.status} = 'published' and ${posts.type} <> 'boost' and ${posts.oxyUserId} is not null and cardinality(${posts.classificationTopics}) > 0 and ${posts.createdAt} >= now() - interval '${sql.raw(String(TOPIC_AFFINITY_WINDOW_DAYS))} days'`,
 );

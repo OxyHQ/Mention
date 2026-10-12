@@ -220,8 +220,8 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     name: 'posts_public_topic_recent_idx',
     table: 'posts',
     serves:
-      'topic affinity — `ContentAffinityService.computeTopicAffinity`, behind the For You affinity lane ' +
-      'and who-to-follow — as an index-only walk that stops at the row cap, instead of a lossy GIN ' +
+      'the eligible window `topic_affinity_posts` (0065) is built from — the posts topic affinity ' +
+      'reads for the For You affinity lane and who-to-follow — as an index walk instead of a lossy GIN ' +
       'bitmap over the whole history (~29k buffers, 30-96 s on a busy database). PARTIAL on a ' +
       'non-empty topic list (~8% of posts); the query spells `cardinality(...) > 0` so the planner ' +
       'can prove it, and orders `desc nulls last` to walk the key in order',
@@ -982,7 +982,7 @@ it('bounds the federation URL index build, restores prior timeouts and serves ex
   });
 });
 
-it('bounds the topic-affinity index build, restores prior timeouts and serves the affinity scan', async () => {
+it('bounds the topic-affinity index build, restores prior timeouts and serves the view window', async () => {
   const migration = readFileSync(
     path.resolve(__dirname, '../../../drizzle/0064_posts_public_topic_recent_idx.sql'),
     'utf8',
@@ -1016,14 +1016,12 @@ it('bounds the topic-affinity index build, restores prior timeouts and serves th
     );
     expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
     await tx.execute(sql`analyze posts`);
-    // The scan `computeTopicAffinity` issues, as drizzle spells it.
+    // The window `topic_affinity_posts` (0065) is defined by.
     const rows = await tx.execute<{ 'QUERY PLAN': string }>(
-      sql`explain (costs off) select id, oxy_user_id, classification_topics from posts where classification_topics && array['tech'] and cardinality(classification_topics) > 0 and visibility = 'public' and status = 'published' and type <> 'boost' and oxy_user_id is not null and created_at >= now() - interval '30 days' order by created_at desc nulls last, id desc nulls last limit 400`,
+      sql`explain (costs off) select id, oxy_user_id, created_at, classification_topics from posts where visibility = 'public' and status = 'published' and type <> 'boost' and oxy_user_id is not null and cardinality(classification_topics) > 0 and created_at >= now() - interval '30 days'`,
     );
     const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
-    expect(plan).toContain('Index Only Scan using posts_public_topic_recent_idx');
-    // Walked in the key's order and stopped at the cap, not read whole and sorted.
-    expect(plan).not.toMatch(/Sort/);
+    expect(plan).toContain('posts_public_topic_recent_idx');
   });
 });
 
