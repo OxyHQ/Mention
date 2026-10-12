@@ -516,10 +516,12 @@ LCP is covered by the real-user web vitals above.
 
 ## Recommended next step, not taken in this pass
 
-Wire `/internal/metrics` into a retained time series (CloudWatch embedded
-metric format from the existing ECS tasks is the lowest-new-infrastructure
-option, since Mention already runs there — see `oxy-infra`). That is an
-infrastructure decision for `oxy-infra`'s own owners, not a Mention code
+Wire `/internal/metrics` into a retained time series. Request traffic already
+reports to Oxy's shared ecosystem telemetry (`runtime/platformActivity.ts`,
+`createEcosystemTraffic` from `@oxy.so/core/server`). That shared pipeline
+replaces app-specific CloudWatch custom metrics, which is why Mention's own
+`Mention/Backend` EMF namespace was removed. Retaining latency percentiles is
+an infrastructure decision for `oxy-infra`'s own owners, not a Mention code
 change, and is why it is a recommendation here rather than a PR. Once a
 metric survives longer than the process that emitted it, come back and
 write a real p95/p99 number against it — a number chosen before that lands
