@@ -67,6 +67,7 @@ import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
 import { posts } from '../db/schema/posts';
+import { topicAffinityPosts } from '../db/schema/discovery';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
 import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { getRedisClient } from '../utils/redis';
@@ -78,7 +79,6 @@ import {
   type OxyClient,
 } from '../utils/privacyHelpers';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
-import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
 
 /** Recency window for content signals (days). */
 const WINDOW_DAYS = 30;
@@ -395,18 +395,15 @@ export class ContentAffinityService {
       // viewer's preferred topics, grouped by author, tracking which preferred
       // topics they covered and their post volume.
       //
-      // The scan is an index-only walk of `posts_public_topic_recent_idx`
-      // (migration 0064), newest first, stopping at the row cap. Two spellings
-      // below exist for that index and change no result:
-      //   - `cardinality(...) > 0` is implied by the overlap (an empty array
-      //     overlaps nothing), but Postgres cannot prove the index's partial
-      //     predicate from `&&`; ~92% of posts carry an empty topic list.
-      //   - `chronoOrderBy()` is `desc nulls last`, the index's order. A bare
-      //     `desc` (nulls first) made Postgres read the whole window and sort it.
-      //     `created_at` and `id` are NOT NULL, so the order is unchanged.
-      // Without the index this was a lossy GIN bitmap over the full history:
-      // ~29k buffers per call, 0.7 s cold on an idle database and 30-96 s on a
-      // busy one (production, 2026-10-11/12).
+      // The posts come from `topic_affinity_posts`, a narrow materialized view of
+      // exactly the eligible rows (public, published, authored, non-boost, with
+      // topics, last 30 days) that `TopicAffinityRefreshJob` refreshes on the
+      // leader. Reading `posts` itself cost up to ~17k heap pages per call —
+      // pages the engagement counters keep rewriting, so never all-visible and
+      // rarely cached: slow-query median 18 s in a normal week (2026-10-03..09).
+      // The view's eligibility filter replaces the one this query used to carry;
+      // the `since` window still applies here, so a view that missed a refresh
+      // can lag new posts but never widen the window.
       //
       // The bounded scan is an inner subquery so the row cap applies BEFORE the
       // grouping — grouping the whole corpus
@@ -417,23 +414,21 @@ export class ContentAffinityService {
       // three preferred topics as three posts; the unit is posts.
       const scanned = getDb()
         .select({
-          id: posts.id,
-          oxyUserId: posts.oxyUserId,
-          classificationTopics: posts.classificationTopics,
+          id: topicAffinityPosts.postId,
+          oxyUserId: topicAffinityPosts.oxyUserId,
+          classificationTopics: topicAffinityPosts.topics,
         })
-        .from(posts)
+        .from(topicAffinityPosts)
         .where(
           and(
-            arrayOverlaps(posts.classificationTopics, topics),
-            sql`cardinality(${posts.classificationTopics}) > 0`,
-            eq(posts.visibility, 'public'),
-            eq(posts.status, 'published'),
-            ne(posts.type, PostType.BOOST),
-            isNotNull(posts.oxyUserId),
-            gte(posts.createdAt, since),
+            arrayOverlaps(topicAffinityPosts.topics, topics),
+            gte(topicAffinityPosts.createdAt, since),
           ),
         )
-        .orderBy(...chronoOrderBy())
+        .orderBy(
+          sql`${topicAffinityPosts.createdAt} desc nulls last`,
+          sql`${topicAffinityPosts.postId} desc nulls last`,
+        )
         .limit(MAX_AUTHORS_PER_TOPIC * topics.length)
         .as('scanned');
 

@@ -456,6 +456,13 @@
       "when": 1791786102905,
       "tag": "0064_posts_public_topic_recent_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791791189623,
+      "tag": "0065_topic_affinity_posts",
+      "breakpoints": true
     }
   ]
 }
