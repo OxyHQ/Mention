@@ -46,6 +46,7 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'credentials',
   'database',
   'databasename',
+  'databaseurl',
   'dbname',
   'email',
   'handle',
@@ -53,7 +54,6 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'hostname',
   'ip',
   'ipaddress',
-  'mongouri',
   'params',
   'password',
   'path',
@@ -119,7 +119,7 @@ function isSensitiveKey(key: string): boolean {
 
 function sanitizeLogString(value: string, preserveBareIdentifier = false): string {
   const sanitized = value
-    .replace(/\b(?:https?|wss?|at|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi, (match) => {
+    .replace(/\b(?:https?|wss?|at|redis|rediss|postgres(?:ql)?):\/\/[^\s"'<>]+/gi, (match) => {
       let candidateEnd = match.length;
       while (candidateEnd > 0 && '),.;!?'.includes(match[candidateEnd - 1] ?? '')) {
         candidateEnd -= 1;
@@ -129,7 +129,7 @@ function sanitizeLogString(value: string, preserveBareIdentifier = false): strin
       try {
         const parsed = new URL(candidate);
         if (
-          parsed.protocol.startsWith('mongodb') ||
+          parsed.protocol.startsWith('postgres') ||
           parsed.protocol.startsWith('redis') ||
           parsed.username ||
           parsed.password

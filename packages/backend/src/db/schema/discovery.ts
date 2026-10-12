@@ -2,11 +2,11 @@
  * Discovery and telemetry: `trending`, `trend_batches`, `topic_stats`,
  * `author_follower_snapshots`, `gifs`, `notifications`, `push_tokens`.
  *
- * Three of these had Mongo TTL indexes (`trending`, `notifications`,
+ * Three of these expire by age (`trending`, `notifications`,
  * `author_follower_snapshots`); each keeps the btree its sweep predicate needs
  * and gets a registry entry in `db/expiry.ts`. Every one of the three was
  * written to DELETE the row, and deleting is still the intent — checked one by
- * one, because the sibling port found a TTL that was destroying history someone
+ * one, because oxy-api found a TTL that was destroying history someone
  * meant to keep.
  */
 
@@ -18,6 +18,7 @@ import {
   index,
   integer,
   jsonb,
+  pgMaterializedView,
   pgTable,
   text,
   unique,
@@ -41,10 +42,8 @@ export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
  * own literal union. They are identical at runtime, which is what makes the
  * boundary conversion a no-op rather than a translation.
  *
- * It lives HERE, beside the array the CHECK is built from, rather than in
- * `models/Trending.ts` where it used to. An enum is a VALUE, so importing it
- * executed `mongoose.model(...)` — two production files registered a Mongoose
- * model to read three constants, on data that is already Postgres.
+ * It lives HERE, beside the array the CHECK is built from, so reading the three
+ * constants loads nothing but the schema module.
  */
 export enum TrendingType {
   HASHTAG = 'hashtag',
@@ -122,9 +121,9 @@ export const NOTIFICATION_TYPES = [
   //
   // It appeared in exactly ONE place in the repository: this line. No writer in
   // the backend, nothing in `@mention/shared-types`, nothing in the frontend.
-  // And the decisive fact is structural rather than statistical: the Mongoose
-  // model this vocabulary is copied FROM (`models/Notification.ts`) declares
-  // `type` without it, and Mongoose validates the enum on every save — so
+  // And the decisive fact is structural rather than statistical: the model
+  // this vocabulary is copied FROM (`models/Notification.ts`) declared
+  // `type` without it, and validated the enum on every save — so
   // production cannot hold a `channel_invite` notification, and there was no
   // code path that could have written one past the validator anyway.
   //
@@ -143,7 +142,7 @@ export const NOTIFICATION_TYPES = [
  *  1. Production holds exactly `['post', 'profile']` — measured twice, 1h54m
  *     apart, identical. No row would hit the tightened CHECK.
  *  2. NOTHING writes `'channel'`. The channel model it belonged to is retired.
- *  3. The Mongoose source (`models/Notification.ts`) declares
+ *  3. The source model (`models/Notification.ts`) declared
  *     `['post', 'reply', 'profile']`, so carrying `'channel'` was a
  *     disagreement between the two vocabularies rather than a wider one.
  *
@@ -162,10 +161,9 @@ export const PUSH_TOKEN_TYPES = ['fcm', 'apns', 'unknown'] as const;
 export const PUSH_TOKEN_PLATFORMS = ['android', 'ios', 'unknown'] as const;
 
 /**
- * Retention windows, in seconds, for the three tables in this module that had a
- * Mongo TTL index. Declared here beside the table, and now the only declaration
- * of each: the Mongoose models these were once asserted equal to are gone, so
- * the sweep in `db/expiry.ts` is the whole bound.
+ * Retention windows, in seconds, for the three tables in this module that
+ * expire by age. Declared here beside the table, and the only declaration of
+ * each: the sweep in `db/expiry.ts` is the whole bound.
  */
 export const TRENDING_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 /**
@@ -402,8 +400,8 @@ export const trendSummaries = pgTable(
  * row and the read path joins them, so there is no second place for a label to
  * be wrong; most nodes are not trends at all and have no label to copy.
  *
- * `calculated_at` is the expiry column — see `db/expiry.ts`. Mongo reaped these
- * with a TTL index and Postgres will not, so the registry entry is what keeps
+ * `calculated_at` is the expiry column — see `db/expiry.ts`. Postgres has no
+ * TTL index, so the registry entry is what keeps
  * the table bounded.
  */
 
@@ -510,8 +508,8 @@ export const authorFollowerSnapshots = pgTable(
  * The bytes live in Oxy S3; the row is the deduped index keyed by the provider
  * id, so a GIF posted by N users maps to one row and one pair of shared file ids.
  *
- * Mongo's `$text` index over `searchTerms` + `title` becomes a GENERATED
- * `tsvector` + GIN. Mongo's 5:1 `searchTerms`:`title` ratio is reproduced by
+ * Text search over `searchTerms` + `title` is a GENERATED
+ * `tsvector` + GIN. The 5:1 `searchTerms`:`title` ratio is applied by
  * `GIF_RANK_WEIGHTS` in `services/gifLibrary/gifLibraryService.ts` — NOT by the
  * `setweight` calls below, which do not both do what they read as.
  *
@@ -532,11 +530,11 @@ export const authorFollowerSnapshots = pgTable(
  * `to_tsvector('simple', array_to_string(search_terms, ' '))` is rejected
  * outright — `generation expression is not immutable`, measured, not guessed
  * (`pg_proc.provolatile = 's'`). `array_to_tsvector(text[])` IS immutable and
- * takes each element as a lexeme verbatim, which is also the more faithful port:
+ * takes each element as a lexeme verbatim, which is the correct choice:
  * `normalizeToTerms` in `services/gifLibrary/gifLibraryService.ts` already
  * lowercases, strips diacritics and punctuation, and drops stop words, and BOTH
- * the stored terms and the query go through it — that is exactly what Mongo's
- * `default_language: 'none'` meant. `title` is raw remote text, so it goes
+ * the stored terms and the query go through it, so no language stemming is
+ * wanted. `title` is raw remote text, so it goes
  * through `to_tsvector('simple', …)`, the immutable no-stemming configuration.
  */
 export const gifs = pgTable(
@@ -649,7 +647,7 @@ export const pushTokens = pgTable(
      * The FCM/APNs device token. Globally unique — one device, one row,
      * whichever account last registered it.
      *
-     * Mongoose applied no `trim` here; nothing to re-apply.
+     * Stored untrimmed.
      */
     token: text().notNull().unique('push_tokens_token_key'),
     type: text({ enum: PUSH_TOKEN_TYPES }).notNull().default('unknown'),
@@ -671,4 +669,44 @@ export const pushTokens = pgTable(
     // The delivery fan-out: this user's enabled tokens.
     index('push_tokens_user_enabled_idx').on(t.userId).where(sql`${t.enabled}`),
   ],
+);
+
+/**
+ * How far back `topic_affinity_posts` reaches. It must cover the longest window
+ * a reader asks for: `ContentAffinityService`'s topic affinity reads 30 days.
+ */
+export const TOPIC_AFFINITY_WINDOW_DAYS = 30;
+
+/**
+ * `topic_affinity_posts` — the posts topic affinity reads, and nothing else.
+ *
+ * Public, published, authored, non-boost posts with a non-empty topic list from
+ * the last {@link TOPIC_AFFINITY_WINDOW_DAYS} days: ~22k narrow rows
+ * (production, 2026-10-12) instead of the 1.9M wide `posts` rows they come from.
+ *
+ * Why a materialized view and not a query on `posts`: `computeTopicAffinity`
+ * runs for every viewer whose affinity cache expired, on the request path of
+ * both the For You feed and who-to-follow. On `posts` it read up to ~17k heap
+ * pages per call — pages the engagement counters rewrite all day, so they are
+ * never all-visible (no index-only scan) and rarely stay cached. Its slow-query
+ * median was 18 s in a normal week (2026-10-03..09). Here the same read is a few
+ * hundred stable pages.
+ *
+ * `TopicAffinityRefreshJob` refreshes it CONCURRENTLY on the leader every few
+ * minutes, so a new or reclassified post reaches topic affinity within one
+ * refresh, and a post made private or deleted leaves it within one. Only author
+ * ids, topics and counts are derived from it; every candidate's profile access
+ * is still checked live (`filterCandidateProfileAccess`).
+ *
+ * The unique `post_id` index is what makes `REFRESH ... CONCURRENTLY` legal;
+ * both indexes are created in migration 0065, since drizzle cannot declare an
+ * index on a view.
+ */
+export const topicAffinityPosts = pgMaterializedView('topic_affinity_posts', {
+  postId: text().notNull(),
+  oxyUserId: text().notNull(),
+  createdAt: timestamptz().notNull(),
+  topics: text().array().notNull(),
+}).as(
+  sql`select ${posts.id} as post_id, ${posts.oxyUserId} as oxy_user_id, ${posts.createdAt} as created_at, ${posts.classificationTopics} as topics from ${posts} where ${posts.visibility} = 'public' and ${posts.status} = 'published' and ${posts.type} <> 'boost' and ${posts.oxyUserId} is not null and cardinality(${posts.classificationTopics}) > 0 and ${posts.createdAt} >= now() - interval '${sql.raw(String(TOPIC_AFFINITY_WINDOW_DAYS))} days'`,
 );

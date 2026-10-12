@@ -125,9 +125,9 @@ export default defineConfig({
             // are worth keeping because the numbers alone explain neither.
             //
             // DOWN a tenth of a point when the engagement services moved to
-            // Postgres: the Mongoose models behind them stopped being executed by
-            // any test, so their declarations moved from the covered column to the
-            // uncovered one. Both models have since been deleted outright.
+            // Postgres: the old model declarations behind them stopped being
+            // executed by any test, so they moved from the covered column to the
+            // uncovered one. Both declarations have since been deleted outright.
             //
             // UP, by considerably more, with the long-tail query port (lists,
             // starter packs, discovery, notifications, feeds, statistics). The
@@ -171,7 +171,7 @@ export default defineConfig({
             functions: 74.33,
             lines: 70.5,
             // The five engagement files below. Their BRANCH floors are a few points
-            // lower than the Mongoose-era ones, and that is a deliberate trade the
+            // lower than the earlier mocked-suite ones, and that is a deliberate trade the
             // numbers alone do not explain: the suites those figures came from
             // mocked the models, so "the lease vanished between two statements" was
             // one `mockResolvedValue({modifiedCount: 0})` away, and every defensive
@@ -204,7 +204,7 @@ export default defineConfig({
               functions: 100,
               lines: 97.91,
             },
-            // Newly pinned. It was unpinned while it was a Mongo aggregation
+            // Newly pinned. It was unpinned while it was an aggregation
             // pipeline nothing could really exercise; now that it is ordinary SQL
             // with a real suite behind it, its failure mode — a feed card quietly
             // showing the wrong reply avatars, or none — deserves the same floor as

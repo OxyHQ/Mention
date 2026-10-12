@@ -68,12 +68,23 @@ if (Object.keys(catalog).length === 0) {
 }
 
 // The Bun type definitions describe the runtime that actually executes the
-// backend and MCP images, so a version other than the pinned toolchain's would
-// be describing a different Bun than the one we ship.
-if (catalog['@types/bun'] !== expectedBunVersion) {
+// backend and MCP images, so a version from another minor line would be
+// describing a different Bun than the one we ship. They may trail by a PATCH:
+// @types/bun is published by DefinitelyTyped after each Bun release (1.4.3
+// shipped with no @types/bun@1.4.3 on npm), so demanding an exact match blocks
+// every toolchain bump until the types catch up.
+const typesBun = String(catalog['@types/bun'] ?? '');
+const pinnedParts = expectedBunVersion.split('.').map(Number);
+const typesParts = /^\d+\.\d+\.\d+$/.test(typesBun) ? typesBun.split('.').map(Number) : null;
+if (
+  !typesParts ||
+  typesParts[0] !== pinnedParts[0] ||
+  typesParts[1] !== pinnedParts[1] ||
+  typesParts[2] > pinnedParts[2]
+) {
   failures.push(
-    `workspaces.catalog["@types/bun"] must be ${expectedBunVersion} to match packageManager ` +
-      `(found ${String(catalog['@types/bun'])}).`,
+    `workspaces.catalog["@types/bun"] must be an exact ${pinnedParts[0]}.${pinnedParts[1]}.x version ` +
+      `no newer than packageManager's ${expectedBunVersion} (found ${typesBun || 'nothing'}).`,
   );
 }
 

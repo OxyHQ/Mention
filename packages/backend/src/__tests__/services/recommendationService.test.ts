@@ -43,6 +43,7 @@ import {
   encodeRecommendationCursor,
   decodeRecommendationCursor,
   MAX_RECOMMENDATION_OFFSET,
+  RecommendationsUnavailableError,
 } from '../../services/RecommendationService';
 
 const rankingClient = { rank: mocks.rank };
@@ -423,17 +424,14 @@ describe('RecommendationService.getRecommendations', () => {
     expect(options).toHaveProperty('EX');
   });
 
-  it('soft-fails to an empty, fully-shaped result when the ranking client throws', async () => {
+  it('throws instead of passing a ranking failure off as an empty page', async () => {
     mocks.rank.mockRejectedValue(new Error('oxy down'));
 
     const service = makeService();
-    const result = await service.getRecommendations({ viewerId: 'self_1', limit: 10 });
-    expect(result).toEqual({
-      recommendations: [],
-      nextCursor: null,
-      nextOffset: null,
-      hasMore: false,
-    });
+    await expect(
+      service.getRecommendations({ viewerId: 'self_1', limit: 10 }),
+    ).rejects.toBeInstanceOf(RecommendationsUnavailableError);
+    expect(mocks.redisSet).not.toHaveBeenCalled();
   });
 });
 

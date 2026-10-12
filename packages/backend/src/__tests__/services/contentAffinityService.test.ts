@@ -4,7 +4,7 @@
  * Four of this service's five inputs crossed the store boundary in this batch —
  * `likes`, `posts` (reply/boost targets, author resolution, and the two coverage
  * aggregations), `entity_follows` and `user_settings` all live in Postgres now.
- * The suite this replaces mocked the four Mongoose models, so after the port the
+ * The suite this replaces mocked the four legacy-ODM models, so after the port the
  * mocks intercepted nothing and every data-dependent case quietly asserted
  * against an empty result. That is the exact shape this file exists to stop:
  * signals are asserted on ROWS the service actually read, and on the WEIGHTS it
@@ -90,6 +90,7 @@ import { posts } from '../../db/schema/posts';
 import { entityFollows, likes } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
 import { insertPostRecord } from '../../db/posts/postRepository';
+import { refreshTopicAffinityPosts } from '../../services/TopicAffinityRefreshJob';
 import {
   deleteUserBehavior,
   updateUserBehavior,
@@ -647,6 +648,8 @@ describe('the behavior-derived signals', () => {
       });
     }
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
+    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
+    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 
@@ -672,6 +675,8 @@ describe('the behavior-derived signals', () => {
     );
     await createPost(id('crypto-author'), { postClassification: { topics: [id('crypto')] } });
     await createPost(id('rust-author'), { postClassification: { topics: [id('rust')] } });
+    // Topic affinity reads `topic_affinity_posts`; the leader refreshes it.
+    await refreshTopicAffinityPosts(db);
 
     const result = await service.getContentCandidates(VIEWER);
 

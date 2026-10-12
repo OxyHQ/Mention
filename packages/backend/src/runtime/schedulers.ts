@@ -74,14 +74,25 @@ export function startSchedulers(): void {
     logger.warn('Failed to start follower snapshot job', error);
   }
 
-  // Expiry sweep (leader-gated): the Postgres stand-in for Mongo's TTL indexes.
-  // Deletes rows past each `db/expiry.ts` registry entry's retention, in bounded
+  // Expiry sweep (leader-gated): Postgres has no TTL index, so this deletes
+  // rows past each `db/expiry.ts` registry entry's retention, in bounded
   // batches, every ten minutes (OxyHQ/Mention#1187).
   try {
     const { expirySweepJob } = require('../services/ExpirySweepJob');
     expirySweepJob.start();
   } catch (error) {
     logger.warn('Failed to start expiry sweep job', error);
+  }
+
+  // Topic affinity view (leader-gated): refreshes `topic_affinity_posts`, the
+  // narrow set of posts topic affinity reads on the For You and who-to-follow
+  // request paths, every five minutes. One scan per interval instead of one per
+  // viewer whose affinity cache expired.
+  try {
+    const { topicAffinityRefreshJob } = require('../services/TopicAffinityRefreshJob');
+    topicAffinityRefreshJob.start();
+  } catch (error) {
+    logger.warn('Failed to start topic affinity refresh job', error);
   }
 
   // SEO sitemaps (leader-gated): every child sitemap built in one pass when the
@@ -207,6 +218,13 @@ export function stopSchedulers(): void {
     expirySweepJob.stop();
   } catch (error) {
     logger.warn('Failed to stop expiry sweep job', error);
+  }
+
+  try {
+    const { topicAffinityRefreshJob } = require('../services/TopicAffinityRefreshJob');
+    topicAffinityRefreshJob.stop();
+  } catch (error) {
+    logger.warn('Failed to stop topic affinity refresh job', error);
   }
 
   try {

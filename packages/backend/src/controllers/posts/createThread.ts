@@ -28,6 +28,7 @@ import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
+import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import type { AccountKind } from '@oxy.so/contracts';
@@ -709,8 +710,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    await Promise.all(
-      createdPostObjects.map((p) => warmClarityDocumentForText(resolveVariant(p.content).text)),
+    // Never awaited — see the same call in `createPost.ts`.
+    trackBackgroundWork(
+      Promise.all(
+        createdPostObjects.map((p) => warmClarityDocumentForText(resolveVariant(p.content).text)),
+      ),
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {

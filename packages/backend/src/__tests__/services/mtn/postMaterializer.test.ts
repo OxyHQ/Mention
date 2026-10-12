@@ -2,7 +2,7 @@
  * MTN `projectRecord` — a signed record becoming real rows.
  *
  * The suite this replaces ran the projection against an in-memory
- * re-implementation of Mongo's dotted-`$set` semantics. That could only ever
+ * re-implementation of the legacy store's dotted-`$set` semantics. That could only ever
  * assert that the code built the update it was written to build; it could not see
  * the two things this port makes possible to get wrong, and both are silent:
  *
@@ -14,7 +14,7 @@
  * hydration and the feed engine use, so a missing child row is a missing field
  * here.
  *
- * **Re-projection is now a delete-and-rewrite of the content graph**, where Mongo
+ * **Re-projection is now a delete-and-rewrite of the content graph**, where the legacy store
  * touched only the paths it named. Anything the record does NOT own — an existing
  * post's media that would not re-resolve, its @mention allowlist, its article —
  * has to be carried across explicitly, and the cases that check that are the ones
@@ -365,7 +365,7 @@ describe('projectRecord — the record owns some of the content, not all of it',
   it('PRESERVES a collaborator, which the record does not carry either', async () => {
     // A post record names only its SUBJECT, so rewriting the authorship from it
     // revokes every collaborator on every re-projection — which is what the
-    // Mongoose version did, and what `replacePostContent` deliberately refuses to
+    // legacy-ODM version did, and what `replacePostContent` deliberately refuses to
     // do for the same reason. Found by mutation-testing the refresh path: deleting
     // the authorship rewrite made nothing go red, because nothing had a
     // collaborator to lose.
@@ -685,7 +685,7 @@ describe('projectRecord — tombstone', () => {
      *
      * `posts.parent_post_id` is `ON DELETE SET NULL`, so deleting the parent row
      * alone leaves each reply alive with a null parent and `is_reply: true`: a
-     * root post, in every feed, written by someone who never posted it. Mongo had
+     * root post, in every feed, written by someone who never posted it. The legacy store had
      * no such promotion — the reply was deleted — so this is a parity regression
      * the port introduces rather than one it inherits.
      *

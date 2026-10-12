@@ -74,7 +74,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/setup-wrong-bun-workspace.log",
-      "sha256": "0a39130d62e22c243b07069e55ca77fd22996f798dedad4e6a253806c25a8b95"
+      "sha256": "2d6940d35bea5ae67c032f0c647feb12a4325ee599be8bf935b11d040c67682f"
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/types-pinned.log",
@@ -82,7 +82,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-jev-original-receipt-recovery/published-registry/records/workspace-pinned.log",
-      "sha256": "b557ae361ee5b06a94f21ca52ad1d8618dc91b2c185de5929330ec9977a5f580"
+      "sha256": "6fe880fef3f911f76076650b4866f1aee323612dfa78452c6d8ae0d3439a2cfd"
     }
   ],
   "results": {

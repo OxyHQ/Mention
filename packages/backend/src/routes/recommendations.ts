@@ -4,6 +4,7 @@ import {
   recommendationService,
   decodeRecommendationCursor,
   MAX_RECOMMENDATION_OFFSET,
+  RecommendationsUnavailableError,
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';
 import { logger } from '../utils/logger';
@@ -59,9 +60,9 @@ function parseOffset(query: AuthRequest['query']): number {
  * Public discovery surface. Mounted with `optionalAuth`, so `req.user` is set
  * for logged-in viewers and undefined otherwise. The viewer (when present) is
  * forwarded to Oxy for mutual-overlap personalization; their blocked/muted/
- * restricted users (and self) are excluded server-side. Soft-fails to an empty,
- * fully-shaped result (`{ recommendations: [], hasMore: false, ... }`) on any
- * downstream error.
+ * restricted users (and self) are excluded server-side. Answers 503
+ * `recommendations_unavailable` when a downstream read fails, never an empty
+ * page that would pass for "nobody to suggest".
  *
  * Query params:
  *  - `limit`        page size, default ${DEFAULT_RECOMMENDATION_LIMIT}, capped ${MAX_RECOMMENDATION_LIMIT}.
@@ -93,10 +94,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     return res.json(result);
   } catch (error) {
-    // The service already soft-fails internally; this is a final safety net so
-    // the endpoint never 500s the discovery surface.
-    logger.error('[recommendations] unexpected error:', error);
-    return res.json({ recommendations: [], nextCursor: null, nextOffset: null, hasMore: false });
+    // Never an empty 200: the client would cache "nobody to suggest" and keep
+    // the surface blank after Oxy recovers. A 503 is retried, and the cached
+    // page (if any) stays on screen meanwhile.
+    if (!(error instanceof RecommendationsUnavailableError)) {
+      logger.error('[recommendations] unexpected error:', error);
+    }
+    res.setHeader('Retry-After', '5');
+    return res.status(503).json({ error: 'recommendations_unavailable' });
   }
 });
 

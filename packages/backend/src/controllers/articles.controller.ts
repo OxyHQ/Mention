@@ -12,17 +12,14 @@ import { logger } from '../utils/logger';
  *
  * Two things changed with the store, and neither may reach the client.
  *
- * **The id guard is gone, and nothing replaced it.** `ArticleModel.findById(id)`
- * threw a Mongoose `CastError` for anything that was not 24-char hex, which
- * landed in the catch below and answered 500. A `text` primary key simply
- * matches no row, so a malformed id and a deleted article now give the same
- * honest 404 — there is nothing here to widen, and reaching for `isLiveEntityId`
+ * **There is no id guard.** A `text` primary key simply matches no row, so a
+ * malformed id and a deleted article give the same honest 404 — there is nothing here to widen, and reaching for `isLiveEntityId`
  * would only re-introduce a precondition that fails a perfectly valid id shape
  * nobody has taught it about yet.
  *
- * **An absent optional is OMITTED, not `null`.** Mongoose left `postId`, `title`
- * and `body` `undefined` when unset, which `JSON.stringify` drops; drizzle hands
- * back `null`, which it would not. Same rule as `LabelService.serializeLabeler`.
+ * **An absent optional is OMITTED, not `null`.** The wire contract leaves
+ * `postId`, `title` and `body` out when unset; drizzle hands back `null`, which
+ * `JSON.stringify` would keep. Same rule as `LabelService.serializeLabeler`.
  *
  * This route is read-only. `Article`'s `trim: true` on `title`/`body` is
  * application behaviour with no Postgres counterpart, but it belongs to the

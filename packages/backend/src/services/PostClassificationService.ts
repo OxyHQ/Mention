@@ -51,8 +51,8 @@ import {
  *
  * Design contracts:
  * - Classification is asynchronous and NEVER blocks post creation. New posts are
- *   created with `postClassification.status = 'pending'` (a Mongoose default on
- *   the subdoc) and picked up here on the next cycle.
+ *   created with `classification_status = 'pending'` (the column default) and
+ *   picked up here on the next cycle.
  * - The AI provider/model is a Kaana infrastructure concern — it is NEVER
  *   written to the post document.
  * - Failures are isolated per batch: a parse/validation/network failure marks
@@ -143,11 +143,8 @@ type QueueDoc = PostRecord;
 /**
  * Posts that have not been successfully classified yet.
  *
- * ONE arm now, not two. Mongo needed `{ postClassification: { $exists: false } }`
- * alongside `status: 'pending'` because a raw-inserted document could be missing
- * the subdocument entirely; `classification_status` is `NOT NULL DEFAULT
- * 'pending'`, so "absent" is not a state a row can be in and the extra arm would
- * match nothing.
+ * ONE arm: `classification_status` is `NOT NULL DEFAULT 'pending'`, so
+ * "absent" is not a state a row can be in.
  */
 const UNCLASSIFIED: SQL = eq(posts.classificationStatus, 'pending');
 

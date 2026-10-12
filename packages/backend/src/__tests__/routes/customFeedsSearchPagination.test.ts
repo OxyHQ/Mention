@@ -2,7 +2,7 @@
  * `customFeeds.routes` against REAL Postgres rows.
  *
  * The previous version of this file asserted the SORT SPEC handed to a fake
- * Mongo — it could tell you the route asked for `{updatedAt:-1,_id:-1}` and
+ * store — it could tell you the route asked for `{updatedAt:-1,_id:-1}` and
  * nothing about whether a row came back right. Everything here seeds real rows,
  * runs the real router, and asserts what is stored and returned.
  *
@@ -246,7 +246,7 @@ describe('GET /feeds — search', () => {
   });
 
   it('treats a LIKE wildcard in the search term as a literal', async () => {
-    // The Mongo version escaped REGEX metacharacters. `%` and `_` are the ones
+    // The legacy-store version escaped REGEX metacharacters. `%` and `_` are the ones
     // `ILIKE` cares about; leaving them live turns the search box into a way to
     // match every feed in the table.
     const owner = uniqueId('owner');
@@ -933,7 +933,7 @@ describe('feed members', () => {
       .expect(200);
     expect(again.body.memberOxyUserIds).toEqual(['a', 'b', 'c']);
     // The member routes answer with the bare feed document, exactly as the
-    // Mongo handlers did — no `memberCount`/`likeCount` enrichment.
+    // legacy-store handlers did — no `memberCount`/`likeCount` enrichment.
     expect(again.body).not.toHaveProperty('memberCount');
 
     const removed = await request(app)
@@ -997,7 +997,7 @@ describe('feed reviews', () => {
 
     expect(updated.body.id).toBe(created.body.id);
     expect(updated.body.rating).toBe(4);
-    // Mongoose stripped an `undefined` from the update document, so an omitted
+    // The legacy ODM stripped an `undefined` from the update document, so an omitted
     // `reviewText` never cleared the previous text. An omitted `set` key is the
     // same behaviour; writing `null` unconditionally would not be.
     expect(updated.body.reviewText).toBe('first take');

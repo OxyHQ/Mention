@@ -1,16 +1,13 @@
 /**
  * Writes to `lanes` — and the ONE definition of what a lane name IS.
  *
- * `lanes.name_lower` is what `lanes_owner_name_lower_key` is built on, and Mongo
- * derived it in a `pre('validate')` hook so no route, script or test could
- * arrive at a second spelling. A hook has no Postgres counterpart, so the
- * derivation lives here — see `schema/channels.ts`, which names this module as
- * where it went. The unique constraint stays the backstop: a missed derivation
+ * `lanes.name_lower` is what `lanes_owner_name_lower_key` is built on, and it is
+ * derived HERE so no route, script or test can arrive at a second spelling —
+ * see `schema/channels.ts`. The unique constraint stays the backstop: a missed derivation
  * is then a REFUSED write rather than a duplicate lane.
  *
  * Only the two writes that derive a column are here. Deleting a lane is a plain
- * `delete from lanes` at its one call site, because the cascade the Mongo route
- * had to sequence by hand is now the database's:
+ * `delete from lanes` at its one call site, because the cascade is the database's:
  * `posts.lane_id` is `ON DELETE SET NULL` and `lane_mutes.lane_id` is
  * `ON DELETE CASCADE`, so the three writes are one atomic statement with no
  * order to get wrong. Wrapping that in a function here would add a name, not a

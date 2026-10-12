@@ -40,7 +40,9 @@ vi.mock('../../utils/redis', () => ({
           queued.push(() => setEx(key, ttl, value));
           return pipeline;
         },
-        exec: async () => {
+        // Only a pipeline: a MULTI here could leave the shared connection
+        // stuck inside a transaction (see `setExInBatches`).
+        execAsPipeline: async () => {
           for (const write of queued) await write();
         },
       };

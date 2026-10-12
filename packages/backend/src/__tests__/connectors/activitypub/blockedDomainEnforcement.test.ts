@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
  *   - inbound PUSH: the inbox verifies the HTTP signature against the CACHED
  *     public key and dispatches the activity; no handler consults the policy.
  *   - outbox PULL: the scheduler and the profile-view refresh load the actor
- *     straight from Mongo and hand it to `syncOutboxPostsDetailed`.
+ *     straight from the legacy store and hand it to `syncOutboxPostsDetailed`.
  *
  * So the load-bearing case here is deliberately the CACHED one — a test that
  * only covered an unknown actor would have passed before the fix and proved

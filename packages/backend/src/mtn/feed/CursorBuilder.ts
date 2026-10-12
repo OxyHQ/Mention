@@ -4,13 +4,12 @@
  *
  * ## Why `isLiveEntityId` and not an ObjectId check
  *
- * Every id validation here used to be `mongoose.Types.ObjectId.isValid`. That is
- * now actively WRONG rather than merely obsolete: primary keys are `text`
- * holding a 24-char ObjectId hex for pre-cutover rows and a **uuid v7** for
- * everything created after (`db/schema/CONVENTIONS.md`). An ObjectId check
- * rejects every uuid v7, so the moment the first post-cutover post anchors a
- * page, the cursor is silently discarded and the client is handed page ONE —
- * forever, with `hasMore: true`. An infinite-scroll loop that never advances.
+ * An ObjectId-shape check would be actively WRONG: primary keys are `text`
+ * holding a 24-char ObjectId hex for older rows and a **uuid v7** for
+ * everything newer (`db/schema/CONVENTIONS.md`). An ObjectId check rejects
+ * every uuid v7, so the moment a uuid-keyed post anchors a page, the cursor is
+ * silently discarded and the client is handed page ONE — forever, with
+ * `hasMore: true`. An infinite-scroll loop that never advances.
  *
  * `isLiveEntityId` is reached for deliberately, and it is worth saying why this
  * is not the misuse its own doc warns about. That warning is against using it as
@@ -244,16 +243,12 @@ export const ChronoCursor = {
  *
  * ## Why this is async, and why the timestamp is not optional
  *
- * Mongo's `applyToQuery` had a second branch: given a cursor carrying only an
- * id, it filtered `_id < cursorId` and let the `{_id: -1}` sort agree with it.
- * That worked because an ObjectId ENCODES its creation time, so id order was
- * time order.
- *
- * Neither half of that survives. `posts.id` is `text` holding an ObjectId hex OR
+ * A cursor carrying only an id cannot be applied as `id < cursorId` with an
+ * `ORDER BY id DESC`. `posts.id` is `text` holding an ObjectId hex OR
  * a uuid v7, and those spaces interleave under text collation, so `id < X` is
- * not a time bound and `ORDER BY id DESC` is not a time order. Translating that
- * branch literally would page a feed in arbitrary order and skip rows on every
- * boundary — silently, looking like a ranking change.
+ * not a time bound and `ORDER BY id DESC` is not a time order. Doing that would
+ * page a feed in arbitrary order and skip rows on every boundary — silently,
+ * looking like a ranking change.
  *
  * Two honest options remained for a timestamp-less cursor: ignore it (resetting
  * an old client to page one forever) or RECOVER the missing key. This does the

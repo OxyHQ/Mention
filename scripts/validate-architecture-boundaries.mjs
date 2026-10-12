@@ -33,9 +33,8 @@
  *     module / a NEW db area, is not in the baseline and fails immediately.
  *   - The baseline can only SHRINK. An entry naming a crossing that no longer
  *     exists (because someone fixed it) fails the run until the entry is
- *     deleted — the same discipline `validate-no-mongo.mjs`'s
- *     `KNOWN_EXCEPTIONS` and `validate-lockfile.mjs`'s
- *     `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS` already use here, so a fix cannot
+ *     deleted — the same discipline `validate-lockfile.mjs`'s
+ *     `ACCEPTED_OVERRIDE_RANGE_VIOLATIONS` already uses here, so a fix cannot
  *     silently go stale into a permission nobody re-examines.
  *   - Vacuity floors fail the run when the file listing looks broken, because a
  *     broken listing reports a clean tree.

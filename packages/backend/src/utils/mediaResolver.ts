@@ -163,7 +163,7 @@ export function attachCdnVariant(url: string, variant: string): string {
  * Exported because it is the WHOLE of the media-reference dichotomy: a
  * `MediaItem.id` is either one of these or an Oxy file id, so
  * `MediaMetadataService.isOxyFileId` is its negation rather than a second,
- * independently-drifting id pattern. (It was one — a Mongo ObjectId regex that
+ * independently-drifting id pattern. (It was one — a 24-hex id regex that
  * silently stopped matching when oxy-api's file ids became uuid v7.)
  */
 export function isAbsoluteHttpUrl(ref: string): boolean {

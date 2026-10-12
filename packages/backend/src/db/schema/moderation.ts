@@ -11,7 +11,7 @@
  *    — Appendix D's idempotency key. Without it a redelivered decision removes a
  *    post twice and a redelivered correction restores it twice.
  *  - `moderation_events.id` IS the webhook event id — the unique primary key IS
- *    the dedupe, which is why the store is Mongo/Postgres-backed rather than
+ *    the dedupe, which is why the store is Postgres-backed rather than
  *    in-process (Mention runs several ECS tasks behind one ALB).
  *  - `reports` unique `(reporter, reported_id, reported_type)` — one report per
  *    reporter per object.
@@ -98,7 +98,7 @@ export const MODERATION_EVENT_STATES = ['claimed', 'queued', 'ignored'] as const
  * Retention ceilings, in seconds. `MODERATION_OUTBOX_RETENTION_SECONDS` is
  * longer than the engagement outbox's because a moderation case can legitimately
  * sit open for weeks and a `dead_letter` row is evidence somebody still has to
- * look at. Asserted equal to the Mongoose models' constants by test.
+ * look at.
  */
 export const MODERATION_OUTBOX_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 export const MODERATION_EVENT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
@@ -117,8 +117,8 @@ export const CONTENT_LABEL_TARGET_TYPES = ['post', 'user'] as const;
  *
  * `categories` stays a `text[]`: a small unordered set from a closed vocabulary,
  * never joined and never queried by element in SQL. The CHECK constrains the
- * ELEMENTS and additionally requires at least one, which is the Mongoose
- * validator ("At least one category is required") expressed where it cannot be
+ * ELEMENTS and additionally requires at least one, which is the
+ * rule "At least one category is required" expressed where it cannot be
  * bypassed by an update.
  */
 export const reports = pgTable(

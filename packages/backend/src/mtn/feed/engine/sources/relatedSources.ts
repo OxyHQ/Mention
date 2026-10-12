@@ -103,9 +103,8 @@ function isSeedAuthorized(
  * Returns `null` when a `postId` was given but is not found, or when the viewer
  * is not authorized to view that seed post.
  *
- * The Mongo original guarded the lookup with `ObjectId.isValid`. That guard is
- * DELETED per `@oxy.so/db`: it existed only to dodge a `CastError`, and a text id
- * naming no row already produces the `null` this returns.
+ * There is deliberately no id-shape guard on the lookup, per `@oxy.so/db`: a
+ * text id naming no row already produces the `null` this returns.
  */
 async function resolveSeed(
   params: Record<string, unknown>,
@@ -516,10 +515,9 @@ function loadRankedCreators(windowStart: Date, now: number): Promise<RankedCreat
  * beat already-huge accounts), and returns those authors' recent public SFW
  * top-level posts, scored (`finalScore`) by their author's growth rate.
  *
- * `$first`/`$last` after a `$sort` become `array_agg(... ORDER BY ...)` picking
- * element 1 — the aggregate carries its own ordering, so unlike the Mongo
- * pipeline this does not depend on a preceding sort stage that a later edit
- * could remove.
+ * First/last values are `array_agg(... ORDER BY ...)` picking element 1 — the
+ * aggregate carries its own ordering, so this does not depend on a preceding
+ * sort stage that a later edit could remove.
  *
  * INFRA CAVEAT: inert until the snapshot job has recorded at least two samples
  * spanning the window for some authors — with no snapshots (or no positive

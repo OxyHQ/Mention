@@ -52,9 +52,8 @@ export interface CreateNotificationData {
  * `_id` survives the port because the frontend's own contract requires it
  * (`ZRawNotification` in `frontend/types/validation.ts` declares `_id` and
  * `entityId` as required strings), and a port changes no response body. The
- * value is the same one Mongo held: the backfill copies `_id` verbatim into the
- * `text` primary key. Mongoose's `__v` is dropped — no client reads it and
- * `CONVENTIONS.md` forbids the column.
+ * value is the row's `text` primary key. There is no `__v` — no client reads it
+ * and `CONVENTIONS.md` forbids the column.
  */
 export interface SerializedNotification {
   _id: string;
@@ -93,8 +92,8 @@ export function serializeNotification(
  *
  * `notifications_dedup_key` — `(recipient_id, actor_id, type, entity_id)` — is
  * what makes a second like from the same actor on the same post unable to mint a
- * second row. Mongo expressed that as read-then-write, which two concurrent
- * callers could both pass; `ON CONFLICT DO NOTHING` on the same four columns is
+ * second row. A read-then-write could be passed by two concurrent callers;
+ * `ON CONFLICT DO NOTHING` on the same four columns is
  * atomic, so the loser is told it lost instead of raising a duplicate-key error
  * the caller would have had to translate.
  *
@@ -109,7 +108,7 @@ export function serializeNotification(
  * The self-notification guard moved AHEAD of the dedupe read, because the insert
  * would otherwise create the very row the guard exists to prevent. The order is
  * behaviour-preserving: a self-notification can never have been written, so the
- * branch Mongo evaluated first was unreachable for exactly these rows.
+ * dedupe branch was unreachable for exactly these rows.
  */
 export const createNotification = async (
   data: CreateNotificationData,
@@ -207,7 +206,7 @@ async function writeNotifications(
 /**
  * Already notified: refresh the timestamp so the existing row floats back to the
  * top of the recipient's list, exactly as before. `updated_at` moves with it via
- * the column's own `$onUpdate`, matching Mongoose's timestamps. A repeat is not
+ * the column's own `$onUpdate`. A repeat is not
  * news, so it is neither emitted nor pushed.
  */
 async function refreshRepeatedNotifications(

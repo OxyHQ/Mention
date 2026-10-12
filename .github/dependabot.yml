@@ -1,19 +1,19 @@
 # Dependabot configuration for the Mention monorepo.
 #
-# This repo uses Bun (`bun.lock`) with npm-style workspaces. Dependabot has no
-# native "bun" ecosystem, but the `npm` ecosystem reads `package.json` across
-# the workspace, so it works for SURFACING dependency updates here.
+# This repo uses Bun (`bun.lock`) with workspaces, so the dependency entry is
+# the `bun` ecosystem. It was `npm` until 2026-10, and from 2026-09-28 every
+# weekly npm run failed before checking a single package: Dependabot's
+# `npm_and_yarn` updater now refuses a directory that has a `bun.lock` and no
+# npm/yarn/pnpm lockfile ("Dependabot detected that Bun is misconfigured ...
+# Set `package-ecosystem: "bun"`"). Before that it only SURFACED versions,
+# because it could not write `bun.lock`, and every PR it opened was red at the
+# `Lockfile resolves cleanly from the base` gate.
 #
-# What it cannot do is write `bun.lock`, and that is not a cosmetic gap: the
-# `Lockfile resolves cleanly from the base` gate resolves the base lockfile
-# against the head's manifests and fails on any difference, so a Dependabot PR
-# that touches a `package.json` is red the moment it opens and stays red. Nine
-# such PRs sat open for weeks before anyone read the gate rather than the
-# ecosystem name. Treat a Dependabot npm PR as a NOTIFICATION of an available
-# version, not as a mergeable change: adopt the bump on a branch of your own
-# with `bun install` and the regenerated `bun.lock` in the same commit, then
-# close the Dependabot PR. Only the `github-actions` ecosystem below merges
-# as-opened, because it has no lockfile to keep in step.
+# The `bun` ecosystem runs `bun update` and commits the regenerated `bun.lock`
+# with the manifest, so its PRs can pass that gate. The gate stays the
+# arbiter: if a Dependabot PR is red there, adopt the bump on a branch of your
+# own with `bun install` and the regenerated `bun.lock` in the same commit,
+# then close the Dependabot PR.
 #
 # Deliberately conservative:
 #   * Oxy packages are proposed together as one reviewable update.
@@ -23,14 +23,14 @@ version: 2
 
 updates:
   # ---------------------------------------------------------------------------
-  # npm / Bun workspaces — root + every package.
+  # Bun workspaces — root + every package.
   # ---------------------------------------------------------------------------
-  # One entry, rooted at the workspace root. Dependabot's npm ecosystem follows
+  # One entry, rooted at the workspace root. Dependabot follows
   # the root manifest's `workspaces` globs and edits the child `package.json`
   # that actually declares the dependency, so adding `/packages/*` alongside `/`
   # does not widen coverage — it opens a second, identical PR for every bump
   # (#783/#787, #784/#788, #785/#789, #786/#790 were four such pairs).
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"

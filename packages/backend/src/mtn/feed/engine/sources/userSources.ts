@@ -345,15 +345,13 @@ function buildAuthoredConditions(
   // The author's own curation (see `services/laneVisibility` for which modes are
   // excluded from which tab).
   //
-  // The `is null` branch is REQUIRED and is not what Mongo needed: `$nin`
-  // matched a document with no `laneId` at all, but SQL's `lane_id not in (…)`
+  // The `is null` branch is REQUIRED: SQL's `lane_id not in (…)`
   // evaluates to NULL — not true — for a NULL column, so it would drop every
   // post outside every lane. That is nearly the whole profile, and it would fail
   // as an empty feed rather than as an error.
   //
-  // A disjunction is safe here where it never was in Mongo: drizzle's `and()`
-  // composes, so no cursor keyset can clobber it the way
-  // `ChronoCursor.applyToQuery`'s ASSIGNED `$or` could.
+  // A disjunction is safe here: drizzle's `and()` composes, so no cursor keyset
+  // can clobber it.
   if (excludedLaneIds.length > 0) {
     conditions.push(
       or(isNull(posts.laneId), notInArray(posts.laneId, [...excludedLaneIds])) as SQL,
@@ -463,11 +461,9 @@ function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
  * `(created_at, id)` is the feed's order.
  *
  * These sources page over the relationship, not the post, so their cursor
- * anchors a `likes`/`bookmarks` row. The Mongo original filtered `_id < cursor`
- * while SORTING by `createdAt` — two different axes, which only appeared to work
- * because an ObjectId encodes creation time. Neither half survives here (`id` is
- * `text`, see `chronoOrderBy`), so the port pages on the axis it actually sorts
- * by.
+ * anchors a `likes`/`bookmarks` row. Filtering on `id` while sorting by
+ * `created_at` would page on two different axes (`id` is `text`, see
+ * `chronoOrderBy`), so this pages on the axis it actually sorts by.
  */
 function relationshipKeyset(
   createdAtColumn: PgColumn,

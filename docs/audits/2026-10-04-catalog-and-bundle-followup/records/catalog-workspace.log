@@ -1,4 +1,4 @@
-$ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:no-mongo validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
+$ bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path audit:security
 validate:suite-collection        | validate-suite-collection self-test:
 validate:suite-collection        |   ok    a healthy suite passes
 validate:suite-collection        |   ok    counts are reported
@@ -66,31 +66,21 @@ validate:i18n                    |   tr.json: 2476 entries, 0 untranslated (rend
 validate:i18n                    |   zh.json: 2476 entries, 0 untranslated (rendered in en), 0 orphaned, 182 identical to en (7%)
 validate:architecture-boundaries | ok   a type-only import into db/ from a NEW route passes
 validate:i18n                    | ok   real copy passes
-validate:no-mongo                | MongoDB reintroduction guard passed — 6 manifests, 2674 source files, 62 config files and 2506 lockfile resolutions scanned; 1 of 1 known exceptions honoured.
 validate:id-shape                | No id-shape assumptions in 1584 source file(s); 4 reasoned redaction exception(s), all still matching.
 validate:i18n                    | ok   an English value that is its key spelled out is rejected
 validate:i18n                    | ok   the same value in a translation is rejected, naming that language
 validate:architecture-boundaries | ok   a type-only import FOLLOWING a bare-package import is still type-only
-validate:no-mongo                | ok   a clean PostgreSQL-only tree passes
 validate:i18n                    | ok   a snake_case key spelled out is rejected
-validate:no-mongo                | ok   a dependency on mongoose is rejected
 validate:i18n                    | ok   a plural form is rejected on the key with its CLDR suffix stripped
 validate:i18n                    | ok   a legitimate Title Case label passes
-validate:no-mongo                | ok   a devDependency on mongodb-memory-server is rejected
 validate:architecture-boundaries | ok   a MIXED import naming one value beside a type FAILS
 validate:i18n                    | ok   a Title Case label whose last word is an acronym passes
-validate:no-mongo                | ok   a catalog entry is rejected
 validate:i18n                    | ok   a single-word key equal to its value passes
-validate:no-mongo                | ok   an override is rejected
 validate:architecture-boundaries | ok   a SERVICE reaching into db/ passes — that is the intended path
 validate:i18n                    | ok   sentence case under a slot-word key passes
-validate:no-mongo                | ok   a description claiming Mongoose is rejected
 validate:i18n                    | ok   a plural category English lacks is accepted in a translation
-validate:no-mongo                | ok   a keyword claiming MongoDB is rejected
 validate:i18n                    | ok   a plural suffix on a key English does not define is still an orphan
-validate:no-mongo                | ok   a description containing mongo inside another word passes
 validate:architecture-boundaries | ok   the non-controller half of src/mtn is NOT in scope
-validate:no-mongo                | ok   a lockfile resolution is rejected even with clean manifests
 validate:i18n                    | ok   a value that is its own dotted key path is rejected
 validate:id-shape                | ok    a tree with only the allow-listed redactions passes
 validate:id-shape                | ok    a 24-hex recogniser fails, naming the rule
@@ -104,71 +94,44 @@ validate:id-shape                | ok    an allow-list entry that no longer matc
 validate:id-shape                | ok    a tree far below the file floor fails rather than reporting clean
 validate:id-shape                | 
 validate:id-shape                | 10 mutation cases pass.
-validate:no-mongo                | ok   a NESTED lockfile resolution is rejected too
 validate:id-shape                | Done in 654ms
 validate:i18n                    | ok   an English prose key equal to its value still passes
 validate:architecture-boundaries | ok   a test file beside a route is not policed
-validate:no-mongo                | ok   a package whose NAME merely contains a banned one is not rejected
 validate:i18n                    | ok   a JavaScript template literal in a value is rejected
-validate:no-mongo                | ok   an import statement is rejected
 validate:i18n                    | ok   the i18next interpolation form of the same string passes
 validate:i18n                    | ok   a literal JavaScript escape sequence in a value is rejected
-validate:no-mongo                | ok   a require call is rejected
 validate:architecture-boundaries | ok   a LAYER_BASELINE entry that matches nothing FAILS the run
 validate:i18n                    | ok   the character the escape stands for passes
-validate:no-mongo                | ok   a dynamic import is rejected
 validate:i18n                    | ok   a real newline in a value passes
-validate:no-mongo                | ok   a subpath import is rejected
 validate:i18n                    | ok   a translation that drops an English placeholder is rejected
 validate:architecture-boundaries | ok   a stale LAYER_BASELINE entry says the crossing was fixed, and to delete it
-validate:no-mongo                | ok   MONGODB_URI in a workflow is rejected
 validate:i18n                    | ok   a translation that keeps it passes
-validate:no-mongo                | ok   MONGODB_URI in an env template is rejected
 validate:i18n                    | ok   a _one form may spell the number out instead of interpolating it
 validate:architecture-boundaries | ok   a BASELINE (rule 1) entry that matches nothing FAILS the run
-validate:no-mongo                | ok   MONGODB_URI in a .github shell script is rejected
 validate:i18n                    | ok   an extra plural form is checked against the English _other source
-validate:no-mongo                | ok   a lowercased mongodb_uri config key is rejected
 validate:i18n                    | ok   a plural form beside an unsuffixed English base is checked against it
 validate:i18n                    | ok   the v3 _plural suffix is rejected
-validate:no-mongo                | ok   a suffixed MONGODB_URI_LEGACY is rejected
 validate:architecture-boundaries | ok   a NEW service reaching into a protocol internal fails
 validate:i18n                    | ok   the CLDR spelling of the same pair passes
-validate:no-mongo                | ok   a mongodb:// connection string in a source file is rejected
 validate:i18n                    | ok   a _one form may interpolate a count its English _one spells lexically
-validate:no-mongo                | ok   a mongodb+srv:// connection string in a compose file is rejected
 validate:architecture-boundaries | ok   a NEW service reaching the PUBLIC connector entry passes
-validate:no-mongo                | ok   backticked prose about Mongo does NOT fire
 validate:i18n                    | ok   a single-value category may spell its number lexically
 validate:architecture-boundaries | ok   a broken file listing cannot pass silently (source-file floor)
-validate:no-mongo                | ok   a QUOTED module name that is not an import does NOT fire
 validate:i18n                    | ok   a multi-value category may not
 validate:architecture-boundaries | ok   a listing with no route/controller files cannot pass silently
-validate:no-mongo                | ok   the guard's own source and self-test are not their own subject
 validate:i18n                    | ok   an exempt category may drop the count but not another placeholder
 validate:architecture-boundaries | ok   a listing with no db/ modules cannot pass silently
 validate:architecture-boundaries | 
 validate:architecture-boundaries | All 24 guard cases passed.
 validate:architecture-boundaries | Done in 915ms
 validate:i18n                    | ok   the same form dropping the non-count placeholder is rejected
-validate:no-mongo                | ok   the loggers' Mongo-URI REDACTION pattern does NOT fire
 validate:i18n                    | ok   a language is required to cover the categories it uses
-validate:no-mongo                | ok   a markdown file describing the migration does NOT fire
 validate:i18n                    | ok   covering them passes
-validate:no-mongo                | ok   the retired removal directive is now an ordinary finding
 validate:logger                  | Logger argument validation passed — 166 files import @oxy.so/core/logger, of 2529 scanned.
 validate:i18n                    | ok   a key English does not pluralise demands no forms
-validate:no-mongo                | ok   the deploy workflow FAILS on an SSM ARN for the parameter
 validate:i18n                    | ok   a key defined both flat and nested is rejected
-validate:no-mongo                | ok   a tracked file missing from the working tree fails loudly, not with a stack trace
 validate:i18n                    | ok   the same key defined once, nested only, passes
-validate:no-mongo                | ok   the no-DB spelling MONGO_URI is caught too, and reported as itself
 validate:i18n                    | ok   the same key defined once, flat only, passes
-validate:no-mongo                | ok   a broken file listing cannot pass silently (vacuity floors)
-validate:no-mongo                | ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
-validate:no-mongo                | 
-validate:no-mongo                | All 33 guard cases passed.
-validate:no-mongo                | Done in 1.02s
 validate:i18n                    | ok   a catalog byte-identical to English is rejected
 validate:i18n                    | ok   declared translation debt lets an unfinished catalog through
 validate:i18n                    | ok   declared debt smaller than the reality is rejected

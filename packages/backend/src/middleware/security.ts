@@ -189,7 +189,7 @@ export const postWriteRateLimiter = rateLimit({
 /**
  * Rate limiter for the statistics/insights router.
  *
- * EVERY handler there reaches Mongo, so the whole router is the
+ * EVERY handler there reaches the database, so the whole router is the
  * `js/missing-rate-limiting` surface, not just the one route CodeQL's dataflow
  * happened to reach: `getPostInsights` runs three parallel `countDocuments`, the
  * public per-day heatmap aggregates a caller-chosen window of up to 366 days,
@@ -523,7 +523,7 @@ export const channelDeletionRateLimiter = rateLimit({
  * Rate limiter for `POST /statistics/post/:postId/view`.
  *
  * The only WRITE on the statistics router, and the only route there that reaches
- * Mongo on every single call: a counted view is a `findOneAndUpdate`, and a view
+ * the database on every single call: a counted view is an upsert, and a view
  * the dedupe window rejects still costs the read-back that produces the response.
  * Unbounded, that is one DB round trip per request for as fast as a caller can
  * issue them.

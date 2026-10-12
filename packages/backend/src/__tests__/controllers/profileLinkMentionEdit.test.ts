@@ -21,8 +21,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * mention conversion it is about.
  *
  * `markModified('content')` is not a property that survived the port, and
- * asserting it would now be asserting a Mongoose mechanism rather than a rule.
- * The reason it mattered is preserved and is STRONGER here: Mongoose could write
+ * asserting it would now be asserting a legacy-ODM mechanism rather than a rule.
+ * The reason it mattered is preserved and is STRONGER here: the legacy ODM could write
  * the mention allowlist while silently dropping the body rewrite it depends on,
  * leaving a stored id with no placeholder behind it. Reading the row back asserts
  * exactly that pairing landed — `mentions` lives in `post_mentions` and the body

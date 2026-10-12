@@ -41,9 +41,9 @@ const TOP_POSTS_LIMIT = 10;
  * `sum(column)` as a JS NUMBER.
  *
  * Postgres widens `sum(integer)` to `bigint`, and postgres.js hands a `bigint`
- * back as a STRING — which `res.json` would ship as `"41"` where Mongo's
- * `$sum` shipped `41`. `mapWith(Number)` is what keeps the wire type unchanged;
- * `coalesce` supplies Mongo's "no matching documents ⇒ 0" rather than `null`.
+ * back as a STRING — which `res.json` would ship as `"41"` where the wire
+ * contract is `41`. `mapWith(Number)` is what keeps the wire type a number;
+ * `coalesce` supplies "no matching rows ⇒ 0" rather than `null`.
  */
 function sumOf(column: AnyPgColumn): SQL<number> {
   return sql<number>`coalesce(sum(${column}), 0)`.mapWith(Number);
@@ -55,8 +55,7 @@ function countAll(): SQL<number> {
 }
 
 /**
- * The UTC day a post belongs to, formatted exactly as Mongo's
- * `$dateToString { format: '%Y-%m-%d', timezone: 'UTC' }` produced it.
+ * The UTC day a post belongs to, formatted `YYYY-MM-DD`.
  *
  * The response ships `{ date: string }` and the client renders it, so this is a
  * wire format, not an internal grouping key. `at time zone 'UTC'` converts the
@@ -89,12 +88,10 @@ function requestedStatsDays(value: unknown): number {
 /**
  * Run statistics reads inside one transaction carrying a statement timeout.
  *
- * This is the replacement for Mongoose's `.option({ maxTimeMS })` /
- * `.maxTimeMS()`, and it does a second job the Mongo version got for free: a
- * `$facet` was ONE operation over ONE snapshot, so its branches could not
- * disagree with each other. Four independent queries on four pooled connections
- * could — a post created between them would be counted by one branch and not
- * another. One transaction restores that.
+ * The timeout bounds every read, and the transaction does a second job: four
+ * independent queries on four pooled connections could disagree with each
+ * other — a post created between them would be counted by one branch and not
+ * another. One transaction gives them ONE snapshot.
  *
  * `set_config(..., true)` is the parameterisable spelling of `SET LOCAL`; `SET`
  * itself takes no bind parameters.
@@ -155,10 +152,10 @@ function rounded(value: number): number {
 }
 
 /**
- * The `$facet` translation.
+ * The owner statistics.
  *
- * Mongo ran ONE `$match` (posts this user OWNS, created inside the window) and
- * then four INDEPENDENT sub-pipelines over the matched set. Those four answer at
+ * ONE filter (posts this user OWNS, created inside the window) and then four
+ * INDEPENDENT reads over the matched set. Those four answer at
  * four different GRAINS — one scalar row, a per-day series, a top-N row list,
  * and a per-type series — and Postgres has no single statement that returns all
  * four without either a lateral contortion or `json_agg`, and `json_agg` would
@@ -260,7 +257,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       .where(ownedInWindow)
       // `id` is not pagination protection (there is no offset here — this is one
       // bounded leaderboard); it makes WHICH posts tie into the last slot
-      // reproducible instead of plan-dependent. Mongo left that arbitrary.
+      // reproducible instead of plan-dependent.
       .orderBy(desc(engagementExpr), desc(posts.createdAt), desc(posts.id))
       .limit(TOP_POSTS_LIMIT);
 
@@ -270,8 +267,8 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
       .innerJoin(postAuthorships, eq(postAuthorships.postId, posts.id))
       .where(ownedInWindow)
       .groupBy(typeBucket)
-      // Mongo left this unordered, which made the key order of `postsByType`
-      // depend on the plan. Ordering costs nothing on a handful of groups.
+      // Ordered so the key order of `postsByType` does not depend on the plan.
+      // Ordering costs nothing on a handful of groups.
       .orderBy(asc(typeBucket));
 
     return { overview, dailyRows, topRows, typeRows };
@@ -491,8 +488,7 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
     // client fills the gaps.
     //
     // Keyed on the DENORMALIZED `posts.oxy_user_id`, not the authorship join the
-    // owner statistics above use — that is what the Mongo query did, and the two
-    // answer different questions (this one excludes posts a user only
+    // owner statistics above use — the two answer different questions (this one excludes posts a user only
     // collaborates on).
     const activity = await withStatisticsTimeout((tx) =>
       tx
@@ -628,8 +624,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
     });
 
     // Calculate engagement metrics. The counters are `NOT NULL DEFAULT 0`
-    // columns, so the `post.stats || { … }` fallback the Mongo version needed
-    // for a document with no `stats` subdocument has nothing left to guard.
+    // columns, so no fallback for missing stats is needed.
     const totalInteractions =
       post.likesCount + post.commentsCount + post.boostsCount + post.sharesCount;
     const engagementRate = post.viewsCount > 0 ? (totalInteractions / post.viewsCount) * 100 : 0;

@@ -140,6 +140,15 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
     "Oxy One prerelease: the optional SDK peer shares the app's single core 4.5.0-oxy-one.1.",
   '@alia.onl/sdk -> @oxy.so/services@^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0':
     "Oxy One prerelease: the optional SDK peer shares the app's single services 11.2.0-oxy-one.2.",
+  // services 11.2.0-oxy-one.4 (the release admitting Bloom 8) was cut from oxy
+  // main, where contracts is the stable 4.11.0; core 4.5.0-oxy-one.1 pins the
+  // 4.11.0-oxy-one.0 prerelease exactly, so one of the two is always overridden.
+  // Measured on 2026-10-12 from the published tarballs: 4.11.0 removes no
+  // declaration from 4.11.0-oxy-one.0 and adds ten (email delivery state and
+  // the inbox daily brief), none of which services imports. Stops firing once
+  // core is republished against 4.11.0.
+  '@oxy.so/services -> @oxy.so/contracts@4.11.0':
+    'Oxy One prerelease: 4.11.0 only adds email-delivery and inbox-brief declarations services does not use; core pins 4.11.0-oxy-one.0.',
 };
 
 /**

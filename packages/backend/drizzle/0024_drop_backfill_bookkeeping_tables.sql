@@ -1,9 +1,9 @@
 -- Drop the two bookkeeping tables `0016_backfill_bookkeeping_tables` created.
 --
--- They were the Mongo→Postgres copier's own ledger: where a collection's copy
+-- They were the data copier's own ledger: where a collection's copy
 -- had got to (`mention_backfill_checkpoints`) and every resolution rule that
 -- fired while copying (`mention_backfill_resolution_log`). The copier is gone —
--- `src/db/backfill/` and its CLI were deleted with the rest of Mongo in #706 /
+-- `src/db/backfill/` and its CLI were deleted with the rest of the source store in #706 /
 -- PR #707 — so both tables have been inert since, holding rows about a program
 -- no image contains.
 --

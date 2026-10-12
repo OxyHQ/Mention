@@ -51,6 +51,15 @@ interface OxyRecommendationItem {
 /** Oxy recommendation endpoint path (service-token call). */
 const RECOMMENDATIONS_PATH = '/profiles/recommendations';
 
+/**
+ * The most `excludeIds` Oxy's recommendation routes accept (`maxItems: 500` on
+ * both the service and the foreground lane); one more and the whole request is
+ * a 400. A viewer with more exclusions than this still never sees an excluded
+ * profile: `RecommendationService` filters every page against the FULL set, so
+ * the overflow only costs a few slots on the page, never a leak.
+ */
+export const OXY_RECOMMENDATION_EXCLUDE_IDS_MAX = 500;
+
 /** User types the caller may exclude from the recommendation surface. */
 export type RecommendationExcludeType = 'federated' | 'agent' | 'automated';
 
@@ -231,7 +240,8 @@ export class OxyRankingClient {
     if (typeof options.offset === 'number' && options.offset > 0) body.offset = options.offset;
     if (options.excludeTypes && options.excludeTypes.length > 0)
       body.excludeTypes = options.excludeTypes;
-    if (options.excludeIds && options.excludeIds.length > 0) body.excludeIds = options.excludeIds;
+    if (options.excludeIds && options.excludeIds.length > 0)
+      body.excludeIds = options.excludeIds.slice(0, OXY_RECOMMENDATION_EXCLUDE_IDS_MAX);
     if (options.boosts && options.boosts.length > 0) body.boosts = options.boosts;
 
     const foregroundClient = options.foregroundClient;

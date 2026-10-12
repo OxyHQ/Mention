@@ -13,8 +13,18 @@
  * 3. `POST` works for a genuinely unauthenticated caller (no `req.user` at
  *    all) while `GET` refuses one who does not operate the employer account —
  *    the public/employer-only split the route split promises.
+ *
+ * Every request goes to ONE loopback listener per test (`useHttpTestServers`),
+ * never `request(app)`. Handing supertest the bare app makes it call
+ * `app.listen(0)` for each request, and that bind is synchronous: on the
+ * unspecified dual-stack address it measured ~20 ms per call on a WSL2 host
+ * (`127.0.0.1`: ~0 ms), longer under load. The concurrent-increment test's 25
+ * requests therefore spent ~0.5 s of blocked event loop on an idle machine and
+ * past vitest's 5 s timeout on a busy one — a flake that had nothing to do with
+ * the upsert it is there to prove.
  */
 
+import type { Server } from 'node:http';
 import express, { type NextFunction, type Response } from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +36,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { mentionJobDailyMetrics, mentionJobs } from '../../db/schema/jobs';
 import { createJob, type MentionJobRow } from '../../db/jobs/jobRepository';
 import jobMetricsRouter from '../../routes/jobMetrics';
+import { useHttpTestServers } from '../helpers/httpTestServers';
 
 const run = randomUUID();
 const EMPLOYER_ID = `employer-${run}`;
@@ -64,6 +75,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 let db: Database;
 let job: MentionJobRow;
+let server: Server;
 
 const app = express();
 app.use(express.json());
@@ -76,11 +88,14 @@ app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
 });
 app.use('/jobs', jobMetricsRouter);
 
+const listen = useHttpTestServers();
+
 beforeAll(async () => {
   db = await connectPostgres();
 });
 
 beforeEach(async () => {
+  server = await listen(app);
   job = await createJob({
     employerOxyUserId: EMPLOYER_ID,
     authorOxyUserId: EMPLOYER_ID,
@@ -101,47 +116,50 @@ afterAll(async () => {
 
 describe('POST /jobs/:id/metrics', () => {
   it('counts an anonymous view with no req.user at all', async () => {
-    const res = await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
+    const res = await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
     expect(res.status).toBe(204);
 
-    const summaryRes = await request(app)
+    const summaryRes = await request(server)
       .get(`/jobs/${job.id}/metrics`)
       .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(summaryRes.body.metrics.views).toBe(1);
   });
 
   it('rejects an event outside the known set', async () => {
-    const res = await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'page_view' });
+    const res = await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'page_view' });
     expect(res.status).toBe(400);
   });
 
   it('404s a metric event for a job that does not exist', async () => {
-    const res = await request(app).post('/jobs/does-not-exist/metrics').send({ event: 'view' });
+    const res = await request(server).post('/jobs/does-not-exist/metrics').send({ event: 'view' });
     expect(res.status).toBe(404);
   });
 
   it('survives concurrent increments without losing one — the whole point of the atomic upsert', async () => {
     const CONCURRENT_VIEWS = 25;
-    await Promise.all(
+    const responses = await Promise.all(
       Array.from({ length: CONCURRENT_VIEWS }, () =>
-        request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' }),
+        request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' }),
       ),
     );
+    // Every write must have been ACCEPTED before the total means anything: a
+    // request that failed would otherwise read as a lost increment.
+    expect(responses.map((res) => res.status)).toEqual(Array(CONCURRENT_VIEWS).fill(204));
 
-    const summaryRes = await request(app)
+    const summaryRes = await request(server)
       .get(`/jobs/${job.id}/metrics`)
       .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(summaryRes.body.metrics.views).toBe(CONCURRENT_VIEWS);
   });
 
   it('increments the right counter for each distinct event kind, independently', async () => {
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'apply_start' });
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'external_apply_click' });
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'application_completed' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'apply_start' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'external_apply_click' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'application_completed' });
 
-    const summaryRes = await request(app)
+    const summaryRes = await request(server)
       .get(`/jobs/${job.id}/metrics`)
       .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(summaryRes.body.metrics).toMatchObject({
@@ -165,28 +183,30 @@ describe('GET /jobs/:id/metrics', () => {
       ),
       views: 40,
     });
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
 
-    const summaryRes = await request(app)
+    const summaryRes = await request(server)
       .get(`/jobs/${job.id}/metrics`)
       .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(summaryRes.body.metrics.views).toBe(41);
   });
 
   it('refuses a caller who does not operate the employer account', async () => {
-    const res = await request(app).get(`/jobs/${job.id}/metrics`).set('x-test-user', STRANGER_ID);
+    const res = await request(server)
+      .get(`/jobs/${job.id}/metrics`)
+      .set('x-test-user', STRANGER_ID);
     expect(res.status).toBe(403);
   });
 
   it('refuses an entirely unauthenticated caller', async () => {
-    const res = await request(app).get(`/jobs/${job.id}/metrics`);
+    const res = await request(server).get(`/jobs/${job.id}/metrics`);
     expect(res.status).toBe(403);
   });
 
   it('never returns a per-viewer breakdown — only the four aggregate counters', async () => {
-    await request(app).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
+    await request(server).post(`/jobs/${job.id}/metrics`).send({ event: 'view' });
 
-    const res = await request(app)
+    const res = await request(server)
       .get(`/jobs/${job.id}/metrics`)
       .set('x-test-user', EMPLOYER_OPERATOR_ID);
     expect(Object.keys(res.body.metrics).sort()).toEqual(

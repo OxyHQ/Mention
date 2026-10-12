@@ -19,7 +19,7 @@
  *
  * ## Why the row-level form is strictly stronger than the shape it replaces
  *
- * The predecessor asserted that the built Mongo object contained
+ * The predecessor asserted that the built legacy-store object contained
  * `{durationSec: {$exists: false}}` inside an `$or`. That is a statement about a
  * literal, and it stayed green for any query that happened to spell those keys —
  * including one where a sibling clause re-narrowed the same field. In SQL the

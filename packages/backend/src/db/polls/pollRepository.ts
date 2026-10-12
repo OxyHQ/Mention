@@ -2,9 +2,8 @@
  * The ONE writer of a poll and its options.
  *
  * A poll is two tables — `polls` plus the ordered `poll_options` rows — and
- * every path that creates one has to write both, atomically. Mongo could not
- * produce a half-created poll because the options were an embedded array; here
- * that guarantee has to be stated, and stating it once is what keeps the
+ * every path that creates one has to write both, atomically. That guarantee
+ * has to be stated, and stating it once is what keeps the
  * composer, the thread composer and `POST /polls` from drifting into three
  * different shapes of the same write. They already had: the thread composer
  * passed bare option strings and an `endTime` field the schema never had.
@@ -16,9 +15,8 @@
  * foreign key — null until the post exists — and {@link attachPollToPost} sets
  * it once the post has an id.
  *
- * What must NOT come back is the `temp_` placeholder the Mongo code used
- * (`postId: 'temp_' + Date.now()`). That existed because `PollSchema.postId` was
- * `Mixed` and accepted anything; against a real foreign key it is not a
+ * What must NOT come back is a `temp_` placeholder
+ * (`postId: 'temp_' + Date.now()`): against a real foreign key it is not a
  * workaround but a failed write. See the `db/schema/polls.ts` docblock.
  */
 

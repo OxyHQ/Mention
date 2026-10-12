@@ -109,11 +109,10 @@ interface SerializedMuteWord {
  * case-insensitive (`/i`) word-boundary regex for content matching.
  *
  * This is the ONLY place the stored value is normalized, and it has to stay that
- * way: Postgres has no counterpart to a Mongoose `trim`/`lowercase` setter, so
- * the `(user_id, value)` unique constraint only dedupes what this function
- * already agreed to spell one way. (`MuteWord`'s Mongoose schema declared
- * neither setter, so nothing is being restored here — the normalization has
- * always lived at this call site, and the port must not let it drift back out.)
+ * way: the schema has no `trim`/`lowercase` setter, so the `(user_id, value)`
+ * unique constraint only dedupes what this function already agreed to spell one
+ * way. The normalization has always lived at this call site and must not drift
+ * out of it.
  */
 function normalizeMuteValue(
   rawValue: string,
@@ -256,9 +255,9 @@ router.post('/', validateBody(createMuteWordSchema), async (req: AuthRequest, re
     if (winner) {
       return sendSuccessResponse(res, 200, serialize(winner), 'Muted word already exists');
     }
-    // The winner was deleted between the conflict and this read. The Mongo
-    // version rethrew here and answered 500; a new status code would be a wire
-    // change on a path no client has ever seen, so the answer stays the same.
+    // The winner was deleted between the conflict and this read. This answers
+    // 500; a new status code would be a wire change on a path no client has
+    // ever seen.
     logger.error('[MuteWords] Muted word vanished between conflict and re-read', {
       userId: req.user?.id,
     });

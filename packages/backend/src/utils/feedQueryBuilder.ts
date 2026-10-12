@@ -3,18 +3,18 @@
  *
  * ## What this file no longer contains, and why
  *
- * The Mongo original also carried `buildQuery` (plus `buildBaseQuery`,
+ * An earlier version also carried `buildQuery` (plus `buildBaseQuery`,
  * `applyFilters`, `buildSavedPostsQuery`) and four single-feed builders
  * (`buildForYouQuery`, `buildFollowingQuery`, `buildExploreQuery`,
  * `buildMediaQuery`). Every one of them had ZERO production callers at the time
  * of the port — the feed engine's source modules build their own predicates —
  * and the four single-feed builders had no callers at all, not even a test.
  * They are DELETED rather than translated: the migration contract forbids
- * carrying Mongo baggage across, and a dead query builder rewritten into SQL is
+ * carrying dead code across, and a dead query builder rewritten into SQL is
  * the most expensive possible form of that.
  *
  * `feedQueryBodyPaths.test.ts` went with them, and it is worth saying why that
- * is not a loss of coverage. It existed because Mongo query keys are STRINGS:
+ * is not a loss of coverage. It existed because document-query keys are STRINGS:
  * a clause still keyed on the retired `content.text` compiled, ran, and matched
  * zero documents, so "matched nothing" was indistinguishable from "nothing to
  * match" unless the query object itself was asserted. In this schema the body is
@@ -26,7 +26,7 @@
  *
  * Both survivors return a drizzle `SQL` condition rather than a mutable match
  * object. Composition is `and(...)` at the call site, which is also why the
- * Mongo-era `$and`-appending helpers are gone: there is no shared mutable map
+ * old `$and`-appending helpers are gone: there is no shared mutable map
  * whose `$or` key a later writer can clobber, so the entire class of "the
  * cursor silently dropped the content filter" bug has no analogue here.
  */
@@ -63,9 +63,7 @@ export interface VideosQueryOptions {
 /**
  * "This post is not a boost."
  *
- * Mongo needed `{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }`
- * because a missing field and a null field were different states. A column is
- * always present, so the disjunction collapses to one `IS NULL` — and unlike
+ * A column is always present (there is no separate "missing field" state), so the disjunction collapses to one `IS NULL` — and unlike
  * `<>`, `IS NULL` is total, so no row is dropped by three-valued logic.
  */
 export function notABoostSql(): SQL {
@@ -137,10 +135,9 @@ export function notCollapsedCrosspostSql(): SQL {
  * Exclude post ids the viewer has already been shown.
  *
  * Returns `undefined` for an empty set so the caller can drop the term entirely
- * rather than emit a degenerate `NOT IN ()`. The Mongo original also filtered
- * the incoming ids through `ObjectId.isValid`; that guard is deleted per
- * `@oxy.so/db` — it existed only to dodge a `CastError`, and a text id that names
- * no row already produces exactly the "no such post" answer the caller wanted.
+ * rather than emit a degenerate `NOT IN ()`. The ids are not shape-checked
+ * (`@oxy.so/db`): a text id that names no row already produces exactly the
+ * "no such post" answer the caller wanted.
  */
 export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined {
   if (seenPostIds.length === 0) return undefined;
@@ -151,17 +148,16 @@ export function excludeSeenSql(seenPostIds: readonly string[]): SQL | undefined 
  * "This post's author is none of `ids`" — for a NULLABLE author column.
  *
  * `posts.oxy_user_id` is nullable (the raw federated `insertMany` path can omit
- * it, per `db/schema/posts.ts`), and this is where Mongo and SQL disagree in a
- * way that costs rows silently:
+ * it, per `db/schema/posts.ts`), and here the intended meaning and SQL disagree
+ * in a way that costs rows silently:
  *
- *   - Mongo `{ oxyUserId: { $nin: [a, b] } }` MATCHES a document whose field is
- *     missing or null — absent is trivially "not one of these".
+ *   - Intended: a post with no author is trivially "not one of these".
  *   - SQL `oxy_user_id NOT IN (a, b)` evaluates to NULL when the column is NULL,
  *     and a NULL predicate excludes the row.
  *
  * So the direct translation drops every author-less post from Explore and every
  * other feed that excludes the viewer's own follows — with no error, looking
- * exactly like a ranking change. The `IS NULL` arm restores Mongo's semantics.
+ * exactly like a ranking change. The `IS NULL` arm restores the intended semantics.
  */
 export function authorNotInSql(ids: readonly string[]): SQL | undefined {
   if (ids.length === 0) return undefined;
@@ -187,8 +183,7 @@ export class FeedQueryBuilder {
    * The real fix is upstream — `enrichFromOxy` reads metadata Oxy already holds
    * for 79% of them — and this does not substitute for it.
    *
-   * Mongo's `$elemMatch` becomes a correlated `EXISTS`, which is the same
-   * semantics: the conditions must all hold on ONE media row, not be spread
+   * A correlated `EXISTS`: the conditions must all hold on ONE media row, not be spread
    * across several. Built through drizzle's query builder rather than a hand-
    * written `sql` template so the correlated `post_media.post_id = posts.id`
    * renders FULLY QUALIFIED — the failure mode documented in `@oxy.so/db`

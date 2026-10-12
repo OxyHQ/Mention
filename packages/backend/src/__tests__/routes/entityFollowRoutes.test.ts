@@ -24,7 +24,7 @@
  * 3. A followed hashtag is stored in ONE canonical form, so the unique
  *    constraint can actually fire.
  *
- * 4. The listing is NEWEST FIRST on a TOTAL order. Mongo got both for free from
+ * 4. The listing is NEWEST FIRST on a TOTAL order. The legacy store got both for free from
  *    a descending `_id` sort; a `text` primary key gives neither, which is what
  *    the ordering block at the bottom is about.
  */
@@ -139,7 +139,7 @@ describe('entity-follow routes — accepted entity types', () => {
     expect(res.status).toBe(201);
     expect(await readFollows()).toEqual([{ entityType: 'hashtag', entityId: 'design' }]);
     // The row it reports back is the row it wrote, and it carries `_id` because
-    // a Mongoose document did.
+    // a legacy-ODM document did.
     expect(res.body.follow).toMatchObject({
       userId: VIEWER_ID,
       entityType: 'hashtag',
@@ -413,7 +413,7 @@ describe('GET /entity-follows — newest first, on a total order', () => {
 
   it('puts a NEW uuid-v7 row above an OLD ObjectId row', async () => {
     /**
-     * THE regression test for the sort axis. Mongo ordered on `_id`, and an
+     * THE regression test for the sort axis. The legacy store ordered on `_id`, and an
      * ObjectId embeds its creation time, so `_id desc` WAS newest-first. A `text`
      * id is not: a post-cutover uuid v7 begins `0198…` and an ObjectId minted in
      * 2024 begins `65b0…`, so ordering on the id alone files every NEW follow

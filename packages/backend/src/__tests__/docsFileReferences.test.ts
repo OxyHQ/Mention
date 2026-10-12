@@ -94,7 +94,7 @@ const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
 /**
  * A path-shaped reference is a backticked token with a source-file extension.
  * Extensions only — a bare `foo/bar` is as likely to be a URL path, an ECS
- * cluster or a Mongo field as a file. A LEADING SLASH is excluded too: this
+ * cluster or a document field as a file. A LEADING SLASH is excluded too: this
  * codebase never writes a file path that way (always relative — `utils/foo.ts`,
  * never `/utils/foo.ts`), so a backticked `/well-known/route.json` in an
  * endpoint table is an HTTP route, not a file, even though it ends in a

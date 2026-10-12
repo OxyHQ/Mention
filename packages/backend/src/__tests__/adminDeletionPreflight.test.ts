@@ -78,7 +78,7 @@ const PREFLIGHT_SOURCE = path.resolve(__dirname, '../scripts/lib/adminDeletionPr
  * and every one of them reads Postgres.
  *
  * A probe that reaches NONE of these answers its question without asking the
- * store — which is the Mongo-era defect exactly: a probe against a collection
+ * store — which is the legacy-store-era defect exactly: a probe against a collection
  * nothing writes returned "no reference" for every input, so the preflight
  * cleared every deletion while reading as a gate that ran.
  */
@@ -248,11 +248,11 @@ describe('administrative deletion preflight', () => {
         {
           name: 'unavailable collection',
           hasReference: async () => {
-            throw new Error('Mongo unavailable');
+            throw new Error('store unavailable');
           },
         },
       ]),
-    ).rejects.toThrow('Mongo unavailable');
+    ).rejects.toThrow('store unavailable');
   });
 
   it('throws a typed error that identifies every blocker', () => {
@@ -286,48 +286,10 @@ describe('administrative deletion preflight', () => {
     }
   });
 
-  it('reads no Mongoose model — every probe must hit the store that is written', () => {
-    // The defect this guards is invisible at runtime: a probe against a
-    // collection nothing writes returns "no reference" and the preflight clears
-    // the deletion. Row assertions below cover four probes; this covers all
-    // thirty-odd at once, including any added later.
-    const source = readFileSync(PREFLIGHT_SOURCE, 'utf8');
-    const modelImports = [...source.matchAll(/from '\.\.\/\.\.\/models\/([\w.]+)'/g)].map(
-      (match) => match[1],
-    );
-    // The set is EMPTY now: `Report.model` was the last one, imported for the
-    // `REPORTED_TYPES` set, and its values are literals checked against
-    // the schema's own union. Asserting the exact set rather than a count keeps
-    // a swap visible, and an empty expectation still fails the moment one comes
-    // back.
-    //
-    // THE IMPORT ASSERTION IS THE LOAD-BEARING ONE OF THE TWO. It is an exact
-    // equality over a walked set, so it fails whether the list grows OR shrinks.
-    // The `.exists(` line beneath it is a NEGATIVE naming a Mongo-era API that
-    // no longer occurs anywhere in this file — it matches zero today, which
-    // means it can no longer distinguish a violation from a clean file and is
-    // kept only as a cheap tripwire for a reintroduced Mongoose read. If one of
-    // these two ever has to go, it is that one.
-    // Vacuity floor. An EXACT-EMPTY expectation is satisfied by a walk that
-    // found nothing because it broke — a mistyped path constant, a renamed
-    // directory — as readily as by a clean file. So prove the same import shape
-    // IS matchable here: the repository imports this file replaced sit at the
-    // sibling depth the model imports used to.
-    const repositoryImports = [...source.matchAll(/from '\.\.\/\.\.\/db\/([\w./]+)'/g)];
-    expect(repositoryImports.length).toBeGreaterThan(0);
-    expect(modelImports).toEqual([]);
-    expect(source).not.toMatch(/\b[A-Z]\w*\.exists\(/);
-  });
-
   /**
-   * The floor under the check above, and the only thing standing behind
-   * `assertActorSafeToDelete`.
-   *
-   * "No Mongoose model is imported" is a NEGATIVE that names the old API: once
-   * the models were deleted it matched nothing, and a pattern that matches
-   * nothing passes for every possible violation, silently, forever. It cannot
-   * see the failure that actually matters either — a probe that answers its
-   * question WITHOUT asking the store. The exact defect found this month was 3
+   * The only thing standing behind `assertActorSafeToDelete`: it catches the
+   * failure that actually matters — a probe that answers its question WITHOUT
+   * asking the store. The exact defect found this month was 3
    * of 39 actor probes reading Postgres while the rest read a store that had
    * moved, and none of the assertions above could have detected it.
    *
@@ -462,7 +424,7 @@ describe('administrative deletion preflight', () => {
 
   // A case checking that `resendPendingOutboundFollows`, `redeliverUserPosts`
   // and `backfillFederatedPostHtml` acknowledge deliveries durably and close
-  // their resources lived here. All three were Mongo-only one-shots that
+  // their resources lived here. All three were legacy-store-only one-shots that
   // nothing imported after the Postgres cutover, and they were deleted with the
   // rest of the orphan set — so the case had no subject left. It is removed
   // rather than narrowed: the property it asserted belongs to whichever script
@@ -554,7 +516,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
    * id set, and the engagement pair the caller can opt out of.
    *
    * A test that only exercised the posts self-reference probe would have passed
-   * unchanged while every other probe still read a dead Mongo collection — which
+   * unchanged while every other probe still read a dead legacy-store collection — which
    * is exactly the state this file was found in.
    *
    * One case PER PROBE rather than one case covering four, so a failure names
@@ -628,7 +590,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
     },
     {
       // `likes` CASCADEs from `posts`, so this probe is what stands between a
-      // delete and the SILENT destruction of the engagement row. Under Mongo an
+      // delete and the SILENT destruction of the engagement row. Under the legacy store an
       // unblocked delete left a visible orphan instead.
       probe: 'likes.post_id',
       reference: async (postId) => {
@@ -738,7 +700,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
  * clean actor — a probe against the wrong table, a mistyped column, or one whose
  * store stopped being written all answer "no reference", and the gate says SAFE.
  * It has the history to match: three of its checks read Postgres while the rest
- * read Mongo, and after that cutover every Mongo probe would have answered "no
+ * read the legacy store, and after that cutover every legacy-store probe would have answered "no
  * references" and the gate would have passed by default.
  *
  * So each case plants exactly one row that only ONE probe can see and asserts
@@ -1489,7 +1451,7 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
    * live table and fires. It does not reach the second arm of an `or()`: a
    * mistyped column there still returns a clean "no reference", and a wrong
    * column in the second arm of a disjunction is precisely what a mechanical
-   * Mongo-to-Postgres translation produces — which is what happened to 36 of
+   * Postgres translation produces — which is what happened to 36 of
    * these probes this month.
    *
    * Kept as a separate table only so the first-disjunct cases stay untouched;

@@ -340,11 +340,7 @@ class FeedController {
        * `postId` arrives as JSON, so it can be an OBJECT, and it reaches both the
        * parent lookup below and the counter update further down.
        *
-       * Under Mongo that was a real hole — measured against mongod, not assumed:
-       * `{ $ne: null }` cast cleanly as a query operator on an ObjectId path and
-       * MATCHED an arbitrary post, and `findByIdAndUpdate` given the same value
-       * mutated one. Every id below is a BOUND PARAMETER against a `text` column
-       * now, so an operator object can no longer become a predicate — but a
+       * Every id below is a BOUND PARAMETER against a `text` column, so an operator object can no longer become a predicate — but a
        * non-string still has no business being interpolated as one, and the type
        * check costs nothing.
        *
@@ -561,8 +557,7 @@ class FeedController {
         authorship: buildAuthorship(currentUserId, []),
         type: PostType.TEXT,
         // The body's ONLY home is the primary rendition. This path used to write
-        // `content.text` straight through, which Mongo tolerated as an undeclared
-        // field; `posts` has no text column, so the conversion is what keeps the
+        // `content.text` straight through; `posts` has no text column, so the conversion is what keeps the
         // reply from being stored blank.
         content: toStoredContent(replyContent, primaryLanguage),
         status: 'published',
@@ -693,8 +688,7 @@ class FeedController {
 
       // A client-supplied id reaches three queries here. The TYPE check stays and
       // is the whole guard now: `postId` arrives as JSON, so it can be an OBJECT,
-      // and an object is what Mongo would have cast into a query operator that
-      // matched an arbitrary post. Every id below is a BOUND PARAMETER against a
+      // and an object must never be read as a query operator. Every id below is a BOUND PARAMETER against a
       // `text` column, so an operator object can no longer become a predicate —
       // but a non-string still has no business being interpolated as one.
       //
@@ -987,9 +981,8 @@ class FeedController {
       and(
         eq(postsTable.threadId, root.threadId),
         eq(postsTable.oxyUserId, root.oxyUserId),
-        // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
-        // MISSING field, while SQL's `<>` against NULL evaluates to NULL and
-        // matches nothing — so the literal translation would return an empty
+        // `is not null`, never `<> null`: SQL's `<>` against NULL evaluates to
+        // NULL and matches nothing — so the literal translation would return an empty
         // spine and silently collapse every self-thread into a bare root.
         isNotNull(postsTable.parentPostId),
         eq(postsTable.visibility, 'public'),
@@ -1044,10 +1037,9 @@ class FeedController {
       // keyset because `id` is unique — ties in score get an arbitrary but stable
       // order and no row is skipped or repeated. `newest`/`oldest` page on the
       // chronological keyset in their OWN direction. What none of them does any
-      // more is bound on `_id` alone behind a `createdAt` sort, which is what the
-      // Mongo version did in all three modes: harmless while an ObjectId encoded
-      // its own creation time, silently skipping and repeating rows the moment
-      // ids became uuid v7.
+      // more is bound on `_id` alone behind a `createdAt` sort: harmless while an
+      // id encoded its own creation time, silently skipping and repeating rows
+      // once ids are uuid v7.
       let orderBy: SQL[];
       if (sort === 'best') {
         const cursorScore = ScoreCursor.parse(cursor);
@@ -1359,7 +1351,7 @@ class FeedController {
         ),
         /**
          * `updated_at` is NOT NULL, so the descending sort has no NULL ordering
-         * to disagree with Mongo about; `id` breaks a tie deterministically so
+         * to get wrong; `id` breaks a tie deterministically so
          * two posts pinned in the same millisecond do not alternate per request.
          *
          * MULTIPLE PINS ARE INTENDED, so this picking one is a product question

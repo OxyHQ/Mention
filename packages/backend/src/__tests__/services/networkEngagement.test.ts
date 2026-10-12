@@ -3,9 +3,9 @@
  * ranking signal.
  *
  * This module had NO test at all, which is how it kept two independent ways of
- * losing the same rows: it read likes from the Mongo `Like` collection, which
+ * losing the same rows: it read likes from a `Like` collection that
  * nothing has written since engagement moved to Postgres, and it first narrowed
- * the candidate ids with `mongoose.isValidObjectId` — a filter that discards
+ * the candidate ids with an ObjectId-validity check — a filter that discards
  * every post minted since the cutover, because `posts.id` is `text` holding
  * ObjectId hex before it and uuid v7 after. Both failures are silent: the signal
  * simply reads lower, and a ranking signal that reads lower looks like a quiet

@@ -1,7 +1,7 @@
 /**
  * The MTN chain store, against real rows.
  *
- * The suite this replaces asserted that a Mongoose query object had been BUILT
+ * The suite this replaces asserted that a legacy-ODM query object had been BUILT
  * with a particular filter — `expect(findOne).toHaveBeenCalledWith({...})`. That
  * can only ever restate the implementation, and it is exactly why none of the
  * three things below was covered: a filter shape assertion cannot tell you
@@ -13,7 +13,7 @@
  * and the protocol engine's continuity check reads BOTH from this store, so a
  * store that silently drops one makes the engine approve a chain that is not one.
  *
- * **`chain_status IS NULL` is canonical.** Mongo's `{$ne: 'conflict'}` matched a
+ * **`chain_status IS NULL` is canonical.** The legacy store's `{$ne: 'conflict'}` matched a
  * document with the field absent; SQL's `<> 'conflict'` does NOT match NULL. A
  * literal translation therefore hides every row written before fork
  * classification existed — from `getHead`, from the log, from the cursor — with
@@ -240,7 +240,7 @@ describe('append — the record row and the head advance', () => {
     });
 
     // A v1 row carries NO content address either — the caller's `recordId` is
-    // reported back but never denormalized, exactly as the Mongoose path did.
+    // reported back but never denormalized, exactly as the legacy-ODM path did.
     const [row] = await db
       .select()
       .from(mentionSignedRecords)
@@ -362,7 +362,7 @@ describe('the durable producer event', () => {
 describe('canonical selection — a NULL chain_status is canonical', () => {
   it('accepts a head whose record predates fork classification', async () => {
     // THE `$ne` regression. `chain_status <> 'conflict'` is NULL for this row, so
-    // a literal translation of Mongo's `$ne` drops it and `getHead` throws
+    // a literal translation of the legacy store's `$ne` drops it and `getHead` throws
     // "inconsistent canonical head" for every user whose chain predates the
     // column — i.e. all of them.
     const owner = chainOwner();
@@ -622,7 +622,7 @@ describe('per-key materialization keeps fork archives eligible', () => {
 
 /**
  * A row stored straight into the ledger, bypassing `append` — the shape the
- * Mongo → Postgres cutover left behind, where records arrived without the head
+ * Postgres cutover left behind, where records arrived without the head
  * advance that should have accompanied them.
  */
 async function insertLedgerRow(

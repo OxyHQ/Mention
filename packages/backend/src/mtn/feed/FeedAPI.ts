@@ -138,7 +138,7 @@ export interface FeedContext {
    * Lane ids THIS reader has silenced (`LaneMute`), resolved once per request by
    * `loadViewerFeedContext`. Applied by `FeedEngine` as an in-memory predicate
    * over the merged pool — see there for why it is not a `FilterModule` and not a
-   * Mongo clause. Empty / absent for anonymous readers and for the overwhelming
+   * query clause. Empty / absent for anonymous readers and for the overwhelming
    * majority of authenticated ones, in which case the predicate is never built.
    */
   mutedLaneIds?: string[];

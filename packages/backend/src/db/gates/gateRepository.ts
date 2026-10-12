@@ -12,9 +12,8 @@
  *
  * ## `allow[]` is a child table, and the invariant it made expressible
  *
- * Mongo embedded `{ type, list? }` objects and validated neither side of the
- * pairing, so a `listOnly` rule with no list (matches nobody, silently) and a
- * `followingOnly` rule carrying a stray list were both storable.
+ * A `listOnly` rule with no list (matches nobody, silently) and a
+ * `followingOnly` rule carrying a stray list are both invalid;
  * `threadgate_allow_rules_list_id_check` refuses both. Since the payload comes
  * straight from a client, {@link parseThreadgateAllowRules} rejects it BEFORE
  * the insert so the route can answer `400` — a CHECK violation surfacing as a
@@ -183,7 +182,7 @@ export async function upsertThreadgate(gate: {
  *
  * `post_id` is INDEXED but not unique — the gate's identity is `post_uri`, which
  * embeds the id of whoever wrote the gate, so one post can carry more than one
- * row. Mongo's `findOne` returned an arbitrary one; this returns the oldest, so
+ * row. This returns the oldest, so
  * the same request twice cannot answer differently.
  */
 export async function loadThreadgateByPostId(postId: string): Promise<ThreadgateRecord | null> {

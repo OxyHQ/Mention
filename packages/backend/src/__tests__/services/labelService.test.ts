@@ -13,7 +13,7 @@
  * **The wire format.** A port may not change a response body, and the two shapes
  * most likely to drift are the ones storage forced apart: `labelDefinitions`
  * moved to its own table, and an absent optional is `null` in Postgres where it
- * was `undefined` (hence absent from the JSON) in Mongoose.
+ * was `undefined` (hence absent from the JSON) in the legacy ODM.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -251,7 +251,7 @@ describe('wire format parity', () => {
 
   it('OMITS an absent optional rather than sending null', async () => {
     /**
-     * Mongoose left `description` `undefined`, which `JSON.stringify` drops.
+     * The legacy ODM left `description` `undefined`, which `JSON.stringify` drops.
      * Drizzle hands back `null`, which serializes as `"description": null` — a
      * different response body for the same absent value, and the exact shape a
      * client `if (labeler.description)` check would start rendering as empty.
@@ -272,7 +272,7 @@ describe('wire format parity', () => {
 
   it('treats a LIKE wildcard in the search term as a literal', async () => {
     /**
-     * The Mongo version escaped REGEX metacharacters; `%` and `_` are the ones
+     * The legacy-store version escaped REGEX metacharacters; `%` and `_` are the ones
      * that matter to `ILIKE`, and leaving them live turns a user's search box
      * into a way to match every labeler in the table.
      */

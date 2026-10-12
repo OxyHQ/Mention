@@ -10,9 +10,9 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
  *
  * ## Why this file was rewritten rather than repaired
  *
- * The version this replaces mocked `models/Post` and ran the route's Mongo
+ * The version this replaces mocked `models/Post` and ran the route's legacy-store
  * aggregation pipeline through a hand-written evaluator. That was a reasonable
- * shape while Mongo was the store; post-cutover it is a check pointed at the
+ * shape while the legacy store was the store; post-cutover it is a check pointed at the
  * ABANDONED one — the route now issues a drizzle `GROUP BY`, so every assertion
  * about which posts count was an assertion about an evaluator no code path
  * reaches. It could not have failed however wrong the real query became.

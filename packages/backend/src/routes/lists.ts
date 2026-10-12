@@ -132,13 +132,12 @@ interface SerializedList {
 }
 
 /**
- * Re-assemble the response body a Mongoose document produced.
+ * Assemble the list response body.
  *
  * `_id` is still emitted alongside `id` because the client reads
- * `created?._id || created?.id` (`services/listsService.ts`), and a port changes
- * no response body. An absent `description` is OMITTED rather than sent as
- * `null`: Mongoose left it `undefined`, which `JSON.stringify` drops, and
- * drizzle's `null` would serialize as `"description": null` — a different body
+ * `created?._id || created?.id` (`services/listsService.ts`). An absent
+ * `description` is OMITTED rather than sent as `null`: drizzle's `null` would
+ * serialize as `"description": null` — a different body
  * for the same absent value, and exactly what an `if (list.description)` check
  * on the client would start rendering as an empty field.
  */
@@ -164,12 +163,11 @@ function serializeList(
  * The member ids a client sent, in the order they sent them: non-empty
  * strings within a real id's length, deduplicated.
  *
- * Mongo stored the raw array, so a repeated id simply sat there twice. The
- * junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
+ * The junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
  * so the duplicate is collapsed HERE — keeping the first occurrence, which is
  * what preserves the arrangement the owner chose. A non-string could never name
- * an Oxy account, and Mongoose's cast would have turned an object into
- * `"[object Object]"` rather than rejecting it, so those are dropped too.
+ * an Oxy account (a cast would turn an object into `"[object Object]"`), so
+ * those are dropped too.
  *
  * The length bound is the same kind of drop, not a new category of rejection:
  * nothing this table has ever held is anywhere near
@@ -282,7 +280,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
           title,
           // NULL, never `''` — an empty string is a VALUE, and the client's
           // `if (list.description)` would then render an empty field instead of
-          // none. Mongoose stored `undefined` for exactly this.
+          // none.
           description: description ? description : null,
           isPublic,
         })
@@ -327,9 +325,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // widens it.
     //
     // Every clause is ANDed, which is what lets the owner filter stand on its
-    // own here: Mongo needed the non-owner's `isPublic` written beside a
-    // top-level `$or` that would otherwise have re-admitted everybody's public
-    // lists, and there is no such disjunction to escape from.
+    // own here: there is no top-level disjunction that could re-admit
+    // everybody's public lists.
     const conditions: Array<SQL | undefined> = [
       or(eq(accountLists.ownerOxyUserId, userId), eq(accountLists.isPublic, true)),
     ];
@@ -527,8 +524,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
           ...(title === undefined ? {} : { title }),
           ...(description === undefined ? {} : { description: description ? description : null }),
           ...(isPublic === undefined ? {} : { isPublic }),
-          // Always stamped, matching Mongoose's `save()`: the previous route
-          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // Always stamped: `updatedAt` moves on every PUT whether or not a
+          // field changed, and
           // `updated_at` is the sort key `GET /lists` pages on.
           updatedAt: new Date(),
         })

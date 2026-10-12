@@ -77,7 +77,7 @@ describe('sliceCursorAnchor', () => {
   });
 
   it('returns undefined when the ranked item has no usable id', () => {
-    // Ids are plain strings now — Mongo's three runtime id shapes (ObjectId,
+    // Ids are plain strings now — the legacy store's three runtime id shapes (ObjectId,
     // string, aggregation `{toString()}`) collapsed to one, so there is nothing
     // left to coerce and an unusable id must not become a cursor.
     expect(sliceCursorAnchor(rawSlice([{ oxyUserId: 'user-1', finalScore: 12 }]))).toBeUndefined();

@@ -3,15 +3,18 @@ import { extractUrls } from './extractUrls';
 import { logger } from './logger';
 
 /**
- * Ask Oxy to resolve every previewable URL in post text SYNCHRONOUSLY, so the
- * response being built right now can carry the post's `documents`. Mirrors
- * the composer's bounded Clarity `resolve` request.
+ * Ask Clarity to resolve every previewable URL in a just-published post's text
+ * as a WAITING reader (`waitMs`), so the author's links queue at Clarity's
+ * waiting-reader priority instead of behind background warming. Mirrors the
+ * composer's bounded Clarity `resolve` request.
  *
- * This is response completeness, NOT post-ingest enrichment — the caller awaits
- * it before hydrating its own reply, and only the author of that request
- * benefits. Enriching a STORED post for every later reader is a different job
- * with a different shape (batched, detached, and run by every storage route):
- * see `services/postEnrichment/`. Do not add a new enrichment here.
+ * The create routes start it and do NOT await it: publishing never waits on a
+ * crawl. Their response reports a card that is not ready as
+ * `documentsPending`, and the app asks for it (`stores/pendingDocuments.ts`).
+ * Only the author's request starts it. Enriching a STORED post for every later
+ * reader is a different job with a different shape (batched, detached, and run
+ * by every storage route): see `services/postEnrichment/`. Do not add a new
+ * enrichment here.
  */
 export async function warmClarityDocumentForText(text: string | undefined): Promise<void> {
   if (!text || typeof text !== 'string') return;

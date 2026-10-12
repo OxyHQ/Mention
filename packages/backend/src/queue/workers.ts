@@ -69,7 +69,7 @@ let workersStarted = false;
 /**
  * Custom backoff strategy for delivery retries. Returns the delay (ms) before
  * the next attempt, indexed into {@link DELIVERY_BACKOFF_INTERVALS_MS} so the
- * retry cadence matches the legacy Mongo model's 6 tiers exactly.
+ * retry cadence matches the table-backed delivery queue's 6 tiers exactly.
  *
  * `attemptsMade` is the number of attempts already made (1 after the first
  * failure). Tier index is therefore `attemptsMade - 1`. A negative or

@@ -36,8 +36,7 @@ if (config.runtime.isProduction) {
 /**
  * "The post has at least one media row", optionally of one type.
  *
- * An EXISTS over `post_media`, which is what Mongo's `content.media.0` /
- * `content.media.type` probes meant against the embedded array.
+ * An EXISTS over `post_media`.
  */
 function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
   return exists(
@@ -228,15 +227,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       if (!showSensitiveContent) conditions.push(discoverySafeSql());
 
       /**
-       * A PASTED URL IS NOT A TEXT QUERY — the BEHAVIOUR carries over from
-       * Mongo, the REASON does not, and the difference matters to whoever
+       * A PASTED URL IS NOT A TEXT QUERY, and the reason matters to whoever
        * touches this next.
        *
-       * On Mongo this was a performance defence. The text index tokenises and a
-       * multi-term `$text` search is an OR, so `https://x.com/thinkymachines`
+       * It started as a performance defence. A tokenising text index makes a
+       * multi-term search an OR, so `https://x.com/thinkymachines`
        * became roughly `https OR x.com OR thinkymachines`, `https` alone
        * appeared in a large share of every post ever written, and sorting by
-       * `createdAt` rather than by text score forced Mongo to collect EVERY
+       * `createdAt` rather than by text score forced the engine to collect EVERY
        * match before ordering — blowing through `config.search.maxTimeMS` at an
        * observed 3017/3036/3119/3078 ms against a 3000 ms cap. A typed-alone
        * handle failed the same way: `@betomoedano@x.com` tokenised to roughly
@@ -312,8 +310,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // to:username — posts MENTIONING that user (`to:me` = the viewer).
       // `mentions` holds oxyUserIds and is indexed twice (plain, plus the
       // compound `{mentions, createdAt}` that also serves this query's sort), so
-      // containment is an index lookup rather than a scan. Mongo matches an array
-      // field by element equality, so the scalar matches any post mentioning them.
+      // containment is an index lookup rather than a scan. The scalar matches any
+      // post mentioning them.
       if (operators.to) {
         const mentionedId = await resolveOperatorUserId(operators.to, currentUserId);
         if (!mentionedId) {
@@ -407,8 +405,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
 
       // Language filter — match the canonical multi-language array (multikey
-      // index). Mongo matches an array field by element equality, so the scalar
-      // matches any post whose `postClassification.languages` contains it.
+      // index). The scalar matches any post whose `postClassification.languages` contains it.
       if (language && typeof language === 'string') {
         conditions.push(arrayContains(posts.classificationLanguages, [language]));
       }
@@ -514,16 +511,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // what happened and is retryable.
     //
     // The log previously carried `errorName` ALONE — so the production incident
-    // this branch was diagnosed from showed `MongoServerError` and nothing else:
+    // this branch was diagnosed from showed the error class name and nothing else:
     // no code, no message, nothing that named the query or the limit. Diagnosing
     // it needed the source and a stopwatch against the cap. Carry the SQLSTATE
     // and the message so the next one is readable from the logs.
     //
     // Read through `sqlStateOf`, never `error.code`: drizzle re-wraps the driver
     // error and the SQLSTATE lives on `cause`, so the direct read this replaces
-    // matched nothing — it was still testing for Mongo's `MaxTimeMSExpired`,
-    // a code Postgres does not produce, which made the 503 branch unreachable
-    // and every timed-out search a 500.
+    // matched nothing — it tested for a code Postgres does not produce, which
+    // made the 503 branch unreachable and every timed-out search a 500.
     const sqlState = sqlStateOf(error);
     const isTimeout = sqlState === QUERY_CANCELED;
     logger.error('Search request failed', {

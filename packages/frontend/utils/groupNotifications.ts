@@ -35,7 +35,7 @@ export interface GroupedNotification {
      * It used to be the string `'unknown'` in that case, and a sentinel in an id
      * field is not free: every consumer then has to decide whether the id it is
      * holding is real, and the only way left to ask is the SHAPE. Three sites
-     * did exactly that with a Mongo ObjectId regex, so when Oxy's ids became
+     * did exactly that with a 24-hex ObjectId regex, so when Oxy's ids became
      * uuid v7 they answered "not real" for every account created since — the
      * notification row stopped resolving its actor's name and avatar entirely.
      * Absence is the honest encoding, and it cannot go stale.

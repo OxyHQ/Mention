@@ -88,9 +88,9 @@ export async function backfillFederatedBoostCounts(
 
     if (page.length === 0) break;
 
-    // ONE grouped aggregate for the whole page, not one COUNT per post: the
-    // Mongo version issued `pageSize` round trips per page, which on a corpus
-    // this sweep is designed to walk end to end is the dominant cost.
+    // ONE grouped aggregate for the whole page, not one COUNT per post:
+    // `pageSize` round trips per page, on a corpus this sweep is designed to
+    // walk end to end, would be the dominant cost.
     //
     // A federated Announce boost is a boost row that references the post AND
     // carries a federation activity id — a native repost has `boost_of` +

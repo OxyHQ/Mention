@@ -79,7 +79,7 @@ vi.mock('../../../services/mtn/MentionRepoLogService', () => ({
   getHead: (...a: unknown[]) => mockGetHead(...a),
   getPublicLogSince: (...a: unknown[]) => mockGetPublicLogSince(...a),
 }));
-// The node row and its witness ledger are REAL. They used to be Mongo statics
+// The node row and its witness ledger are REAL. They used to be legacy-store statics
 // whose `$set` argument the assertions read, which measured what the service
 // ASKED FOR rather than what the store kept — so a cursor the column would
 // reject (`mention_user_nodes_cursor_check` refuses the `-1` sentinel) and a

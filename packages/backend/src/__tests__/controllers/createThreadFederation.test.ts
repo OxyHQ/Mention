@@ -28,7 +28,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  *
  * An entry is a `PostRecord` — a plain immutable row with `id` — so the stub
  * standing in for `PostCreationService.create` answers with one instead of
- * constructing an unsaved Mongoose document, and the identity assertions read
+ * constructing an unsaved legacy-ODM document, and the identity assertions read
  * `id`. What the batch carries is otherwise unchanged, which is the point: the
  * ORDER and the SHAPE are the whole contract this endpoint has with
  * `connectors/threadFederation`.

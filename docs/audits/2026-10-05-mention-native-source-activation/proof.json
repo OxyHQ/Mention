@@ -16,7 +16,7 @@
     },
     {
       "path": "packages/backend/src/__tests__/services/postClassification.test.ts",
-      "sha256": "d303c9fe03d5eedd98f3984dc54d2cfee7718ce14eb6f3eacdd2c053bbacdd73"
+      "sha256": "868dcdcc2768760870da447846991fd85ff95e513f851e554800e52c4c53ca13"
     },
     {
       "path": "packages/backend/src/services/contentClassification/jevProduction.ts",
@@ -54,7 +54,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/five-source-review-refs.json",
-      "sha256": "9f684f1d18a17e53e546792be8b23bf6d277344fd4371f221af35dd72e3e3dda"
+      "sha256": "38db931d3911d3f932e29b21c761db9362a4cf634050ef54036143d3e9f1a92f"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/focused.txt",
@@ -90,11 +90,11 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/publishedSdk.json",
-      "sha256": "cfa11edd130945038782aa0098d90118a606e3f7473e03a2b39c9043deb83980"
+      "sha256": "88389d2ba61cac4f0c4d667e0ccedc9f1603ce2d9341d4b2c0c80dfc5a556fba"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/root-five-refs-acceptance.json",
-      "sha256": "8243ca4466c02364a66e518aa223edfca6f195baf2fe6592005be4b7d15f7260"
+      "sha256": "9e3f2f0032f958912173285bf8ef914165e3722189975dbe4e1c8eb7365cb673"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/root-v2-frozen.json",
@@ -102,7 +102,7 @@
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/semanticIdentityAndRecovery.json",
-      "sha256": "88f733e67a332becc586602d5b32c0094cf44f5463553bd3cdf790cb262d6ec7"
+      "sha256": "ac529ebdf79a68bc2d51c04600eb83c64f2f58a2f8b801302cc704f5edb527ef"
     },
     {
       "path": "docs/audits/2026-10-05-mention-native-source-activation/records/types.log",
@@ -126,7 +126,7 @@
   "acceptedExternalInputs": [
     {
       "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/publishedSdk.json",
-      "sha256": "cfa11edd130945038782aa0098d90118a606e3f7473e03a2b39c9043deb83980"
+      "sha256": "88389d2ba61cac4f0c4d667e0ccedc9f1603ce2d9341d4b2c0c80dfc5a556fba"
     },
     {
       "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/exactPrivateRoute.json",
@@ -142,15 +142,15 @@
     },
     {
       "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/semanticIdentityAndRecovery-v2.json",
-      "sha256": "88f733e67a332becc586602d5b32c0094cf44f5463553bd3cdf790cb262d6ec7"
+      "sha256": "ac529ebdf79a68bc2d51c04600eb83c64f2f58a2f8b801302cc704f5edb527ef"
     },
     {
       "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-production-review-refs-20261005/five-source-review-refs.json",
-      "sha256": "9f684f1d18a17e53e546792be8b23bf6d277344fd4371f221af35dd72e3e3dda"
+      "sha256": "38db931d3911d3f932e29b21c761db9362a4cf634050ef54036143d3e9f1a92f"
     },
     {
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-five-refs-root-acceptance.json",
-      "sha256": "8243ca4466c02364a66e518aa223edfca6f195baf2fe6592005be4b7d15f7260"
+      "sha256": "9e3f2f0032f958912173285bf8ef914165e3722189975dbe4e1c8eb7365cb673"
     },
     {
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",

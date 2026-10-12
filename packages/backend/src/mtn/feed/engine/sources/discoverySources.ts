@@ -39,11 +39,10 @@ import { viewerLanguageSql } from '../../feedLanguage';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
- * WHERE THE `maxTimeMS(5000)` WENT — a deliberate relocation, not a dropped
- * guard.
+ * WHY NO SOURCE CARRIES A PER-QUERY TIMEOUT — a deliberate placement, not a
+ * missing guard.
  *
- * Every Mongo source capped itself with `.maxTimeMS(5000)` because the driver
- * offers no other place to put it. Postgres does: `statement_timeout` is a
+ * `statement_timeout` is a
  * server GUC settable per ROLE or per DATABASE, which is the correct home for a
  * blanket "no query may run longer than N" rule — it covers every query
  * including the ones nobody remembered to annotate, and it cannot drift from a
@@ -268,8 +267,7 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
 
   const factors: SQL[] = [];
 
-  // `arrayOverlaps` is array OVERLAP (`&&`), the direct analogue of Mongo's
-  // `$setIntersection(...) > 0`. It goes through drizzle's OPERATOR rather than a
+  // `arrayOverlaps` is array OVERLAP (`&&`): a non-empty intersection. It goes through drizzle's OPERATOR rather than a
   // hand-written `${topics}::text[]`, because a bare JS array interpolated into a
   // `sql` template is bound as one untyped parameter and postgres.js stringifies
   // it to `tech,news` — which Postgres rejects with `malformed array literal`.

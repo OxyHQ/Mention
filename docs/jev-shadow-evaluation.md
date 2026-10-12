@@ -211,8 +211,10 @@ owned-cluster guard suite (`jevOwnedPg.test.ts`) and protected-column/channel/
 account-erasure coverage guards; it does not replace the repository's PostgreSQL
 gate. The normal build, backend typecheck, lockfile, architecture, inference,
 feed-hot-path and logger guards are separate checks.
-`scripts/validate-jev-additive.mjs` checks the additive snapshot, SQL, preserved
-private-key registry, six blockers and pinned hashes.
+`scripts/validate-jev-additive.mjs` checks that migration 0058 stays additive
+(snapshot, SQL and journal position) and that the gate stays dormant (six
+blockers, no environment switch). `bun run validate:jev-additive` runs it and its
+mutation tests inside `check:workspace`, so CI runs it on every change.
 
 The implementation sandbox cannot connect to the owned Unix socket (`Operation
 not permitted`). The coordinator caught a bug in the first test script: it

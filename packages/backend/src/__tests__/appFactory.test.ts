@@ -100,12 +100,8 @@ describe('createApp', () => {
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');
     const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const listenSpy = vi.spyOn(express.application, 'listen');
-    // The store this asserts about is POSTGRES. It used to be
-    // `utils/database.connectToDatabase`, and that module is gone with the Mongo
-    // migration one-shot — but the PROPERTY is not Mongo-specific and survives
-    // the port: constructing the app must open nothing, whichever store the app
-    // has. Re-pointing it keeps the assertion; deleting it would have quietly
-    // dropped the guard along with its subject.
+    // The store this asserts about is POSTGRES: constructing the app must open
+    // nothing, whichever store the app has.
     const postgres = await import('../db/postgres');
     const redis = await import('../utils/redis');
     const storeConnectSpy = vi.spyOn(postgres, 'connectPostgres');

@@ -1,10 +1,10 @@
 /**
- * The Mongo copier's two bookkeeping tables are gone from a fully-migrated
+ * The backfill copier's two bookkeeping tables are gone from a fully-migrated
  * database.
  *
  * `0016_backfill_bookkeeping_tables` created `mention_backfill_checkpoints` and
- * `mention_backfill_resolution_log`; the copier that wrote them was deleted with
- * the rest of Mongo, and `0024_drop_backfill_bookkeeping_tables` removes them.
+ * `mention_backfill_resolution_log`; nothing writes them, and
+ * `0024_drop_backfill_bookkeeping_tables` removes them.
  * Migrations are immutable history, so 0016 still runs on every database — which
  * is precisely why the drop needs asserting rather than assuming: the test
  * database this file queries CREATED both tables minutes ago and then dropped

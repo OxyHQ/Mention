@@ -301,14 +301,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
 
       try {
-        // Postgres, through the shared writer. This used to `new Poll().save()`
-        // into Mongo while `PostHydrationService` — the single DTO producer for
-        // every post surface — reads polls from Postgres, so a poll created here
-        // was written to one store and looked for in the other: the post said it
-        // had a poll and rendered none.
+        // Postgres, through the shared writer — the same store
+        // `PostHydrationService`, the single DTO producer for every post
+        // surface, reads polls from.
         //
-        // `postId` stays NULL until the post exists; the `temp_` placeholder the
-        // Mongo code used is not portable to a real foreign key.
+        // `postId` stays NULL until the post exists; a `temp_` placeholder is
+        // not storable in a real foreign key.
         pollId = await createPollWithOptions({
           question: pollInput.question,
           options: pollInput.options,
@@ -587,7 +585,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    await warmClarityDocumentForText(resolveVariant(post.content).text);
+    // Never awaited: publishing must not wait on a crawl. Clarity runs one
+    // crawl worker, so even a waiting reader's link takes seconds, and this
+    // used to hold every post with a link for its full 8 s (p50 8.8 s,
+    // 2026-10-12). Sent now so the author's links queue at Clarity's
+    // waiting-reader priority at once; the response below reports any card
+    // not ready yet as `documentsPending`, and the app fetches it on its own
+    // (`stores/pendingDocuments.ts`).
+    trackBackgroundWork(warmClarityDocumentForText(resolveVariant(post.content).text));
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       // Written or changed by this very request, so there is no community note to

@@ -79,7 +79,7 @@ const createPollSchema = z.object({
     )
     .min(2, 'Question and at least 2 options are required')
     .max(MAX_POLL_OPTIONS, `A poll may have at most ${MAX_POLL_OPTIONS} options`),
-  // REQUIRED, as the Mongoose schema had it: the composer always sends one (a
+  // REQUIRED: the composer always sends one (a
   // `temp_…` placeholder before the post exists), and dropping the requirement
   // would let a poll be created that nothing can ever reach.
   postId: z.string('postId is required').min(1, 'postId is required'),
@@ -106,17 +106,13 @@ const voteSchema = z.object({
  * Storage moved from one document with an embedded option array to three tables,
  * and NONE of that may reach a client: `frontend/services/pollService.ts` types
  * `_id` on the poll AND on every option, and names the timestamps
- * `created_at`/`updated_at` — which is what `models/Poll.ts` asked Mongoose for
- * (`timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }`), not the
- * camelCase every other model uses.
+ * `created_at`/`updated_at`, not the camelCase every other model uses.
  *
- * `__v` is the one Mongoose artefact NOT reproduced: no reader has ever looked
- * at it, and `schema/CONVENTIONS.md` forbids carrying it into Postgres. Same
- * decision as the batch-0 `LabelService` port.
+ * There is no `__v`: no reader has ever looked at it, and
+ * `schema/CONVENTIONS.md` forbids the column. Same decision as `LabelService`.
  *
- * `postId` is omitted when the poll is not yet attached to a post. Mongoose made
- * it `required`, so it was always present — but the value it carried in that
- * state was a `temp_…` placeholder, a write-order artefact the schema
+ * `postId` is omitted when the poll is not yet attached to a post. The client
+ * sends a `temp_…` placeholder in that state, a write-order artefact the schema
  * deliberately stores as NULL (`db/schema/polls.ts`).
  *
  * No option ever carries voter identities, anonymous poll or not — see
@@ -155,7 +151,7 @@ function serializePoll(poll: PollSummary): PollDetail {
  * Whether a client-supplied post id is the composer's pre-post placeholder.
  *
  * The composer creates a poll before the post exists and patches the real id in
- * afterwards via `POST /polls/:id/update-post`. Mongo stored the placeholder;
+ * afterwards via `POST /polls/:id/update-post`.
  * `polls.post_id` is a real nullable foreign key, so the placeholder becomes
  * NULL and the column means exactly "not attached yet".
  */
@@ -164,14 +160,12 @@ function isTemporaryPostId(value: string): boolean {
 }
 
 /**
- * A 400 body shaped like the one Mongoose's `ValidationError` branch produced.
+ * The 400 body for a request that fails validation.
  *
- * There is no `ValidationError` in Postgres. The Mongoose validators this
- * replaces were application behaviour with no schema counterpart (`required` on
- * `question`/`postId`/`endsAt`/each option's `text`, and the `Mixed` `postId`
- * shape validator), so they are re-applied at the call site — the rule in
- * `db/schema/CONVENTIONS.md`. `details` is dropped: it was `error.errors`, a
- * Mongoose-internal map with nothing to derive it from.
+ * The rules (`required` on `question`/`postId`/`endsAt`/each option's `text`,
+ * and the `postId` shape) are application behaviour with no schema
+ * counterpart, so they are applied at the call site — the rule in
+ * `db/schema/CONVENTIONS.md`. The body carries no `details` map.
  */
 function validationError(res: Response, message: string) {
   return res.status(400).json({ error: 'Validation Error', message });
@@ -239,8 +233,7 @@ class PollsController {
       }
       const { question, options, postId, endsAt, isMultipleChoice, isAnonymous } = parsed.data;
 
-      // Mongoose cast `endsAt`; an uncastable value was a `ValidationError`. The
-      // schema narrows the TYPE to something `new Date` can read at all; whether
+      // An uncastable `endsAt` is a validation error. The schema narrows the TYPE to something `new Date` can read at all; whether
       // that reading produced a real instant is still decided here.
       const resolvedEndsAt =
         endsAt === undefined || endsAt === null
@@ -255,10 +248,9 @@ class PollsController {
         isTemporaryPost: isTemporaryPostId(postId),
       });
 
-      // A real post id is checked for existence + ownership. The `try/catch`
-      // that used to wrap this returned 400 'Invalid post ID format' and existed
-      // ONLY to convert a Mongoose `CastError`; a `text` id that names no row
-      // reaches the 404 below, which is the more useful of the two answers.
+      // A real post id is checked for existence + ownership. There is no id
+      // format check: a `text` id that names no row reaches the 404 below, which
+      // is the more useful answer.
       const attachedPostId = isTemporaryPostId(postId) ? null : postId;
       if (attachedPostId !== null) {
         const [post] = await getDb()
@@ -282,8 +274,7 @@ class PollsController {
 
       try {
         // One transaction: a poll whose options failed to insert is a poll
-        // nobody can vote in, and Mongo could not produce that state because
-        // the options were part of the same document.
+        // nobody can vote in.
         const poll = await getDb().transaction(async (tx) => {
           const [row] = await tx
             .insert(polls)
@@ -300,15 +291,14 @@ class PollsController {
           await tx.insert(pollOptions).values(
             options.map((text, position) => ({
               pollId: row.id,
-              // The author's order IS the render order; Mongo got it from the
-              // array and Postgres has to store it.
+              // The author's order IS the render order, so it is stored.
               position,
               text,
             })),
           );
 
-          // `metadata.pollId` and `content.pollId` were two mirrors of one fact
-          // in Mongo; the schema keeps a single `posts.content_poll_id`.
+          // The schema keeps a single `posts.content_poll_id` (the wire's
+          // `metadata.pollId` and `content.pollId` both read it).
           if (attachedPostId !== null) {
             await tx
               .update(posts)
@@ -334,8 +324,7 @@ class PollsController {
         }
         // Unnamed on purpose: every CHECK on `polls`/`poll_options` is
         // application-controlled, so this is a backstop that keeps a
-        // schema-level rejection answering 400 (what the Mongoose validator
-        // did) instead of 500. A named check would make the branch dead.
+        // schema-level rejection answering 400 instead of 500. A named check would make the branch dead.
         if (isCheckViolation(error)) {
           return validationError(res, 'Poll failed validation');
         }
@@ -520,10 +509,8 @@ class PollsController {
         });
       }
 
-      // Unlinking the post and deleting the poll are one unit now. Mongo did
-      // them as two writes, and a `temp_` postId made the FIRST one throw a
-      // `CastError` — so deleting a never-attached poll answered 500. A NULL
-      // `post_id` simply skips the update.
+      // Unlinking the post and deleting the poll are one unit. A NULL `post_id`
+      // (a never-attached poll) simply skips the update.
       await getDb().transaction(async (tx) => {
         if (poll.postId !== null) {
           await tx.update(posts).set({ contentPollId: null }).where(eq(posts.id, poll.postId));

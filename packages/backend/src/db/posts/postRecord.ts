@@ -4,27 +4,26 @@
  * ## Why this type exists at all
  *
  * Postgres stores a post NORMALIZED: nine tables, one row of scalars plus eight
- * child tables for what Mongo embedded as arrays. Nothing downstream wants that
+ * child tables for the array-valued parts. Nothing downstream wants that
  * shape — hydration, federation, the MTN chain and the feed engine all speak in
  * whole posts. So the storage layer assembles rows into this record and every
  * consumer reads the record; the join shape stops at `postRepository.ts` and no
  * second module ever has to know that `content.variants` is a table.
  *
- * ## Why it looks like the Mongo document and not like the tables
+ * ## Why it looks like a nested document and not like the tables
  *
- * Deliberately, and it is NOT Mongo baggage. `StoredPostContent`,
+ * Deliberately. `StoredPostContent`,
  * `PostAuthorshipEntry`, `PostMetadata` and `MediaItem` live in
- * `@mention/shared-types` — they are the CONTRACT the wire format is built from,
- * not a Mongoose artefact. Reshaping them here would change what
- * `PostHydrationService` emits, and the migration contract's hardest rule is that
- * the wire format does not change: Mention's frontend and the fediverse both
+ * `@mention/shared-types` — they are the CONTRACT the wire format is built from.
+ * Reshaping them here would change what `PostHydrationService` emits, and the
+ * wire format does not change: Mention's frontend and the fediverse both
  * consume it.
  *
- * What DID get dropped is the actual Mongo baggage: `_id` (the id is `id`),
- * `__v`, `toObject()`, `markModified`, the `Document` base, and the
- * `postClassification` subdocument's ability to be partially present. Every
- * field below is either always there or explicitly optional, so a reader never
- * has to ask whether Mongoose happened to project it.
+ * What it does NOT carry is document-store baggage: there is no `_id` (the id is
+ * `id`), no `__v`, no `toObject()`/`markModified`, and `postClassification`
+ * cannot be partially present. Every field below is either always there or
+ * explicitly optional, so a reader never has to ask whether a projection
+ * happened to include it.
  *
  * ## The four fields that are load-bearing and easy to get wrong
  *
@@ -57,7 +56,7 @@ import type {
 /**
  * ActivityPub provenance, present only on federated posts.
  *
- * Structurally identical to the Mongoose `PostFederationData` on purpose: the
+ * This exact shape on purpose: the
  * federation connectors read exactly these fields, and `federation == null` is
  * the predicate every "is this ours?" gate in the codebase already uses.
  */
@@ -119,8 +118,8 @@ export interface PostRecordTopicRef {
 /**
  * The Stage-A/Stage-B classification subdocument.
  *
- * `status` and `attempts` are always present (the columns are `NOT NULL`), which
- * removes the "is the subdoc there at all?" branch every Mongo reader carried.
+ * `status` and `attempts` are always present (the columns are `NOT NULL`), so no
+ * reader needs an "is the subdoc there at all?" branch.
  */
 export interface PostRecordClassification {
   status: PostClassificationStatus;

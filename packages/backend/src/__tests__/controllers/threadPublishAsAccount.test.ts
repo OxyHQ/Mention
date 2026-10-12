@@ -35,7 +35,7 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
  *
  * `create` is still stubbed, because every other assertion here is about the
  * PARAMS the controller composes. Its stand-in returns a `PostRecord`-shaped
- * value with an `id`, not a Mongoose document with an `_id`.
+ * value with an `id`, not a legacy-ODM document with an `_id`.
  */
 
 const listAccountMembers = vi.hoisted(() => vi.fn());

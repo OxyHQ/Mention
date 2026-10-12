@@ -361,7 +361,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
    * post that account ever made — at `warn`, from a detached ingest path.
    *
    * Production held 21 rows sharing `acct: 'handle.invalid'`, written in one
-   * 38-minute window on 2026-07-17 while Mongo had no unique index to refuse
+   * 38-minute window on 2026-07-17 while the legacy store had no unique index to refuse
    * them. Under the Postgres constraints, 20 of those 21 accounts would simply
    * not exist.
    */

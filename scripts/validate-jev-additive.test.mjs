@@ -9,15 +9,11 @@ import { fileURLToPath } from 'node:url';
 const repository = fileURLToPath(new URL('../', import.meta.url));
 const paths = [
   'scripts/validate-jev-additive.mjs',
-  'package.json',
-  'bun.lock',
   'packages/backend/drizzle/meta/0057_snapshot.json',
   'packages/backend/drizzle/meta/0058_snapshot.json',
   'packages/backend/drizzle/meta/_journal.json',
   'packages/backend/drizzle/0058_jev_shadow_ledger.sql',
   'packages/backend/drizzle/0059_search_engine_indexing_opt_out.sql',
-  'packages/backend/src/db/schema/federation.ts',
-  'packages/backend/src/db/schema/protectedColumns.ts',
   'packages/backend/src/services/contentClassification/jevShadow.ts',
 ];
 function inspect(mutate = () => {}) {
@@ -45,7 +41,7 @@ const editJournal = (change) => (edit) =>
     return JSON.stringify(json);
   });
 
-test('current published SDK and additive migration remain valid after unrelated migrations', () => {
+test('the additive migration and dormant gate remain valid after unrelated migrations', () => {
   const result = inspect();
   assert.equal(result.status, 0, result.stderr);
 });
@@ -92,31 +88,6 @@ test('rejects mutation of an existing table in the additive snapshot', () => {
     0,
   );
 });
-test('rejects catalogue version drift', () => {
-  assert.notEqual(
-    inspect((edit) =>
-      edit('package.json', (text) => {
-        const json = JSON.parse(text);
-        json.workspaces.catalog['@oxy.so/core'] = '4.1.0';
-        return JSON.stringify(json);
-      }),
-    ).status,
-    0,
-  );
-});
-test('rejects a changed published package integrity', () => {
-  assert.notEqual(
-    inspect((edit) =>
-      edit('bun.lock', (text) =>
-        text.replace(
-          'sha512-FsSXwSTAPbkOVrwRXKFGYuylFcVwOlmlRMvmbgDV3RCnH2/rys/qv2SaXiZDXYaNNGI7yPQNYolgjdxUOZB0EQ==',
-          'sha512-wrong',
-        ),
-      ),
-    ).status,
-    0,
-  );
-});
 test('rejects removal of an approval blocker', () => {
   assert.notEqual(
     inspect((edit) =>
@@ -136,6 +107,18 @@ test('rejects an environment activation bypass', () => {
           'return process.env.JEV_ENABLED === "true";',
         ),
       ),
+    ).status,
+    0,
+  );
+});
+test('rejects a third table added by the owned snapshot', () => {
+  assert.notEqual(
+    inspect((edit) =>
+      edit('packages/backend/drizzle/meta/0058_snapshot.json', (text) => {
+        const json = JSON.parse(text);
+        json.tables['public.jev_extra'] = { name: 'jev_extra', columns: {} };
+        return JSON.stringify(json);
+      }),
     ).status,
     0,
   );

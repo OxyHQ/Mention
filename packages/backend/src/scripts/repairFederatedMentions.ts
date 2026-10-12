@@ -288,9 +288,8 @@ type RepairOutcome =
  * One stored variant, as the repair needs it.
  *
  * Carries the ROW id beside the shared-types shape, because the write is an
- * UPDATE of `body` on this exact row. The Mongo original `$set` the whole
- * `content.variants` array; here the array is a child table, and replacing it
- * wholesale would delete and re-insert rows that `post_variant_media` and
+ * UPDATE of `body` on this exact row. The variants are a child table, and
+ * replacing them wholesale would delete and re-insert rows that `post_variant_media` and
  * `post_variant_alt_texts` reference by id. A body repair must not disturb
  * either — so it updates in place and the links never move.
  */
@@ -306,8 +305,8 @@ export interface CandidatePostRow {
   variants: CandidateVariantRow[];
   /**
    * Whether the post has stored media — the ONE thing the re-derived body needs
-   * to know about it. Reused rather than re-fetched, exactly as the Mongo
-   * version did: a body repair performs no media I/O.
+   * to know about it. Reused rather than re-fetched: a body repair performs no
+   * media I/O.
    */
   hasMedia: boolean;
   federation: {
@@ -568,9 +567,8 @@ export function buildCandidateFilter(actorUri?: string, postIds?: string[]): SQL
     sql`${posts.federationActivityId} is not null`,
     ne(posts.type, 'boost'),
     /**
-     * Nothing resolved. In Mongo this was a three-branch `$or` over absent /
-     * null / empty-array, because one document field carried all three states.
-     * As a junction table there is exactly ONE state that means it: no row.
+     * Nothing resolved. As a junction table there is exactly ONE state that
+     * means it: no row.
      */
     not(
       exists(
@@ -697,7 +695,7 @@ function renderBody(value: string | undefined): string {
  *
  * `variantBodies` is keyed by variant ROW id, so the flush updates exactly the
  * rows the candidate query read — never a positional guess. `mentions` is the
- * full replacement set, mirroring the Mongo `$set` of the whole array.
+ * full replacement set.
  */
 interface StagedRepair {
   postId: string;
@@ -1084,8 +1082,7 @@ export async function repairFederatedMentions(
      * ONE transaction per flush, so a post's body and its mention set can never
      * land apart — a half-applied repair leaves a body whose anchors point at
      * mentions the post does not record, which is the state this sweep exists to
-     * remove. Mongo's `bulkWrite` gave per-document atomicity and nothing wider;
-     * this is strictly stronger.
+     * remove.
      */
     await getDb().transaction(async (tx) => {
       for (const op of batch) {
@@ -1398,10 +1395,8 @@ async function main(): Promise<void> {
 
   try {
     assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
-    // ONE store now. The posts, the resume cursor and the re-fetch failure log
-    // are all Postgres, so the Mongo connection this used to open alongside is
-    // gone rather than left dangling — a sweep that connects to a store it never
-    // reads is how the next reader concludes the corpus still lives there.
+    // ONE store. The posts, the resume cursor and the re-fetch failure log are
+    // all Postgres.
     await connectPostgres();
     logger.info('[repairFederatedMentions] connected to PostgreSQL', { dryRun });
 

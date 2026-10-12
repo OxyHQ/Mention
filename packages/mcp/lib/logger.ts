@@ -78,7 +78,7 @@ function sanitizeString(value: string): string {
   const sanitized = value
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`)
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED)
-    .replace(/\b(?:https?|wss?|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi, REDACTED)
+    .replace(/\b(?:https?|wss?|redis|rediss|postgres(?:ql)?):\/\/[^\s"'<>]+/gi, REDACTED)
     .replace(/\b(?:did|acct):[^\s,;)\]]+/gi, REDACTED)
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, REDACTED)
     .replace(/(^|[\s([{"'])@[A-Z0-9_][A-Z0-9_.-]*/gi, `$1${REDACTED}`)

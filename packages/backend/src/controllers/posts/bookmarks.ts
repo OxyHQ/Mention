@@ -168,8 +168,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       // Case-insensitive substring match over the renditions, which is where the
       // bodies live — so a saved post matches by ANY language the author wrote it
       // in. `ILIKE` with the term escaped for its own wildcards (`%`, `_`,
-      // backslash), which is the direct analogue of Mongo's escaped `$regex`:
-      // without it a saved search for `100%` would match every saved post.
+      // backslash): without the escaping a saved search for `100%` would match every saved post.
       const escaped = escapeLikePattern(trimmedQuery);
       conditions.push(
         exists(

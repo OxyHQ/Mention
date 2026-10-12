@@ -82,12 +82,6 @@ const bootServer = async () => {
   // ONE store opens here, and it is Postgres. `getDb()` throws until this
   // resolves, so a task that skipped it would answer the health check and then
   // fail every query.
-  //
-  // Mongo used to open FIRST, on this line, on every task — so a web task could
-  // not boot without it even though no runtime read or write had gone to Mongo
-  // since the cutover. That connection went first, and the rest of the surface
-  // (driver, models, the Mongo→Postgres copier) followed: there is no Mongo
-  // left in this package for any entry point to open.
   await connectPostgres();
 
   // Production migrations run as a deployment one-shot with the exact image

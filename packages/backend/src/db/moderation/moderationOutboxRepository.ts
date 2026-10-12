@@ -2,29 +2,24 @@
  * `moderation_outbox` — the durable promise to deliver a report or apply a
  * decision.
  *
- * The at-least-once contract is unchanged from the Mongo original: handlers MUST
+ * The contract is at-least-once: handlers MUST
  * make every downstream effect idempotent using the event id, because an expired
  * lease is reclaimable and a worker can die mid-delivery.
  *
- * ## The claim is `FOR UPDATE SKIP LOCKED`, not a findOneAndUpdate
+ * ## The claim is `FOR UPDATE SKIP LOCKED`
  *
- * Mongo claimed with an atomic `findOneAndUpdate` over a disjunctive filter.
- * Postgres has a better primitive for exactly this: `SELECT … FOR UPDATE SKIP
+ * `SELECT … FOR UPDATE SKIP
  * LOCKED` in the same statement as the update, so N dispatchers draining the
  * queue never hand each other the same row and never block on one another. The
- * predicate is otherwise identical — a `pending` row that is due, or a
+ * predicate is a `pending` row that is due, or a
  * `processing` row whose lease has expired.
  *
- * ## `timestamps: false` has no counterpart here, and that is the point
+ * ## A repeated enqueue writes nothing
  *
- * The Mongo enqueue carried a long comment about writing `createdAt`/`updatedAt`
- * explicitly under `timestamps: false`, because Mongoose otherwise named
- * `updatedAt` in two operators of one update and Mongo rejected the whole write —
- * which, inside `createReport`'s transaction, took the `Report` with it. Drizzle
- * has no implicit timestamping on a conflict branch: `$onUpdate` fires only for
+ * A failed enqueue inside `createReport`'s transaction would take the `Report`
+ * with it. Drizzle has no implicit timestamping on a conflict branch: `$onUpdate` fires only for
  * an `update()`, and the `DO NOTHING` below writes nothing at all. So a repeated
- * enqueue is a genuine no-op for the same structural reason the Mongo version
- * worked so hard to achieve, rather than by matching its spelling.
+ * enqueue is a genuine no-op.
  */
 
 import { and, asc, eq, gt, lte, or, sql } from 'drizzle-orm';

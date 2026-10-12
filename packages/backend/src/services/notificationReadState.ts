@@ -4,18 +4,11 @@
  *
  * ## Why this module exists
  *
- * There were two implementations and they addressed different databases.
- * `routes/notifications.ts` read and wrote `notifications` in Postgres; the
- * `markNotificationRead` / `markAllNotificationsRead` socket handlers in
- * `server.ts` still wrote the Mongoose model, which nothing reads any more. A
- * notification marked read over the socket therefore came back UNREAD on the
- * next load, for every user, with nothing in any log: both halves behaved
- * correctly on their own and simply disagreed about where the state lived.
- *
- * One store was the fix; one implementation is what stops it recurring. The two
- * call sites also emitted different shapes for the same event — the socket sent
- * a raw Mongoose document with a populated `actorId`, the route sent the
- * enriched wire DTO — so they now agree on that too.
+ * Two implementations of the same state can silently disagree about where it
+ * lives: a notification marked read over the socket would come back UNREAD on
+ * the next load, with nothing in any log. One implementation, writing
+ * `notifications` in Postgres, is what prevents that — and it also makes both
+ * call sites emit the same enriched wire DTO for the same event.
  *
  * ## Recipient scoping lives in the UPDATE's predicate
  *

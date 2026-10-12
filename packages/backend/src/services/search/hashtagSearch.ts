@@ -41,16 +41,15 @@ export function taggedPublicPosts(extra?: SQL): SQL {
     // the bilingual-variant note below makes, one axis over. `trendDetection`
     // measures its term space the same way.
     notCollapsedCrosspostSql(),
-    // `cardinality > 0` covers BOTH shapes Mongo needed two clauses for
-    // (`$exists: true` and `$ne: []`); a NULL array is excluded by the
-    // comparison being NULL, which is the same answer.
+    // `cardinality > 0` excludes both an empty array and (through the
+    // `coalesce`) a NULL one.
     sql`coalesce(cardinality(${posts.hashtags}), 0) > 0`,
     ...(extra ? [extra] : []),
   ) as SQL;
 }
 
 /**
- * `unnest(hashtags)` — the analogue of Mongo's `$unwind`, as a lateral join so
+ * `unnest(hashtags)`, as a lateral join so
  * every tag of every matching post becomes its own row before grouping.
  */
 export const UNNESTED_TAG = sql<string>`lower(tag.value)`;
@@ -59,9 +58,9 @@ export const UNNESTED_TAG = sql<string>`lower(tag.value)`;
  * One page of matching public hashtags with the number of posts carrying each.
  *
  * The needle is a bound PARAMETER inside a `LIKE` pattern with the pattern's own
- * metacharacters escaped, not a regex: a raw user string interpreted as a pattern
- * was the injection / catastrophic-backtracking risk the Mongo version escaped
- * for, and `LIKE` has only three of them.
+ * metacharacters escaped, not a regex: a raw user string interpreted as a regex
+ * is an injection / catastrophic-backtracking risk, and `LIKE` has only three
+ * metacharacters.
  *
  * Paging is a stable keyset: the `{ count desc, tag asc }` sort is fully
  * deterministic (the tag breaks count ties), so `OFFSET` never shuffles rows

@@ -36,7 +36,7 @@ import { MtnConfig } from '@mention/shared-types';
 import type { User as OxyUser } from '@oxy.so/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback } from '../utils/redisHelpers';
+import { setExInBatches, withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -98,7 +98,7 @@ async function readCached(curatorIds: string[]): Promise<Map<string, number>> {
   );
 }
 
-/** Write freshly-resolved counts with a TTL, in one pipelined round trip. */
+/** Write freshly-resolved counts with a TTL, in bounded pipelines (`setExInBatches`). */
 async function writeCached(counts: Map<string, number>): Promise<void> {
   if (counts.size === 0) return;
 
@@ -106,11 +106,11 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const pipeline = redis.multi();
-      for (const [curatorId, count] of counts) {
-        pipeline.setEx(keyFor(curatorId), cacheTtlSeconds, String(count));
-      }
-      await pipeline.exec();
+      await setExInBatches(
+        redis,
+        [...counts].map(([curatorId, count]) => [keyFor(curatorId), String(count)] as const),
+        cacheTtlSeconds,
+      );
     },
     undefined,
     'curatorFollowerCountsWrite',

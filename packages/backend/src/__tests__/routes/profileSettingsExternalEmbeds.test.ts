@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * dot-notation `$set`/`$unset` behaviour and the round-trip through GET.
  */
 
-// In-memory settings store keyed by oxyUserId. Mirrors Mongo's findOneAndUpdate
+// In-memory settings store keyed by oxyUserId. Mirrors the legacy store's findOneAndUpdate
 // upsert with dot-notation $set/$unset so the handler's exact mutation shape is
 // what we assert on.
 const store = new Map<string, Record<string, unknown>>();

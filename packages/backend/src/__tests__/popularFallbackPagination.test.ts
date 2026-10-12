@@ -20,7 +20,7 @@
  *
  * ## Why this is now a row walk rather than a pipeline assertion
  *
- * The predecessor asserted the Mongo pipeline: `clauses[0]` equals
+ * The predecessor asserted the legacy-store pipeline: `clauses[0]` equals
  * `{engagementScore: {$lt: 9.25}}`, `sortStages()` keys are exactly
  * `['engagementScore','createdAt','_id']`. Both of those are TRUE of a query that
  * skips a row at every page boundary, because a keyset's correctness is a

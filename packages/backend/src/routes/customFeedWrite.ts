@@ -7,7 +7,7 @@
  * spread `req.body` — only the known fields are copied, so a client cannot
  * mass-assign `subscriberCount`, `ownerOxyUserId`, ratings, etc.
  *
- * Kept pure (no Express, no Mongo) so the whitelist + validation are unit-testable
+ * Kept pure (no Express, no database) so the whitelist + validation are unit-testable
  * without a server or database; the route handlers do only auth + persistence.
  */
 

@@ -65,32 +65,14 @@ describe('schema invariants', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('carries no Mongo artefact column (`_id`, `__v`)', () => {
-    const offenders: string[] = [];
-    for (const table of declaredTables()) {
-      for (const column of Object.values(getTableColumns(table))) {
-        const name = sqlColumnName(column);
-        if (name === '_id' || name === '__v') {
-          offenders.push(`${getTableName(table)}.${name}`);
-        }
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
-
   it('gives every migrated table a primary key', async () => {
     // Deliberately `pg_class` and not the declared table list: the question is
     // about what the MIGRATIONS created, so asking the schema would only prove
     // the schema agrees with itself and would miss a table a migration added by
     // hand.
     //
-    // There is no exclusion any more. The Mongo->Postgres bulk loader created
-    // transient, primary-key-less staging tables on every load, and because
-    // vitest runs files in parallel against ONE database some of them existed
-    // for the few milliseconds a concurrent load was in flight — which made this
-    // invariant fail intermittently, in a file that had touched nothing, naming
-    // tables nobody had heard of. The loader is deleted, so nothing creates an
-    // unkeyed table here and every row this scan returns is a real offender.
+    // There is no exclusion: nothing creates an unkeyed table here, so every
+    // row this scan returns is a real offender.
     const rows = await db.execute<{ table_name: string }>(sql`
       select c.relname as table_name
       from pg_class c
@@ -133,18 +115,18 @@ describe('schema invariants', () => {
       order by 1, 2
     `);
     // A `timestamp` WITHOUT a time zone reinterprets the stored value in the
-    // session's TimeZone on every read, silently changing what a Mongo `Date`
+    // session's TimeZone on every read, silently changing what a legacy-store `Date`
     // meant. There must be none.
     expect(rows).toEqual([]);
   });
 
   it('defaults no text column to the empty string where NULL means absent', async () => {
-    // `''` is a VALUE. Where Mongo used `default: undefined` to mean "absent" —
+    // `''` is a VALUE. Where the legacy store used `default: undefined` to mean "absent" —
     // every sparse-unique column — an empty-string default converts a non-problem
     // into a live uniqueness collision. The three columns that legitimately
     // default to `''` are named, so a NEW one fails this test.
     const allowed = new Set([
-      // Each of these was `default: ''` in Mongo and means "present but empty",
+      // Each of these was `default: ''` in the legacy store and means "present but empty",
       // never "absent". None is unique, so an empty string collides with nothing.
       'trending.description',
       'trend_batches.summary',

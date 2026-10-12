@@ -163,7 +163,7 @@ describe('PostCreationService — immediate-create federation username sourcing'
     // Crucially the marker is still FALSE: an unfederated post that looks
     // delivered can never be retried by any later path. (The column is
     // `NOT NULL DEFAULT false`, so "unstamped" reads as `false` here, not as
-    // the `undefined` a Mongo document would have shown.)
+    // the `undefined` a legacy-store document would have shown.)
     expect(post.metadata.federationDelivered).toBe(false);
   });
 

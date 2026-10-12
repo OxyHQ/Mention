@@ -24,7 +24,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
 
   // Shared cache: this widget reads a small slice of the same recommendations
   // entry the explore tab and other surfaces use, so it never re-fetches per mount.
-  const { recommendations, isLoading: loading, error } = useRecommendations();
+  const { recommendations, isLoading: loading } = useRecommendations();
 
   const handleShowMore = useCallback(() => {
     router.push('/explore/who-to-follow');
@@ -55,10 +55,10 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
     );
   }
 
-  // A failed fetch leaves the rail with nothing to suggest, which is the same
-  // situation as an empty result — the widget disappears instead of turning the
-  // rail into an error report.
-  if (error || displayedUsers.length === 0) {
+  // With nothing to suggest — an empty page, or a first fetch that failed — the
+  // widget disappears instead of turning the rail into an error report. A failed
+  // refresh keeps the suggestions already on screen.
+  if (displayedUsers.length === 0) {
     return null;
   }
 

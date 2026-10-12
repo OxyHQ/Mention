@@ -270,12 +270,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     /**
      * The cursor is opaque and the keyset names the SAME pair the sort does.
      *
-     * What this replaces was two different axes — sort by `createdAt`, page on
-     * `_id` — gated on `mongoose.Types.ObjectId.isValid`, whose FALSE branch
-     * means "no cursor", i.e. serve page one. Every id minted after the cutover
-     * is a uuid v7, so that guard answered false for all of them and the list
-     * would have handed back the first page forever with no error. A cursor
-     * naming no row now simply matches nothing.
+     * The cursor carries no id-shape guard: ids are uuid v7, and a 24-hex test
+     * would answer false for all of them and hand back the first page forever
+     * with no error. A cursor naming no row simply matches nothing.
      */
     const page = await findReporterReports({
       reporter: userId,

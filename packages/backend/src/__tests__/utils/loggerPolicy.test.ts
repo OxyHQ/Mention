@@ -11,7 +11,7 @@ const BACKEND_ROOT = path.resolve(__dirname, '../../..');
 const SOURCE_ROOT = path.join(BACKEND_ROOT, 'src');
 const LOGGER_METHODS = new Set(['debug', 'error', 'info', 'warn']);
 const SENSITIVE_IDENTIFIER =
-  /(?:^|_)(?:id|ids|did|uri|uris|url|urls|href|inbox|room|ip|ipaddress|address|username|handle|email|acct|query|body|params|content|text|message|dbname|mongouri)$|(?:Id|Ids|Did|Uri|Uris|Url|Urls|Href|Inbox|Room|Ip|IpAddress|Address|Username|Handle|Email|Acct|Query|Body|Params|Content|Text|Message|DbName|MongoUri)$/;
+  /(?:^|_)(?:id|ids|did|uri|uris|url|urls|href|inbox|room|ip|ipaddress|address|username|handle|email|acct|query|body|params|content|text|message|dbname)$|(?:Id|Ids|Did|Uri|Uris|Url|Urls|Href|Inbox|Room|Ip|IpAddress|Address|Username|Handle|Email|Acct|Query|Body|Params|Content|Text|Message|DbName)$/;
 
 function productionFiles(directory: string): string[] {
   const files: string[] = [];
@@ -97,7 +97,7 @@ function scanLoggerCalls(file: string, source: string): LoggerScan {
         /JSON\.stringify\s*\(/.test(callText) ||
         /\breq\.(?:body|query|params)\b/.test(messageText) ||
         /\bsocket\.handshake\.address\b/.test(callText) ||
-        /\b(?:dbName|mongoUri)\b/.test(callText)
+        /\bdbName\b/.test(callText)
       ) {
         violations.push(location(file, sourceFile, node));
       }

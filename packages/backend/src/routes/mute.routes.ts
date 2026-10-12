@@ -16,9 +16,8 @@ const router = Router();
 /**
  * A mute exactly as it goes on the wire.
  *
- * `_id` is what a Mongoose document serialized to and what any client holding an
- * old response still keys on, so the port keeps it. Mongoose's `__v` is dropped:
- * nothing reads it and `CONVENTIONS.md` forbids the column.
+ * `_id` is what any client holding an old response still keys on, so it is
+ * kept. There is no `__v`: nothing reads it and `CONVENTIONS.md` forbids the column.
  */
 interface SerializedMute {
   _id: string;

@@ -24,7 +24,7 @@
  *
  * - `postRecentReplierService.test.ts` reached into
  *   `$let.in.$let.in.$slice[0].$concatArrays[1][0]` to recover the user id a
- *   Mongo aggregation pipeline WOULD have spliced, then re-implemented the merge
+ *   legacy-store aggregation pipeline WOULD have spliced, then re-implemented the merge
  *   inside the mock. `buildRecentReplierUpdatePipeline` and the pure
  *   `mergeRecentRepliers` it checked against are both gone: with a row per
  *   (post, replier) there is no array to splice, so the rules — newest wins per

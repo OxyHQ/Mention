@@ -24,7 +24,7 @@ import {
  *
  * ## WHY THIS READS THE SCHEMA OBJECT AND NOT `src/models/*.ts`
  *
- * It used to scan the Mongoose model tree with a regex over source. Post-cutover
+ * It used to scan the legacy-ODM model tree with a regex over source. Post-cutover
  * that tree is the ABANDONED store: a check pointed at it can only ever describe
  * rows nothing reads, and — once the last model file is deleted — it passes
  * against an empty set however wrong the cascade has become. A check pointed at
@@ -50,7 +50,7 @@ import {
  * The shape regex survived the port UNCHANGED, and that is not luck: `column.name`
  * on a drizzle column is the camelCase PROPERTY name, never the snake_case SQL
  * name — casing is applied at runtime by `drizzle()` (`@oxy.so/db`), not in the
- * table definitions. So the same `Id$`/`Ids$`/`Uri$` shapes the Mongoose schema
+ * table definitions. So the same `Id$`/`Ids$`/`Uri$` shapes the legacy-ODM schema
  * paths had are the shapes the drizzle columns have. A regex written against
  * `post_id` would have matched NOTHING and passed vacuously, which is the trap
  * CONVENTIONS.md documents.

@@ -2,7 +2,7 @@
  * Explicit, fully-typed job payloads for the federation BullMQ queues.
  *
  * Payloads carry only plain JSON-serializable data — BullMQ persists them in
- * Redis, so no Mongoose documents, class instances, or functions may be placed
+ * Redis, so no ORM rows with live references, class instances, or functions may be placed
  * here.
  */
 

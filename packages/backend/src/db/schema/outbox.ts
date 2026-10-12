@@ -2,11 +2,11 @@
  * `engagement_outbox` and `endorsement_outbox` — the two durable work queues
  * that are not federation delivery.
  *
- * Both keep the lease-based claim shape Mongo used: a worker CLAIMS a row by
+ * Both use a lease-based claim shape: a worker CLAIMS a row by
  * setting `lease_owner` + `lease_until`, and an expired lease is reclaimable, so
  * every consumer must be idempotent on the row's id. That is stated in
  * `EngagementOutbox`'s own docblock ("consumers must therefore use `_id` as
- * their idempotency key") and it survives the port unchanged.
+ * their idempotency key").
  */
 
 import { sql } from 'drizzle-orm';
@@ -57,14 +57,12 @@ export const ENDORSEMENT_OUTBOX_STATUSES = ['pending', 'sent'] as const;
  *
  * ## The payload is COLUMNS, not jsonb
  *
- * Mongo declared `payload` as a nested object with eight named leaves — a known
- * shape, so it becomes columns. The one exception is `postAuthorship`, which
- * Mongo typed `[Schema.Types.Mixed]`: it is a SNAPSHOT of the post's authorship
+ * `payload` is a nested object with eight named leaves — a known
+ * shape, so it is columns. The one exception is `postAuthorship`, an untyped
+ * array: it is a SNAPSHOT of the post's authorship
  * at emit time, carried so a downstream consumer does not have to re-read a post
  * that may have changed. It is reconstructible from `post_authorships`, so it is
- * DROPPED rather than ported as jsonb — the consumer reads the rows. That is a
- * deliberate removal of Mongo baggage and it needs the query phase to make the
- * corresponding read; it is called out in the migration report.
+ * NOT stored as jsonb — the consumer reads the rows.
  */
 export const engagementOutbox = pgTable(
   'engagement_outbox',
@@ -78,8 +76,8 @@ export const engagementOutbox = pgTable(
     /** An Oxy account id — no foreign key. */
     payloadActorOxyUserId: text().notNull(),
     /**
-     * CASCADE: an event about a deleted post has nothing left to do. Mongo left
-     * these behind and the dispatcher discovered the missing post at claim time.
+     * CASCADE: an event about a deleted post has nothing left to do, and the
+     * dispatcher never discovers a missing post at claim time.
      */
     payloadPostId: text()
       .notNull()
