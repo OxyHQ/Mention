@@ -256,7 +256,7 @@ jobs:
       # step below, so production is never touched.
       - name: Set up the pinned Node runtime for the browser gate
         if: steps.current_changes.outputs.current == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -272,7 +272,7 @@ jobs:
 
       - name: Upload the browser gate report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mention-e2e-report-${{ env.DEPLOY_SHA }}
           path: packages/e2e/playwright-report
@@ -395,7 +395,7 @@ jobs:
       # were added), so nothing accumulates.
       - name: Keep this release's assets for the next one
         if: steps.current_release.outputs.current == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mention-static-${{ env.DEPLOY_SHA }}
           path: ${{ runner.temp }}/own-static
