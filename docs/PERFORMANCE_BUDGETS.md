@@ -19,7 +19,7 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 20.5 MiB |
+| Total bytes | 20.8125 MiB |
 | JavaScript bytes | 16.45 MiB |
 | Initial JavaScript bytes | 6.9 MiB |
 | Initial JavaScript gzip bytes | 1.78 MiB (target: 1.6 MiB) |
@@ -48,6 +48,13 @@ order of magnitude. `MaterialCommunityIcons.ttf` alone is 1.25 MiB of the 1.91
 MiB font total, against 380 KiB for Ionicons, which the app imports directly in
 86 files; that ratio is the one worth explaining before the font budget is
 treated as comfortable.
+
+The total-bytes ceiling moved 20.5 → 20.75 MiB with the published Oxy SDK
+adoption (`docs/audits/2026-10-04-catalog-and-bundle-followup/`), and
+20.75 → 20.8125 MiB (+64 KiB) with the 2026-10-12 minor-and-patch dependency
+group (#1371): main sat 4 KiB under the ceiling and the group's patch releases
+(TanStack Query, dotlottie, LiveKit and others) add 7.17 KiB, every other
+ceiling unchanged and initial JavaScript +2.83 KiB.
 
 The JavaScript-bytes ceiling was raised from 13 MiB by
 `4ca5f1e feat(i18n): translate all fourteen locales` — the locale catalogues are

@@ -6,9 +6,9 @@
  * entry point (`hydrateMercariaProductRefs` → `getMercariaClient()` → the real
  * SDK) runs unmodified, and the only double is the platform `fetch` the SDK
  * resolves at request time. The double speaks Mercaria's real wire contract —
- * the `{ success, data }` / `{ success: false, error, message }` envelope on
- * `GET /public/v1/...` — so every state asserted below is the SDK's own reading
- * of a response, not Mention's.
+ * the bare value on success and `{ error: { code, message } }` on failure, on
+ * `GET /public/v1/...` (Oxy's shared API conventions, SDK 0.2) — so every state
+ * asserted below is the SDK's own reading of a response, not Mention's.
  *
  * The wire strings (`/public/v1/products/`) are written out literally on
  * purpose: they pin what actually leaves the process. Test files are outside
@@ -69,6 +69,7 @@ function productWire(id: string): Record<string, unknown> {
 function storeWire(id: string): Record<string, unknown> {
   return {
     ref: { kind: 'store', id },
+    oxyAccountId: 'oxy_org_conformance',
     handle: 'night-city-goods',
     name: 'Night City Goods',
     description: null,
@@ -99,25 +100,22 @@ const json = (status: number, body: unknown): Response =>
 const ROUTES: Record<string, () => Response | Promise<Response>> = {
   // An unknown field (`sku`) rides along: the SDK must not pass it through.
   '/products/prod_available': () =>
-    json(200, { success: true, data: { ...productWire('prod_available'), sku: 'SKU-PRIVATE-1' } }),
-  '/products/prod_second': () => json(200, { success: true, data: productWire('prod_second') }),
+    json(200, { ...productWire('prod_available'), sku: 'SKU-PRIVATE-1' }),
+  '/products/prod_second': () => json(200, productWire('prod_second')),
   '/products/prod_gone': () =>
-    json(410, { success: false, error: 'GONE', message: 'No longer available' }),
+    json(410, { error: { code: 'gone', message: 'No longer available' } }),
   '/products/prod_missing': () =>
-    json(404, { success: false, error: 'NOT_FOUND', message: 'Product not found' }),
+    json(404, { error: { code: 'not_found', message: 'Product not found' } }),
   '/products/prod_network': () => Promise.reject(new TypeError('fetch failed')),
   '/products/prod_throttled': () =>
     new Response('Too Many Requests', { status: 429, headers: { 'content-type': 'text/plain' } }),
   // A 404 with no Mercaria body is a proxy talking, and proves nothing about the product.
   '/products/prod_proxy_404': () => new Response('<html>Not Found</html>', { status: 404 }),
   '/products/prod_down': () =>
-    json(503, { success: false, error: 'SERVICE_UNAVAILABLE', message: 'Try later' }),
-  '/stores/store_conformance': () =>
-    json(200, { success: true, data: storeWire('store_conformance') }),
-  '/stores/store_closed': () =>
-    json(410, { success: false, error: 'GONE', message: 'Store closed' }),
-  '/collections/col_conformance': () =>
-    json(200, { success: true, data: collectionWire('col_conformance') }),
+    json(503, { error: { code: 'service_unavailable', message: 'Try later' } }),
+  '/stores/store_conformance': () => json(200, storeWire('store_conformance')),
+  '/stores/store_closed': () => json(410, { error: { code: 'gone', message: 'Store closed' } }),
+  '/collections/col_conformance': () => json(200, collectionWire('col_conformance')),
 };
 
 interface RecordedRequest {
@@ -134,7 +132,7 @@ function installFakeMercaria(): void {
     requests.push({ url, init });
     const route = url.startsWith(prefix) ? ROUTES[url.slice(prefix.length)] : undefined;
     if (!route)
-      return json(404, { success: false, error: 'UNKNOWN_ROUTE', message: 'unexpected request' });
+      return json(404, { error: { code: 'unknown_route', message: 'unexpected request' } });
     return route();
   });
 }
@@ -247,7 +245,7 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       '[MercariaHydration] Mercaria read failed',
       expect.objectContaining({
         kind: 'product',
-        code: 'RATE_LIMITED',
+        code: 'rate_limited',
         status: 429,
         retryable: true,
       }),
@@ -319,7 +317,7 @@ describe('hydrateMercariaProductRefs — through @mercaria.co/sdk', () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
       inFlight -= 1;
       const id = decodeURIComponent(url.slice(url.lastIndexOf('/') + 1));
-      return json(200, { success: true, data: productWire(id) });
+      return json(200, productWire(id));
     });
 
     const results = await hydrateMercariaProductRefs(ids.map(productRefValue));
