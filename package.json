@@ -4,7 +4,7 @@
   "description": "Mention frontend, backend, shared contracts, and MCP server",
   "license": "UNLICENSED",
   "private": true,
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.3",
   "workspaces": {
     "packages": [
       "packages/*"
@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.1.0",
       "@oxy.so/services": "11.2.0-oxy-one.3",
       "@syra.fm/sdk": "^0.16.2",
-      "@types/bun": "1.3.14",
+      "@types/bun": "1.4.2",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",
       "jsonwebtoken": "^9.0.3",
@@ -37,7 +37,7 @@
     "doctor": "bun ./scripts/doctor.mjs",
     "doctor:oxy": "oxy-doctor --ci",
     "check": "bun run check:workspace && bun run build && bun run check:types",
-    "check:workspace": "bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path validate:jev-additive test:edge-activity audit:security",
+    "check:workspace": "bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary validate:commerce-boundary validate:feed-hot-path validate:jev-additive validate:bun-pins test:edge-activity audit:security",
     "check:types": "bun run --parallel typecheck:frontend lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend",
     "test": "bun run --parallel test:shared-types test:backend test:mcp test:frontend",
     "test:shared-types": "bun run --cwd packages/shared-types test",
@@ -55,6 +55,7 @@
     "validate:commerce-boundary": "bun ./scripts/validate-commerce-boundary.mjs && bun ./scripts/test-validate-commerce-boundary.mjs",
     "validate:feed-hot-path": "bun ./scripts/validate-feed-hot-path.mjs && bun ./scripts/test-validate-feed-hot-path.mjs",
     "validate:license": "bun ./scripts/validate-license.mjs",
+    "validate:bun-pins": "bun ./scripts/validate-bun-pins.mjs && bun ./scripts/test-validate-bun-pins.mjs",
     "validate:jev-additive": "node ./scripts/validate-jev-additive.mjs && node --test ./scripts/validate-jev-additive.test.mjs",
     "test:edge-activity": "node --test ./scripts/edge-activity.test.mjs",
     "validate:suite-collection": "bun ./scripts/test-validate-suite-collection.mjs",
