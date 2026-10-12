@@ -19,6 +19,21 @@ import { useExpandableText } from '@/hooks/useExpandableText';
 const BIO_COLLAPSE_CHARS = 200;
 
 /**
+ * A federated profile field arrives as HTML and is shown as plain text. Strip
+ * tags until nothing changes, so a tag split around another one (`<scr<b>ipt>`)
+ * cannot survive a single pass.
+ */
+function fieldPlainText(value: string | null | undefined): string {
+  let text = value ?? '';
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, '');
+  } while (text !== previous);
+  return text;
+}
+
+/**
  * Everything on a profile page between the identity block and the tab strip.
  *
  * Shared by both profile screens, and the sharing is the point: bio, joined
@@ -113,7 +128,7 @@ export const ProfileContent = memo(function ProfileContent({
                 {field.name}
               </Text>
               <LinkifiedText
-                text={field.value?.replace(/<[^>]*>/g, '') || ''}
+                text={fieldPlainText(field.value)}
                 className="text-foreground"
                 style={{ fontSize: 14, flex: 1 }}
               />
