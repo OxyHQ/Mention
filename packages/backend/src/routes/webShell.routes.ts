@@ -31,7 +31,7 @@
  */
 import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
 import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
@@ -39,9 +39,9 @@ import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import {
-  OgData,
-  OxyProfileData,
-  PostOgSafety,
+  type OgData,
+  type OxyProfileData,
+  type PostOgSafety,
   type ProfileSeoFacts,
   canonicalProfilePath,
   injectHeadHtml,
@@ -130,10 +130,16 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
   try {
+    // As Mention, not anonymously. Every web page for a post or profile reads
+    // this, and anonymous calls share Oxy's per-IP general limit (1000 per
+    // 15 minutes) across every Mention task behind the same egress address:
+    // ~9,800 shell 503s a day ("Oxy profile lookup failed (429)", production
+    // 2026-10-11/12). A first-party service token is limited per application.
+    const serviceToken = await getServiceOxyClient().serviceToken();
     const path = `/profiles/username/${encodeURIComponent(handle)}`;
     const response = await measureOxyFetch('GET', path, () =>
       fetch(`${OXY_API_URL}${path}`, {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', Authorization: `Bearer ${serviceToken}` },
         signal: controller.signal,
       }),
     );

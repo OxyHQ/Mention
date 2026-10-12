@@ -39,6 +39,7 @@ vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
     serviceRequest,
+    serviceToken: async () => 'fixture-mention-service-token',
   }),
 }));
 
@@ -248,6 +249,23 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('<title>Mention</title>');
     // Head hints are always injected (browsers benefit; crawlers ignore them).
     expect(res.text).toContain('rel="preconnect"');
+  });
+
+  it('asks Oxy for the profile as Mention, never anonymously', async () => {
+    // Anonymous lookups share Oxy's per-IP limit across every Mention task and
+    // turned ~9,800 page loads a day into 503s (429 from Oxy).
+    stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' } } } });
+
+    const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
+
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const lookup = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/profiles/username/'),
+    );
+    expect(lookup).toBeDefined();
+    const headers = (lookup?.[1] as RequestInit | undefined)?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer fixture-mention-service-token');
   });
 
   const canonicalIdentity = {
