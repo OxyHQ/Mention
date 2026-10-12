@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM oven/bun:1.3.14-alpine AS manifests
+FROM oven/bun:1.4.3-alpine AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
@@ -23,7 +23,7 @@ COPY packages/backend/ packages/backend/
 RUN bun run --cwd packages/shared-types build
 RUN bun run --cwd packages/backend build
 
-FROM oven/bun:1.3.14-alpine AS runtime
+FROM oven/bun:1.4.3-alpine AS runtime
 WORKDIR /app
 
 # ffmpeg powers bounded local frame extraction for /media/poster.

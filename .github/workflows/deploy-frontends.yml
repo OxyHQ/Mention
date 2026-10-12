@@ -41,7 +41,7 @@ permissions:
   contents: read
 
 env:
-  BUN_VERSION: '1.3.14'
+  BUN_VERSION: '1.4.3'
   NODE_VERSION: '24.21.0'
   # The commit under release: the pushed head on `push`, the tested head on
   # `workflow_run`. Both are commits on main; require-current-main.sh refuses

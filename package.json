@@ -4,7 +4,7 @@
   "description": "Mention frontend, backend, shared contracts, and MCP server",
   "license": "UNLICENSED",
   "private": true,
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.3",
   "workspaces": {
     "packages": [
       "packages/*"
@@ -16,7 +16,7 @@
       "@oxy.so/mcp": "1.1.0",
       "@oxy.so/services": "11.2.0-oxy-one.3",
       "@syra.fm/sdk": "^0.16.2",
-      "@types/bun": "1.3.14",
+      "@types/bun": "1.4.2",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",
       "jsonwebtoken": "^9.0.3",
