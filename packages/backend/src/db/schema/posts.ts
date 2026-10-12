@@ -769,6 +769,34 @@ export const posts = pgTable(
       .on(t.createdAt, t.oxyUserId)
       .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
     /**
+     * Recent public posts that carry classified topics, newest first, with the
+     * author and the topics in the key (migration 0064). It serves the query
+     * that builds `topic_affinity_posts` (0065), which topic affinity
+     * (`ContentAffinityService.computeTopicAffinity`) reads on the For You and
+     * who-to-follow request paths; the view's refresh is one window scan every
+     * few minutes instead of one per viewer.
+     *
+     * Without it that query was a GIN bitmap over every post that ever matched
+     * the viewer's topics, ANDed with a 30-day `created_at` bitmap, lossy at the
+     * default `work_mem`: ~29k buffers per call, 0.7 s cold on an idle database
+     * and 30-96 s on a busy one (production, 2026-10-11/12), run per viewer
+     * every two minutes. With it: an index-only walk that stops at the row cap,
+     * ~1k buffers, under 15 ms cold on a copy of production's posts.
+     *
+     * PARTIAL on `cardinality(classification_topics) > 0` because ~92% of posts
+     * carry an empty list; the query spells that predicate out so Postgres can
+     * prove it (it cannot derive it from `&&`). `oxy_user_id` and
+     * `classification_topics` ride as trailing key columns rather than INCLUDE,
+     * which drizzle cannot declare; `id` is unique, so they never affect order.
+     * `classification_topics` already has a GIN index, so its one post-insert
+     * write (classification) was never a HOT update to begin with.
+     */
+    index('posts_public_topic_recent_idx')
+      .on(t.createdAt.desc(), t.id.desc(), t.oxyUserId, t.classificationTopics)
+      .where(
+        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.type} <> 'boost' and ${t.oxyUserId} is not null and cardinality(${t.classificationTopics}) > 0`,
+      ),
+    /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
      *
      * PARTIAL on `thread_id is not null`, and the predicate is doing real work

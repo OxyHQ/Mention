@@ -5,11 +5,11 @@
  * `composeInput` and the storage/federation path in `PostCreationService`.
  */
 
-import { Response } from 'express';
+import type { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostVisibility, PostContent } from '@mention/shared-types';
+import { PostVisibility, type PostContent } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { affinityEventService } from '../../services/AffinityEventService';
 import { postCreationService } from '../../services/PostCreationService';
@@ -585,7 +585,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    await warmClarityDocumentForText(resolveVariant(post.content).text);
+    // Never awaited: publishing must not wait on a crawl. Clarity runs one
+    // crawl worker, so even a waiting reader's link takes seconds, and this
+    // used to hold every post with a link for its full 8 s (p50 8.8 s,
+    // 2026-10-12). Sent now so the author's links queue at Clarity's
+    // waiting-reader priority at once; the response below reports any card
+    // not ready yet as `documentsPending`, and the app fetches it on its own
+    // (`stores/pendingDocuments.ts`).
+    trackBackgroundWork(warmClarityDocumentForText(resolveVariant(post.content).text));
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       // Written or changed by this very request, so there is no community note to

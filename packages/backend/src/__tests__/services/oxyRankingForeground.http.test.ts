@@ -2,7 +2,10 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServer } from '@oxy.so/core/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ForegroundOxyProfileClient } from '../../services/ForegroundOxyProfileClient';
+import {
+  ForegroundOxyProfileClient,
+  ForegroundRankingError,
+} from '../../services/ForegroundOxyProfileClient';
 
 const mocks = vi.hoisted(() => ({ serviceRequest: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -50,6 +53,19 @@ async function endpoint(
         approval = body;
         res.statusCode = failure === 'approval' ? 403 : 201;
         res.end(JSON.stringify({ authorization: { id: 'fixture_approval' } }));
+      } else if (
+        req.url === '/capabilities/tickets' &&
+        (body.runId !== undefined || body.stepId !== undefined)
+      ) {
+        // Oxy's contract for a `direct_request` authorization: the run identity
+        // comes from the authorization row, and a request naming one is refused
+        // (`capabilityAuthority.service.ts`, `direct_request_runtime_scope_override`).
+        res.statusCode = 403;
+        res.end(
+          JSON.stringify({
+            decision: { allowed: false, reason: 'direct_request_runtime_scope_override' },
+          }),
+        );
       } else if (req.url === '/capabilities/tickets') {
         res.end(
           JSON.stringify({
@@ -128,6 +144,11 @@ describe('foreground ranking through common agency and installed SDK transport',
     expect(approval?.body.subjectToken).toBe(REQUESTER);
     expect(approval?.body.expectedCatalog).toEqual(CATALOG);
     expect(approval?.body).not.toHaveProperty('requesterAccountId');
+    const ticket = observed.find((record) => record.path === '/capabilities/tickets');
+    expect(ticket?.body).toEqual({
+      executionAuthorizationId: 'fixture_approval',
+      expectedCatalog: CATALOG,
+    });
     const invoke = observed.find(
       (record) => record.path === '/_oxy/capabilities/profiles/recommendations',
     );
@@ -180,6 +201,24 @@ describe('foreground ranking through common agency and installed SDK transport',
       if (failure !== 'approval') expect(observed.at(-1)?.method).toBe('DELETE');
       if (failure === 'ticket' || failure === 'subject')
         expect(observed.some((record) => record.path.startsWith('/_oxy/'))).toBe(false);
+    },
+  );
+
+  it.each([
+    ['approval', 'FOREGROUND_APPROVAL_REFUSED', { stage: 'approval', status: 403 }],
+    ['ticket', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'decision_refused' }],
+    ['subject', 'FOREGROUND_TICKET_REFUSED', { stage: 'ticket', code: 'claims_mismatch' }],
+    ['invoke', 'FOREGROUND_PROFILE_READ_REFUSED', { stage: 'invoke', status: 403 }],
+    ['cleanup', 'FOREGROUND_APPROVAL_CLEANUP_FAILED', { stage: 'cleanup', status: 503 }],
+  ] as const)(
+    'says which round trip failed on %s, without the bearer',
+    async (failure, message, expected) => {
+      const { client } = await endpoint(failure);
+      const error = await client.recommend({ limit: 10 }).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ForegroundRankingError);
+      expect((error as ForegroundRankingError).message).toBe(message);
+      expect((error as ForegroundRankingError).failure).toMatchObject(expected);
+      expect(JSON.stringify((error as ForegroundRankingError).failure)).not.toContain(REQUESTER);
     },
   );
 });

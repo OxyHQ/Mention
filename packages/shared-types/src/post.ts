@@ -2,6 +2,7 @@
  * Post-related types for Mention social network
  */
 
+import type { ImageVariantName } from '@oxy.so/utils/image';
 import type { CommunityNoteSummary } from './communityNotes';
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
 import type { Document as ClarityDocument } from '@clarity.surf/sdk' with {
@@ -84,13 +85,13 @@ export enum PostVisibility {
  * no-variant original costs ~15x (measured on a live banner: 2.66 MB PNG
  * original / 270 KB `w2048` / 179 KB `w1280`).
  */
-export const MEDIA_VARIANT_THUMB = 'w320';
-export const MEDIA_VARIANT_FULL = 'w2048';
-export const MEDIA_VARIANT_AVATAR = 'w96';
-export const MEDIA_VARIANT_AVATAR_LG = 'thumb';
-export const MEDIA_VARIANT_VIDEO_THUMB = 'w320';
-export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280';
-export const MEDIA_VARIANT_BANNER = 'w1280';
+export const MEDIA_VARIANT_THUMB = 'w320' satisfies ImageVariantName;
+export const MEDIA_VARIANT_FULL = 'w2048' satisfies ImageVariantName;
+export const MEDIA_VARIANT_AVATAR = 'w96' satisfies ImageVariantName;
+export const MEDIA_VARIANT_AVATAR_LG = 'thumb' satisfies ImageVariantName;
+export const MEDIA_VARIANT_VIDEO_THUMB = 'w320' satisfies ImageVariantName;
+export const MEDIA_VARIANT_VIDEO_POSTER = 'w1280' satisfies ImageVariantName;
+export const MEDIA_VARIANT_BANNER = 'w1280' satisfies ImageVariantName;
 
 export interface MediaItem {
   id: string;

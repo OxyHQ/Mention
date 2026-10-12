@@ -217,6 +217,21 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       "USING btree (created_at, oxy_user_id) WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
   },
   {
+    name: 'posts_public_topic_recent_idx',
+    table: 'posts',
+    serves:
+      'the eligible window `topic_affinity_posts` (0065) is built from — the posts topic affinity ' +
+      'reads for the For You affinity lane and who-to-follow — as an index walk instead of a lossy GIN ' +
+      'bitmap over the whole history (~29k buffers, 30-96 s on a busy database). PARTIAL on a ' +
+      'non-empty topic list (~8% of posts); the query spells `cardinality(...) > 0` so the planner ' +
+      'can prove it, and orders `desc nulls last` to walk the key in order',
+    definition:
+      'CREATE INDEX posts_public_topic_recent_idx ON public.posts ' +
+      'USING btree (created_at DESC NULLS LAST, id DESC NULLS LAST, oxy_user_id, classification_topics) ' +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (type <> 'boost'::text) " +
+      'AND (oxy_user_id IS NOT NULL) AND (cardinality(classification_topics) > 0))',
+  },
+  {
     name: 'posts_thread_idx',
     table: 'posts',
     serves:
@@ -964,6 +979,49 @@ it('bounds the federation URL index build, restores prior timeouts and serves ex
       sql`explain (costs off) select id from posts where federation_url = 'https://www.threads.com/@fixture/post/101' and status = 'published' and visibility = 'public' limit 1`,
     );
     expect(rows.map((row) => row['QUERY PLAN']).join('\n')).toContain('posts_federation_url_idx');
+  });
+});
+
+it('bounds the topic-affinity index build, restores prior timeouts and serves the view window', async () => {
+  const migration = readFileSync(
+    path.resolve(__dirname, '../../../drizzle/0064_posts_public_topic_recent_idx.sql'),
+    'utf8',
+  );
+  await db.transaction(async (tx) => {
+    // A private table shadows public.posts only on this transaction's connection.
+    await tx.execute(
+      sql`create temp table posts (id text, oxy_user_id text, classification_topics text[], visibility text, status text, type text, created_at timestamptz) on commit drop`,
+    );
+    // Production's proportions: most posts carry no topics, and the classified
+    // ones span far more than the 30-day window.
+    await tx.execute(
+      sql`insert into posts select n::text, 'author-' || (n % 500)::text, case when n % 12 = 0 then array['tech', 'topic-' || (n % 40)::text] else '{}'::text[] end, case when n % 7 = 0 then 'private' else 'public' end, case when n % 10 = 0 then 'draft' else 'published' end, case when n % 9 = 0 then 'boost' else 'post' end, now() - (n || ' minutes')::interval from generate_series(1, 400000) n`,
+    );
+    await tx.execute(sql`set local lock_timeout = '750ms'`);
+    await tx.execute(sql`set local statement_timeout = '90s'`);
+    let boundedBuildObserved = false;
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      if (/^CREATE INDEX/m.test(statement)) {
+        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+          sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+        );
+        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
+        boundedBuildObserved = true;
+      }
+      await tx.execute(sql.raw(statement));
+    }
+    expect(boundedBuildObserved).toBe(true);
+    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(
+      sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`,
+    );
+    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
+    await tx.execute(sql`analyze posts`);
+    // The window `topic_affinity_posts` (0065) is defined by.
+    const rows = await tx.execute<{ 'QUERY PLAN': string }>(
+      sql`explain (costs off) select id, oxy_user_id, created_at, classification_topics from posts where visibility = 'public' and status = 'published' and type <> 'boost' and oxy_user_id is not null and cardinality(classification_topics) > 0 and created_at >= now() - interval '30 days'`,
+    );
+    const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
+    expect(plan).toContain('posts_public_topic_recent_idx');
   });
 });
 

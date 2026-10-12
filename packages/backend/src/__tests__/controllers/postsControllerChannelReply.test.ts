@@ -244,3 +244,28 @@ describe('POST /posts — a channel post takes no replies', () => {
     expect(params.continuesOwnThread).toBeUndefined();
   });
 });
+
+describe('POST /posts — publishing never waits on a link crawl', () => {
+  it("answers while Clarity is still resolving the post's link", async () => {
+    const { warmClarityDocumentForText } = await import('../../utils/clarityDocumentWarm');
+    const { postHydrationService } = await import('../../services/PostHydrationService');
+    // A crawl that never finishes: the old awaited warm would hang here.
+    vi.mocked(warmClarityDocumentForText).mockReturnValueOnce(new Promise(() => {}));
+    vi.mocked(postHydrationService.hydratePosts).mockResolvedValueOnce([
+      { id: 'pccr-linked', documentsPending: true } as never,
+    ]);
+    create.mockResolvedValue({
+      id: 'pccr-linked',
+      oxyUserId: OPERATOR,
+      content: {
+        variants: [{ source: 'author', text: 'read https://example.com/article', tag: 'en' }],
+      },
+    });
+
+    const res = makeRes();
+    await createPost(req({ content: { text: 'read https://example.com/article' } }), res as never);
+
+    expect(warmClarityDocumentForText).toHaveBeenCalledWith('read https://example.com/article');
+    expect(res.statusCode).toBeLessThan(300);
+  });
+});

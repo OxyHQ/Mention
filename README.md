@@ -9,7 +9,7 @@
   <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo&logoColor=white">
   <img alt="React Native 0.86" src="https://img.shields.io/badge/React%20Native-0.86-61DAFB?style=flat-square&logo=react&logoColor=black">
   <img alt="TypeScript 6" src="https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white">
-  <img alt="Bun 1.3.14" src="https://img.shields.io/badge/Bun-1.3.14-000000?style=flat-square&logo=bun&logoColor=white">
+  <img alt="Bun 1.4.3" src="https://img.shields.io/badge/Bun-1.4.3-000000?style=flat-square&logo=bun&logoColor=white">
 </p>
 
 ---
@@ -49,7 +49,7 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 
 ## Quick start
 
-You need [Bun](https://bun.sh) 1.3.14, Node.js 24.21.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
+You need [Bun](https://bun.sh) 1.4.3, Node.js 24.21.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
 
 ```bash
 bun install --frozen-lockfile

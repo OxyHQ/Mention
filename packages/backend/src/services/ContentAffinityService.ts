@@ -67,6 +67,7 @@ import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
 import { posts } from '../db/schema/posts';
+import { topicAffinityPosts } from '../db/schema/discovery';
 import type { UserBehaviorRecord } from '../db/userProfile/userBehaviorRecord';
 import { loadUserBehavior } from '../db/userProfile/userBehaviorRepository';
 import { getRedisClient } from '../utils/redis';
@@ -392,8 +393,18 @@ export class ContentAffinityService {
     try {
       // One aggregation: recent public posts whose classified topics intersect the
       // viewer's preferred topics, grouped by author, tracking which preferred
-      // topics they covered and their post volume. Index-served by
-      // {postClassification.topics, visibility, status, createdAt}.
+      // topics they covered and their post volume.
+      //
+      // The posts come from `topic_affinity_posts`, a narrow materialized view of
+      // exactly the eligible rows (public, published, authored, non-boost, with
+      // topics, last 30 days) that `TopicAffinityRefreshJob` refreshes on the
+      // leader. Reading `posts` itself cost up to ~17k heap pages per call —
+      // pages the engagement counters keep rewriting, so never all-visible and
+      // rarely cached: slow-query median 18 s in a normal week (2026-10-03..09).
+      // The view's eligibility filter replaces the one this query used to carry;
+      // the `since` window still applies here, so a view that missed a refresh
+      // can lag new posts but never widen the window.
+      //
       // The bounded scan is an inner subquery so the row cap applies BEFORE the
       // grouping — grouping the whole corpus
       // and capping afterwards would be a different (and unbounded) query.
@@ -403,22 +414,21 @@ export class ContentAffinityService {
       // three preferred topics as three posts; the unit is posts.
       const scanned = getDb()
         .select({
-          id: posts.id,
-          oxyUserId: posts.oxyUserId,
-          classificationTopics: posts.classificationTopics,
+          id: topicAffinityPosts.postId,
+          oxyUserId: topicAffinityPosts.oxyUserId,
+          classificationTopics: topicAffinityPosts.topics,
         })
-        .from(posts)
+        .from(topicAffinityPosts)
         .where(
           and(
-            arrayOverlaps(posts.classificationTopics, topics),
-            eq(posts.visibility, 'public'),
-            eq(posts.status, 'published'),
-            ne(posts.type, PostType.BOOST),
-            isNotNull(posts.oxyUserId),
-            gte(posts.createdAt, since),
+            arrayOverlaps(topicAffinityPosts.topics, topics),
+            gte(topicAffinityPosts.createdAt, since),
           ),
         )
-        .orderBy(desc(posts.createdAt), desc(posts.id))
+        .orderBy(
+          sql`${topicAffinityPosts.createdAt} desc nulls last`,
+          sql`${topicAffinityPosts.postId} desc nulls last`,
+        )
         .limit(MAX_AUTHORS_PER_TOPIC * topics.length)
         .as('scanned');
 

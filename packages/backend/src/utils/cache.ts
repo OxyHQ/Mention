@@ -34,7 +34,7 @@
  */
 import { logger } from './logger';
 import { getRedisClient, reportRedisConnectionFailure } from './redis';
-import { isRedisConnectionError } from './redisHelpers';
+import { isRedisConnectionError, setExInBatches } from './redisHelpers';
 
 /** How a cache instance stores its values; see {@link CacheConfig.staleAfterMs}. */
 interface StoredEnvelope<T> {
@@ -343,11 +343,12 @@ export function createCache(config: CacheConfig): Cache {
       if (pairs.length === 0) return;
 
       await withFallback('mSet', undefined, async (client) => {
-        const pipeline = client.multi();
-        for (const [key, value] of pairs) {
-          pipeline.setEx(key, ttl, encode(value));
-        }
-        await pipeline.exec();
+        // Bounded pipelines, never one MULTI: see `setExInBatches`.
+        await setExInBatches(
+          client,
+          pairs.map(([key, value]) => [key, encode(value)] as const),
+          ttl,
+        );
       });
     },
 

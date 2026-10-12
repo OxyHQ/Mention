@@ -92,6 +92,7 @@ import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
+import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 // Deep imports, NOT the `@/components/Compose` barrel. The barrel re-exports
 // eight sheets (`AltTextSheet`, `UnpublishedSheet`, `EmojiPickerSheet`,
 // `GifPickerSheet`, `PodcastPickerSheet`, `ReplySettingsSheet`, `ScheduleSheet`,
@@ -3343,7 +3344,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                         url={link.url}
                                         title={link.title}
                                         description={link.description}
-                                        image={link.image}
+                                        image={linkPreviewImageSources(link.image)}
                                         siteName={link.siteName}
                                       />
                                     </AttachmentCarouselItem>
