@@ -72,7 +72,6 @@ env:
   APP: mention
   CLUSTER: oxy-cluster
   SERVICE: mention
-  DOCKERFILE: packages/backend/Dockerfile
   DEPLOY_SHA: ${{ github.sha }}
 
 permissions:
@@ -107,18 +106,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      # Production builds only what the owner reviewed: the Dockerfile, context,
+      # target and both .dockerignore files must match the ONE pin in
+      # .github/scripts/reviewed-images.json, or nothing is built or pushed.
+      # The build takes its Dockerfile, context and labels from these outputs.
+      # CI runs the same check on every pull request and merge group
+      # (`reviewed-image.py check`, ci.yml job "Build, lint and typecheck").
+      - name: Refuse unreviewed image build inputs
+        id: reviewed
+        run: python3 -B .github/scripts/reviewed-image.py guard --recipe mention
+
       - name: Build and push the purge image (its own tag; never `latest`)
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: ${{ env.DOCKERFILE }}
+          context: ${{ steps.reviewed.outputs.context }}
+          file: ${{ steps.reviewed.outputs.dockerfile }}
           platforms: linux/arm64
           push: true
           tags: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}:purge-blockedcontent-${{ env.DEPLOY_SHA }}
           cache-from: type=gha,scope=mention-backend
           provenance: true
           sbom: true
+          labels: |-
+            org.opencontainers.image.revision=${{ env.DEPLOY_SHA }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            io.oxy.source.tree=${{ steps.reviewed.outputs.source_tree }}
+            io.oxy.build-inputs.sha256=${{ steps.reviewed.outputs.build_inputs_sha256 }}
 
       - name: Audit final purge runtime image
         env:

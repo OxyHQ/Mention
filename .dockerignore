@@ -1,7 +1,7 @@
 **/node_modules
 **/dist
 .expo
-.git
+**/.git
 .github
 *.md
 infrastructure/
@@ -9,12 +9,14 @@ package-lock.json
 **/coverage/
 **/*.tsbuildinfo
 **/.claude/
+# Local git worktrees (excluded via .git/info/exclude, so a checkout can hold
+# dozens of full copies of the repo, each with its own local files).
+.worktrees/
 
-# Never send local secrets or platform credentials to a Docker builder. Keep
-# examples available to developers without allowing their populated variants
-# into image layers or remote build caches.
+# Never send local secrets or platform credentials to a Docker builder. No
+# build step reads an .env file, examples included (the builds are `tsc`), so
+# every variant stays out of image layers and remote build caches.
 **/.env*
-!**/.env.example
 **/.npmrc
 **/.aws/
 **/.ssh/
